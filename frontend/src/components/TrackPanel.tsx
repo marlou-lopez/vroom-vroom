@@ -1,0 +1,188 @@
+import { useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import type { TrackMap } from "../api/types";
+import { MAP_H, MAP_PAD, MAP_W, type PlaybackModel } from "../lib/model";
+import { distanceAtTime, indexAtTime, timeAtDistance } from "../lib/playback";
+import { formatDelta, gearLabel } from "../lib/format";
+import { cx } from "../lib/cx";
+import { cornerAt, MAP_HIT_PX, pointAtDistance, SCRUB_WINDOW_M, scrubTarget, segmentPath } from "../lib/trackmap";
+import { usePlayback, usePlaybackStore } from "../state/playback";
+import styles from "./TrackPanel.module.css";
+
+export interface TrackPanelProps {
+  model: PlaybackModel;
+  trackMap: TrackMap | null;
+  /** SVG children drawn in map coordinates (tinted segments), under the dots. */
+  mapLayer?: ReactNode;
+  /** SVG children drawn in map coordinates above the dots (numbered badges). They take pointer priority over scrubbing. */
+  badgeLayer?: ReactNode;
+  /** Bottom strip of the panel (EngineerLine). */
+  footer?: ReactNode;
+}
+
+const VIEWBOX = `${-MAP_PAD} ${-MAP_PAD} ${MAP_W + 2 * MAP_PAD} ${MAP_H + 2 * MAP_PAD}`;
+const BADGE_SELECTOR = "[data-annotation-badge]";
+
+interface Ghost {
+  index: number;
+  x: number;
+  y: number;
+  distance: number;
+  corner: string | null;
+}
+
+interface Drag {
+  pointerId: number;
+  /** Grid index of the last scrub position; the next windowed search is centred on it. */
+  index: number;
+  resume: boolean;
+}
+
+export function TrackPanel({ model, trackMap, mapLayer, badgeLayer, footer }: TrackPanelProps) {
+  const store = usePlaybackStore();
+  const tau = usePlayback((s) => s.tau);
+  const { cmp, proj } = model;
+  const svgRef = useRef<SVGSVGElement>(null);
+  const drag = useRef<Drag | null>(null);
+  // Hover and drag state stays here: pointer moves re-render this panel only, never the page.
+  const [ghost, setGhost] = useState<Ghost | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const iy = indexAtTime(cmp.lap.t, tau);
+  const dYou = distanceAtTime(cmp.lap.t, cmp.distance, tau);
+  const dRef = distanceAtTime(cmp.ref.t, cmp.distance, tau);
+  const you = pointAtDistance(proj, cmp.distance, dYou);
+  const ref = pointAtDistance(proj, cmp.distance, dRef);
+  const corner = trackMap ? cornerAt(trackMap, dYou) : null;
+  const delta = cmp.delta[iy] ?? 0;
+  const gap = Math.round(dRef - dYou);
+
+  // The tinted segment only changes when the corner does.
+  const cornerId = corner?.id ?? null;
+  const cornerPath = useMemo(() => {
+    const c = trackMap?.corners.find((k) => k.id === cornerId);
+    if (!c || c.start_m > c.end_m) return "";
+    return segmentPath(proj, cmp.distance, c.start_m, c.end_m);
+  }, [trackMap, cornerId, proj, cmp.distance]);
+
+  const gapLabel = gap > 0 ? `reference ${gap} m ahead` : gap < 0 ? `reference ${-gap} m behind` : "level with reference";
+
+  /** Pointer position in map units plus the 12 px hit radius converted to map units; null before layout. */
+  const toMap = (e: PointerEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!svg || !ctm) return null;
+    const pt = svg.createSVGPoint();
+    pt.x = e.clientX;
+    pt.y = e.clientY;
+    const p = pt.matrixTransform(ctm.inverse());
+    const pxPerUnit = Math.hypot(ctm.a, ctm.b) || 1;
+    return { x: p.x, y: p.y, maxDist: MAP_HIT_PX / pxPerUnit };
+  };
+
+  const seekToIndex = (index: number) => store.seek(timeAtDistance(cmp.lap.t, cmp.distance, cmp.distance[index] ?? index));
+
+  const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
+    if (e.button !== 0 || drag.current || (e.target as Element).closest(BADGE_SELECTOR)) return;
+    const m = toMap(e);
+    if (!m) return;
+    // Grabbing your own dot continues from where it is (windowed); otherwise the whole lap is searched.
+    const onDot = Math.hypot(you.x - m.x, you.y - m.y) <= m.maxDist;
+    const centre = Math.round(dYou);
+    const hit = scrubTarget(proj, m.x, m.y, m.maxDist, onDot ? { index: centre, halfWindow: SCRUB_WINDOW_M } : undefined);
+    if (!hit) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const resume = store.get().playing;
+    store.pause();
+    drag.current = { pointerId: e.pointerId, index: hit.index, resume };
+    setDragging(true);
+    setGhost(null);
+    seekToIndex(hit.index);
+  };
+
+  const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
+    const m = toMap(e);
+    if (!m) return;
+    const d = drag.current;
+    if (d) {
+      if (e.pointerId !== d.pointerId) return;
+      const hit = scrubTarget(proj, m.x, m.y, m.maxDist, { index: d.index, halfWindow: SCRUB_WINDOW_M });
+      if (!hit) return;
+      d.index = hit.index;
+      seekToIndex(hit.index);
+      return;
+    }
+    if (e.pointerType === "touch" || (e.target as Element).closest(BADGE_SELECTOR)) {
+      setGhost(null);
+      return;
+    }
+    const hit = scrubTarget(proj, m.x, m.y, m.maxDist);
+    if (!hit) {
+      setGhost(null);
+      return;
+    }
+    setGhost((prev) => {
+      if (prev?.index === hit.index) return prev;
+      const distance = cmp.distance[hit.index] ?? hit.index;
+      return { index: hit.index, x: proj.x[hit.index], y: proj.y[hit.index], distance, corner: trackMap ? (cornerAt(trackMap, distance)?.name ?? null) : null };
+    });
+  };
+
+  const endDrag = (e: PointerEvent<SVGSVGElement>) => {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.pointerId) return;
+    drag.current = null;
+    setDragging(false);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    if (d.resume) store.play();
+  };
+
+  const labelRight = ghost ? ghost.x <= MAP_W / 2 : true;
+
+  return (
+    <section aria-label="Track playback" className={styles.panel}>
+      <div className={styles.readout}>
+        <div className={styles.corner}>{corner ? corner.name : "Straight"}</div>
+        <div className={cx(styles.mono, styles.muted)}>
+          {Math.round(dYou).toLocaleString("en-US")} m · gear {gearLabel(cmp.lap.gear[iy])} · {Math.round(cmp.lap.speed_kmh[iy])} km/h
+        </div>
+      </div>
+      <div className={styles.deltaBox}>
+        <div className={cx(styles.delta, delta > 0.005 && styles.loss, delta < -0.005 && styles.gain)}>{formatDelta(delta)} s</div>
+        <div className={cx(styles.mono, styles.muted)}>{gapLabel}</div>
+      </div>
+      <svg
+        ref={svgRef}
+        viewBox={VIEWBOX}
+        aria-hidden="true"
+        className={styles.map}
+        data-near={ghost !== null}
+        data-dragging={dragging}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onLostPointerCapture={endDrag}
+        onPointerLeave={() => setGhost(null)}
+      >
+        <path d={model.mapPath} className={styles.base} />
+        {cornerPath && <path d={cornerPath} className={styles.cornerNow} />}
+        {mapLayer}
+        {ghost && !dragging && (
+          <>
+            <circle cx={ghost.x} cy={ghost.y} r={3.2} className={styles.ghostDot} />
+            <text
+              x={ghost.x + (labelRight ? 7 : -7)} y={ghost.y - 5}
+              textAnchor={labelRight ? "start" : "end"} className={styles.ghostLabel}
+            >
+              {Math.round(ghost.distance).toLocaleString("en-US")} m{ghost.corner ? ` · ${ghost.corner}` : ""}
+            </text>
+          </>
+        )}
+        <circle cx={ref.x} cy={ref.y} r={3.6} className={styles.refDot} />
+        <circle cx={you.x} cy={you.y} r={3.6} className={styles.youDot} />
+        {badgeLayer}
+      </svg>
+      {footer && <div className={styles.footer}>{footer}</div>}
+    </section>
+  );
+}

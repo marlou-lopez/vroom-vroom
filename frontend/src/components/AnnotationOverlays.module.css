@@ -1,0 +1,59 @@
+/* Tinted corner segment on the map; stroke colour is per annotation (inline). */
+.segment {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-opacity: 0.75;
+}
+
+/* Numbered badge on the map (SVG group). Fill is per annotation (inline). */
+.mapBadge { cursor: pointer; }
+.mapBadge:hover .mapBadgeDot, .mapBadge:focus-visible .mapBadgeDot { stroke: var(--color-text); }
+.mapBadge:focus-visible { outline: none; }
+.mapBadgeDot { stroke: var(--color-bg); stroke-width: 1.2; }
+.mapBadgeText {
+  font-size: 7px;
+  font-weight: 700;
+  fill: var(--color-bg);
+  font-family: var(--font-sans);
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+/* Chips and scrubber badges share the pill look. Background is per annotation (inline). */
+.chip, .scrubBadge {
+  color: var(--color-bg);
+  border: 0;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.chip:hover, .scrubBadge:hover { filter: brightness(1.2); }
+
+.chip {
+  position: absolute;
+  bottom: 4px;
+  transform: translateX(calc(-50% + var(--shift, 0px)));
+  pointer-events: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  white-space: nowrap;
+}
+
+/* One wide layer holding every chip. DetailedStrips sets its width and transform imperatively on each scale change. */
+.chipLayer { position: absolute; top: 0; bottom: 0; left: 0; pointer-events: none; will-change: transform; }
+
+.section { position: absolute; top: 0; bottom: 0; }
+
+.scrubBadge {
+  position: absolute;
+  top: -8px;
+  transform: translateX(calc(-50% + var(--shift, 0px)));
+  border: 2px solid var(--color-bg);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}

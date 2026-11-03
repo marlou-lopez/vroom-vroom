@@ -1,0 +1,51 @@
+.transport { border-top: 1px solid var(--color-border); padding: 6px 10px 8px; display: flex; flex-direction: column; gap: 4px; }
+
+.controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+button.play { padding: 3px 12px; font-weight: 700; min-width: 64px; }
+
+.speeds { display: flex; gap: 2px; margin-left: 4px; }
+.speeds .speed { font-family: var(--font-mono); padding: 3px 6px; border-radius: var(--radius); }
+.spacer { flex: 1; }
+.clock { font-family: var(--font-mono); color: var(--color-muted); }
+
+.scrubWrap { position: relative; }
+
+/* The Radix Slider root: a bordered 34 px box. The delta line and annotation sections are drawn behind the thumb. */
+.scrubber {
+  position: relative;
+  display: block;
+  height: 34px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+}
+.scrubber:hover { border-color: var(--color-border-strong); }
+.scrubber:has(.thumb:focus-visible) { outline: 2px solid var(--color-you); outline-offset: 1px; }
+.scrubber[data-disabled] { cursor: default; opacity: 0.6; }
+
+.layers { position: absolute; inset: 0; overflow: hidden; border-radius: var(--radius); pointer-events: none; }
+.layers > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.baseline { stroke: var(--color-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.delta { fill: none; stroke: var(--color-issue); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+
+/* The playhead is the slider thumb. */
+.thumb { display: block; width: 2px; height: 32px; background: var(--color-you); outline: none; }
+
+.ticks { position: relative; height: 16px; }
+.tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--color-muted);
+  font-size: 10px;
+  padding: 0 2px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tick:hover { color: var(--color-text); background: var(--color-hover); }
+.tick.current { color: var(--color-you); }

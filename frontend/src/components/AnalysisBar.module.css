@@ -1,0 +1,38 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--color-border);
+  min-height: 30px;
+  flex-wrap: wrap;
+}
+
+.busy { color: var(--color-you); font-weight: 600; }
+.muted { color: var(--color-muted); }
+.group { display: inline-flex; }
+.groupGap { display: inline-flex; gap: 2px; }
+.spacer { flex: 1; }
+.mono { font-family: var(--font-mono); }
+.error { color: var(--color-issue); font-family: var(--font-mono); }
+
+.delta { font-family: var(--font-mono); font-weight: 600; color: var(--color-muted); }
+.deltaLoss { color: var(--color-issue); }
+.deltaGain { color: var(--color-strength); }
+
+.focus { border: 1px dashed var(--color-you); border-radius: var(--radius); padding: 2px 6px; }
+
+/* Split-button halves: the main button on the left, the menu caret attached on the right. */
+button.analyze { border-radius: var(--radius) 0 0 var(--radius); padding: 4px 12px; font-weight: 700; }
+.caretPrimary {
+  background: var(--color-you);
+  color: var(--color-on-accent);
+  border: 0;
+  border-left: 1px solid var(--color-bg);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 4px 7px;
+  cursor: pointer;
+}
+.caretPrimary:hover:not(:disabled) { filter: brightness(1.12); }
+.caretPrimary:disabled { opacity: 0.45; cursor: not-allowed; }
+button.caretGhost { padding: 3px 6px; }

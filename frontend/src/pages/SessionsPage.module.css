@@ -1,0 +1,51 @@
+.page { padding: var(--pad); display: flex; flex-direction: column; gap: var(--gap); }
+.status { padding: 16px; color: var(--color-muted); }
+.statusError { padding: 16px; color: var(--color-issue); }
+
+.chips { display: flex; gap: var(--gap); flex-wrap: wrap; }
+.count { font-family: var(--font-mono); color: var(--color-muted); }
+
+.row { display: flex; gap: var(--gap); flex-wrap: wrap; }
+.trend { flex: 2 1 560px; min-width: 0; }
+.trendHead { display: flex; justify-content: space-between; align-items: baseline; }
+.pb { color: var(--color-muted); }
+.pbValue { font-family: var(--font-mono); color: var(--color-you); }
+
+.plot { position: relative; height: 200px; margin-top: 8px; }
+.plot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.grid { stroke: var(--color-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.theo { fill: none; stroke: var(--color-muted); stroke-width: 1.2; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+.best { fill: none; stroke: var(--color-you); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.axis { position: absolute; left: 4px; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); }
+.axisTop { top: 0; }
+.axisBottom { bottom: 0; }
+
+.legend { display: flex; gap: 16px; color: var(--color-muted); padding-top: 6px; }
+.legendBest { color: var(--color-you); }
+
+.cards { flex: 1 1 260px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap); }
+.cardKey { font-size: 10px; color: var(--color-muted); letter-spacing: 0.08em; }
+.cardValue { font-family: var(--font-mono); font-size: 20px; }
+.gain { color: var(--color-strength); }
+.loss { color: var(--color-issue); }
+
+.list { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; min-width: 820px; }
+.table th { font-weight: 500; padding: 4px 6px; color: var(--color-muted); text-align: left; }
+.table td { padding: 5px 6px; }
+.table tbody tr { border-top: 1px solid var(--color-border); }
+.table tbody tr:hover { background: var(--color-hover); }
+.table .num { text-align: right; font-family: var(--font-mono); }
+.table th.num { font-family: inherit; }
+.table .date { font-family: var(--font-mono); }
+.table .dim { color: var(--color-muted); }
+.table .pbCell { color: var(--color-you); }
+.table .open { text-align: right; white-space: nowrap; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+.tone-good { color: var(--color-strength); }
+.tone-bad { color: var(--color-issue); }
+.tone-unclear { color: var(--color-muted); }
+
+.openLink { color: var(--color-you); text-decoration: none; }
+.openLink:hover { text-decoration: underline; }

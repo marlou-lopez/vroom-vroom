@@ -1,0 +1,8 @@
+.env
+.venv/
+node_modules/
+frontend/dist/
+*.duckdb
+!backend/tests/fixtures/*.duckdb
+__pycache__/
+.pyright/

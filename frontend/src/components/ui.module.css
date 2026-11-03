@@ -1,0 +1,112 @@
+/* Shared building blocks: buttons, panels, headings, Radix menu surfaces. Tokens come from theme.ts via :root. */
+.mono { font-family: var(--font-mono); }
+
+.panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--pad);
+}
+
+.heading {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--color-muted);
+}
+
+.muted { color: var(--color-muted); }
+
+/* Outlined button. */
+.btn {
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) { background: var(--color-hover); }
+.btn:disabled, .btnPrimary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btnMuted { color: var(--color-muted); }
+.btnMuted:hover:not(:disabled) { color: var(--color-text); }
+
+.btnStrong { border-color: var(--color-border-strong); }
+
+/* Filled with the lap colour. */
+.btnPrimary {
+  background: var(--color-you);
+  color: var(--color-on-accent);
+  border: 0;
+  border-radius: var(--radius);
+  padding: 4px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btnPrimary:hover:not(:disabled) { filter: brightness(1.12); }
+
+/* Round filter chip (combo / track pickers). */
+.chip {
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.chip:hover { background: var(--color-hover); }
+.chip[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-you); }
+
+/* Segmented toggle (Radix ToggleGroup items). */
+.toggleItem {
+  background: transparent;
+  color: var(--color-muted);
+  border: 0;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+.toggleItem:hover { background: var(--color-hover); color: var(--color-text); }
+.toggleItem[data-state="on"] { background: var(--color-selected); color: var(--color-text); }
+.toggleItem:focus-visible { outline-offset: -2px; }
+
+/* Radix DropdownMenu surfaces. */
+.menuContent {
+  z-index: 30;
+  min-width: var(--menu-min, 220px);
+  max-height: min(420px, var(--radix-dropdown-menu-content-available-height));
+  overflow-y: auto;
+  background: var(--color-popup);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  padding: 4px;
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  outline: none;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-radius: var(--radius);
+  padding: 4px 6px;
+  color: var(--color-text);
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+.menuItem[data-highlighted] { background: var(--color-hover); }
+.menuItem[data-highlighted]:focus-visible, .menuItem:focus-visible { outline: 1px solid var(--color-you); outline-offset: -1px; }
+.menuItem[data-disabled] { opacity: 0.45; cursor: not-allowed; }
+.menuItem[data-selected="true"] { background: var(--color-selected); }
+.menuItem[data-selected="true"][data-highlighted] { background: var(--color-hover); }
+
+.menuSeparator { height: 1px; background: var(--color-border); margin: 2px 0; }

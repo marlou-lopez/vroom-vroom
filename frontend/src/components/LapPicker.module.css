@@ -1,0 +1,56 @@
+.session { color: var(--color-muted); }
+.pickers { display: flex; align-items: center; gap: 6px; }
+.muted { color: var(--color-muted); }
+.you { color: var(--color-you); }
+.comparison { color: var(--color-comparison); }
+.invalid { color: var(--color-issue); }
+.star { color: var(--color-minor); }
+
+.trigger {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.trigger:hover, .trigger[data-state="open"] { background: var(--color-hover); }
+
+.content { --menu-min: 300px; }
+
+.lapText { font-family: var(--font-mono); }
+.lapSelected { color: var(--color-you); }
+
+.content .check { color: var(--color-muted); }
+.box {
+  width: 12px;
+  height: 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--color-you);
+}
+
+.footer { border-top: 1px solid var(--color-border); margin-top: 2px; padding-top: 4px; display: flex; gap: 6px; }
+.footer .footerBtn { width: auto; border: 1px solid var(--color-border-strong); }
+
+.empty { padding: 4px 6px; color: var(--color-muted); }
+
+.badge {
+  font-family: var(--font-sans);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 0 5px;
+  white-space: nowrap;
+}

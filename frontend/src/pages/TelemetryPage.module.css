@@ -1,0 +1,30 @@
+.message { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--color-muted); padding: 16px; text-align: center; }
+
+.warning { padding: 4px 10px; border-bottom: 1px solid var(--color-border); color: var(--color-minor); }
+
+.grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--gap);
+  padding: var(--pad);
+  min-height: 0;
+}
+
+/* Narrow windows: map above, inputs below. */
+@media (max-width: 900px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.inputs {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-width: 0;
+}
+
+.viewBar { display: flex; justify-content: flex-end; }
+.viewToggle { display: flex; border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; }
