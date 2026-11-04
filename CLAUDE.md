@@ -74,6 +74,7 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   - An invalid lap has `Lap Time` = 0.
   - Steering is −100..100 with + meaning right.
   - `Path Lateral` is metres from the track centreline, + meaning right of travel (10 Hz).
+  - Driver throttle is `Throttle Pos Unfiltered`; `Throttle Pos` is after the game's interventions (0 at every upshift).
 - **The coach** (planned backend): the LLM only phrases facts computed in code. Every number
   it uses must appear in the facts it's given, and fixes never use metre distances.
 - **The repo is public:** no absolute home paths, emails, API keys or the driver name in code,

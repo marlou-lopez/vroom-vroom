@@ -1,6 +1,7 @@
 // One-off extractor: LMU .duckdb -> 1 m grid JSON for the mock API. Run from a dir with @duckdb/node-api installed:
 //   node extract-laps.mjs <recording.duckdb> <out.json>
 // NOTE LMU swaps its G channels: 'G Force Lat' is longitudinal, 'G Force Long' is lateral (mapped below).
+// Throttle comes from 'Throttle Pos Unfiltered' (the pedal); 'Throttle Pos' includes the ignition cut at every upshift (#49).
 import { DuckDBInstance } from '@duckdb/node-api';
 import fs from 'node:fs';
 const [,, file, out] = process.argv;
@@ -25,7 +26,7 @@ const step = (xs, ys, x) => { let lo = 0, hi = xs.length - 1; if (x < xs[0]) ret
 
 const laps = await ev('Lap'), lapTimes = await ev('Lap Time');
 const ch = {
-  dist: await series('Lap Dist'), speed: await series('Ground Speed'), thr: await series('Throttle Pos'), brk: await series('Brake Pos'),
+  dist: await series('Lap Dist'), speed: await series('Ground Speed'), thr: await series('Throttle Pos Unfiltered'), brk: await series('Brake Pos'),
   steer: await series('Steering Pos'), rpm: await series('Engine RPM'), glat: await series('G Force Lat'), glong: await series('G Force Long'),
   lat: await series('GPS Latitude'), lon: await series('GPS Longitude'), pl: await series('Path Lateral'), te: await series('Track Edge'),
 };

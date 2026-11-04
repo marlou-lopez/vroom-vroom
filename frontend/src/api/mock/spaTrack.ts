@@ -30,16 +30,25 @@ export interface CornerSignals {
 const FULL_THROTTLE = 0.95;
 const BRAKE_OFF = 0.05;
 const LEAD_IN_M = 50;
+/** A flat-out stretch must last this long to count; a brief throttle stab mid-chicane (Bus Stop) is not the lead-in. */
+const MIN_FULL_RUN_M = 20;
 
 /**
- * Where the braking or lift phase before `apex` began: the last point before the apex with brake < 0.05 and
- * throttle >= 0.95, searching back no further than `floor`. null for a flat corner (full throttle at the apex)
- * or when there is no such point within the bound.
+ * Where the braking or lift phase before `apex` began: the end of the last run of at least MIN_FULL_RUN_M points
+ * with brake < 0.05 and throttle >= 0.95 before the apex, searching back no further than `floor`. null for a flat
+ * corner (full throttle at the apex) or when there is no such run within the bound.
  */
 export function phaseStart(sig: CornerSignals, apex: number, floor: number): number | null {
   const full = (i: number) => sig.brake[i] < BRAKE_OFF && sig.throttle[i] >= FULL_THROTTLE;
   if (full(apex)) return null;
-  for (let i = apex - 1; i >= Math.max(0, floor); i--) if (full(i)) return i;
+  const lo = Math.max(0, floor);
+  for (let i = apex - 1; i >= lo; i--) {
+    if (!full(i)) continue;
+    let j = i;
+    while (j - 1 >= lo && full(j - 1) && i - j + 1 < MIN_FULL_RUN_M) j--;
+    if (i - j + 1 >= MIN_FULL_RUN_M) return i;
+    i = j; // skip the short run
+  }
   return null;
 }
 
