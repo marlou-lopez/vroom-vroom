@@ -1,12 +1,12 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import type { CompareResponse } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
-import { distanceAtTime, formatSteering, indexAtTime } from "../lib/playback";
-import { chipLayerGeometry, clipBand, stripRanges, withAlpha, type Range } from "../lib/strips";
+import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
+import { chipLayerGeometry, clipBand, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, withAlpha, type Range } from "../lib/strips";
 import { usePlaybackStore } from "../state/playback";
 import { colors } from "../theme";
 import styles from "./DetailedStrips.module.css";
@@ -16,6 +16,18 @@ export const STRIP_HALF_M = 350;
 const SYNC_KEY = "telemetry-strips";
 const MIN_STRIP_H = 72;
 const PAD_Y = 4;
+const DRAG_THRESHOLD_PX = 4;
+const STEP_M = 10;
+const BIG_STEP_M = 100;
+const IGNORE_SELECTOR = "button,[data-annotation-badge]";
+
+interface Gesture {
+  pointerId: number;
+  startX: number;
+  startD: number;
+  resume: boolean;
+  dragging: boolean;
+}
 
 export interface DetailedStripsProps {
   model: PlaybackModel;
@@ -168,9 +180,14 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
   const hosts = useRef<(HTMLDivElement | null)[]>([]);
   const frames = useRef<(HTMLDivElement | null)[]>([]);
   const values = useRef<(HTMLDivElement | null)[]>([]);
+  const playheads = useRef<(HTMLDivElement | null)[]>([]);
+  /** The x window currently shown (metres); clicks map through it. */
+  const shown = useRef({ min: 0, max: 2 * STRIP_HALF_M });
   const chipLayer = useRef<HTMLDivElement | null>(null);
   const charts = useRef<uPlot[]>([]);
   const annRef = useRef(annotations);
+  const gesture = useRef<Gesture | null>(null);
+  const wasDrag = useRef(false);
 
   // Bands read the latest annotations from the ref; a new set only needs a canvas redraw.
   useLayoutEffect(() => {
@@ -211,9 +228,14 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
       if (tau === lastTau) return;
       lastTau = tau;
       const d = distanceAtTime(cmp.lap.t, xs, tau);
-      lastMin = d - STRIP_HALF_M;
-      lastMax = d + STRIP_HALF_M;
+      // Clamped to the lap: near the start or end the window stops and the playhead line moves off centre instead.
+      const win = stripWindow(d, STRIP_HALF_M, dMin, dMax);
+      lastMin = win.min;
+      lastMax = win.max;
+      shown.current = { min: win.min, max: win.max };
       for (const u of us) u.setScale("x", { min: lastMin, max: lastMax });
+      const left = `${(win.playhead * 100).toFixed(3)}%`;
+      for (const el of playheads.current) if (el) el.style.left = left;
       placeChips();
       const iy = indexAtTime(cmp.lap.t, tau);
       specs.forEach((s, i) => {
@@ -242,12 +264,98 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
     };
   }, [cmp, store]);
 
+  const lapRange = (): [number, number] => {
+    const xs = cmp.distance;
+    return [xs[0] ?? 0, xs[xs.length - 1] ?? 0];
+  };
+  const centreM = () => distanceAtTime(cmp.lap.t, cmp.distance, store.get().tau);
+  const seekToDistance = (d: number) => {
+    const [lo, hi] = lapRange();
+    store.seek(timeAtDistance(cmp.lap.t, cmp.distance, Math.min(Math.max(d, lo), hi)));
+  };
+  // Events from chips, badges and their portalled hover cards bubble here through React; they keep their own behaviour.
+  const foreign = (e: { currentTarget: Element; target: EventTarget }) =>
+    !e.currentTarget.contains(e.target as Node) || !!(e.target as Element).closest(IGNORE_SELECTOR);
+  const plotWidth = () => charts.current[0]?.over.clientWidth ?? 0;
+
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    wasDrag.current = false;
+    if (e.button !== 0 || gesture.current || foreign(e)) return;
+    gesture.current = {
+      pointerId: e.pointerId, startX: e.clientX, startD: centreM(), resume: store.get().playing, dragging: false,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
+    const g = gesture.current;
+    if (!g || g.pointerId !== e.pointerId) return;
+    const dx = e.clientX - g.startX;
+    if (!g.dragging) {
+      if (Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+      g.dragging = true;
+      e.currentTarget.setAttribute("data-dragging", "");
+      store.pause();
+    }
+    const [lo, hi] = lapRange();
+    store.seek(timeAtDistance(cmp.lap.t, cmp.distance, stripScrubTarget(g.startD, dx, plotWidth(), STRIP_HALF_M, lo, hi)));
+  };
+
+  const endGesture = (e: PointerEvent<HTMLDivElement>) => {
+    const g = gesture.current;
+    if (!g || g.pointerId !== e.pointerId) return;
+    gesture.current = null;
+    e.currentTarget.removeAttribute("data-dragging");
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    if (g.dragging) {
+      wasDrag.current = true;
+      if (g.resume) store.play();
+    }
+  };
+
+  const onClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (foreign(e) || wasDrag.current) return;
+    if (e.detail === 1) {
+      const over = charts.current[0]?.over;
+      if (!over) return;
+      const { min, max } = shown.current;
+      seekToDistance(stripDistanceAt(e.clientX - over.getBoundingClientRect().left, over.clientWidth, (min + max) / 2, (max - min) / 2));
+    } else if (e.detail === 2) {
+      store.toggle();
+    }
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === " ") {
+      store.toggle();
+    } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      const step = (e.shiftKey ? BIG_STEP_M : STEP_M) * (e.key === "ArrowRight" ? 1 : -1);
+      seekToDistance(centreM() + step);
+    } else {
+      return;
+    }
+    e.preventDefault();
+  };
+
   return (
-    <div className={styles.strips}>
+    <div
+      className={styles.strips}
+      tabIndex={0}
+      role="group"
+      aria-label="Telemetry strips: drag or arrow keys to scrub, Space to play or pause"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endGesture}
+      onPointerCancel={endGesture}
+      onLostPointerCapture={endGesture}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+    >
       {LABELS.map((name, i) => (
         <div key={name} ref={(el) => void (frames.current[i] = el)} className={styles.strip}>
           <div ref={(el) => void (hosts.current[i] = el)} className={styles.host} />
-          <div aria-hidden="true" className={styles.playhead} />
+          <div aria-hidden="true" ref={(el) => void (playheads.current[i] = el)} className={styles.playhead} />
           {i === 0 && (
             <div className={styles.chips}>
               <ChipLayer annotations={annotations} distance={cmp.distance} h={handlers} layerRef={chipLayer} />

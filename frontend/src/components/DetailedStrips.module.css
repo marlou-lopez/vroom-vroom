@@ -1,4 +1,7 @@
-.strips { flex: 1; display: flex; flex-direction: column; gap: 4px; min-height: 0; }
+.strips { flex: 1; display: flex; flex-direction: column; gap: 4px; min-height: 0; touch-action: pan-y; user-select: none; }
+.strips:focus-visible { outline: 1px solid var(--color-text); outline-offset: 2px; border-radius: var(--radius); }
+.strips :global(.u-over) { cursor: grab; }
+.strips[data-dragging] :global(.u-over) { cursor: grabbing; }
 
 .strip {
   position: relative;
@@ -16,7 +19,7 @@
 
 .host { position: absolute; inset: 0; }
 
-/* Fixed playhead: the data scrolls under it. */
+/* Playhead: centred while the data scrolls under it; moves off centre near the lap start and end (left set from JS). */
 .playhead { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--color-text); opacity: 0.35; pointer-events: none; }
 
 .chips { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
