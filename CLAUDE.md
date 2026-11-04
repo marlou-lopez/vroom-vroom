@@ -32,7 +32,9 @@ This section only records facts that change rarely (last checked 2026-11-05):
 | `frontend/src/pages/` | Telemetry (home, `/`), Sessions, Tracks |
 | `frontend/src/lib/` | Pure logic: playback, track map projection, strips, formatting (unit-tested) |
 | `frontend/src/state/` | Zustand playback store, data and coach hooks |
+| `frontend/src/components/mapviews/` | Track panel views (classic 2D SVG, detailed 2D on WebGL) behind one `TrackViewProps` interface |
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
+| `docs/track-views/` | Spike write-ups and decisions for the Track views milestone |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON (needs `npm i @duckdb/node-api`) |
 | `.claude/skills/vroom-issue/` | Project skill for filing GitHub issues |
 
@@ -44,7 +46,7 @@ polars, Pydantic AI), serving `127.0.0.1:8765`.
 ```bash
 npm run dev     # http://localhost:5173; VITE_API=mock in .env.development starts MSW
 npm run test    # vitest
-npm run lint    # oxlint (7 known React-compiler warnings, tracked in #26)
+npm run lint    # oxlint (5 known React-compiler warnings, tracked in #26)
 npm run build   # tsc -b && vite build
 ```
 
@@ -57,9 +59,12 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   import mock data directly. When the contract changes, update `types.ts`, the mock and its
   tests together.
 - **UI stack:** TanStack Query for server data, Zustand for playback state, Radix UI for
-  menus, hover cards, sliders and toggles, uPlot for the strips, custom SVG for the map and
-  scrubber, CSS Modules with theme tokens as CSS variables (`src/theme.ts`). The theme is
+  menus, hover cards, sliders and toggles, uPlot for the strips, custom SVG for the classic map and
+  scrubber, three.js (WebGL, lazy-loaded chunk) for the detailed track views (#33, #45), CSS Modules with theme tokens as CSS variables (`src/theme.ts`). The theme is
   dark only and dense: 6 px spacing, 4 px radius, 12 px Inter.
+- **No tracking-like words in frontend file or folder names** (`trackview`, `tracking`,
+  `analytics`, `beacon`, `pixel`). Ad blockers block those module URLs in `npm run dev`, which
+  leaves a white page.
 - **Never modify an LMU recording.** Copy it first, then open the copy read-only. LMU lives at
   `/mnt/d/Steam/steamapps/common/Le Mans Ultimate` (this is WSL).
 - **LMU data facts** (details in `docs/lmu-duckdb-schema.md`):
@@ -68,6 +73,7 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   - No elevation channel exists.
   - An invalid lap has `Lap Time` = 0.
   - Steering is −100..100 with + meaning right.
+  - `Path Lateral` is metres from the track centreline, + meaning right of travel (10 Hz).
 - **The coach** (planned backend): the LLM only phrases facts computed in code. Every number
   it uses must appear in the facts it's given, and fixes never use metre distances.
 - **The repo is public:** no absolute home paths, emails, API keys or the driver name in code,

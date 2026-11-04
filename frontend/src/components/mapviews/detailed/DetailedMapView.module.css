@@ -1,0 +1,43 @@
+.root { position: absolute; inset: 0; overflow: hidden; touch-action: none; user-select: none; cursor: grab; }
+.root[data-dragging="true"] { cursor: grabbing; }
+.host { position: absolute; inset: 0; }
+
+/* Badges sit above the renderer; the layer ignores the pointer, the badges do not. */
+.badges { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.badge {
+  position: absolute; left: 0; top: 0; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; border: 1.2px solid var(--color-bg); border-radius: 50%;
+  color: var(--color-bg); font: 700 8px/1 var(--font-sans);
+  pointer-events: auto; cursor: pointer; visibility: hidden;
+}
+.badge:hover, .badge:focus-visible { border-color: var(--color-text); outline: none; }
+
+/* Right column below the panel toolbar and the delta box, clear of the readout (left) and footer (bottom). */
+.side {
+  position: absolute; right: 8px; top: 58px; max-width: min(520px, calc(100% - 16px));
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; z-index: 1;
+}
+.side > * { pointer-events: auto; }
+.bar { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
+.group { display: flex; border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; background: var(--color-bg); }
+.tag { font-size: 9px; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.small { padding: 2px 8px; background-color: var(--color-bg); }
+.hud {
+  font-family: var(--font-mono); color: var(--color-text); background: var(--color-bg);
+  border: 1px solid var(--color-border); border-radius: var(--radius); padding: 3px 6px; white-space: pre;
+}
+.results {
+  display: flex; flex-direction: column; gap: 6px; padding: 6px; width: 100%;
+  background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius);
+}
+.results textarea {
+  width: 100%; min-width: 300px; resize: vertical; font: 11px/1.4 var(--font-mono);
+  color: var(--color-text); background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius);
+  padding: 3px 6px; white-space: pre; overflow: auto;
+}
+.status { color: var(--color-muted); }
+.select {
+  padding: 2px 4px; font: inherit; color: var(--color-text); background: var(--color-bg);
+  border: 1px solid var(--color-border); border-radius: var(--radius);
+}
