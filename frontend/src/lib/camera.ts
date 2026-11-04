@@ -56,6 +56,11 @@ export function panBy(c: Camera, v: Viewport, dxPx: number, dyPx: number): Camer
   return { ...c, cx: c.cx - (rx * cos + ry * sin), cy: c.cy - (-rx * sin + ry * cos) };
 }
 
+/** The same camera turned north-up: rotation 0, same centre and width, so the place and zoom on screen stay put (#60). */
+export function northUp(c: Camera): Camera {
+  return { ...c, rotation: 0 };
+}
+
 /** Camera centred on the car (metres); heading in radians; headingUp rotates so travel points up the screen. */
 export function followCamera(car: Pt, heading: number, widthM: number, headingUp: boolean): Camera {
   return { cx: car.x, cy: car.y, widthM, rotation: headingUp ? Math.PI / 2 - heading : 0 };

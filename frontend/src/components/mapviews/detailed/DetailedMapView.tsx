@@ -1,7 +1,7 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import {
-  FOLLOW_WIDTH_M, MIN_WIDTH_M, fitBounds, followCamera, panBy, screenToWorld, smoothHeading, worldToScreen, zoomAt,
+  FOLLOW_WIDTH_M, MIN_WIDTH_M, fitBounds, followCamera, northUp, panBy, screenToWorld, smoothHeading, worldToScreen, zoomAt,
   type Camera, type Viewport,
 } from "../../../lib/camera";
 import { cx } from "../../../lib/cx";
@@ -84,6 +84,8 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const [gpu, setGpu] = useState<GpuState>("ok");
   const [mode, setModeState] = useState<CameraMode>("follow");
   const [headingUp, setHeadingUpState] = useState(false);
+  /** Whether the free camera is turned (kept from heading-up); enables North-up (#60). */
+  const [freeRotated, setFreeRotated] = useState(false);
   const [lineAhead, setLineAheadState] = useState(loadLineAhead);
   const [showHud, setShowHud] = useState(true);
   const [hudText, setHudText] = useState("");
@@ -174,15 +176,21 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     if (!raf.current) raf.current = requestAnimationFrame(drawFrame);
   }, [drawFrame]);
 
+  /** Sets the free camera where its rotation may change; pan and zoom keep the rotation and write the ref directly. */
+  const setFreeCam = useCallback((c: Camera) => {
+    freeCam.current = c;
+    setFreeRotated(c.rotation !== 0);
+  }, []);
+
   const applyMode = useCallback((next: CameraMode) => {
     if (next === modeRef.current) return;
-    // Leaving follow keeps the picture where it is.
-    if (next === "free") freeCam.current = shownCam.current ?? fitBounds(sceneRef.current.bounds, vp.current);
+    // Leaving follow keeps the picture where it is, rotation included; North-up undoes the rotation.
+    if (next === "free") setFreeCam(shownCam.current ?? fitBounds(sceneRef.current.bounds, vp.current));
     if (next === "follow") resetHeading.current = true;
     modeRef.current = next;
     setModeState(next);
     requestDraw();
-  }, [requestDraw]);
+  }, [requestDraw, setFreeCam]);
 
   // Keep the refs the draw loop reads in step with the props.
   useEffect(() => {
@@ -380,7 +388,15 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const fit = () => {
     modeRef.current = "free";
     setModeState("free");
-    freeCam.current = fitBounds(sceneRef.current.bounds, vp.current);
+    setFreeCam(fitBounds(sceneRef.current.bounds, vp.current));
+    requestDraw();
+  };
+
+  /** Free mode: turn the map north-up, keeping the place and zoom on screen. */
+  const resetNorthUp = () => {
+    const cam = freeCam.current;
+    if (!cam) return;
+    setFreeCam(northUp(cam));
     requestDraw();
   };
 
@@ -423,12 +439,12 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     pause: () => store.pause(),
     setMode: (m) => applyMode(m),
     setCamera: (c) => {
-      freeCam.current = c;
+      setFreeCam(c);
       requestDraw();
     },
     snapshot: () => ({ playing: store.get().playing, tau: store.get().tau, mode: modeRef.current, camera: shownCam.current }),
     restore: (s) => {
-      if (s.camera) freeCam.current = s.camera;
+      if (s.camera) setFreeCam(s.camera);
       applyMode(s.mode);
       store.seek(s.tau);
       if (s.playing) store.play();
@@ -524,12 +540,21 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
             <ToggleGroup.Item value="follow" className={ui.toggleItem}>Follow</ToggleGroup.Item>
             <ToggleGroup.Item value="free" className={ui.toggleItem}>Free</ToggleGroup.Item>
           </ToggleGroup.Root>
-          <button
-            type="button" className={cx(ui.btn, styles.small)} aria-pressed={headingUp}
-            disabled={running || mode !== "follow"} onClick={toggleHeadingUp}
-          >
-            Heading-up
-          </button>
+          {mode === "follow" ? (
+            <button
+              type="button" className={cx(ui.btn, styles.small)} aria-pressed={headingUp}
+              disabled={running} onClick={toggleHeadingUp}
+            >
+              Heading-up
+            </button>
+          ) : (
+            <button
+              type="button" className={cx(ui.btn, styles.small)} title="Turn the map north-up, keeping the place and zoom"
+              disabled={running || !freeRotated} onClick={resetNorthUp}
+            >
+              North-up
+            </button>
+          )}
           <button
             type="button" className={cx(ui.btn, styles.small)} aria-pressed={lineAhead}
             title="Show the part of each line the car has not reached yet" disabled={running} onClick={toggleLineAhead}
