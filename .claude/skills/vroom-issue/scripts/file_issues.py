@@ -8,9 +8,9 @@ issues.json is one issue object or a list of them:
     {
       "key": "fmt",                      # optional; lets other issues in the batch say {fmt}
       "title": "Lap time can show 60 seconds",
-      "type": "bug",                     # bug | feature | refactor | chore | tuning | epic
+      "type": "bug",                     # bug | feature | refactor | chore | tuning | epic | spike
       "areas": ["frontend"],             # any of: frontend, backend, coach, lmu
-      "milestone": "v1",                 # v1 | v2 | v3 | v4 (or the full milestone title)
+      "milestone": "v1",                 # v1 | v2 | v3 | v4 | views (or the full milestone title)
       "priority": "P1",                  # P0 | P1 | P2 | P3
       "status": "Todo",                  # optional, default Todo
       "body": "## Summary\\n..."         # Markdown; {key} -> #N for issues in this batch
@@ -28,7 +28,7 @@ REPO = "marlou-lopez/vroom-vroom"
 OWNER = "marlou-lopez"
 PROJECT_NUMBER = 7
 
-TYPES = {"bug", "feature", "refactor", "chore", "tuning", "epic"}
+TYPES = {"bug", "feature", "refactor", "chore", "tuning", "epic", "spike"}
 AREAS = {"frontend", "backend", "coach", "lmu"}
 PRIORITIES = {"P0", "P1", "P2", "P3"}
 MILESTONES = {
@@ -36,6 +36,7 @@ MILESTONES = {
     "v2": "v2 – Live coaching",
     "v3": "v3 – Conversation",
     "v4": "v4 – Setup engineer",
+    "views": "Track views",
 }
 REF = re.compile(r"\{([A-Za-z][\w-]*)\}")
 

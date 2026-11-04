@@ -40,6 +40,7 @@ GitHub calls, so you write the content and it handles the rest.
 | `chore` | Tooling, lint, deps, repo housekeeping, decisions to make |
 | `tuning` | Thresholds or heuristics to check against real recordings |
 | `epic` | A whole stage or large body of work to split up later (`feature` is added automatically) |
+| `spike` | Open-ended exploration: a prototype plus a write-up in `docs/<topic>/`, ending in a keep / change / drop call |
 
 | area | covers |
 |---|---|
@@ -51,8 +52,9 @@ GitHub calls, so you write the content and it handles the rest.
 Use every area that applies.
 
 **Milestones:** `v1` is the post-session coach (current work). `v2` is live coaching (Windows
-agent, voice). `v3` is conversation with the coach. `v4` is the setup engineer. Default to `v1`
-unless the work clearly belongs to a later stage.
+agent, voice). `v3` is conversation with the coach. `v4` is the setup engineer. `views` is the
+"Track views" milestone: detailed 2D and 3D track rendering, elevation, per-lap racing lines.
+Default to `v1` unless the work clearly belongs elsewhere.
 
 **Priority:**
 - **P0:** blocks work, or loses or corrupts data
