@@ -5,7 +5,7 @@ description: File GitHub issues for the vroom-vroom project (AI sim racing engin
 
 # Filing vroom-vroom issues
 
-Issues live in the **public** repo `marlou-lopez/vroom-vroom` and on the user's Project board
+Issues live in the private repo `marlou-lopez/vroom-vroom` and on the user's Project board
 (https://github.com/users/marlou-lopez/projects/7). Each issue gets a type label, one or more area
 labels, a milestone, and Status/Priority on the board. `scripts/file_issues.py` does all the
 GitHub calls, so you write the content and it handles the rest.
@@ -23,7 +23,7 @@ GitHub calls, so you write the content and it handles the rest.
    plan, spec and handover docs live outside the repo (in `~/.claude/plans/...`) and readers
    can't open them. Copy in whatever details matter.
 5. **Show the draft** and wait for an OK. Include the title, labels, milestone, priority and body.
-   This repo is public, so the user checks wording before it goes out. Skip the draft only when
+   The user checks wording before it goes out. Skip the draft only when
    the user explicitly says to just file it.
 6. **File it.** Write the issue(s) as JSON to the session scratchpad, then run
    `python3 .claude/skills/vroom-issue/scripts/file_issues.py <file.json>`. Pass `--dry-run` first if
@@ -117,9 +117,9 @@ Refactor:
 - [ ] `npm run test` and `npm run build` pass   <or the backend equivalents>
 ```
 
-## Writing for a public repo
+## Write as if the repo were public
 
-Don't put these in titles or bodies: absolute home paths (`/home/...`), email addresses, API keys
+The repo is private since 2026-11-05 but was public before and may be again. Don't put these in titles or bodies: absolute home paths (`/home/...`), email addresses, API keys
 or `.env` contents, or the driver name from recordings. Paths relative to the repo root are fine.
 Titles state the problem or outcome in plain words ("Lap time can show 60 seconds"), not
 the fix ("Fix formatLapTime").

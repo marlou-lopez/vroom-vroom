@@ -9,7 +9,7 @@ Windows agent, **v3** conversation, **v4** setup engineer.
 ## Where things stand
 
 **The GitHub board is the source of truth for status:** repo `marlou-lopez/vroom-vroom`
-(public), board https://github.com/users/marlou-lopez/projects/7. Before starting, check open
+(private), board https://github.com/users/marlou-lopez/projects/7. Before starting, check open
 issues, what's In Progress, and milestones `v1`–`v4` and `Track views`. Each issue stands on its
 own and lists its dependencies. Don't rely on this file for progress.
 
@@ -77,8 +77,9 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   - Driver throttle is `Throttle Pos Unfiltered`; `Throttle Pos` is after the game's interventions (0 at every upshift).
 - **The coach** (planned backend): the LLM only phrases facts computed in code. Every number
   it uses must appear in the facts it's given, and fixes never use metre distances.
-- **The repo is public:** no absolute home paths, emails, API keys or the driver name in code,
-  issues or commits. `.env` is git-ignored.
+- **Write as if the repo were public:** no absolute home paths, emails, API keys or the driver
+  name in code, issues or commits. The repo is private since 2026-11-05, but it was public and
+  may be again (a public fork holds a 2026-11-04 snapshot). `.env` is git-ignored.
 - **Game assets:** LMU track files are encrypted and the EULA forbids extracting them. 3D work
   is procedural, built from telemetry and public terrain data.
 
