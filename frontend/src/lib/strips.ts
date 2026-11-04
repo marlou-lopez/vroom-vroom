@@ -81,3 +81,27 @@ export function withAlpha(hex: string, alpha: number): string {
   const a = Math.round(Math.min(1, Math.max(0, alpha)) * 255);
   return `${hex}${a.toString(16).padStart(2, "0")}`;
 }
+
+/** Distance shown at pixel `px` of a strip `widthPx` wide whose window is `[centreM - halfM, centreM + halfM]`. */
+export function stripDistanceAt(px: number, widthPx: number, centreM: number, halfM: number): number {
+  if (widthPx <= 0) return centreM;
+  return centreM - halfM + (px / widthPx) * 2 * halfM;
+}
+
+/** Playhead distance after dragging the trace by `dxPx` from `startM`: the trace follows the pointer, so dragging left goes forward. */
+export function stripScrubTarget(
+  startM: number, dxPx: number, widthPx: number, halfM: number, minM: number, maxM: number,
+): number {
+  if (widthPx <= 0) return startM;
+  return Math.min(Math.max(startM - dxPx * ((2 * halfM) / widthPx), minM), maxM);
+}
+
+/**
+ * The strips' x window: 2·halfM metres centred on the playhead `d`, but clamped to the lap [minM, maxM] so it never
+ * shows empty space before the start or after the end. `playhead` is where `d` sits in the window (0..1).
+ */
+export function stripWindow(d: number, halfM: number, minM: number, maxM: number): { min: number; max: number; playhead: number } {
+  const span = 2 * halfM;
+  const min = Math.max(minM, Math.min(d - halfM, maxM - span));
+  return { min, max: min + span, playhead: (d - min) / span };
+}

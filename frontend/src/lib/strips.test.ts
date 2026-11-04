@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipFraction, chipLayerGeometry, clipBand, stripRanges, valueToPx, withAlpha } from "./strips";
+import { chipFraction, chipLayerGeometry, clipBand, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, valueToPx, withAlpha } from "./strips";
 
 describe("stripRanges", () => {
   const c = {
@@ -63,5 +63,48 @@ describe("withAlpha", () => {
     expect(withAlpha("#FF7A59", 1)).toBe("#FF7A59ff");
     expect(withAlpha("#FF7A59", 0)).toBe("#FF7A5900");
     expect(withAlpha("#FF7A59", 0.8)).toBe("#FF7A59cc");
+  });
+});
+
+describe("stripDistanceAt", () => {
+  it("maps the strip edges and middle onto the window", () => {
+    expect(stripDistanceAt(0, 800, 1000, 350)).toBe(650);
+    expect(stripDistanceAt(800, 800, 1000, 350)).toBe(1350);
+    expect(stripDistanceAt(400, 800, 1000, 350)).toBe(1000);
+  });
+  it("returns the centre for a degenerate width", () => {
+    expect(stripDistanceAt(10, 0, 1000, 350)).toBe(1000);
+    expect(stripDistanceAt(10, -5, 1000, 350)).toBe(1000);
+  });
+});
+
+describe("stripScrubTarget", () => {
+  it("drag left moves forward, right moves back", () => {
+    expect(stripScrubTarget(1000, -400, 800, 350, 0, 5000)).toBe(1350);
+    expect(stripScrubTarget(1000, 400, 800, 350, 0, 5000)).toBe(650);
+    expect(stripScrubTarget(1000, 0, 800, 350, 0, 5000)).toBe(1000);
+  });
+  it("clamps at the lap start and end", () => {
+    expect(stripScrubTarget(100, 800, 800, 350, 0, 5000)).toBe(0);
+    expect(stripScrubTarget(4900, -800, 800, 350, 0, 5000)).toBe(5000);
+  });
+  it("returns the start for a degenerate width", () => {
+    expect(stripScrubTarget(1000, -50, 0, 350, 0, 5000)).toBe(1000);
+  });
+});
+
+describe("stripWindow", () => {
+  it("is centred on the playhead mid-lap", () => {
+    expect(stripWindow(3000, 350, 0, 6979)).toEqual({ min: 2650, max: 3350, playhead: 0.5 });
+  });
+  it("starts at the lap start near the start, with the playhead left of centre", () => {
+    expect(stripWindow(0, 350, 0, 6979)).toEqual({ min: 0, max: 700, playhead: 0 });
+    expect(stripWindow(175, 350, 0, 6979)).toEqual({ min: 0, max: 700, playhead: 0.25 });
+  });
+  it("ends at the lap end near the end, with the playhead right of centre", () => {
+    expect(stripWindow(6979, 350, 0, 6979)).toEqual({ min: 6279, max: 6979, playhead: 1 });
+  });
+  it("starts at the lap start when the lap is shorter than the window", () => {
+    expect(stripWindow(100, 350, 0, 400)).toEqual({ min: 0, max: 700, playhead: 100 / 700 });
   });
 });
