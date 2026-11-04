@@ -1,13 +1,12 @@
 import type { Camera, Viewport } from "../../../lib/camera";
 import type { Pt } from "../../../lib/geo";
 import { summarize } from "../../../lib/perf";
-import type { RendererKind } from "./renderer";
 
 export type CameraMode = "follow" | "free";
 export type BenchPhase = "follow" | "scrub" | "zoom-pan";
 
 export interface BenchRow {
-  renderer: RendererKind;
+  renderer: "webgl";
   phase: BenchPhase;
   fps: number;
   meanMs: number;
@@ -69,7 +68,7 @@ function runPhase(ms: number, onFrame: (elapsedMs: number) => void, signal?: Abo
 }
 
 /** Three 10 s phases on the current renderer: follow-play at 1x, scrub the whole lap, zoom and pan. */
-export async function runBench(kind: RendererKind, ctl: BenchControl, signal?: AbortSignal): Promise<BenchRow[]> {
+export async function runBench(ctl: BenchControl, signal?: AbortSignal): Promise<BenchRow[]> {
   const before = ctl.snapshot();
   const rows: BenchRow[] = [];
   const record = async (phase: BenchPhase, setup: () => void, onFrame: (elapsedMs: number) => void) => {
@@ -80,7 +79,7 @@ export async function runBench(kind: RendererKind, ctl: BenchControl, signal?: A
     const draws = ctl.drawTimes();
     ctl.recordDraws(false);
     if (signal?.aborted) return;
-    rows.push({ renderer: kind, phase, ...summarize(intervals), drawP95Ms: summarize(draws).p95Ms });
+    rows.push({ renderer: "webgl", phase, ...summarize(intervals), drawP95Ms: summarize(draws).p95Ms });
   };
   try {
     await record("follow", () => {

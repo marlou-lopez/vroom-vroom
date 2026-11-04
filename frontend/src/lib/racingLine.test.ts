@@ -46,13 +46,26 @@ describe("racingLine", () => {
   });
 
   it("falls back to the fallback point where |pl| > 15", () => {
-    const fb = circle(130);
+    const fb = circle(102.5);
     const pl = fill(2);
     pl[10] = 20;
     const line = lineFromLateral(circle(R), pl, fb);
     expect(line.x[10]).toBe(fb.x[10]);
     expect(line.y[10]).toBe(fb.y[10]);
     expect(Math.abs(radius(line, 11) - 102)).toBeLessThan(0.01);
+  });
+
+  it("blends toward the fallback as lateral and fallback disagree by 1..3 m", () => {
+    const fb = circle(R);
+    const push = (i: number, r: number) => { fb.x[i] *= r / R; fb.y[i] *= r / R; };
+    push(20, 102.5); // lateral is on r = 102: d = 0.5
+    push(40, 104);   // d = 2
+    push(60, 107);   // d = 5
+    const line = lineFromLateral(circle(R), fill(2), fb);
+    expect(radius(line, 20)).toBeCloseTo(102, 2);
+    expect(radius(line, 40)).toBeCloseTo(103, 2);
+    expect(line.x[60]).toBeCloseTo(fb.x[60], 6);
+    expect(line.y[60]).toBeCloseTo(fb.y[60], 6);
   });
 
   it("straightMask excludes a corner that wraps over the line, with its margin, and drops short runs", () => {

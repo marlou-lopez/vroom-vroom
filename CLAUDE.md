@@ -50,6 +50,8 @@ npm run lint    # oxlint (5 known React-compiler warnings, tracked in #26)
 npm run build   # tsc -b && vite build
 ```
 
+The detailed track view shows its frame-rate HUD, benchmark, line-source selector and a GPU context-loss test only in `npm run dev` or with `?debug` in the URL; `?debug=0` hides them in dev to preview the production view.
+
 Run test, lint and build before calling frontend work done. Vite proxies `/api` to
 `127.0.0.1:8765` for when the real backend exists.
 

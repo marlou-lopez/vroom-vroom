@@ -5,25 +5,21 @@ import {
   type Camera, type Viewport,
 } from "../../../lib/camera";
 import { cx } from "../../../lib/cx";
+import { debugEnabled } from "../../../lib/debugFlag";
 import { pointAt } from "../../../lib/geo";
 import { summarize } from "../../../lib/perf";
 import { distanceAtTime, timeAtDistance } from "../../../lib/playback";
+import { seekIndexNear } from "../../../lib/seek";
 import { MAP_HIT_PX } from "../../../lib/trackmap";
 import { usePlaybackStore } from "../../../state/playback";
 import { AnnotationHoverCard } from "../../AnnotationPopup";
 import ui from "../../ui.module.css";
 import type { TrackViewProps } from "../types";
 import { benchMarkdown, runBench, type BenchControl, type BenchRow, type CameraMode } from "./bench";
-import { createRenderer, type Renderer, type RendererKind } from "./renderer";
+import { loadRenderer, type Renderer } from "./renderer";
 import { buildScene, carPositions, type CarSync, type LineSource } from "./scene";
 import styles from "./DetailedMapView.module.css";
 
-const KINDS: { id: RendererKind; label: string }[] = [
-  { id: "svg", label: "SVG" },
-  { id: "canvas", label: "Canvas" },
-  { id: "webgl", label: "WebGL" },
-];
-const KIND_KEY = "vroom.detailedRenderer";
 const RING = 120;
 const HUD_MS = 250;
 const DRAG_PX = 3;
@@ -34,23 +30,10 @@ const HEADING_JUMP_M = 50;
 const MIN_INTERVAL_MS = 4;
 const BADGE_OFFSET_PX = 12;
 const BADGE_STACK_PX = 14;
+/** A lost context not restored within this long offers a Retry button. */
+const RESTORE_WAIT_MS = 3000;
 
-function loadKind(): RendererKind {
-  try {
-    const v = globalThis.localStorage?.getItem(KIND_KEY);
-    return KINDS.find((k) => k.id === v)?.id ?? "webgl";
-  } catch {
-    return "webgl";
-  }
-}
-
-function saveKind(kind: RendererKind): void {
-  try {
-    globalThis.localStorage?.setItem(KIND_KEY, kind);
-  } catch {
-    // Not remembered.
-  }
-}
+type GpuState = "ok" | "lost" | "stuck";
 
 /** Fixed-size ring of numbers (the last RING samples). */
 class Ring {
@@ -71,13 +54,15 @@ const f1 = (v: number) => v.toFixed(1);
 
 export function DetailedMapView({ model, annotations, handlers }: TrackViewProps) {
   const store = usePlaybackStore();
+  const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
   const [source, setSource] = useState<LineSource>("lateral");
   const [sync, setSyncState] = useState<CarSync>("time");
   const [gpsHalf, setGpsHalf] = useState(4);
   const scene = useMemo(() => buildScene(cmp, { source, gpsHalf }), [cmp, source, gpsHalf]);
 
-  const [kind, setKind] = useState<RendererKind>(loadKind);
+  const [epoch, setEpoch] = useState(0);
+  const [gpu, setGpu] = useState<GpuState>("ok");
   const [mode, setModeState] = useState<CameraMode>("follow");
   const [headingUp, setHeadingUpState] = useState(false);
   const [showHud, setShowHud] = useState(true);
@@ -91,6 +76,8 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const hostRef = useRef<HTMLDivElement>(null);
   const reportRef = useRef<HTMLTextAreaElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
+  const lostRef = useRef(false);
+  const lostTimer = useRef(0);
   const sceneRef = useRef(scene);
   const cmpRef = useRef(cmp);
   const annRef = useRef(annotations);
@@ -118,7 +105,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     raf.current = 0;
     const r = rendererRef.current;
     const v = vp.current;
-    if (!r || v.w <= 0 || v.h <= 0) return;
+    if (!r || lostRef.current || v.w <= 0 || v.h <= 0) return;
     const sc = sceneRef.current;
     const tau = store.get().tau;
     const cars = carPositions(sc, cmpRef.current, tau, syncRef.current);
@@ -204,19 +191,37 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     cancelAnimationFrame(raf.current);
     raf.current = 0;
     abort.current?.abort();
+    window.clearTimeout(lostTimer.current);
   }, []);
 
-  // Renderer lifecycle. The promise can resolve after a kind change or unmount; a late renderer is destroyed.
+  // Renderer lifecycle. The promise can resolve after an unmount or a new epoch; a late renderer is destroyed.
+  // A lost context stops drawing; a restore (or Retry) bumps the epoch, which builds a fresh renderer.
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const ac = new AbortController();
-    const ready = createRenderer(kind, host).then((r) => {
+    const events = {
+      onContextLost: () => {
+        if (ac.signal.aborted) return;
+        lostRef.current = true;
+        setGpu("lost");
+        window.clearTimeout(lostTimer.current);
+        lostTimer.current = window.setTimeout(() => setGpu("stuck"), RESTORE_WAIT_MS);
+      },
+      onContextRestored: () => {
+        if (ac.signal.aborted) return;
+        window.clearTimeout(lostTimer.current);
+        setEpoch((e) => e + 1);
+      },
+    };
+    const ready = loadRenderer(host, events).then((r) => {
       if (ac.signal.aborted) {
         r.destroy();
         return null;
       }
       rendererRef.current = r;
+      lostRef.current = false;
+      setGpu("ok");
       r.setScene(sceneRef.current);
       r.resize(vp.current, window.devicePixelRatio || 1);
       requestDraw();
@@ -233,7 +238,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
         if (rendererRef.current === r) rendererRef.current = null;
       });
     };
-  }, [kind, requestDraw]);
+  }, [epoch, requestDraw]);
 
   // Resize: the host's size feeds the renderer; the free camera keeps its centre and width.
   useEffect(() => {
@@ -281,7 +286,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
 
   // HUD numbers: at most 4 updates a second, and only while shown.
   useEffect(() => {
-    if (!showHud) return;
+    if (!debug || !showHud) return;
     const id = setInterval(() => {
       const s = summarize(frames.current.values());
       const d = summarize(draws.current.values());
@@ -289,7 +294,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
       setHudText(`${s.fps.toFixed(0)} fps  ${f1(s.meanMs)} ms  p95 ${f1(s.p95Ms)}  max ${f1(s.maxMs)}  >20ms ${s.over20}\ndraw p95 ${f1(d.p95Ms)} ms`);
     }, HUD_MS);
     return () => clearInterval(id);
-  }, [showHud]);
+  }, [debug, showHud]);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || drag.current || benchRunning.current) return;
@@ -322,7 +327,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     requestDraw();
   };
 
-  /** A press and release with < CLICK_PX movement seeks to the nearest lap-line point within MAP_HIT_PX. */
+  /** A press and release with < CLICK_PX movement seeks to the lap-line point within MAP_HIT_PX nearest your car along the lap. */
   const seekAt = (e: PointerEvent<HTMLDivElement>) => {
     const cam = shownCam.current;
     const v = vp.current;
@@ -330,16 +335,10 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     if (!cam || !root || v.w <= 0) return;
     const rect = root.getBoundingClientRect();
     const w = screenToWorld(cam, v, { x: e.clientX - rect.left, y: e.clientY - rect.top });
-    const maxD = MAP_HIT_PX / (v.w / cam.widthM);
-    const lap = sceneRef.current.lap;
-    let best = -1, bestD2 = maxD * maxD;
-    for (let i = 0; i < lap.x.length; i++) {
-      const dx = lap.x[i] - w.x, dy = lap.y[i] - w.y;
-      const d2 = dx * dx + dy * dy;
-      if (d2 <= bestD2) { bestD2 = d2; best = i; }
-    }
-    if (best < 0) return;
     const c = cmpRef.current;
+    const here = Math.round(distanceAtTime(c.lap.t, c.distance, store.get().tau));
+    const best = seekIndexNear(sceneRef.current.lap, w, MAP_HIT_PX / (v.w / cam.widthM), here);
+    if (best < 0) return;
     store.seek(timeAtDistance(c.lap.t, c.distance, best));
   };
 
@@ -371,11 +370,8 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     requestDraw();
   };
 
-  const selectKind = (v: string) => {
-    const next = KINDS.find((k) => k.id === v);
-    if (!next || next.id === kind) return;
-    setKind(next.id);
-    saveKind(next.id);
+  const loseContext = () => {
+    if (!rendererRef.current?.simulateContextLoss()) console.warn("WEBGL_lose_context is not available");
   };
 
   const selectSync = (v: string) => {
@@ -425,7 +421,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     const hadHeadingUp = headingUpRef.current;
     headingUpRef.current = false;
     try {
-      const out = await runBench(kind, ctl, ac.signal);
+      const out = await runBench(ctl, ac.signal);
       setRows((prev) => [...prev, ...out]);
     } finally {
       headingUpRef.current = hadHeadingUp;
@@ -480,17 +476,16 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
           </AnnotationHoverCard>
         ))}
       </div>
+      {gpu !== "ok" && (
+        <div className={styles.gpu} data-controls="" role="status">
+          <span>Graphics reset — restoring…</span>
+          {gpu === "stuck" && (
+            <button type="button" className={cx(ui.btn, styles.small)} onClick={() => setEpoch((e) => e + 1)}>Retry</button>
+          )}
+        </div>
+      )}
       <div className={styles.side} data-controls="">
         <div className={styles.bar}>
-          <span className={styles.tag}>experimental</span>
-          <ToggleGroup.Root
-            type="single" aria-label="Renderer" className={styles.group} value={kind} disabled={running}
-            onValueChange={selectKind}
-          >
-            {KINDS.map((k) => (
-              <ToggleGroup.Item key={k.id} value={k.id} className={ui.toggleItem}>{k.label}</ToggleGroup.Item>
-            ))}
-          </ToggleGroup.Root>
           <ToggleGroup.Root
             type="single" aria-label="Camera mode" className={styles.group} value={mode} disabled={running}
             onValueChange={(v) => v && applyMode(v as CameraMode)}
@@ -505,33 +500,43 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
             Heading-up
           </button>
           <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={fit}>Fit</button>
-          <button
-            type="button" className={cx(ui.btn, styles.small)} aria-pressed={showHud}
-            onClick={() => setShowHud((v) => !v)}
-          >
-            HUD
-          </button>
-          <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={startBench}>
-            {running ? "Running (30 s)" : "Run benchmark"}
-          </button>
+          {debug && (
+            <>
+              <button
+                type="button" className={cx(ui.btn, styles.small)} aria-pressed={showHud}
+                onClick={() => setShowHud((v) => !v)}
+              >
+                HUD
+              </button>
+              <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={startBench}>
+                {running ? "Running (30 s)" : "Run benchmark"}
+              </button>
+              <button type="button" className={cx(ui.btn, styles.small)} disabled={running || gpu !== "ok"} onClick={loseContext}>
+                Lose GPU context
+              </button>
+            </>
+          )}
         </div>
         <div className={styles.bar}>
-          <span className={styles.tag}>Line</span>
-          <ToggleGroup.Root
-            type="single" aria-label="Line source" className={styles.group} value={source} disabled={running}
-            onValueChange={(v) => v && setSource(v as LineSource)}
-          >
-            <ToggleGroup.Item value="shared" className={ui.toggleItem}>Shared</ToggleGroup.Item>
-            <ToggleGroup.Item value="gps" className={ui.toggleItem}>GPS</ToggleGroup.Item>
-            <ToggleGroup.Item value="lateral" className={ui.toggleItem}>Lateral</ToggleGroup.Item>
-          </ToggleGroup.Root>
-          {source === "gps" && (
-            <select
-              aria-label="GPS smoothing" className={styles.select} value={gpsHalf} disabled={running}
-              onChange={(e) => setGpsHalf(Number(e.target.value))}
-            >
-              {[0, 2, 4, 8].map((h) => <option key={h} value={h}>{`\u00b1${h} m`}</option>)}
-            </select>
+          {debug && (
+            <>
+              <span className={styles.tag}>Line</span>
+              <ToggleGroup.Root
+                type="single" aria-label="Line source" className={styles.group} value={source} disabled={running}
+                onValueChange={(v) => v && setSource(v as LineSource)}
+              >
+                <ToggleGroup.Item value="gps" className={ui.toggleItem}>GPS</ToggleGroup.Item>
+                <ToggleGroup.Item value="lateral" className={ui.toggleItem}>Lateral</ToggleGroup.Item>
+              </ToggleGroup.Root>
+              {source === "gps" && (
+                <select
+                  aria-label="GPS smoothing" className={styles.select} value={gpsHalf} disabled={running}
+                  onChange={(e) => setGpsHalf(Number(e.target.value))}
+                >
+                  {[0, 2, 4, 8].map((h) => <option key={h} value={h}>{`\u00b1${h} m`}</option>)}
+                </select>
+              )}
+            </>
           )}
           <span className={styles.tag}>Cars</span>
           <ToggleGroup.Root
@@ -542,8 +547,8 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
             <ToggleGroup.Item value="distance" className={ui.toggleItem}>Distance</ToggleGroup.Item>
           </ToggleGroup.Root>
         </div>
-        {showHud && hudText && <div className={styles.hud}>{hudText}</div>}
-        {rows.length > 0 && (
+        {debug && showHud && hudText && <div className={styles.hud}>{hudText}</div>}
+        {debug && rows.length > 0 && (
           <div className={styles.results}>
             <textarea ref={reportRef} readOnly rows={Math.min(rows.length + 6, 14)} value={markdown} aria-label="Benchmark results" />
             <div className={styles.bar}>

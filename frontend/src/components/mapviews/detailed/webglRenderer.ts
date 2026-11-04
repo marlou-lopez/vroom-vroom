@@ -5,7 +5,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import type { XY } from "../../../lib/geo";
-import { CAR_R_PX, LINE_DIM, CASING_PX, CHEVRON_BELOW_M, CHEVRON_LEN_PX, CHEVRON_WID_PX, EDGE_PX, LAP_PX, REF_PX, readColors, type Frame, type Renderer } from "./renderer";
+import { CAR_R_PX, LINE_DIM, CASING_PX, CHEVRON_BELOW_M, CHEVRON_LEN_PX, CHEVRON_WID_PX, EDGE_PX, LAP_PX, REF_PX, readColors, type Frame, type Renderer, type RendererEvents } from "./renderer";
 import type { Scene } from "./scene";
 
 function positions(xy: XY): Float32Array {
@@ -25,7 +25,7 @@ function chevron(len: number, wid: number): BufferGeometry {
   return g;
 }
 
-export function createWebglRenderer(host: HTMLElement): Renderer {
+export function createWebglRenderer(host: HTMLElement, events: RendererEvents): Renderer {
   const colors = readColors(host);
   const gl = new WebGLRenderer({ antialias: true, alpha: true });
   gl.setClearColor(0x000000, 0);
@@ -36,6 +36,12 @@ export function createWebglRenderer(host: HTMLElement): Renderer {
   canvas.style.height = "100%";
   canvas.style.display = "block";
   host.appendChild(canvas);
+  // preventDefault on "lost" tells the browser we want the context back.
+  const onLost = (e: Event) => { e.preventDefault(); events.onContextLost(); };
+  const onRestored = () => events.onContextRestored();
+  canvas.addEventListener("webglcontextlost", onLost);
+  canvas.addEventListener("webglcontextrestored", onRestored);
+  let restoreTimer = 0;
 
   const scene = new ThreeScene();
   const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
@@ -131,12 +137,23 @@ export function createWebglRenderer(host: HTMLElement): Renderer {
       }
       gl.render(scene, camera);
     },
+    simulateContextLoss() {
+      const ext = gl.getContext().getExtension("WEBGL_lose_context");
+      if (!ext) return false;
+      ext.loseContext();
+      window.clearTimeout(restoreTimer);
+      restoreTimer = window.setTimeout(() => { try { ext.restoreContext(); } catch { /* already gone */ } }, 1000);
+      return true;
+    },
     destroy() {
+      window.clearTimeout(restoreTimer);
+      canvas.removeEventListener("webglcontextlost", onLost);
+      canvas.removeEventListener("webglcontextrestored", onRestored);
       clearLines();
       for (const m of lineMats) m.dispose();
       for (const m of carMeshes) { m.geometry.dispose(); (m.material as MeshBasicMaterial).dispose(); }
       gl.dispose();
-      gl.forceContextLoss();
+      try { gl.forceContextLoss(); } catch { /* context already lost */ }
       canvas.remove();
     },
   };

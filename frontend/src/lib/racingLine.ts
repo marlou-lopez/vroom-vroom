@@ -14,6 +14,14 @@ export const CENTRE_SMOOTH_HALF = 4;
 /** Normals come from the chord i - 10 .. i + 10 m, so centreline noise barely turns them. */
 export const NORMAL_HALF_M = 10;
 
+/**
+ * On track the lateral line agrees with the lap's own GPS (+/-4) to a few cm (worst 0.72 m on Spa flying laps). A larger
+ * disagreement means path_lateral does not describe this lap (pit lane: it is measured from the pit path), so the
+ * line blends from lateral to GPS between BLEND_FROM_M and BLEND_TO_M of disagreement.
+ */
+export const BLEND_FROM_M = 1;
+export const BLEND_TO_M = 3;
+
 const wrap = (i: number, n: number) => ((i % n) + n) % n;
 
 /** Closed-loop moving average of the first n values over ±half, skipping samples with |v| > LATERAL_LIMIT_M (off track). */
@@ -73,7 +81,7 @@ export function centreline(laps: LateralLap[], iterations = 2): XY {
   return c;
 }
 
-/** Car line c - pl * nLeft (pl > 0 is right of travel; pl smoothed by LATERAL_SMOOTH_HALF). Where |pl| > 15 m and a fallback exists, the fallback point is used. */
+/** Car line c - pl * nLeft (pl > 0 is right of travel; pl smoothed by LATERAL_SMOOTH_HALF). Where |pl| > 15 m, the fallback point is used; otherwise it blends toward the fallback as the two disagree by BLEND_FROM_M..BLEND_TO_M. */
 export function lineFromLateral(centre: XY, pathLateral: ArrayLike<number>, fallback?: XY): XY {
   let n = Math.min(centre.x.length, pathLateral.length);
   if (fallback) n = Math.min(n, fallback.x.length, fallback.y.length);
@@ -82,8 +90,15 @@ export function lineFromLateral(centre: XY, pathLateral: ArrayLike<number>, fall
   const x = new Float64Array(n), y = new Float64Array(n);
   for (let i = 0; i < n; i++) {
     const pl = smooth[i];
-    if (fallback && Math.abs(pathLateral[i]) > LATERAL_LIMIT_M) { x[i] = fallback.x[i]; y[i] = fallback.y[i]; }
-    else { x[i] = centre.x[i] - pl * nl.x[i]; y[i] = centre.y[i] - pl * nl.y[i]; }
+    const lx = centre.x[i] - pl * nl.x[i], ly = centre.y[i] - pl * nl.y[i];
+    if (!fallback) { x[i] = lx; y[i] = ly; continue; }
+    let w = 1;
+    if (Math.abs(pathLateral[i]) <= LATERAL_LIMIT_M) {
+      const d = Math.hypot(lx - fallback.x[i], ly - fallback.y[i]);
+      w = Math.min(1, Math.max(0, (d - BLEND_FROM_M) / (BLEND_TO_M - BLEND_FROM_M)));
+    }
+    x[i] = lx * (1 - w) + fallback.x[i] * w;
+    y[i] = ly * (1 - w) + fallback.y[i] * w;
   }
   return { x, y };
 }

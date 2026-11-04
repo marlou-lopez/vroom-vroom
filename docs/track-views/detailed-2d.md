@@ -71,3 +71,11 @@ _To add: follow north-up and heading-up at 150 m, 20 m with arrows, and the whol
 ## Decision
 
 **Keep** (2026-11-05). Build it within #45, with the recommendations above.
+
+## Built (#45)
+
+- WebGL only: the SVG and Canvas renderers, the renderer toggle and the `vroom.detailedRenderer` key are gone. three.js loads as its own lazy chunk.
+- Debug flag (`?debug`, or `npm run dev`): the frame-rate HUD, the benchmark, the Lateral / GPS line selector and a "Lose GPU context" test button show only there. Without it the line is always Lateral. The view is no longer marked experimental.
+- Context loss: on `webglcontextlost` drawing stops and a "Graphics reset" notice shows; on restore a fresh renderer is built. After 3 s without a restore the notice offers Retry.
+- Click-to-seek: among line points within the hit radius, the one nearest the car along the lap wins (circular lap distance, then nearest on screen), so a click where the track crosses itself picks your section.
+- Out-lap centreline: when the comparison lap is an out-lap or in-lap, the centreline comes from a flying lap only.

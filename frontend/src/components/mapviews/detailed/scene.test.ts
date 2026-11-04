@@ -31,7 +31,7 @@ function makeCmp(nLap = 1000, nRef = 999) {
   const tRef = Array.from({ length: nRef }, (_, i) => i * 0.1);
   void n;
   return {
-    lap_id: "a", ref_lap_id: "b", distance, delta: new Array(nLap).fill(0), warning: null,
+    lap_id: "a", ref_lap_id: "b", lap_kind: "flying", ref_kind: "flying", distance, delta: new Array(nLap).fill(0), warning: null,
     lap_steering_range_deg: null, ref_steering_range_deg: null,
     lap: channels(nLap, a.lat, a.lon, tLap), ref: channels(nRef, b.lat, b.lon, tRef),
   } as unknown as CompareResponse;
@@ -96,23 +96,50 @@ describe("carPositions refHeading", () => {
   });
 });
 
-describe("line sources", () => {
-  it("shared: lap and ref lines are identical", () => {
-    const s = buildScene(makeCmp(), { source: "shared", gpsHalf: 4 });
-    expect(Array.from(s.lap.x)).toEqual(Array.from(s.ref.x));
-    expect(Array.from(s.lap.y)).toEqual(Array.from(s.ref.y));
+describe("scene frame", () => {
+  it("is the same for two different refs on the same track", () => {
+    const a = makeCmp();
+    const b = makeCmp();
+    b.ref.lat = b.ref.lat.map((v) => v + 0.00003); // a different ref: ~3 m north, shifts its mean
+    b.ref.lon = b.ref.lon.map((v) => v + 0.00003);
+    const sa = buildScene(a, { source: "gps", gpsHalf: 0 }), sb = buildScene(b, { source: "gps", gpsHalf: 0 });
+    // the lap is identical in both, so with a shared frame its line is identical
+    for (let i = 0; i < 999; i += 50) {
+      expect(sb.lap.x[i]).toBeCloseTo(sa.lap.x[i], 9);
+      expect(sb.lap.y[i]).toBeCloseTo(sa.lap.y[i], 9);
+    }
   });
+});
 
+describe("line sources", () => {
   it("lateral: +2 and -2 m path_lateral put the lines about 4 m apart", () => {
     const cmp = makeCmp();
     cmp.lap.path_lateral = new Array(1000).fill(2);
     cmp.ref.path_lateral = new Array(999).fill(-2);
+    // consistent data (both imply a centre at r = 158), so the GPS blend stays out of it
+    const r156 = circle(156, 999);
+    cmp.ref.lat = r156.lat; cmp.ref.lon = r156.lon;
     const s = buildScene(cmp, { source: "lateral", gpsHalf: 4 });
     for (let i = 30; i < 970; i += 41) {
       expect(Math.hypot(s.lap.x[i] - s.ref.x[i], s.lap.y[i] - s.ref.y[i])).toBeGreaterThan(3.9);
       expect(Math.hypot(s.lap.x[i] - s.ref.x[i], s.lap.y[i] - s.ref.y[i])).toBeLessThan(4.1);
     }
     expect(s.centre.x.length).toBe(999);
+  });
+
+  it("centreline uses only the flying lap when exactly one is flying", () => {
+    const cmp = makeCmp();
+    cmp.lap.path_lateral = new Array(1000).fill(2);
+    cmp.ref.path_lateral = new Array(999).fill(-2);
+    const both = buildScene(cmp).centre;
+    const one = buildScene({ ...cmp, ref_kind: "out" }).centre;
+    const other = buildScene({ ...cmp, lap_kind: "in" }).centre;
+    // lap alone: circle r=160 with pl=+2 -> centre r=158; ref alone: r=150 with pl=-2 -> r=152
+    expect(Math.hypot(one.x[100], one.y[100])).toBeCloseTo(158, 0);
+    expect(Math.hypot(other.x[100], other.y[100])).toBeCloseTo(152, 0);
+    expect(Math.hypot(both.x[100], both.y[100])).toBeCloseTo(155, 0);
+    const neither = buildScene({ ...cmp, lap_kind: "out", ref_kind: "in" }).centre;
+    expect(Math.hypot(neither.x[100], neither.y[100])).toBeCloseTo(155, 0);
   });
 
   it("gps with half 0 is the raw local-metres points", () => {

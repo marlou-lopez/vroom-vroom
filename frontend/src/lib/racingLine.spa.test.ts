@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 import type { Corner, TrackMap } from "../api/types";
 import type { SpaRecording, SpaRecordingLap } from "../api/mock/recording";
 import { deriveLandmarks, spaCorners, SPA_TRACK_LENGTH_M } from "../api/mock/spaTrack";
+import { createMockApi } from "../api/mock/mockApi";
+import { buildScene } from "../components/mapviews/detailed/scene";
 import { originOf, toLocalMetres, type XY } from "./geo";
 import {
   centreline, distStats, lateralOffsets, lineFromGps, lineFromLateral, LATERAL_LIMIT_M, normalsLeft, pointDistances, straightMask,
@@ -138,5 +140,42 @@ describe("racing line maths on the Spa recording", () => {
     });
     console.log("(c) share of points using the GPS fallback (|path_lateral| > 15 m)");
     console.table(offRows);
+  });
+});
+
+describe("lap 4 line does not depend on the comparison lap (pit exit/entry)", () => {
+  it("lap 4 vs out-lap and vs lap 3 differ by <= 0.3 m", async () => {
+    const api = createMockApi({ coachDelayMs: 0, loadSpa: async () => REC });
+    const sessions = await api.sessions();
+    const sess = sessions.find((s) => s.track_id === "spa-francorchamps-grand-prix" && s.started_at.startsWith("2026-11-03"))!;
+    const ls = await api.sessionLaps(sess.session_id);
+    const id = (no: number) => ls.find((l) => l.lap_no === no)!.lap_id;
+    const opts = { source: "lateral" as const, gpsHalf: 4 };
+    const vsOut = await api.compare(id(4), id(0));
+    const vs3 = await api.compare(id(4), id(3));
+    const sOut = buildScene(vsOut, opts), s3 = buildScene(vs3, opts);
+    const d = pointDistances(sOut.lap, s3.lap);
+    const st = distStats(d);
+    console.log(`lap4 line, vs out-lap vs vs lap 3: max ${st.max.toFixed(3)} m, mean ${st.mean.toFixed(3)} m, n=${d.length}`);
+    expect(st.max).toBeLessThanOrEqual(0.3);
+
+    // out-lap lateral line vs its own GPS +/-4 on the pit-exit section
+    const gps = buildScene(vsOut, { source: "gps", gpsHalf: 4 });
+    const dOut = pointDistances(sOut.ref, gps.ref);
+    const exit = distStats(dOut.subarray(0, 400)), whole = distStats(dOut);
+    console.log(`out-lap lateral vs GPS+/-4, first 400 m: max ${exit.max.toFixed(3)} m, mean ${exit.mean.toFixed(3)} m; whole lap: max ${whole.max.toFixed(3)} m, mean ${whole.mean.toFixed(3)} m`);
+    expect(exit.max).toBeLessThan(1);
+  });
+
+  it("the GPS blend leaves flying laps unchanged (< 0.05 m from the pure lateral line)", () => {
+    const flying = FLYING.map((no) => ({ no, xy: xyOf(lap(no)), pl: lap(no).path_lateral }));
+    const c = centreline(flying.map((l) => ({ xy: l.xy, pathLateral: l.pl })));
+    for (const l of flying) {
+      const pure = lineFromLateral(c, l.pl);
+      const blended = lineFromLateral(c, l.pl, lineFromGps(l.xy, 4));
+      const st = distStats(pointDistances(pure, blended));
+      console.log(`lap ${l.no}: blended vs pure lateral max ${st.max.toFixed(4)} m, mean ${st.mean.toFixed(5)} m`);
+      expect(st.max).toBeLessThan(0.05);
+    }
   });
 });
