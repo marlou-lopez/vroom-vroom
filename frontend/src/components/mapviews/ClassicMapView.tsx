@@ -65,6 +65,8 @@ export function ClassicMapView({ model, trackMap, annotations, handlers }: Track
 
   const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
     if (e.button !== 0 || drag.current || (e.target as Element).closest(BADGE_SELECTOR)) return;
+    // Hover cards render in a portal, but React still bubbles their events here; don't scrub from them.
+    if (!e.currentTarget.contains(e.target as Node)) return;
     const m = toMap(e);
     if (!m) return;
     // Grabbing your own dot continues from where it is (windowed); otherwise the whole lap is searched.
@@ -93,7 +95,7 @@ export function ClassicMapView({ model, trackMap, annotations, handlers }: Track
       seekToIndex(hit.index);
       return;
     }
-    if (e.pointerType === "touch" || (e.target as Element).closest(BADGE_SELECTOR)) {
+    if (e.pointerType === "touch" || (e.target as Element).closest(BADGE_SELECTOR) || !e.currentTarget.contains(e.target as Node)) {
       setGhost(null);
       return;
     }
