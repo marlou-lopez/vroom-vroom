@@ -1,10 +1,10 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { HeaderSlot } from "../components/AppShell";
 import { AnalysisBar } from "../components/AnalysisBar";
 import { AnnotationCardProvider, type AnnotationCardActions } from "../components/AnnotationPopup";
-import { MapBadges, MapSegments, ScrubberBadges, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
+import { ScrubberBadges, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
 import { DetailedStrips } from "../components/DetailedStrips";
 import { EngineerLine } from "../components/EngineerLine";
 import { LapPicker } from "../components/LapPicker";
@@ -39,6 +39,17 @@ function Telemetry() {
   const { ctx, cmp, candidates, trackMap, error } = useTelemetryData(lapParam, refParam);
   const store = usePlaybackStore();
   const view = usePlayback((s) => s.view);
+  const [expanded, setExpanded] = useState(false);
+
+  // Escape collapses the expanded map, unless something else (an open popup) already handled it.
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) setExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
 
   // No ?lap: reflect the resolved default in the URL.
   useEffect(() => {
@@ -110,13 +121,14 @@ function Telemetry() {
       ) : (
         <>
           {cmp?.warning && <div className={styles.warning}>{cmp.warning}</div>}
-          <div className={styles.grid}>
+          <div className={styles.grid} data-expanded={expanded || undefined}>
             <TrackPanel
               model={model} trackMap={trackMap}
-              mapLayer={<MapSegments annotations={annotations} model={model} />}
-              badgeLayer={<MapBadges annotations={annotations} model={model} h={handlers} />}
+              annotations={annotations} handlers={handlers}
+              expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
               footer={<EngineerLine annotations={annotations} trackMap={trackMap} model={model} />}
             />
+            {!expanded && (
             <section aria-label="Inputs" className={styles.inputs}>
               <div className={styles.viewBar}>
                 <ToggleGroup.Root
@@ -130,6 +142,7 @@ function Telemetry() {
               </div>
               {view === "detailed" ? <DetailedStrips model={model} annotations={annotations} handlers={handlers} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
             </section>
+            )}
           </div>
           <Transport
             model={model} trackMap={trackMap}

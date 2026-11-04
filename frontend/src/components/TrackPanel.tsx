@@ -1,145 +1,56 @@
-import { useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
+import * as ToggleGroup from "@radix-ui/react-toggle-group";
+import { useState, type ReactNode } from "react";
 import type { TrackMap } from "../api/types";
-import { MAP_H, MAP_PAD, MAP_W, type PlaybackModel } from "../lib/model";
-import { distanceAtTime, indexAtTime, timeAtDistance } from "../lib/playback";
+import type { Annotation } from "../lib/annotations";
+import type { PlaybackModel } from "../lib/model";
+import { distanceAtTime, indexAtTime } from "../lib/playback";
 import { formatDelta, gearLabel } from "../lib/format";
 import { cx } from "../lib/cx";
-import { cornerAt, MAP_HIT_PX, pointAtDistance, SCRUB_WINDOW_M, scrubTarget, segmentPath } from "../lib/trackmap";
-import { usePlayback, usePlaybackStore } from "../state/playback";
+import { cornerAt } from "../lib/trackmap";
+import { usePlayback } from "../state/playback";
+import { loadTrackView, saveTrackView } from "../state/mapViewPref";
+import type { BadgeHandlers } from "./AnnotationOverlays";
+import { TRACK_VIEWS } from "./mapviews/registry";
+import type { TrackViewId } from "./mapviews/types";
+import ui from "./ui.module.css";
 import styles from "./TrackPanel.module.css";
 
 export interface TrackPanelProps {
   model: PlaybackModel;
   trackMap: TrackMap | null;
-  /** SVG children drawn in map coordinates (tinted segments), under the dots. */
-  mapLayer?: ReactNode;
-  /** SVG children drawn in map coordinates above the dots (numbered badges). They take pointer priority over scrubbing. */
-  badgeLayer?: ReactNode;
+  annotations: Annotation[];
+  handlers: BadgeHandlers;
   /** Bottom strip of the panel (EngineerLine). */
   footer?: ReactNode;
+  expanded: boolean;
+  onToggleExpanded(): void;
 }
 
-const VIEWBOX = `${-MAP_PAD} ${-MAP_PAD} ${MAP_W + 2 * MAP_PAD} ${MAP_H + 2 * MAP_PAD}`;
-const BADGE_SELECTOR = "[data-annotation-badge]";
-
-interface Ghost {
-  index: number;
-  x: number;
-  y: number;
-  distance: number;
-  corner: string | null;
-}
-
-interface Drag {
-  pointerId: number;
-  /** Grid index of the last scrub position; the next windowed search is centred on it. */
-  index: number;
-  resume: boolean;
-}
-
-export function TrackPanel({ model, trackMap, mapLayer, badgeLayer, footer }: TrackPanelProps) {
-  const store = usePlaybackStore();
+export function TrackPanel({ model, trackMap, annotations, handlers, footer, expanded, onToggleExpanded }: TrackPanelProps) {
   const tau = usePlayback((s) => s.tau);
-  const { cmp, proj } = model;
-  const svgRef = useRef<SVGSVGElement>(null);
-  const drag = useRef<Drag | null>(null);
-  // Hover and drag state stays here: pointer moves re-render this panel only, never the page.
-  const [ghost, setGhost] = useState<Ghost | null>(null);
-  const [dragging, setDragging] = useState(false);
+  const { cmp } = model;
+  const [viewId, setViewId] = useState<TrackViewId>(loadTrackView);
 
   const iy = indexAtTime(cmp.lap.t, tau);
   const dYou = distanceAtTime(cmp.lap.t, cmp.distance, tau);
   const dRef = distanceAtTime(cmp.ref.t, cmp.distance, tau);
-  const you = pointAtDistance(proj, cmp.distance, dYou);
-  const ref = pointAtDistance(proj, cmp.distance, dRef);
   const corner = trackMap ? cornerAt(trackMap, dYou) : null;
   const delta = cmp.delta[iy] ?? 0;
   const gap = Math.round(dRef - dYou);
-
-  // The tinted segment only changes when the corner does.
-  const cornerId = corner?.id ?? null;
-  const cornerPath = useMemo(() => {
-    const c = trackMap?.corners.find((k) => k.id === cornerId);
-    if (!c || c.start_m > c.end_m) return "";
-    return segmentPath(proj, cmp.distance, c.start_m, c.end_m);
-  }, [trackMap, cornerId, proj, cmp.distance]);
-
   const gapLabel = gap > 0 ? `reference ${gap} m ahead` : gap < 0 ? `reference ${-gap} m behind` : "level with reference";
 
-  /** Pointer position in map units plus the 12 px hit radius converted to map units; null before layout. */
-  const toMap = (e: PointerEvent<SVGSVGElement>) => {
-    const svg = svgRef.current;
-    const ctm = svg?.getScreenCTM();
-    if (!svg || !ctm) return null;
-    const pt = svg.createSVGPoint();
-    pt.x = e.clientX;
-    pt.y = e.clientY;
-    const p = pt.matrixTransform(ctm.inverse());
-    const pxPerUnit = Math.hypot(ctm.a, ctm.b) || 1;
-    return { x: p.x, y: p.y, maxDist: MAP_HIT_PX / pxPerUnit };
+  const active = TRACK_VIEWS.find((v) => v.id === viewId) ?? TRACK_VIEWS[0];
+  const View = active.Component;
+  const selectView = (v: string) => {
+    const next = TRACK_VIEWS.find((t) => t.id === v);
+    if (!next) return;
+    setViewId(next.id);
+    saveTrackView(next.id);
   };
-
-  const seekToIndex = (index: number) => store.seek(timeAtDistance(cmp.lap.t, cmp.distance, cmp.distance[index] ?? index));
-
-  const onPointerDown = (e: PointerEvent<SVGSVGElement>) => {
-    if (e.button !== 0 || drag.current || (e.target as Element).closest(BADGE_SELECTOR)) return;
-    const m = toMap(e);
-    if (!m) return;
-    // Grabbing your own dot continues from where it is (windowed); otherwise the whole lap is searched.
-    const onDot = Math.hypot(you.x - m.x, you.y - m.y) <= m.maxDist;
-    const centre = Math.round(dYou);
-    const hit = scrubTarget(proj, m.x, m.y, m.maxDist, onDot ? { index: centre, halfWindow: SCRUB_WINDOW_M } : undefined);
-    if (!hit) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const resume = store.get().playing;
-    store.pause();
-    drag.current = { pointerId: e.pointerId, index: hit.index, resume };
-    setDragging(true);
-    setGhost(null);
-    seekToIndex(hit.index);
-  };
-
-  const onPointerMove = (e: PointerEvent<SVGSVGElement>) => {
-    const m = toMap(e);
-    if (!m) return;
-    const d = drag.current;
-    if (d) {
-      if (e.pointerId !== d.pointerId) return;
-      const hit = scrubTarget(proj, m.x, m.y, m.maxDist, { index: d.index, halfWindow: SCRUB_WINDOW_M });
-      if (!hit) return;
-      d.index = hit.index;
-      seekToIndex(hit.index);
-      return;
-    }
-    if (e.pointerType === "touch" || (e.target as Element).closest(BADGE_SELECTOR)) {
-      setGhost(null);
-      return;
-    }
-    const hit = scrubTarget(proj, m.x, m.y, m.maxDist);
-    if (!hit) {
-      setGhost(null);
-      return;
-    }
-    setGhost((prev) => {
-      if (prev?.index === hit.index) return prev;
-      const distance = cmp.distance[hit.index] ?? hit.index;
-      return { index: hit.index, x: proj.x[hit.index], y: proj.y[hit.index], distance, corner: trackMap ? (cornerAt(trackMap, distance)?.name ?? null) : null };
-    });
-  };
-
-  const endDrag = (e: PointerEvent<SVGSVGElement>) => {
-    const d = drag.current;
-    if (!d || e.pointerId !== d.pointerId) return;
-    drag.current = null;
-    setDragging(false);
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-    if (d.resume) store.play();
-  };
-
-  const labelRight = ghost ? ghost.x <= MAP_W / 2 : true;
 
   return (
-    <section aria-label="Track playback" className={styles.panel}>
+    <section aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
+      <View model={model} trackMap={trackMap} annotations={annotations} handlers={handlers} />
       <div className={styles.readout}>
         <div className={styles.corner}>{corner ? corner.name : "Straight"}</div>
         <div className={cx(styles.mono, styles.muted)}>
@@ -150,38 +61,30 @@ export function TrackPanel({ model, trackMap, mapLayer, badgeLayer, footer }: Tr
         <div className={cx(styles.delta, delta > 0.005 && styles.loss, delta < -0.005 && styles.gain)}>{formatDelta(delta)} s</div>
         <div className={cx(styles.mono, styles.muted)}>{gapLabel}</div>
       </div>
-      <svg
-        ref={svgRef}
-        viewBox={VIEWBOX}
-        aria-hidden="true"
-        className={styles.map}
-        data-near={ghost !== null}
-        data-dragging={dragging}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onLostPointerCapture={endDrag}
-        onPointerLeave={() => setGhost(null)}
-      >
-        <path d={model.mapPath} className={styles.base} />
-        {cornerPath && <path d={cornerPath} className={styles.cornerNow} />}
-        {mapLayer}
-        {ghost && !dragging && (
-          <>
-            <circle cx={ghost.x} cy={ghost.y} r={3.2} className={styles.ghostDot} />
-            <text
-              x={ghost.x + (labelRight ? 7 : -7)} y={ghost.y - 5}
-              textAnchor={labelRight ? "start" : "end"} className={styles.ghostLabel}
+      <div className={styles.toolbar}>
+        <ToggleGroup.Root
+          type="single" aria-label="Track view" className={styles.viewToggle}
+          value={active.id} onValueChange={selectView}
+        >
+          {TRACK_VIEWS.map((v) => (
+            <ToggleGroup.Item
+              key={v.id} value={v.id} className={ui.toggleItem}
+              title={v.experimental ? "Experimental" : undefined}
             >
-              {Math.round(ghost.distance).toLocaleString("en-US")} m{ghost.corner ? ` · ${ghost.corner}` : ""}
-            </text>
-          </>
-        )}
-        <circle cx={ref.x} cy={ref.y} r={3.6} className={styles.refDot} />
-        <circle cx={you.x} cy={you.y} r={3.6} className={styles.youDot} />
-        {badgeLayer}
-      </svg>
+              {v.label}
+              {v.experimental && <span className={styles.exp}>exp</span>}
+            </ToggleGroup.Item>
+          ))}
+        </ToggleGroup.Root>
+        <button
+          type="button" className={cx(ui.btn, ui.btnMuted, styles.expand)}
+          aria-pressed={expanded}
+          aria-label={expanded ? "Collapse track view" : "Expand track view"}
+          onClick={onToggleExpanded}
+        >
+          {expanded ? "⤡" : "⤢"}
+        </button>
+      </div>
       {footer && <div className={styles.footer}>{footer}</div>}
     </section>
   );
