@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMutationState, useQueryClient } from "@tanstack/react-query";
 import { useCoachMutation, useCoachResults, useSetFindingReviewed } from "../api/queries";
 import { errorInfo, type CoachResults, type Finding } from "../api/types";
 
@@ -19,12 +20,23 @@ export function useCoach(lapId: string | null, refLapId: string | null) {
   const [showNotes, setShowNotes] = useState(true);
   const [dives, setDives] = useState<Record<string, Finding>>({});
   const resultsQ = useCoachResults(lapId, refLapId);
-  const runM = useCoachMutation();
+  const queryClient = useQueryClient();
+  const runKey = useMemo(() => ["coach", "run", lapId, refLapId] as const, [lapId, refLapId]);
+  const runM = useCoachMutation({ mutationKey: runKey, onSuccess: () => setShowNotes(true) });
   const cornerM = useCoachMutation();
   const reviewM = useSetFindingReviewed(lapId, refLapId);
   const { reset: resetRun, mutate: startRun } = runM;
   const { mutateAsync: askCornerAsync } = cornerM;
   const { reset: resetReview } = reviewM;
+  const pendingRuns = useMutationState({
+    filters: { mutationKey: runKey, exact: true, status: "pending" },
+    select: (mutation) => {
+      const value = mutation.state.variables;
+      return typeof value === "object" && value !== null && "command" in value &&
+        (value.command === "analyze" || value.command === "average") ? value.command : null;
+    },
+  });
+  const running = pendingRuns.find((command) => command !== null) ?? null;
 
   // A new (lap, comparison) pair starts without the previous pair's error.
   useEffect(() => {
@@ -34,10 +46,10 @@ export function useCoach(lapId: string | null, refLapId: string | null) {
 
   const run = useCallback(
     (command: "analyze" | "average") => {
-      if (!lapId) return;
-      startRun({ command, lap_id: lapId, ref_lap_id: refLapId, corner_id: null }, { onSuccess: () => setShowNotes(true) });
+      if (!lapId || queryClient.isMutating({ mutationKey: runKey, exact: true })) return;
+      startRun({ command, lap_id: lapId, ref_lap_id: refLapId, corner_id: null });
     },
-    [lapId, refLapId, startRun],
+    [lapId, refLapId, queryClient, runKey, startRun],
   );
 
   /** Ask about one corner. Resolves with the returned finding; rejects with the API error. */
@@ -64,7 +76,7 @@ export function useCoach(lapId: string | null, refLapId: string | null) {
 
   return {
     results: resultsQ.data ?? NO_RESULTS,
-    running: runM.isPending ? runM.variables.command : null,
+    running,
     error,
     showNotes,
     setShowNotes,

@@ -77,13 +77,15 @@ export function usePatchLap() {
 }
 
 /** Runs a coach command. Analyze and Average results are merged into the (lap, ref) cache by command; a corner answer is returned only. */
-export function useCoachMutation() {
+export function useCoachMutation(options?: { mutationKey?: readonly unknown[]; onSuccess?: () => void }) {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: options?.mutationKey,
     mutationFn: (req: CoachRequest) => api.coach(req),
     onSuccess: (res: CoachResult, req) => {
       if (req.command === "corner") return;
       qc.setQueryData<CoachResults>(qk.coachResults(req.lap_id, req.ref_lap_id), (prev) => ({ ...prev, [req.command]: res }));
+      options?.onSuccess?.();
     },
   });
 }
