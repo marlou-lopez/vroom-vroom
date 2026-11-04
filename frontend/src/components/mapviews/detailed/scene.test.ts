@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CompareResponse } from "../../../api/types";
 import { originOf, pointAt, toLocalMetres } from "../../../lib/geo";
-import { buildScene, carPositions } from "./scene";
+import { buildScene, carPositions, progressSplit } from "./scene";
 
 const R = 6371008.8, DEG = Math.PI / 180, LAT0 = 60, LON0 = 0;
 
@@ -173,5 +173,43 @@ describe("car sync", () => {
     expect(Math.hypot(c.ref.x - p.x, c.ref.y - p.y)).toBeGreaterThan(5);
     const d = carPositions(scene, cmp, 50, "time");
     expect(d.ref).toEqual(c.ref);
+  });
+});
+
+describe("progressSplit", () => {
+  it("splits a fractional distance into segment and fraction", () => {
+    const s = progressSplit(12.25, 100);
+    expect(s.segment).toBe(12);
+    expect(s.fraction).toBeCloseTo(0.25, 9);
+  });
+  it("an integer distance is the start of its segment", () => {
+    expect(progressSplit(12, 100)).toEqual({ segment: 12, fraction: 0 });
+  });
+  it("clamps at the start", () => {
+    expect(progressSplit(0, 100)).toEqual({ segment: 0, fraction: 0 });
+    expect(progressSplit(-5, 100)).toEqual({ segment: 0, fraction: 0 });
+  });
+  it("clamps at the end to the last segment, fully driven", () => {
+    expect(progressSplit(99, 100)).toEqual({ segment: 98, fraction: 1 });
+    expect(progressSplit(250, 100)).toEqual({ segment: 98, fraction: 1 });
+  });
+  it("handles tiny polylines", () => {
+    expect(progressSplit(5, 0)).toEqual({ segment: 0, fraction: 0 });
+    expect(progressSplit(5, 1)).toEqual({ segment: 0, fraction: 0 });
+    expect(progressSplit(0.5, 2)).toEqual({ segment: 0, fraction: 0.5 });
+    expect(progressSplit(3, 2)).toEqual({ segment: 0, fraction: 1 });
+  });
+});
+
+describe("carPositions distances", () => {
+  const cmp = makeCmp();
+  cmp.ref.t = cmp.ref.t.map((t) => t * 1.1);
+  const scene = buildScene(cmp, { source: "gps", gpsHalf: 4 });
+  it("returns each car's grid distance; distance sync makes them equal", () => {
+    const c = carPositions(scene, cmp, 50);
+    expect(c.dLap).toBeCloseTo(500, 0);
+    expect(c.dRef).toBeLessThan(c.dLap);
+    const d = carPositions(scene, cmp, 50, "distance");
+    expect(d.dRef).toBe(d.dLap);
   });
 });

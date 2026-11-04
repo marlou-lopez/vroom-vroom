@@ -55,8 +55,19 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
  * Each car at its own distance-at-time on its own line (the grid index equals metres); heading is the lap car's and refHeading the ref car's.
  * With sync "distance" the ref car is placed at the lap car's distance instead.
  */
-export function carPositions(scene: Scene, cmp: CompareResponse, tau: number, sync: CarSync = "time"): { lap: Pt; ref: Pt; heading: number; refHeading: number } {
+export function carPositions(scene: Scene, cmp: CompareResponse, tau: number, sync: CarSync = "time"): { lap: Pt; ref: Pt; heading: number; refHeading: number; dLap: number; dRef: number } {
   const dLap = distanceAtTime(cmp.lap.t, cmp.distance, tau);
   const dRef = sync === "distance" ? dLap : distanceAtTime(cmp.ref.t, cmp.distance, tau);
-  return { lap: pointAt(scene.lap, dLap), ref: pointAt(scene.ref, dRef), heading: headingAt(scene.lap, dLap), refHeading: headingAt(scene.ref, dRef) };
+  return { lap: pointAt(scene.lap, dLap), ref: pointAt(scene.ref, dRef), heading: headingAt(scene.lap, dLap), refHeading: headingAt(scene.ref, dRef), dLap, dRef };
+}
+
+/**
+ * Where a car at fractional grid distance `d` (index = metres) sits on a polyline of `nPoints` points:
+ * on segment `segment` (between points `segment` and `segment + 1`), `fraction` 0..1 along it. Clamped to the line.
+ */
+export function progressSplit(d: number, nPoints: number): { segment: number; fraction: number } {
+  if (nPoints < 2 || !(d > 0)) return { segment: 0, fraction: 0 };
+  if (d >= nPoints - 1) return { segment: nPoints - 2, fraction: 1 };
+  const segment = Math.floor(d);
+  return { segment, fraction: d - segment };
 }

@@ -52,6 +52,25 @@ interface Drag { id: number; lastX: number; lastY: number; total: number; sumX: 
 
 const f1 = (v: number) => v.toFixed(1);
 
+const LINE_AHEAD_KEY = "vroom.lineAhead";
+
+/** Whether the line ahead of each car is shown (#48); remembered per browser, default on. */
+function loadLineAhead(): boolean {
+  try {
+    return globalThis.localStorage?.getItem(LINE_AHEAD_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function saveLineAhead(on: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(LINE_AHEAD_KEY, on ? "1" : "0");
+  } catch {
+    // Private window or blocked storage: not remembered.
+  }
+}
+
 export function DetailedMapView({ model, annotations, handlers }: TrackViewProps) {
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
@@ -65,6 +84,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const [gpu, setGpu] = useState<GpuState>("ok");
   const [mode, setModeState] = useState<CameraMode>("follow");
   const [headingUp, setHeadingUpState] = useState(false);
+  const [lineAhead, setLineAheadState] = useState(loadLineAhead);
   const [showHud, setShowHud] = useState(true);
   const [hudText, setHudText] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -84,6 +104,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const modeRef = useRef<CameraMode>("follow");
   const syncRef = useRef<CarSync>("time");
   const headingUpRef = useRef(false);
+  const lineAheadRef = useRef(lineAhead);
   const smoothedHeading = useRef(0);
   const resetHeading = useRef(true);
   const lastDist = useRef(0);
@@ -128,7 +149,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     shownCam.current = cam;
 
     const t0 = performance.now();
-    r.draw({ camera: cam, viewport: v, lapCar: cars.lap, refCar: cars.ref, lapHeading: cars.heading, refHeading: cars.refHeading });
+    r.draw({ camera: cam, viewport: v, lapCar: cars.lap, refCar: cars.ref, lapHeading: cars.heading, refHeading: cars.refHeading, lapDist: cars.dLap, refDist: cars.dRef });
     const dt = performance.now() - t0;
     draws.current.push(dt);
     drawRec.current?.push(dt);
@@ -223,6 +244,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
       lostRef.current = false;
       setGpu("ok");
       r.setScene(sceneRef.current);
+      r.setAheadVisible(lineAheadRef.current);
       r.resize(vp.current, window.devicePixelRatio || 1);
       requestDraw();
       return r;
@@ -362,6 +384,15 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     requestDraw();
   };
 
+  const toggleLineAhead = () => {
+    const next = !lineAheadRef.current;
+    lineAheadRef.current = next;
+    setLineAheadState(next);
+    saveLineAhead(next);
+    rendererRef.current?.setAheadVisible(next);
+    requestDraw();
+  };
+
   const toggleHeadingUp = () => {
     const next = !headingUpRef.current;
     headingUpRef.current = next;
@@ -498,6 +529,12 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
             disabled={running || mode !== "follow"} onClick={toggleHeadingUp}
           >
             Heading-up
+          </button>
+          <button
+            type="button" className={cx(ui.btn, styles.small)} aria-pressed={lineAhead}
+            title="Show the part of each line the car has not reached yet" disabled={running} onClick={toggleLineAhead}
+          >
+            Line ahead
           </button>
           <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={fit}>Fit</button>
           {debug && (
