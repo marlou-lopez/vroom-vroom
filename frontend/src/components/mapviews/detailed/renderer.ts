@@ -1,10 +1,6 @@
 import type { Camera, Viewport } from "../../../lib/camera";
 import type { Pt } from "../../../lib/geo";
 import type { Scene } from "./scene";
-import { createCanvasRenderer } from "./canvasRenderer";
-import { createSvgRenderer } from "./svgRenderer";
-
-export type RendererKind = "svg" | "canvas" | "webgl";
 
 export interface Frame { camera: Camera; viewport: Viewport; lapCar: Pt; refCar: Pt; lapHeading: number; refHeading: number }
 
@@ -13,9 +9,13 @@ export interface Renderer {
   /** Cheap and idempotent: call on every ResizeObserver tick. */
   resize(v: Viewport, dpr: number): void;
   draw(f: Frame): void;
-  /** Removes everything this renderer added to the host. */
+  /** Removes everything this renderer added to the host. Safe on a lost context. */
   destroy(): void;
+  /** Debug: loses the GPU context, then restores it after 1 s. False when the extension is missing. */
+  simulateContextLoss(): boolean;
 }
+
+export interface RendererEvents { onContextLost(): void; onContextRestored(): void }
 
 export interface Colors { you: string; comparison: string; line: string; bg: string; text: string }
 
@@ -44,17 +44,7 @@ export function readColors(el: Element): Colors {
   };
 }
 
-/** World to screen as an affine matrix [a b c d e f] (CSS px), equivalent to `worldToScreen`. */
-export function cameraMatrix(c: Camera, v: Viewport): [number, number, number, number, number, number] {
-  const s = v.w / c.widthM;
-  const cos = Math.cos(c.rotation), sin = Math.sin(c.rotation);
-  const a = s * cos, b = -s * sin, cc = -s * sin, d = -s * cos;
-  return [a, b, cc, d, v.w / 2 - (a * c.cx + cc * c.cy), v.h / 2 - (b * c.cx + d * c.cy)];
-}
-
-export async function createRenderer(kind: RendererKind, host: HTMLElement): Promise<Renderer> {
-  if (kind === "svg") return createSvgRenderer(host);
-  if (kind === "canvas") return createCanvasRenderer(host);
+export async function loadRenderer(host: HTMLElement, events: RendererEvents): Promise<Renderer> {
   const { createWebglRenderer } = await import("./webglRenderer");
-  return createWebglRenderer(host);
+  return createWebglRenderer(host, events);
 }

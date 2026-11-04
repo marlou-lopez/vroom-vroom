@@ -387,6 +387,8 @@ export function createMockApi(opts: MockOptions = {}): Api {
     const res: CompareResponse = {
       lap_id: lap.meta.lap_id,
       ref_lap_id: ref.meta.lap_id,
+      lap_kind: lap.meta.kind,
+      ref_kind: ref.meta.kind,
       distance: a.distance.length === n ? a.distance : a.distance.slice(0, n),
       lap: lapCh,
       ref: refCh,

@@ -73,6 +73,9 @@ export interface CompareResponse {
   /** Not in the plan's route table: the ids actually compared (needed when `ref` was omitted). */
   lap_id: string;
   ref_lap_id: string;
+  /** Kinds of `lap_id` and `ref_lap_id`; the view uses them to build the centreline from flying laps only. */
+  lap_kind: LapKind;
+  ref_kind: LapKind;
   distance: number[];
   lap: ChannelArrays;
   ref: ChannelArrays;

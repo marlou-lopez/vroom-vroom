@@ -127,6 +127,13 @@ describe("mockApi: real Spa laps", () => {
     expect(cmp.warning).toBeNull();
   });
 
+  it("compare reports the kinds of both laps", async () => {
+    const { api, lap } = await setup();
+    const cmp = await api.compare(lap(4).lap_id, lap(0).lap_id);
+    expect(cmp.lap_kind).toBe("flying");
+    expect(cmp.ref_kind).toBe("out");
+  });
+
   it("compare across laps of different length uses 0..min(lenA, lenB)", async () => {
     const { api, lap } = await setup();
     const cmp = await api.compare(lap(6).lap_id, lap(4).lap_id);

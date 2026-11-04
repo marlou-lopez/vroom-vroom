@@ -2,12 +2,11 @@ import type { CompareResponse } from "../../../api/types";
 import { bounds, headingAt, originOf, pointAt, toLocalMetres, type Pt, type XY } from "../../../lib/geo";
 import { distanceAtTime } from "../../../lib/playback";
 import { centreline, lineFromGps, lineFromLateral } from "../../../lib/racingLine";
-import { GPS_SMOOTH_HALF } from "../../../lib/trackmap";
 
 /** Everything a renderer draws, in local metres (x east, y north). */
 export interface Scene { lap: XY; ref: XY; centre: XY; edges: [XY, XY]; bounds: ReturnType<typeof bounds> }
 
-export type LineSource = "shared" | "gps" | "lateral";
+export type LineSource = "gps" | "lateral";
 export type CarSync = "time" | "distance";
 export interface SceneOptions { source: LineSource; gpsHalf: number }
 
@@ -29,18 +28,18 @@ function offsetLine(xy: XY, offset: number): XY {
 }
 
 export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: "lateral", gpsHalf: 4 }): Scene {
-  const origin = originOf(cmp.ref.lat, cmp.ref.lon);
+  // Rounded to 0.01 degree so changing lap or ref on the same track keeps the same frame.
+  const o = originOf(cmp.ref.lat, cmp.ref.lon);
+  const origin = { lat0: Math.round(o.lat0 * 100) / 100, lon0: Math.round(o.lon0 * 100) / 100 };
   const n = Math.min(cmp.lap.lat.length, cmp.ref.lat.length, cmp.distance.length);
   const raw = (c: CompareResponse["lap"]) => toLocalMetres(c.lat.slice(0, n), c.lon.slice(0, n), origin);
   const lapRaw = raw(cmp.lap), refRaw = raw(cmp.ref);
-  const centre = centreline([
-    { xy: lapRaw, pathLateral: cmp.lap.path_lateral },
-    { xy: refRaw, pathLateral: cmp.ref.path_lateral },
-  ]);
+  // Out/in laps carry pit-lane path_lateral: when exactly one lap is flying, only it defines the centreline.
+  const lapIn = { xy: lapRaw, pathLateral: cmp.lap.path_lateral }, refIn = { xy: refRaw, pathLateral: cmp.ref.path_lateral };
+  const lapFlying = cmp.lap_kind === "flying", refFlying = cmp.ref_kind === "flying";
+  const centre = centreline(lapFlying !== refFlying ? [lapFlying ? lapIn : refIn] : [lapIn, refIn]);
   let lap: XY, ref: XY;
-  if (opts.source === "shared") {
-    lap = ref = lineFromGps(refRaw, GPS_SMOOTH_HALF);
-  } else if (opts.source === "gps") {
+  if (opts.source === "gps") {
     lap = lineFromGps(lapRaw, opts.gpsHalf);
     ref = lineFromGps(refRaw, opts.gpsHalf);
   } else {

@@ -41,3 +41,11 @@
   padding: 2px 4px; font: inherit; color: var(--color-text); background: var(--color-bg);
   border: 1px solid var(--color-border); border-radius: var(--radius);
 }
+
+/* Shown while the GPU context is lost; drawing is paused behind it. */
+.gpu {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
+  display: flex; align-items: center; gap: 6px; padding: 4px 8px;
+  color: var(--color-text); background: var(--color-bg);
+  border: 1px solid var(--color-border); border-radius: var(--radius);
+}
