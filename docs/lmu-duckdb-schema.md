@@ -21,7 +21,7 @@ These findings answer plan Task 1 Step 8. **Where they contradict the plan, the 
 | GPS Latitude / Longitude | 50 | deg | **Not real-world coordinates**: about 60.0 N, 0.0 E for Spa. It is a local projection; equirectangular with cos(lat) gives the true shape (one lap's GPS path is 6998 m, against 6979 m of lap distance). |
 | **G Force Lat** | 50 | G | **Actually longitudinal.** Positive under braking (+1.6 g into La Source). |
 | **G Force Long** | 50 | G | **Actually lateral.** Negative in right-handers, positive in left-handers (Pouhon +1.8 g). |
-| Path Lateral / Track Edge | 10 | m | |
+| Path Lateral / Track Edge | 10 | m | **Path Lateral** = metres from the track centreline, **+ = right of travel** (verified 2026-11-05: the centreline implied by laps 1-4 agrees to 0.05 m rms across the track (0.09 m as 2D distance) with this sign, 1.19 m with the opposite). **Track Edge** = distance from the centre to the edge **on the car's side**, with the sign of that side (flips when Path Lateral crosses 0). |
 | SurfaceTypes | 5 | enum per wheel | Values seen: 0, 2, 4, 5, 6. **5 = kerb (rumble strip)**, following the rF2 enum (0 dry, 2 grass, 4 gravel, 6 special). Kerb hits cluster at corner exits. |
 | Engine RPM | 100 | rpm | |
 
