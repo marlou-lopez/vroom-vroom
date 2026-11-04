@@ -15,7 +15,7 @@ These findings answer plan Task 1 Step 8. **Where they contradict the plan, the 
 | Channel | Rate | Unit | Notes |
 |---|---|---|---|
 | Ground Speed | 100 | km/h | |
-| Throttle Pos / Brake Pos | 50 | % (0–100) | Divide by 100. |
+| Throttle Pos / Brake Pos | 50 | % (0–100) | Divide by 100. **Use `Throttle Pos Unfiltered` for the driver's throttle:** `Throttle Pos` is the throttle after the game's interventions: it drops to 0 at every upshift (ignition cut) while the pedal stays down (all 18 upshifts on lap 4), and can read lower elsewhere too (0.66 vs a 0.99 pedal mid-Bus Stop; cause unverified, possibly TC). The two differ on 286 of 7,076 samples on lap 4. `Brake Pos` and `Steering Pos` equal their `Unfiltered` channels on that lap. |
 | Steering Pos | 100 | % (−100..100) | **+ = right.** Divide by 100 for normalised steering. |
 | Lap Dist | 50 | m | Resets to 0 at the line. The first samples of a lap can still show the previous lap's distance (about 6979). |
 | GPS Latitude / Longitude | 50 | deg | **Not real-world coordinates**: about 60.0 N, 0.0 E for Spa. It is a local projection; equirectangular with cos(lat) gives the true shape (one lap's GPS path is 6998 m, against 6979 m of lap distance). |
