@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  FOLLOW_WIDTH_M, MIN_WIDTH_M, fitBounds, followCamera, panBy, screenToWorld, smoothHeading, worldToScreen, zoomAt, zoomScale,
+  FOLLOW_WIDTH_M, MIN_WIDTH_M, fitBounds, followCamera, northUp, panBy, screenToWorld, smoothHeading, worldToScreen, zoomAt, zoomScale,
   type Camera, type Viewport,
 } from "./camera";
 
@@ -92,6 +92,19 @@ describe("fitBounds", () => {
   it("survives zero spans and tiny viewports", () => {
     const c = fitBounds({ minX: 1, maxX: 1, minY: 2, maxY: 2 }, { w: 10, h: 10 });
     expect(Number.isFinite(c.widthM) && c.widthM > 0).toBe(true);
+  });
+});
+
+describe("northUp", () => {
+  it("sets rotation 0 and keeps the world point at the viewport centre and the zoom", () => {
+    const c: Camera = { cx: 120, cy: -40, widthM: 180, rotation: 2.3 };
+    const n = northUp(c);
+    expect(n.rotation).toBe(0);
+    expect(n.widthM).toBe(180);
+    const before = screenToWorld(c, v, { x: v.w / 2, y: v.h / 2 });
+    const after = screenToWorld(n, v, { x: v.w / 2, y: v.h / 2 });
+    expect(after.x).toBeCloseTo(before.x, 9);
+    expect(after.y).toBeCloseTo(before.y, 9);
   });
 });
 
