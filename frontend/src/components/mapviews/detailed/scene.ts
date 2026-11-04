@@ -1,10 +1,18 @@
 import type { CompareResponse } from "../../../api/types";
 import { bounds, headingAt, originOf, pointAt, toLocalMetres, type Pt, type XY } from "../../../lib/geo";
 import { distanceAtTime } from "../../../lib/playback";
-import { centreline, lineFromGps, lineFromLateral } from "../../../lib/racingLine";
+import { gainRate } from "../../../lib/gainLoss";
+import { LATERAL_LIMIT_M, NORMAL_HALF_M, centreline, lateralOffsets, lineFromGps, lineFromLateral, normalsLeft } from "../../../lib/racingLine";
+
+/**
+ * The gain/loss line (#59), left of travel. Its points are centre + normal * (clearM + a screen-px gap converted at
+ * the current zoom), so the renderer rebuilds them only when the zoom changes. rate is s/m, positive = losing.
+ */
+export interface GainLine { normals: XY; clearM: Float64Array; rate: Float64Array }
 
 /** Everything a renderer draws, in local metres (x east, y north). */
-export interface Scene { lap: XY; ref: XY; centre: XY; edges: [XY, XY]; bounds: ReturnType<typeof bounds> }
+/** surface: left and right borders of the track-surface gain/loss band, which always holds both car lines (#59). */
+export interface Scene { lap: XY; ref: XY; centre: XY; edges: [XY, XY]; gain: GainLine; surface: [XY, XY]; bounds: ReturnType<typeof bounds> }
 
 export type LineSource = "gps" | "lateral";
 export type CarSync = "time" | "distance";
@@ -25,6 +33,58 @@ function offsetLine(xy: XY, offset: number): XY {
     y[i] = xy.y[i] + (tx / len) * offset;
   }
   return { x, y };
+}
+
+/** Half-width (m) of the window max and of the moving average that turn the per-point clearance into a smooth one. */
+const GAIN_CLEAR_HALF_M = 20;
+
+/** Margin (m) the track-surface band keeps beyond the outermost car line, so no sliver of it runs beside a line. */
+export const SURFACE_MARGIN_M = 2;
+
+/**
+ * Metres from the centreline, on `side`, that stay clear of the stand-in edge and of either car line plus `marginM`
+ * where it runs wider (pit-lane values beyond LATERAL_LIMIT_M are ignored). A window max then a moving average of the
+ * same half-width keeps it smooth and never below any point's own clearance (every window holding point i includes
+ * a max that saw i).
+ */
+export function gainClearance(
+  centre: XY, lines: XY[], side: "left" | "right" = "left", marginM = 0, edgeM = EDGE_OFFSET_M, half = GAIN_CLEAR_HALF_M,
+): Float64Array {
+  const n = centre.x.length;
+  const raw = new Float64Array(n).fill(edgeM);
+  const sign = side === "left" ? -1 : 1;
+  for (const l of lines) {
+    const off = lateralOffsets(l, centre);
+    for (let i = 0; i < off.length; i++) {
+      const out = sign * off[i];
+      if (out <= LATERAL_LIMIT_M && out + marginM > raw[i]) raw[i] = out + marginM;
+    }
+  }
+  const h = Math.min(half, Math.floor((n - 1) / 2));
+  const wmax = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let m = -Infinity;
+    for (let k = -h; k <= h; k++) m = Math.max(m, raw[(i + k + n) % n]);
+    wmax[i] = m;
+  }
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let s = 0;
+    for (let k = -h; k <= h; k++) s += wmax[(i + k + n) % n];
+    out[i] = s / (2 * h + 1);
+  }
+  return out;
+}
+
+/** Gain/loss line points (x, y, 0 per point) at clearM + extraM along the left normals. */
+export function gainPositions(centre: XY, g: GainLine, extraM: number, out: Float32Array = new Float32Array(centre.x.length * 3)): Float32Array {
+  for (let i = 0; i < centre.x.length; i++) {
+    const d = g.clearM[i] + extraM;
+    out[3 * i] = centre.x[i] + g.normals.x[i] * d;
+    out[3 * i + 1] = centre.y[i] + g.normals.y[i] * d;
+    out[3 * i + 2] = 0;
+  }
+  return out;
 }
 
 export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: "lateral", gpsHalf: 4 }): Scene {
@@ -48,7 +108,24 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
   }
   // Stand-in edges: the centreline +/- 7 m. Only a drawing load for the renderer benchmark until #36 gives real edges.
   const edges: [XY, XY] = [offsetLine(centre, EDGE_OFFSET_M), offsetLine(centre, -EDGE_OFFSET_M)];
-  return { lap, ref, centre, edges, bounds: bounds([edges[0], edges[1], lap, ref]) };
+  const gain: GainLine = {
+    normals: normalsLeft(centre, NORMAL_HALF_M),
+    clearM: gainClearance(centre, [lap, ref]),
+    rate: gainRate(cmp.delta.slice(0, n)),
+  };
+  const along = (clear: Float64Array, sign: number): XY => {
+    const x = new Float64Array(n), y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      x[i] = centre.x[i] + sign * gain.normals.x[i] * clear[i];
+      y[i] = centre.y[i] + sign * gain.normals.y[i] * clear[i];
+    }
+    return { x, y };
+  };
+  const surface: [XY, XY] = [
+    along(gainClearance(centre, [lap, ref], "left", SURFACE_MARGIN_M), 1),
+    along(gainClearance(centre, [lap, ref], "right", SURFACE_MARGIN_M), -1),
+  ];
+  return { lap, ref, centre, edges, gain, surface, bounds: bounds([edges[0], edges[1], lap, ref]) };
 }
 
 /**

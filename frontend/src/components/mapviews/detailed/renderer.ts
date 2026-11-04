@@ -17,11 +17,17 @@ export interface Renderer {
   simulateContextLoss(): boolean;
   /** Show or hide the thin, dimmed part of each line the car has not reached yet (#48). */
   setAheadVisible(visible: boolean): void;
+  /** Gain/loss colours (#59): off, a line beside the track, or the track surface. Both are one tone the whole lap (no split at the car). */
+  setGainStyle(style: GainStyle): void;
 }
+
+/** "side": a line left of the track; "track": the whole track width between the edges (experimental, to compare). */
+export type GainStyle = "off" | "side" | "track";
+export const GAIN_STYLES: readonly GainStyle[] = ["off", "side", "track"];
 
 export interface RendererEvents { onContextLost(): void; onContextRestored(): void }
 
-export interface Colors { you: string; comparison: string; line: string; bg: string; text: string }
+export interface Colors { you: string; comparison: string; line: string; bg: string; text: string; gain: string; loss: string }
 
 /** Drawing constants shared by all renderers (CSS px, constant at every zoom). */
 export const EDGE_PX = 1;
@@ -37,6 +43,19 @@ export const AHEAD_DIM = 0.75;
 export const CHEVRON_BELOW_M = 300;
 export const CHEVRON_LEN_PX = 12;
 export const CHEVRON_WID_PX = 9;
+/** Gain/loss line width, and its gap (CSS px) outside the widest line it runs beside (the ref line's casing). */
+export const GAIN_PX = 3;
+export const GAIN_GAP_PX = 3;
+/** The track-surface colours are dimmed this far toward the background, so the racing lines on top stay readable. One tone for the whole lap: no driven/ahead split. */
+export const SURFACE_DIM = 0.55;
+
+/**
+ * Metres to add outside the clearance so the gain/loss line keeps a fixed screen gap at every zoom: half the casing,
+ * the gap, half its own width (widths scale with zoomScale `z`, the gap does not), converted at `widthM / viewportW`.
+ */
+export function gainExtraM(widthM: number, viewportW: number, z: number): number {
+  return ((CASING_PX * z) / 2 + GAIN_GAP_PX + (GAIN_PX * z) / 2) * (widthM / Math.max(viewportW, 1));
+}
 
 export function readColors(el: Element): Colors {
   const cs = getComputedStyle(el);
@@ -47,6 +66,8 @@ export function readColors(el: Element): Colors {
     line: get("--color-line", "#23272E"),
     bg: get("--color-bg", "#0E0F11"),
     text: get("--color-text", "#D8DCE2"),
+    gain: get("--color-strength", "#34B88A"),
+    loss: get("--color-issue", "#FF7A59"),
   };
 }
 

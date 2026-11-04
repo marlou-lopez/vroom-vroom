@@ -16,7 +16,7 @@ import { AnnotationHoverCard } from "../../AnnotationPopup";
 import ui from "../../ui.module.css";
 import type { TrackViewProps } from "../types";
 import { benchMarkdown, runBench, type BenchControl, type BenchRow, type CameraMode } from "./bench";
-import { loadRenderer, type Renderer } from "./renderer";
+import { GAIN_STYLES, loadRenderer, type GainStyle, type Renderer } from "./renderer";
 import { buildScene, carPositions, type CarSync, type LineSource } from "./scene";
 import styles from "./DetailedMapView.module.css";
 
@@ -52,20 +52,42 @@ interface Drag { id: number; lastX: number; lastY: number; total: number; sumX: 
 
 const f1 = (v: number) => v.toFixed(1);
 
+/** Whether the line ahead of each car is shown (#48). */
 const LINE_AHEAD_KEY = "vroom.lineAhead";
+/** How gain/loss is shown (#59): off, beside the track, or on the track surface. */
+const GAIN_LOSS_KEY = "vroom.gainLoss";
 
-/** Whether the line ahead of each car is shown (#48); remembered per browser, default on. */
-function loadLineAhead(): boolean {
+/** An on/off view setting remembered per browser, default on. */
+function loadFlag(key: string): boolean {
   try {
-    return globalThis.localStorage?.getItem(LINE_AHEAD_KEY) !== "0";
+    return globalThis.localStorage?.getItem(key) !== "0";
   } catch {
     return true;
   }
 }
 
-function saveLineAhead(on: boolean): void {
+/** The remembered gain/loss style; default "side". An older "0" (toggle off) reads as "off". */
+function loadGainStyle(): GainStyle {
   try {
-    globalThis.localStorage?.setItem(LINE_AHEAD_KEY, on ? "1" : "0");
+    const v = globalThis.localStorage?.getItem(GAIN_LOSS_KEY);
+    if (v === "0") return "off";
+    return GAIN_STYLES.includes(v as GainStyle) ? (v as GainStyle) : "side";
+  } catch {
+    return "side";
+  }
+}
+
+function saveGainStyle(style: GainStyle): void {
+  try {
+    globalThis.localStorage?.setItem(GAIN_LOSS_KEY, style);
+  } catch {
+    // Private window or blocked storage: not remembered.
+  }
+}
+
+function saveFlag(key: string, on: boolean): void {
+  try {
+    globalThis.localStorage?.setItem(key, on ? "1" : "0");
   } catch {
     // Private window or blocked storage: not remembered.
   }
@@ -86,7 +108,8 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const [headingUp, setHeadingUpState] = useState(false);
   /** Whether the free camera is turned (kept from heading-up); enables North-up (#60). */
   const [freeRotated, setFreeRotated] = useState(false);
-  const [lineAhead, setLineAheadState] = useState(loadLineAhead);
+  const [lineAhead, setLineAheadState] = useState(() => loadFlag(LINE_AHEAD_KEY));
+  const [gainStyle, setGainStyleState] = useState(loadGainStyle);
   const [showHud, setShowHud] = useState(true);
   const [hudText, setHudText] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -107,6 +130,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const syncRef = useRef<CarSync>("time");
   const headingUpRef = useRef(false);
   const lineAheadRef = useRef(lineAhead);
+  const gainStyleRef = useRef(gainStyle);
   const smoothedHeading = useRef(0);
   const resetHeading = useRef(true);
   const lastDist = useRef(0);
@@ -253,6 +277,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
       setGpu("ok");
       r.setScene(sceneRef.current);
       r.setAheadVisible(lineAheadRef.current);
+      r.setGainStyle(gainStyleRef.current);
       r.resize(vp.current, window.devicePixelRatio || 1);
       requestDraw();
       return r;
@@ -404,8 +429,18 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     const next = !lineAheadRef.current;
     lineAheadRef.current = next;
     setLineAheadState(next);
-    saveLineAhead(next);
+    saveFlag(LINE_AHEAD_KEY, next);
     rendererRef.current?.setAheadVisible(next);
+    requestDraw();
+  };
+
+  const selectGainStyle = (v: string) => {
+    if (!GAIN_STYLES.includes(v as GainStyle)) return;
+    const next = v as GainStyle;
+    gainStyleRef.current = next;
+    setGainStyleState(next);
+    saveGainStyle(next);
+    rendererRef.current?.setGainStyle(next);
     requestDraw();
   };
 
@@ -561,6 +596,15 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
           >
             Line ahead
           </button>
+          <span className={styles.tag} title="Green where you gain time on the comparison lap, red where you lose it">Gain/loss</span>
+          <ToggleGroup.Root
+            type="single" aria-label="Gain/loss" className={styles.group} value={gainStyle} disabled={running}
+            onValueChange={selectGainStyle}
+          >
+            <ToggleGroup.Item value="off" className={ui.toggleItem}>Off</ToggleGroup.Item>
+            <ToggleGroup.Item value="side" className={ui.toggleItem} title="A line left of the track">Beside</ToggleGroup.Item>
+            <ToggleGroup.Item value="track" className={ui.toggleItem} title="Experimental: the whole track width">Track</ToggleGroup.Item>
+          </ToggleGroup.Root>
           <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={fit}>Fit</button>
           {debug && (
             <>

@@ -1,13 +1,17 @@
 import {
-  BufferGeometry, CircleGeometry, InterleavedBuffer, InterleavedBufferAttribute, Color, Float32BufferAttribute, Mesh, MeshBasicMaterial, DoubleSide, OrthographicCamera, RingGeometry, Scene as ThreeScene, WebGLRenderer,
+  BufferAttribute, BufferGeometry, CircleGeometry, InterleavedBuffer, InterleavedBufferAttribute, Color, Float32BufferAttribute, Mesh, MeshBasicMaterial, DoubleSide, OrthographicCamera, RingGeometry, Scene as ThreeScene, WebGLRenderer,
 } from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { zoomScale } from "../../../lib/camera";
+import { gainStrength } from "../../../lib/gainLoss";
 import type { XY } from "../../../lib/geo";
-import { AHEAD_DIM, CAR_R_PX, LINE_DIM, CASING_PX, CHEVRON_BELOW_M, CHEVRON_LEN_PX, CHEVRON_WID_PX, EDGE_PX, LAP_PX, REF_PX, readColors, type Frame, type Renderer, type RendererEvents } from "./renderer";
-import { progressSplit, type Scene } from "./scene";
+import {
+  AHEAD_DIM, CAR_R_PX, LINE_DIM, CASING_PX, CHEVRON_BELOW_M, CHEVRON_LEN_PX, CHEVRON_WID_PX, EDGE_PX, GAIN_PX, LAP_PX, REF_PX, SURFACE_DIM, gainExtraM, readColors,
+  type Frame, type GainStyle, type Renderer, type RendererEvents,
+} from "./renderer";
+import { gainPositions, progressSplit, type GainLine, type Scene } from "./scene";
 
 function positions(xy: XY): Float32Array {
   const out = new Float32Array(xy.x.length * 3);
@@ -16,6 +20,39 @@ function positions(xy: XY): Float32Array {
     out[3 * i + 1] = xy.y[i];
   }
   return out;
+}
+
+/** Rewrites every segment of a line geometry from point positions (x, y, z per point) and queues a full upload. */
+function writeSegments(g: LineGeometry, pos: Float32Array) {
+  const b = (g.getAttribute("instanceStart") as InterleavedBufferAttribute).data as InterleavedBuffer;
+  const a = b.array as Float32Array;
+  // Segment i is stored as point i then point i + 1: six floats, exactly pos[3i .. 3i + 6).
+  for (let i = 0; i < pos.length / 3 - 1; i++) a.set(pos.subarray(3 * i, 3 * i + 6), 6 * i);
+  b.clearUpdateRanges();
+  b.needsUpdate = true;
+}
+
+/** Triangles filling the band between two same-length lines: vertex 2i on `a`, 2i + 1 on `b`; 6 indices per segment. */
+function ribbon(a: XY, b: XY, colors: Float32Array): BufferGeometry {
+  const n = Math.min(a.x.length, b.x.length);
+  const pos = new Float32Array(n * 6);
+  for (let i = 0; i < n; i++) {
+    pos[6 * i] = a.x[i]; pos[6 * i + 1] = a.y[i]; pos[6 * i + 2] = -0.1;
+    pos[6 * i + 3] = b.x[i]; pos[6 * i + 4] = b.y[i]; pos[6 * i + 5] = -0.1;
+  }
+  const col = new Float32Array(n * 6);
+  for (let i = 0; i < n; i++) {
+    const c = colors.subarray(3 * i, 3 * i + 3);
+    col.set(c, 6 * i);
+    col.set(c, 6 * i + 3);
+  }
+  const idx = new Uint32Array(Math.max(n - 1, 0) * 6);
+  for (let i = 0; i < n - 1; i++) idx.set([2 * i, 2 * i + 1, 2 * i + 2, 2 * i + 1, 2 * i + 3, 2 * i + 2], 6 * i);
+  const g = new BufferGeometry();
+  g.setAttribute("position", new Float32BufferAttribute(pos, 3));
+  g.setAttribute("color", new Float32BufferAttribute(col, 3));
+  g.setIndex(new BufferAttribute(idx, 1));
+  return g;
 }
 
 /** Isosceles triangle in px units centred on the origin, pointing +y. */
@@ -51,13 +88,15 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   const lineMats: LineMaterial[] = [];
   /** Base width (px) of each line material; the drawn width is this times zoomScale. */
   const baseWidth = new Map<LineMaterial, number>();
-  const makeMat = (color: string, px: number) => {
-    const m = new LineMaterial({ color: new Color(color).getHex(), linewidth: px, worldUnits: false });
+  const makeMat = (color: string, px: number, vertexColors = false) => {
+    const m = new LineMaterial({ color: new Color(color).getHex(), linewidth: px, worldUnits: false, vertexColors });
     lineMats.push(m);
     baseWidth.set(m, px);
     return m;
   };
   const edgeMat = makeMat(colors.line, EDGE_PX);
+  /** Edges along the track-surface band's borders, shown in Track style instead of the ±7 m stand-in edges. */
+  const surfaceEdgeMat = makeMat(colors.line, EDGE_PX);
   const casingMat = makeMat(colors.bg, CASING_PX);
   // Lines are dimmed toward the background so the cars (full colour) read as distinct from their own line.
   const dim = (c: string) => "#" + new Color(c).lerp(new Color(colors.bg), LINE_DIM).getHexString();
@@ -66,9 +105,20 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   const aheadDim = (c: string) => "#" + new Color(c).lerp(new Color(colors.bg), AHEAD_DIM).getHexString();
   const refAheadMat = makeMat(aheadDim(colors.comparison), REF_PX / 2);
   const lapAheadMat = makeMat(aheadDim(colors.you), LAP_PX / 2);
+  // Gain/loss line (#59): per-vertex colours on a white material, one tone the whole lap (no split at the car).
+  const gainMat = makeMat("#ffffff", GAIN_PX, true);
   let lines: Line2[] = [];
   let aheadLines: Line2[] = [];
   let showAhead = true;
+  let gainStyle: GainStyle = "side";
+  /** Track-surface style: one ribbon, the same tone the whole lap (no split at the car). */
+  // Dithering hides the 8-bit steps in long, dark gradients.
+  const surfaceMat = new MeshBasicMaterial({ vertexColors: true, side: DoubleSide, depthTest: false, dithering: true });
+  let surfaceMesh: Mesh | null = null;
+  let gainLine: Line2 | null = null;
+  let gainSrc: { centre: XY; line: GainLine; pos: Float32Array } | null = null;
+  /** The extra offset (m) the gain line's points were last built with; NaN forces a rebuild. */
+  let gainExtra = NaN;
   let lineGeoms: LineGeometry[] = [];
 
   /**
@@ -115,6 +165,32 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   };
   let refDriven: Driven | null = null, lapDriven: Driven | null = null;
 
+  /**
+   * Per-point colours: the background toward green (gaining) or red (losing) by gainStrength, then `dim` toward the
+   * background. "About even" shows no colour at all, in both the side line and the track surface.
+   */
+  const gainColors = (rate: Float64Array, dim: number): Float32Array => {
+    const gain = new Color(colors.gain), loss = new Color(colors.loss), bg = new Color(colors.bg);
+    const out = new Float32Array(rate.length * 3);
+    const c = new Color();
+    for (let i = 0; i < rate.length; i++) {
+      const t = gainStrength(rate[i]);
+      c.copy(bg).lerp(t > 0 ? loss : gain, Math.abs(t)).lerp(bg, dim);
+      out[3 * i] = c.r; out[3 * i + 1] = c.g; out[3 * i + 2] = c.b;
+    }
+    return out;
+  };
+
+  const applyVisibility = () => {
+    const side = gainStyle === "side", surface = gainStyle === "track";
+    for (const l of aheadLines) l.visible = showAhead;
+    if (gainLine) gainLine.visible = side;
+    if (surfaceMesh) surfaceMesh.visible = surface;
+    // The band is wider than the stand-in edges, so it gets edges on its own borders.
+    edgeMat.visible = !surface;
+    surfaceEdgeMat.visible = surface;
+  };
+
   // Cars are built in px units and scaled by (1 / px-per-metre) each draw so they stay constant on screen.
   const refFill = new Mesh(new CircleGeometry(CAR_R_PX, 24), new MeshBasicMaterial({ color: new Color(colors.bg) }));
   const refRing = new Mesh(new RingGeometry(CAR_R_PX - 1.5, CAR_R_PX, 24), new MeshBasicMaterial({ color: new Color(colors.comparison) }));
@@ -139,7 +215,10 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
     for (const l of lines) scene.remove(l);
     for (const g of lineGeoms) g.dispose();
     lines = []; lineGeoms = [];
-    refDriven = null; lapDriven = null;
+    refDriven = null; lapDriven = null; gainLine = null; gainSrc = null;
+    gainExtra = NaN;
+    if (surfaceMesh) { scene.remove(surfaceMesh); surfaceMesh.geometry.dispose(); }
+    surfaceMesh = null;
   };
   let lastW = -1, lastH = -1, lastDpr = -1;
 
@@ -158,10 +237,23 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
       };
       add(s.edges[0], edgeMat, 1);
       add(s.edges[1], edgeMat, 1);
+      add(s.surface[0], surfaceEdgeMat, 1);
+      add(s.surface[1], surfaceEdgeMat, 1);
       aheadLines = [add(s.ref, refAheadMat, 2), add(s.lap, lapAheadMat, 3)];
-      for (const l of aheadLines) l.visible = showAhead;
       refDriven = makeDriven(s.ref, [[casingMat, 4], [refMat, 5]]);
       lapDriven = makeDriven(s.lap, [[lapMat, 6]]);
+      // Gain line: placeholder points until the first draw knows the zoom (gainExtra is NaN).
+      if (s.centre.x.length >= 2) {
+        gainSrc = { centre: s.centre, line: s.gain, pos: new Float32Array(s.centre.x.length * 3) };
+        gainLine = add(s.centre, gainMat, 1);
+        (gainLine.geometry as LineGeometry).setColors(gainColors(s.gain.rate, 0));
+        // Track-surface style: drawn first (renderOrder 0), under the edges and racing lines.
+        surfaceMesh = new Mesh(ribbon(s.surface[0], s.surface[1], gainColors(s.gain.rate, SURFACE_DIM)), surfaceMat);
+        surfaceMesh.frustumCulled = false;
+        surfaceMesh.renderOrder = 0;
+        scene.add(surfaceMesh);
+      }
+      applyVisibility();
     },
     resize(v, dpr) {
       if (v.w === lastW && v.h === lastH && dpr === lastDpr) return;
@@ -196,11 +288,23 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
       }
       if (refDriven) setProgress(refDriven, f.refDist);
       if (lapDriven) setProgress(lapDriven, f.lapDist);
+      // The gain line keeps a fixed screen gap, so its points change only when the zoom does (not on pan or rotate).
+      if (gainLine && gainSrc && gainStyle === "side") {
+        const extra = gainExtraM(c.widthM, v.w, z);
+        if (extra !== gainExtra) {
+          gainExtra = extra;
+          writeSegments(gainLine.geometry as LineGeometry, gainPositions(gainSrc.centre, gainSrc.line, extra, gainSrc.pos));
+        }
+      }
       gl.render(scene, camera);
     },
     setAheadVisible(visible: boolean) {
       showAhead = visible;
-      for (const l of aheadLines) l.visible = visible;
+      applyVisibility();
+    },
+    setGainStyle(style: GainStyle) {
+      gainStyle = style;
+      applyVisibility();
     },
     simulateContextLoss() {
       const ext = gl.getContext().getExtension("WEBGL_lose_context");
@@ -216,6 +320,7 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
       canvas.removeEventListener("webglcontextrestored", onRestored);
       clearLines();
       for (const m of lineMats) m.dispose();
+      surfaceMat.dispose();
       for (const m of carMeshes) { m.geometry.dispose(); (m.material as MeshBasicMaterial).dispose(); }
       gl.dispose();
       try { gl.forceContextLoss(); } catch { /* context already lost */ }
