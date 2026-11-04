@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  FOLLOW_WIDTH_M, MIN_WIDTH_M, fitBounds, followCamera, panBy, screenToWorld, smoothHeading, worldToScreen, zoomAt,
+  FOLLOW_WIDTH_M, MIN_WIDTH_M, fitBounds, followCamera, panBy, screenToWorld, smoothHeading, worldToScreen, zoomAt, zoomScale,
   type Camera, type Viewport,
 } from "./camera";
 
@@ -123,5 +123,21 @@ describe("smoothHeading", () => {
     const r = smoothHeading(3, -3, 1);
     expect(r).toBeGreaterThan(-Math.PI);
     expect(r).toBeLessThanOrEqual(Math.PI);
+  });
+});
+
+describe("zoomScale", () => {
+  it("is 1 when the view is 300 m wide or more", () => {
+    expect(zoomScale(300)).toBe(1);
+    expect(zoomScale(7000)).toBe(1);
+  });
+  it("reaches the maximum at 20 m and stays there", () => {
+    expect(zoomScale(20)).toBeCloseTo(1.8, 10);
+    expect(zoomScale(5)).toBeCloseTo(1.8, 10);
+  });
+  it("grows smoothly in between (log scale)", () => {
+    expect(zoomScale(Math.sqrt(300 * 20))).toBeCloseTo(1.4, 10); // geometric midpoint ≈ 77 m
+    expect(zoomScale(150)).toBeGreaterThan(1);
+    expect(zoomScale(150)).toBeLessThan(zoomScale(50));
   });
 });

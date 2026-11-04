@@ -72,3 +72,17 @@ export function smoothHeading(prev: number, next: number, alpha: number): number
   else if (r <= -Math.PI) r += TAU;
   return r;
 }
+
+/** View width (m) at or above which line widths and car markers are drawn at their base size. */
+export const ZOOM_SCALE_FROM_M = 300;
+/** Size multiplier reached at the closest zoom (MIN_WIDTH_M). */
+export const ZOOM_SCALE_MAX = 1.8;
+
+/**
+ * Multiplier for line widths and car markers: 1 when the view is ZOOM_SCALE_FROM_M or wider, growing on a log
+ * scale to ZOOM_SCALE_MAX at MIN_WIDTH_M, so lines and cars get a bit thicker as you zoom in.
+ */
+export function zoomScale(widthM: number): number {
+  const t = Math.log(ZOOM_SCALE_FROM_M / widthM) / Math.log(ZOOM_SCALE_FROM_M / MIN_WIDTH_M);
+  return 1 + (ZOOM_SCALE_MAX - 1) * Math.min(1, Math.max(0, t));
+}
