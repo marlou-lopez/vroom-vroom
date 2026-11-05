@@ -53,6 +53,8 @@ npm run build   # tsc -b && vite build
 
 Tests named `*.test.ts` run in node and `*.test.tsx` run in jsdom (setup in `src/test/setupDom.ts`; MSW mock server helpers in `src/test/mockServer.tsx`).
 
+CI (`.github/workflows/ci.yml`) runs lint, test and build on every PR and push to `main`.
+
 The detailed track view shows its frame-rate HUD, benchmark, line-source selector and a GPU context-loss test only in `npm run dev` or with `?debug` in the URL; `?debug=0` hides them in dev to preview the production view.
 
 Run test, lint and build before calling frontend work done. Vite proxies `/api` to
