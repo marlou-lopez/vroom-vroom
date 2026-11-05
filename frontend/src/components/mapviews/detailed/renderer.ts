@@ -19,6 +19,8 @@ export interface Renderer {
   setAheadVisible(visible: boolean): void;
   /** Gain/loss colours (#59): off, a line beside the track, or the track surface. Both are one tone the whole lap (no split at the car). */
   setGainStyle(style: GainStyle): void;
+  /** Debug: tint the edge stretches telemetry measured (#36). Off, every edge is the plain line colour. Recolours in place. */
+  setEdgeDebug(on: boolean): void;
 }
 
 /** "side": a line left of the track; "track": the whole track width between the edges (experimental, to compare). */
@@ -35,6 +37,9 @@ export const REF_PX = 2;
 export const LAP_PX = 2.5;
 export const CAR_R_PX = 4;
 export const CASING_PX = 4;
+/** Reference line dash and gap length along the line (CSS px at 1x zoom; both scale with the line width, like zoomScale). */
+export const REF_DASH_PX = 8;
+export const REF_GAP_PX = 5;
 /** Lines are drawn this far from their colour toward the background, so the full-colour cars stand out on them. */
 export const LINE_DIM = 0.45;
 /** The part of a line the car has not driven yet is dimmed this far toward the background (instead of LINE_DIM) and drawn at half width. */
@@ -57,6 +62,15 @@ export function gainExtraM(widthM: number, viewportW: number, z: number): number
   return ((CASING_PX * z) / 2 + GAIN_GAP_PX + (GAIN_PX * z) / 2) * (widthM / Math.max(viewportW, 1));
 }
 
+/**
+ * Dash and gap length in metres along the line, so dashes keep the same size on screen at every zoom.
+ * LineMaterial takes them in world units; `z` is zoomScale, so the pattern follows the line width.
+ */
+export function dashWorld(widthM: number, viewportW: number, z: number): { dash: number; gap: number } {
+  const unit = widthM / Math.max(viewportW, 1); // metres per px
+  return { dash: REF_DASH_PX * z * unit, gap: REF_GAP_PX * z * unit };
+}
+
 export function readColors(el: Element): Colors {
   const cs = getComputedStyle(el);
   const get = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
@@ -75,3 +89,20 @@ export async function loadRenderer(host: HTMLElement, events: RendererEvents): P
   const { createWebglRenderer } = await import("./webglRenderer");
   return createWebglRenderer(host, events);
 }
+
+/** Debug view only: measured edge stretches are mixed this far from the line colour toward the text colour, as an sRGB (screen) mix (#36). */
+export const EDGE_MEASURED_LIFT = 0.25;
+
+/** Mixes two "#rrggbb" colours by t in sRGB space. three.js lerps in linear space, which looks far stronger on screen. */
+export function mixSrgb(a: string, b: string, t: number): string {
+  const ch = (h: string, i: number) => parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+  let out = "#";
+  for (let i = 0; i < 3; i++) out += Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t).toString(16).padStart(2, "0");
+  return out;
+}
+/** Kerb line width in metres (world units, so it scales with the zoom like a real object), and the length of each red or white stripe in grid metres. */
+export const KERB_W_M = 0.9;
+export const KERB_STRIPE_M = 2;
+/** Physical kerb colours, not theme tokens. */
+export const KERB_RED = "#C8463C";
+export const KERB_WHITE = "#D8DCE2";
