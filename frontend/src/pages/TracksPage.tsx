@@ -163,6 +163,7 @@ export function TracksPage() {
           </div>
           <div ref={mapBoxRef} className={styles.mapBox}>
             {geo && map ? (
+              // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- Alt-click map; keyboard path tracked in #75
               <svg ref={svgRef} viewBox={VIEWBOX} onClick={onMapClick} role="img" aria-label="Track map" className={styles.map}>
                 <path d={geo.basePath} className={styles.base} />
                 {cornerSegs.map(({ c, d }) =>

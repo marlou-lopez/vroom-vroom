@@ -339,8 +339,10 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
   };
 
   return (
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- labelled, focusable role="group" with full keyboard handling (arrows scrub, Space plays)
     <div
       className={styles.strips}
+      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable, keyboard-operated group
       tabIndex={0}
       role="group"
       aria-label="Telemetry strips: drag or arrow keys to scrub, Space to play or pause"
