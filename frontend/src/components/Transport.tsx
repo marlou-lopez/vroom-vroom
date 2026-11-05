@@ -1,7 +1,7 @@
 import * as Slider from "@radix-ui/react-slider";
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { TrackMap } from "../api/types";
+import type { Corner, TrackMap } from "../api/types";
 import { formatClock } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { CORNER_LEAD_M } from "../lib/annotations";
@@ -52,14 +52,17 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges }: Tr
     const all = (trackMap?.corners ?? [])
       .map((c) => ({ c, frac: duration > 0 ? timeAtDistance(cmp.lap.t, cmp.distance, c.apex_m) / duration : 0 }))
       .sort((a, b) => a.frac - b.frac);
+    // Greedy label culling: a tick is visible when its label clears the previous visible one.
+    const out: { c: Corner; frac: number; visible: boolean }[] = [];
     let prevRight = -Infinity;
-    return all.map(({ c, frac }) => {
+    for (const { c, frac } of all) {
       const half = (c.name.length * LABEL_CHAR_PX + LABEL_PAD_PX) / 2;
       const x = frac * ticksW;
       const visible = x - half >= prevRight;
       if (visible) prevRight = x + half;
-      return { c, frac, visible };
-    });
+      out.push({ c, frac, visible });
+    }
+    return out;
   }, [trackMap, cmp, duration, ticksW]);
 
   const dNow = distanceAtTime(cmp.lap.t, cmp.distance, tau);
