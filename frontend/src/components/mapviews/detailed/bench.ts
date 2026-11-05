@@ -3,7 +3,7 @@ import type { Pt } from "../../../lib/geo";
 import { summarize } from "../../../lib/perf";
 
 export type CameraMode = "follow" | "free";
-export type BenchPhase = "follow" | "scrub" | "zoom-pan";
+export type BenchPhase = "follow" | "scrub" | "zoom-pan" | "orbit";
 
 export interface BenchRow {
   renderer: "webgl";
@@ -49,7 +49,7 @@ const ZOOM_PERIOD_MS = 2000;
 const ZOOM_MIN_M = 20;
 
 /** Runs `onFrame(elapsedMs)` each animation frame for `ms`; resolves with the intervals between frames. */
-function runPhase(ms: number, onFrame: (elapsedMs: number) => void, signal?: AbortSignal): Promise<number[]> {
+export function runPhase(ms: number, onFrame: (elapsedMs: number) => void, signal?: AbortSignal): Promise<number[]> {
   return new Promise((resolve) => {
     const intervals: number[] = [];
     let start = -1, last = -1;

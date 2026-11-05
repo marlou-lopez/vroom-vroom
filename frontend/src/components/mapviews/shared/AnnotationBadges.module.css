@@ -1,0 +1,10 @@
+/* Badges sit above the renderer; the layer ignores the pointer, the badges do not. */
+.badges { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.badge {
+  position: absolute; left: 0; top: 0; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0; border: 1.2px solid var(--color-bg); border-radius: 50%;
+  color: var(--color-bg); font: 700 8px/1 var(--font-sans);
+  pointer-events: auto; cursor: pointer; visibility: hidden;
+}
+.badge:hover, .badge:focus-visible { border-color: var(--color-text); outline: none; }

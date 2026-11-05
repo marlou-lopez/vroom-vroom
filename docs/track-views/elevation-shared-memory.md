@@ -23,11 +23,11 @@ Capture: Spa, 570 s, 50,204 frames, 18 cars in the session. Out-lap 0, flying la
 - The recording's GPS is a fixed transform of the world x/z: `lat = 60 + z/(R·π/180)`, `lon = x/(R·π/180·cos 60°)`, R = 6371008.8 m, residual 0.16 m rms (just the float32 GPS). Verified on Spa only.
 - **y is up, in metres.**
 
-**Elevation against the target** (Spa flying lap): range 102.3 m. Start/finish 22.3 m; La Source down to Eau Rouge bottom -1.0 m (about 1005 m in); Raidillon top 25.4 m (about 1305 m); highest 74.5 m at about 2484 m (Kemmel); lowest -27.8 m at about 5021 m. The laps agree on min and max to about 5 cm, so the "within about 0.1 m" target is met on the extremes.
+**Elevation against the target** (Spa flying lap): range 102.3 m. Start/finish 22.3 m; La Source down to the Eau Rouge valley floor -5.0 m (about 926 m in), up Raidillon to 30.3 m (about 1399 m); midway up the climb it is -1.0 m at 1005 m and 25.4 m at 1305 m (the points the tests check); highest 74.5 m at about 2484 m (Kemmel); lowest -27.8 m at about 5021 m. The laps agree on min and max to about 5 cm, so the "within about 0.1 m" target is met on the extremes.
 
 **Attached to an older recording through GPS.** The mock's laps come from a different recording (3 Nov) than the capture (5 Nov). Matching them only by GPS, with a nearest-point lookup within 5 m:
 - Flying laps 1-4 of the 3 Nov recording: 100.00 % of grid points get a height (6,979 or 6,980 per lap). Out-lap 100 %, in-lap 99.8 %, the invalid lap 91.2 % (it leaves the track).
-- Eau Rouge bottom -1.00, -0.95, -1.01, -0.99 m and Raidillon top 25.38-25.39 m on the four flying laps, highest 74.5 m and lowest -27.9 m: the same figures as in the capture.
+- On the climb out of Eau Rouge, -1.00, -0.95, -1.01, -0.99 m at 1005 m and 25.38-25.39 m at 1305 m on the four flying laps, highest 74.5 m and lowest -27.9 m: the same figures as in the capture.
 - The four mock flying laps differ from each other by 1.4 cm (median), 14 cm (99th percentile) and 24 cm at most, per grid point.
 
 **Sizes and timings:**

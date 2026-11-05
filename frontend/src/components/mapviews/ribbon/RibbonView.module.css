@@ -1,0 +1,45 @@
+.root { position: absolute; inset: 0; overflow: hidden; touch-action: none; user-select: none; cursor: grab; }
+.host { position: absolute; inset: 0; }
+
+/* Right column below the panel toolbar and the delta box, clear of the readout (left) and footer (bottom). */
+.side {
+  position: absolute; right: 8px; top: 58px; max-width: min(520px, calc(100% - 16px));
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; z-index: 1;
+}
+.side > * { pointer-events: auto; }
+.bar { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
+.group { display: flex; border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; background: var(--color-bg); }
+.tag { font-size: 9px; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.small { padding: 2px 8px; background-color: var(--color-bg); }
+.note { color: var(--color-muted); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 2px 6px; }
+
+.exag { display: flex; align-items: center; gap: 6px; padding: 2px 8px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius); }
+.exag[data-disabled] { opacity: 0.5; }
+.sliderRoot { position: relative; display: flex; align-items: center; width: 90px; height: 16px; touch-action: none; }
+.sliderTrack { position: relative; flex: 1; height: 2px; background: var(--color-border-strong, var(--color-border)); border-radius: 1px; }
+.sliderRange { position: absolute; height: 100%; background: var(--color-you); border-radius: 1px; }
+.sliderThumb { display: block; width: 10px; height: 10px; background: var(--color-you); border-radius: 50%; outline: none; }
+.sliderThumb:focus-visible { outline: 2px solid var(--color-text); outline-offset: 1px; }
+.exagValue { min-width: 3.2em; color: var(--color-text); font-variant-numeric: tabular-nums; }
+
+.hud {
+  font-family: var(--font-mono); color: var(--color-text); background: var(--color-bg);
+  border: 1px solid var(--color-border); border-radius: var(--radius); padding: 3px 6px; white-space: pre;
+}
+.results {
+  display: flex; flex-direction: column; gap: 6px; padding: 6px; width: 100%;
+  background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius);
+}
+.results textarea {
+  width: 100%; min-width: 300px; resize: vertical; font: 11px/1.4 var(--font-mono);
+  color: var(--color-text); background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius);
+  padding: 3px 6px; white-space: pre; overflow: auto;
+}
+
+/* Shown while the GPU context is lost or the renderer chunk failed; drawing is paused behind it. */
+.gpu {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 2;
+  display: flex; align-items: center; gap: 6px; padding: 4px 8px;
+  color: var(--color-text); background: var(--color-bg);
+  border: 1px solid var(--color-border); border-radius: var(--radius);
+}
