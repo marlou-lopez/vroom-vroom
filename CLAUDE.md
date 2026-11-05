@@ -36,6 +36,7 @@ This section only records facts that change rarely (last checked 2026-11-05):
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON (needs `npm i @duckdb/node-api`) |
+| `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`) (#94). Captures stay out of git |
 | `.claude/skills/vroom-issue/` | Project skill for filing GitHub issues |
 
 The planned backend is a Python package `racecoach` in `backend/` (uv, FastAPI, DuckDB,
@@ -77,7 +78,8 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
 - **LMU data facts** (details in `docs/lmu-duckdb-schema.md`):
   - "G Force Lat" is longitudinal and "G Force Long" is lateral.
   - GPS is LMU-local, not real-world, and float32 (about 0.4 m steps).
-  - No elevation channel exists.
+  - Recordings have no elevation channel, but LMU's shared memory has the world position (`y` is up, metres): see "Shared memory" in `docs/lmu-duckdb-schema.md` and `docs/track-views/elevation-shared-memory.md` (#94).
+  - GPS is a fixed transform of the world position (verified on Spa): `x = lon·R·π/180·cos 60°`, `z = (lat − 60)·R·π/180`, R = 6371008.8 m.
   - An invalid lap has `Lap Time` = 0.
   - Steering is −100..100 with + meaning right.
   - `Path Lateral` is metres from the track centreline, + meaning right of travel (10 Hz).

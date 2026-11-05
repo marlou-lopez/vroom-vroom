@@ -14,6 +14,8 @@ import {
 import {
   cornerComparison, narrate, narrateInconsistent, spread, type Cause, type CornerComparison, type Narrative,
 } from "./coachFacts";
+import { buildElevationIndex, elevationProfile, type ElevationIndex } from "../../lib/elevation";
+import { fetchSpaElevation, type ElevationLoader } from "./elevation";
 import { fetchSpaRecording, lapToTrace, scaleTime, type SpaLoader, type SpaRecording, type Trace } from "./recording";
 import { makeSpaLap, SPA_TRACK_ID } from "./spa";
 import { deriveLandmarks, spaCorners, SPA_TRACK_LENGTH_M } from "./spaTrack";
@@ -23,6 +25,11 @@ export interface MockOptions {
   coachDelayMs?: number;
   /** Supplies the real Spa recording. Called once, on the first Api call. Default: fetch /mock/spa-2026-11-03.json. */
   loadSpa?: SpaLoader;
+  /**
+   * Supplies the Spa elevation capture (#94). Default: fetch /mock/spa-elevation-2026-11-05.json, or none when a custom
+   * `loadSpa` is given. A failed or null load only means `elevation` is null in compare responses.
+   */
+  loadElevation?: ElevationLoader;
 }
 
 // ---- seed data ----
@@ -227,6 +234,9 @@ const METRIC: Record<Cause, string> = {
 export function createMockApi(opts: MockOptions = {}): Api {
   const coachDelayMs = opts.coachDelayMs ?? 1200;
   const loadSpa = opts.loadSpa ?? fetchSpaRecording;
+  const loadElevation: ElevationLoader = opts.loadElevation ?? (opts.loadSpa ? async () => null : fetchSpaElevation);
+  let elevationIndex: ElevationIndex | null = null;
+  const elevationCache = new Map<Trace, (number | null)[]>();
 
   const sessions: SessionMeta[] = [];
   const laps = new Map<string, LapRec>();
@@ -324,7 +334,10 @@ export function createMockApi(opts: MockOptions = {}): Api {
   // The recording is fetched on the first call of any method, never at import time.
   let ready: Promise<void> | null = null;
   const ensure = (): Promise<void> => {
-    ready ??= loadSpa().then(build).catch((e) => {
+    ready ??= Promise.all([loadSpa(), loadElevation().catch(() => null)]).then(([rec, elev]) => {
+      elevationIndex = elev ? buildElevationIndex(elev) : null;
+      build(rec);
+    }).catch((e) => {
       ready = null;
       throw e instanceof ApiError ? e : new ApiError("network", e instanceof Error ? e.message : "could not load the Spa recording");
     });
@@ -383,6 +396,17 @@ export function createMockApi(opts: MockOptions = {}): Api {
     };
     const lapCh = cut(a.ch);
     const refCh = cut(b.ch);
+    const elevationOf = (r: LapRec): (number | null)[] | null => {
+      if (!elevationIndex || r.meta.track_id !== SPA_TRACK_ID) return null;
+      let e = elevationCache.get(r.trace);
+      if (!e) {
+        e = elevationProfile(elevationIndex, r.trace.ch.lat, r.trace.ch.lon);
+        elevationCache.set(r.trace, e);
+      }
+      return e.length === n ? e : e.slice(0, n);
+    };
+    const elevLap = elevationOf(lap);
+    const elevRef = elevationOf(ref);
     const carName = (r: LapRec) => sessionOf(r.meta.session_id).car_name;
     const res: CompareResponse = {
       lap_id: lap.meta.lap_id,
@@ -399,6 +423,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
           : null,
       lap_steering_range_deg: sessionOf(lap.meta.session_id).steering_range_deg,
       ref_steering_range_deg: sessionOf(ref.meta.session_id).steering_range_deg,
+      elevation: elevLap && elevRef ? { lap: elevLap, ref: elevRef } : null,
     };
     compareCache.set(key, res);
     return res;
