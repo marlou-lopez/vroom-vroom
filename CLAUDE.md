@@ -47,7 +47,7 @@ polars, Pydantic AI), serving `127.0.0.1:8765`.
 npm run dev     # http://localhost:5173; VITE_API=mock in .env.development starts MSW
 npm run test    # vitest
 npm run test:coverage  # vitest with v8 coverage, report in coverage/
-npm run lint    # oxlint (5 known React-compiler warnings, tracked in #26)
+npm run lint    # oxlint
 npm run build   # tsc -b && vite build
 ```
 
