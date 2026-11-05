@@ -7,10 +7,11 @@ just LMU.
 
 ## Stages
 
-- **v1**: post-session analysis (current).
-- **v2**: live voice coaching through a Windows agent.
-- **v3**: conversation with the engineer.
-- **v4**: setup engineer.
+- **v1**: UI on mock data (current).
+- **v2**: real backend.
+- **v3**: live voice coaching through a Windows agent.
+- **v4**: conversation with the engineer.
+- **v5**: setup engineer.
 
 ## Status
 

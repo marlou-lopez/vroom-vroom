@@ -3,21 +3,21 @@
 A personal telemetry coach for **Le Mans Ultimate (LMU)**. It imports LMU's own `.duckdb`
 recordings, aligns laps on a 1 m distance grid, plays a lap against a reference lap, and has
 an LLM coach annotate where time was lost. The data model is meant to work for any sim, not
-just LMU. Stages: **v1** post-session analysis (current), **v2** live voice coaching through a
-Windows agent, **v3** conversation, **v4** setup engineer.
+just LMU. Stages: **v1** UI on mock data (current), **v2** real backend, **v3** live voice coaching
+through a Windows agent, **v4** conversation, **v5** setup engineer.
 
 ## Where things stand
 
 **The GitHub board is the source of truth for status:** repo `marlou-lopez/vroom-vroom`
 (private), board https://github.com/users/marlou-lopez/projects/7. Before starting, check open
-issues, what's In Progress, and milestones `v1`–`v4` and `Track views`. Each issue stands on its
+issues, what's In Progress, and milestones `v1`–`v5` and `Track views`. Each issue stands on its
 own and lists its dependencies. Don't rely on this file for progress.
 
 This section only records facts that change rarely (last checked 2026-11-05):
 - **Phase:** the frontend runs on a mock API serving one real Spa recording. The backend
   hasn't been started, and there's no `backend/` directory yet.
-- **Agreed order:** first the **Track views** milestone (detailed 2D, then 3D), then backend
-  Tasks 1–13, then switching the frontend to the real API.
+- **Agreed order:** first the **Track views** milestone (detailed 2D, then 3D), then the backend
+  (milestone `v2 – Real backend`, Tasks 1–13), then switching the frontend to the real API.
 - The design spec, the v1 plan and handover notes live outside the repo, in
   `~/.claude/plans/superpowers/ai-sim-racing-engineer/`. The issues already copy the details
   that matter.
