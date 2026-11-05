@@ -5,7 +5,7 @@ import { comboKey, focusOutcome, groupCombos, trendPaths } from "./sessions";
 const s = (id: string, track: string, car: string, started: string): SessionMeta => ({
   session_id: id, track_name: `Track ${track}`, track_layout: "GP", track_id: track, track_length_m: 1000,
   car_name: `Car ${car}`, car_id: car, car_class: "GT3", session_type: "Practice", game_build: "1", started_at: started,
-  driver: "me", steering_range_deg: 540,
+  driver: "me", steering_range_deg: 540, car_dims: null,
 });
 
 describe("groupCombos", () => {

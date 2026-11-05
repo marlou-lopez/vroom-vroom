@@ -15,6 +15,9 @@ export type ChannelArrays = Record<GridChannel, number[]>;
 export type LapKind = "flying" | "out" | "in" | "incomplete";
 export type LapSource = "own_recording" | "imported_file" | "online";
 
+/** Car footprint in metres, for drawing it true to size (detailed 2D map now; 3D and cockpit views later). */
+export interface CarDims { length_m: number; width_m: number }
+
 export interface SessionMeta {
   session_id: string;
   track_name: string;
@@ -30,6 +33,8 @@ export interface SessionMeta {
   driver: string;
   /** null when neither the recording nor config/cars.yaml knows it: show steering as a percentage. */
   steering_range_deg: number | null;
+  /** null when config/cars.yaml doesn't know the car: the views fall back to a generic GT3 size. */
+  car_dims: CarDims | null;
 }
 
 export interface LapMeta {
@@ -84,6 +89,8 @@ export interface CompareResponse {
   warning: string | null;
   lap_steering_range_deg: number | null;
   ref_steering_range_deg: number | null;
+  lap_car_dims: CarDims | null;
+  ref_car_dims: CarDims | null;
 }
 
 export interface CompareCandidate {

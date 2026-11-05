@@ -1,5 +1,5 @@
 import {
-  BufferAttribute, BufferGeometry, CircleGeometry, InterleavedBuffer, InterleavedBufferAttribute, Color, Float32BufferAttribute, Mesh, MeshBasicMaterial, DoubleSide, OrthographicCamera, RingGeometry, Scene as ThreeScene, WebGLRenderer,
+  BufferAttribute, BufferGeometry, CircleGeometry, InterleavedBuffer, InterleavedBufferAttribute, Color, Float32BufferAttribute, Mesh, MeshBasicMaterial, DoubleSide, OrthographicCamera, RingGeometry, Scene as ThreeScene, Shape, ShapeGeometry, WebGLRenderer,
 } from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
@@ -8,7 +8,7 @@ import { zoomScale } from "../../../lib/camera";
 import { gainStrength } from "../../../lib/gainLoss";
 import type { XY } from "../../../lib/geo";
 import {
-  AHEAD_DIM, CAR_R_PX, LINE_DIM, CASING_PX, CHEVRON_BELOW_M, CHEVRON_LEN_PX, CHEVRON_WID_PX, EDGE_MEASURED_LIFT, EDGE_PX, KERB_RED, KERB_STRIPE_M, KERB_W_M, KERB_WHITE, GAIN_PX, LAP_PX, REF_PX, SURFACE_DIM, dashWorld, gainExtraM, mixSrgb, readColors,
+  AHEAD_DIM, CAR_R_PX, LINE_DIM, CASING_PX, CHEVRON_BELOW_M, CHEVRON_LEN_PX, CHEVRON_WID_PX, EDGE_MEASURED_LIFT, EDGE_PX, KERB_RED, KERB_STRIPE_M, KERB_W_M, KERB_WHITE, GAIN_PX, LAP_PX, REF_PX, SURFACE_DIM, FALLBACK_CAR_DIMS, dashWorld, gainExtraM, mixSrgb, readColors, showFootprint,
   type Frame, type GainStyle, type Renderer, type RendererEvents,
 } from "./renderer";
 import { gainPositions, progressSplit, type GainLine, type Scene } from "./scene";
@@ -61,6 +61,18 @@ function chevron(len: number, wid: number): BufferGeometry {
   g.setAttribute("position", new Float32BufferAttribute([0, len / 2, 0, -wid / 2, -len / 2, 0, wid / 2, -len / 2, 0], 3));
   g.setIndex([0, 1, 2]);
   return g;
+}
+
+/**
+ * Car footprint in metres (not px), centred on the origin, pointing +y: a rectangle with the nose corners chamfered so the direction shows.
+ * Assumption: the recorded position is the footprint centre. LMU may report the car's origin or centre of gravity instead (unverified),
+ * which would shift the real car along the footprint by tens of cm.
+ */
+function footprint(len: number, wid: number): BufferGeometry {
+  const hl = len / 2, hw = wid / 2, ch = Math.min(wid * 0.3, len * 0.2);
+  const s = new Shape();
+  s.moveTo(-hw, -hl); s.lineTo(hw, -hl); s.lineTo(hw, hl - ch); s.lineTo(hw - ch, hl); s.lineTo(-hw + ch, hl); s.lineTo(-hw, hl - ch); s.closePath();
+  return new ShapeGeometry(s);
 }
 
 export function createWebglRenderer(host: HTMLElement, events: RendererEvents): Renderer {
@@ -221,6 +233,20 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   const refChevOut = new Mesh(chevron(CHEVRON_LEN_PX + 4.5, CHEVRON_WID_PX + 3.5), mat(colors.comparison));
   const refChev = new Mesh(chevron(CHEVRON_LEN_PX, CHEVRON_WID_PX), mat(colors.bg));
   refChevOut.renderOrder = 10; refChev.renderOrder = 11; lapChevOut.renderOrder = 12; lapChev.renderOrder = 13;
+  // True-size footprints (#93), built in metres and never scaled; the outline is a slightly larger shape underneath (0.08 m lap, 0.12 m ref per side, like the chevrons' thin outline).
+  const fpDims = { lap: FALLBACK_CAR_DIMS, ref: FALLBACK_CAR_DIMS };
+  const fpMesh = (c: string, order: number) => { const m = new Mesh(footprint(1, 1), mat(c)); m.renderOrder = order; (m.material as MeshBasicMaterial).depthTest = false; scene.add(m); return m; };
+  const lapFpOut = fpMesh(colors.text, 12), lapFp = fpMesh(colors.you, 13);
+  const refFpOut = fpMesh(colors.comparison, 10), refFp = fpMesh(colors.bg, 11);
+  const fpMeshes = [lapFpOut, lapFp, refFpOut, refFp];
+  // Rebuilds the four footprint geometries when the car sizes change (on setScene); the unit placeholders above are replaced.
+  const setFootprints = (lap: typeof FALLBACK_CAR_DIMS, ref: typeof FALLBACK_CAR_DIMS) => {
+    fpDims.lap = lap; fpDims.ref = ref;
+    for (const [m, d, grow] of [[lapFpOut, lap, 0.16], [lapFp, lap, 0], [refFpOut, ref, 0.24], [refFp, ref, 0]] as const) {
+      m.geometry.dispose();
+      m.geometry = footprint(d.length_m + grow, d.width_m + grow);
+    }
+  };
   const dotMeshes = [refFill, refRing, lapDot];
   const chevMeshes = [refChevOut, refChev, lapChevOut, lapChev];
   const carMeshes = [...dotMeshes, ...chevMeshes];
@@ -257,6 +283,7 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   return {
     setScene(s: Scene) {
       clearLines();
+      setFootprints(s.lapDims, s.refDims);
       const add = (xy: XY, mat: LineMaterial, order: number) => {
         const geom = new LineGeometry();
         geom.setPositions(positions(xy));
@@ -329,13 +356,19 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
       refRing.position.set(f.refCar.x, f.refCar.y, 0.6);
       lapDot.position.set(f.lapCar.x, f.lapCar.y, 0.7);
       const chevrons = c.widthM < CHEVRON_BELOW_M;
-      for (const m of dotMeshes) m.visible = !chevrons;
-      for (const m of chevMeshes) m.visible = chevrons;
-      if (chevrons) {
-        // Modelled pointing +y, so a heading of pi/2 (north) needs no turn; the camera rotation is applied by the view.
-        for (const m of [lapChevOut, lapChev]) { m.position.set(f.lapCar.x, f.lapCar.y, m === lapChev ? 0.8 : 0.75); m.rotation.z = f.lapHeading - Math.PI / 2; }
-        for (const m of [refChevOut, refChev]) { m.position.set(f.refCar.x, f.refCar.y, m === refChev ? 0.6 : 0.55); m.rotation.z = f.refHeading - Math.PI / 2; }
-      }
+      // Each car is its true-size footprint when that is on screen at least as big as the chevron, else the dot/chevron marker.
+      const lapFoot = showFootprint(fpDims.lap, c.widthM, v.w), refFoot = showFootprint(fpDims.ref, c.widthM, v.w);
+      for (const m of [lapFpOut, lapFp]) m.visible = lapFoot;
+      for (const m of [refFpOut, refFp]) m.visible = refFoot;
+      lapDot.visible = !chevrons && !lapFoot;
+      for (const m of [refFill, refRing]) m.visible = !chevrons && !refFoot;
+      for (const m of [lapChevOut, lapChev]) m.visible = chevrons && !lapFoot;
+      for (const m of [refChevOut, refChev]) m.visible = chevrons && !refFoot;
+      // Modelled pointing +y, so a heading of pi/2 (north) needs no turn; the camera rotation is applied by the view.
+      if (lapFoot) for (const m of [lapFpOut, lapFp]) { m.position.set(f.lapCar.x, f.lapCar.y, m === lapFp ? 0.8 : 0.75); m.rotation.z = f.lapHeading - Math.PI / 2; }
+      else if (chevrons) for (const m of [lapChevOut, lapChev]) { m.position.set(f.lapCar.x, f.lapCar.y, m === lapChev ? 0.8 : 0.75); m.rotation.z = f.lapHeading - Math.PI / 2; }
+      if (refFoot) for (const m of [refFpOut, refFp]) { m.position.set(f.refCar.x, f.refCar.y, m === refFp ? 0.6 : 0.55); m.rotation.z = f.refHeading - Math.PI / 2; }
+      else if (chevrons) for (const m of [refChevOut, refChev]) { m.position.set(f.refCar.x, f.refCar.y, m === refChev ? 0.6 : 0.55); m.rotation.z = f.refHeading - Math.PI / 2; }
       if (refDriven) setProgress(refDriven, f.refDist);
       if (lapDriven) setProgress(lapDriven, f.lapDist);
       // The gain line keeps a fixed screen gap, so its points change only when the zoom does (not on pan or rotate).
@@ -376,7 +409,7 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
       clearLines();
       for (const m of lineMats) m.dispose();
       surfaceMat.dispose();
-      for (const m of carMeshes) { m.geometry.dispose(); (m.material as MeshBasicMaterial).dispose(); }
+      for (const m of [...carMeshes, ...fpMeshes]) { m.geometry.dispose(); (m.material as MeshBasicMaterial).dispose(); }
       gl.dispose();
       try { gl.forceContextLoss(); } catch { /* context already lost */ }
       canvas.remove();

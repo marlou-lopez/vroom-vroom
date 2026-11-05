@@ -8,7 +8,7 @@ import {
   GRID_CHANNELS,
   type CalibrationResult, type ChannelArrays, type CoachRequest, type CoachResult, type CoachResults,
   type Command, type CompareCandidate, type CompareResponse, type Corner, type Finding,
-  type FindingKind, type GridChannel, type LlmCall, type SessionMeta, type SessionSummary, type TraceResponse,
+  type CarDims, type FindingKind, type GridChannel, type LlmCall, type SessionMeta, type SessionSummary, type TraceResponse,
   type TrackMap, type LapMeta, type LapWithRef,
 } from "../types";
 import {
@@ -29,6 +29,11 @@ export interface MockOptions {
 
 const MONZA_TRACK_ID = "monza-grand-prix";
 const MONZA_LENGTH_M = 5793;
+/**
+ * Approximate public specs (overall length x width), not measured; real values would come from config/cars.yaml.
+ * The Porsche 911 GT3 R (about 4.62 x 2.05 m) is only in the mock as the Spa race session, which is deliberately unknown (null) to exercise the fallback.
+ */
+const DIMS_720S: CarDims = { length_m: 4.96, width_m: 2.04 };
 const CAR_720S = { car_name: "McLaren 720S GT3 Evo", car_id: "mclaren_720s_gt3_evo" };
 const CAR_PORSCHE = { car_name: "Porsche 911 GT3 R", car_id: "porsche_911_gt3_r" };
 
@@ -53,6 +58,8 @@ interface SessionSpec {
   type: string;
   /** Spa only: the recording's range for the 720S, null for the Porsche. */
   steering: "recorded" | null;
+  /** null = config/cars.yaml doesn't know the car (exercises the generic GT3 size fallback). */
+  dims: CarDims | null;
   trackTempC: number;
   airTempC: number;
   focus: { instruction: string; improved: boolean | null } | null;
@@ -64,6 +71,7 @@ const SEED: SessionSpec[] = [
   {
     // The real session, laps 0-6 exactly as recorded. Lap 5 is the over-the-limits lap (time 0 = invalid).
     seed: "spa-2026-11-03", started_at: "2026-11-03T19:42:00", car: CAR_720S, type: "Practice",
+    dims: DIMS_720S,
     steering: "recorded", trackTempC: 31, airTempC: 22,
     focus: { instruction: "Bus Stop: brake at the 100 board", improved: true },
     spa: [
@@ -78,6 +86,7 @@ const SEED: SessionSpec[] = [
   },
   {
     seed: "spa-2026-11-01", started_at: "2026-11-01T18:05:00", car: CAR_720S, type: "Practice",
+    dims: DIMS_720S,
     steering: "recorded", trackTempC: 27, airTempC: 19,
     focus: { instruction: "Pouhon: one steering input through both apexes", improved: true },
     spa: [
@@ -90,6 +99,7 @@ const SEED: SessionSpec[] = [
   },
   {
     seed: "spa-2026-10-29-practice", started_at: "2026-10-29T14:30:00", car: CAR_720S, type: "Practice",
+    dims: DIMS_720S,
     steering: "recorded", trackTempC: 24, airTempC: 17,
     focus: { instruction: "La Source: brake where you did on lap 3", improved: null },
     spa: [
@@ -102,6 +112,7 @@ const SEED: SessionSpec[] = [
   {
     // A different car, and no steering range in the recording or config/cars.yaml (exercises the % fallback).
     seed: "spa-2026-10-29-race", started_at: "2026-10-29T20:10:00", car: CAR_PORSCHE, type: "Race",
+    dims: null,
     steering: null, trackTempC: 24, airTempC: 16,
     focus: null,
     spa: [
@@ -113,6 +124,7 @@ const SEED: SessionSpec[] = [
   {
     // Only an invalid flying lap: no reference, so coach() answers no_reference (Review Focus 2).
     seed: "monza-2026-10-26", started_at: "2026-10-26T16:20:00", car: CAR_720S, type: "Practice",
+    dims: DIMS_720S,
     steering: "recorded", trackTempC: 29, airTempC: 21,
     focus: null,
     monza: [
@@ -280,6 +292,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
         started_at: sp.started_at,
         driver: "Driver",
         steering_range_deg: sp.steering === "recorded" ? rec.steering_range_deg : null,
+        car_dims: sp.dims,
       });
       const d = new Date(sp.started_at);
       dateLabel.set(session_id, `${d.getDate()} ${DATE_FMT[d.getMonth()]}`);
@@ -399,6 +412,8 @@ export function createMockApi(opts: MockOptions = {}): Api {
           : null,
       lap_steering_range_deg: sessionOf(lap.meta.session_id).steering_range_deg,
       ref_steering_range_deg: sessionOf(ref.meta.session_id).steering_range_deg,
+      lap_car_dims: sessionOf(lap.meta.session_id).car_dims,
+      ref_car_dims: sessionOf(ref.meta.session_id).car_dims,
     };
     compareCache.set(key, res);
     return res;

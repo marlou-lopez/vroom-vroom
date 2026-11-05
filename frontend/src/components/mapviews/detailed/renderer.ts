@@ -1,4 +1,5 @@
-import type { Camera, Viewport } from "../../../lib/camera";
+import type { CarDims } from "../../../api/types";
+import { zoomScale, type Camera, type Viewport } from "../../../lib/camera";
 import type { Pt } from "../../../lib/geo";
 import type { Scene } from "./scene";
 
@@ -48,6 +49,21 @@ export const AHEAD_DIM = 0.75;
 export const CHEVRON_BELOW_M = 300;
 export const CHEVRON_LEN_PX = 12;
 export const CHEVRON_WID_PX = 9;
+/** Generic GT3 size, used when the contract has no dimensions for a car (`car_dims` null). */
+export const FALLBACK_CAR_DIMS: CarDims = { length_m: 4.7, width_m: 2.0 };
+
+/** The dims to draw with: the contract's, or the generic GT3 size when unknown. */
+export const carDimsOrFallback = (d: CarDims | null | undefined): CarDims => d ?? FALLBACK_CAR_DIMS;
+
+/**
+ * True when a car is drawn as its true-size footprint instead of the dot/chevron marker: when the real car is at least as long
+ * on screen as the chevron would be (at this zoom's scale). Zoomed out the footprint would shrink to a sub-pixel speck, so the
+ * marker stays; zoomed in the marker would be far smaller than the car.
+ */
+export function showFootprint(dims: CarDims, widthM: number, viewportW: number): boolean {
+  const pxPerMetre = viewportW / widthM;
+  return dims.length_m * pxPerMetre >= CHEVRON_LEN_PX * zoomScale(widthM);
+}
 /** Gain/loss line width, and its gap (CSS px) outside the widest line it runs beside (the ref line's casing). */
 export const GAIN_PX = 3;
 export const GAIN_GAP_PX = 3;
