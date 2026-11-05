@@ -105,3 +105,20 @@ export function stripWindow(d: number, halfM: number, minM: number, maxM: number
   const min = Math.max(minM, Math.min(d - halfM, maxM - span));
   return { min, max: min + span, playhead: (d - min) / span };
 }
+
+/** Fixed y range for the elevation strip: both laps' heights (nulls ignored) with 5 % padding and at least 10 m of span. */
+export function elevationRange(lap: ArrayLike<number | null>, ref: ArrayLike<number | null>): Range {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const a of [lap, ref]) {
+    for (let i = 0; i < a.length; i++) {
+      const v = a[i];
+      if (v === null || !Number.isFinite(v)) continue;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+  }
+  if (!Number.isFinite(lo)) return [-5, 5];
+  const pad = Math.max((hi - lo) * 0.05, (10 - (hi - lo)) / 2, 0);
+  return [lo - pad, hi + pad];
+}

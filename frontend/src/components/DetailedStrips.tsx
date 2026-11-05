@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import type { CompareResponse } from "../api/types";
@@ -6,7 +6,7 @@ import type { Annotation } from "../lib/annotations";
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
-import { chipLayerGeometry, clipBand, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, withAlpha, type Range } from "../lib/strips";
+import { chipLayerGeometry, clipBand, elevationRange, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, withAlpha, type Range } from "../lib/strips";
 import { usePlaybackStore } from "../state/playback";
 import { colors } from "../theme";
 import styles from "./DetailedStrips.module.css";
@@ -35,9 +35,11 @@ export interface DetailedStripsProps {
   handlers: BadgeHandlers;
 }
 
-type Num = number[];
+type Num = (number | null)[];
 interface Spec {
   label: string;
+  /** Marked "exp" next to the label. */
+  experimental?: boolean;
   yRange: Range;
   data: Num[];
   series: uPlot.Series[];
@@ -53,7 +55,7 @@ const line = (stroke: string, width: number): uPlot.Series => ({
 function buildSpecs(cmp: CompareResponse): Spec[] {
   const r = stripRanges(cmp);
   const refStroke = withAlpha(colors.comparison, 0.8);
-  return [
+  const specs: Spec[] = [
     {
       label: "SPEED", yRange: r.speed,
       data: [cmp.ref.speed_kmh, cmp.lap.speed_kmh],
@@ -84,6 +86,18 @@ function buildSpecs(cmp: CompareResponse): Spec[] {
       value: (c, _t, iy) => `${formatDelta(c.delta[iy])} s`,
     },
   ];
+  const e = cmp.elevation;
+  if (e) {
+    // Game world height from a shared-memory capture (#94); both laps at the same distance, in metres.
+    const m = (v: number | null | undefined) => (v === null || v === undefined ? "–" : v.toFixed(1));
+    specs.push({
+      label: "ELEVATION", experimental: true, yRange: elevationRange(e.lap, e.ref),
+      data: [e.ref, e.lap],
+      series: [line(refStroke, 1.2), line(colors.you, 1.6)],
+      value: (c, _t, iy) => `${m(c.elevation?.lap[iy])} / ${m(c.elevation?.ref[iy])} m`,
+    });
+  }
+  return specs;
 }
 
 /** Corner bands, drawn on the canvas so they move with the data. */
@@ -168,15 +182,14 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
   };
 }
 
-const LABELS = ["SPEED", "THROTTLE · BRAKE", "STEERING", "DELTA"];
-
 /**
- * Four uPlot strips. React renders this once per comparison / annotation set. Per frame, an effect subscribed to
+ * Four uPlot strips (five when the track has an elevation capture). React renders this once per comparison / annotation set. Per frame, an effect subscribed to
  * the playback store moves each chart's x scale synchronously, the chip layer and the value read-outs imperatively.
  */
 export function DetailedStrips({ model, annotations, handlers }: DetailedStripsProps) {
   const store = usePlaybackStore();
   const { cmp } = model;
+  const specList = useMemo(() => buildSpecs(cmp), [cmp]);
   const hosts = useRef<(HTMLDivElement | null)[]>([]);
   const frames = useRef<(HTMLDivElement | null)[]>([]);
   const values = useRef<(HTMLDivElement | null)[]>([]);
@@ -196,7 +209,7 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
   }, [annotations]);
 
   useEffect(() => {
-    const specs = buildSpecs(cmp);
+    const specs = specList;
     const xs = cmp.distance;
     const dMin = xs[0] ?? 0;
     const dMax = xs[xs.length - 1] ?? 0;
@@ -263,7 +276,7 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
       us.forEach((u) => u.destroy());
       charts.current = [];
     };
-  }, [cmp, store]);
+  }, [cmp, store, specList]);
 
   const lapRange = (): [number, number] => {
     const xs = cmp.distance;
@@ -355,7 +368,7 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
       onClick={onClick}
       onKeyDown={onKeyDown}
     >
-      {LABELS.map((name, i) => (
+      {specList.map(({ label: name, experimental }, i) => (
         <div key={name} ref={(el) => void (frames.current[i] = el)} className={styles.strip}>
           <div ref={(el) => void (hosts.current[i] = el)} className={styles.host} />
           <div aria-hidden="true" ref={(el) => void (playheads.current[i] = el)} className={styles.playhead} />
@@ -364,7 +377,10 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
               <ChipLayer annotations={annotations} distance={cmp.distance} h={handlers} layerRef={chipLayer} />
             </div>
           )}
-          <div className={styles.label}>{name}</div>
+          <div className={styles.label}>
+            {name}
+            {experimental && <span className={styles.exp} title="Experimental">exp</span>}
+          </div>
           <div ref={(el) => void (values.current[i] = el)} className={styles.value} />
         </div>
       ))}

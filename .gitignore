@@ -6,3 +6,4 @@ frontend/dist/
 !backend/tests/fixtures/*.duckdb
 __pycache__/
 .pyright/
+*.lmucap

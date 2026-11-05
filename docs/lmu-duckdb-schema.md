@@ -47,3 +47,18 @@ These findings answer plan Task 1 Step 8. **Where they contradict the plan, the 
 - Distance is resampled from `Lap Dist` at 50 Hz, after fixing the start-of-lap wrap. Grid `t` at the end of each lap matches the official lap time to within 0.04 s.
 - Speed integration gives 6956 m, against 6979 m of lap distance (0.3 % short). That is fine for the fusion fit.
 - Extractor used for the mock data: `tools/extract-laps.mjs` (Node, `@duckdb/node-api`).
+
+## Shared memory (verified 2026-11-05)
+
+The `.duckdb` recordings have no elevation, world position or orientation, but LMU's shared memory does. Verified on a Spa capture (570 s, McLaren, 18 cars in the session) made with `tools/lmu-logger/`, recorded alongside the same session's `.duckdb`. The layout itself is read from the user's own LMU headers at runtime (`tools/lmu-logger/layout.py`); no struct tables are kept in this repo (the headers' licence forbids copying them).
+
+- **How to reach it:** a named file mapping `LMU_Data`, plus two named events, `LMU_Data_HoldEvent` and `LMU_Data_DataEvent`, that mark a new frame. It is only visible from Windows (not from WSL). The mapped region is 327,680 bytes, which is the 324,824-byte block rounded up to whole pages.
+- **What is in it:** telemetry slots for up to 104 cars (the player's index is stored next to them), scoring for every car (lap number, lap distance, last lap time, positions), session, rules, weather and app state. In the 18-car session every car's telemetry slot changed on every frame.
+- **Update rate:** the player's telemetry changes at 100 Hz. Frames arrive at about 88 per second and some repeat the previous sample, so de-duplicate by the telemetry elapsed time (50,204 frames gave 48,549 distinct samples in 570 s).
+- **Lap numbering:** in telemetry the out-lap is lap 0 and the first flying lap is 1, which matches the `Lap` event of the recording. The scoring entry's completed-lap count and last lap time lag the telemetry lap counter, and the last lap time reads -1 for a moment around the line. So a lap's time is only trustworthy once the next lap is running.
+- **Lap time equals the recording's:** the recording's `Lap Time` event (143.77989196777344 s at the start of lap 2 in that session) equals the shared-memory last lap time bit for bit.
+- **Same clock:** the recording's event timestamps equal the game's elapsed time in telemetry (lap 2 started at 336.60 s in both).
+- **World position:** the player's position is three doubles in metres. **+y is up**, so `y` is elevation. x and z are the horizontal plane.
+- **GPS is a fixed transform of the world position** (verified on Spa only). With R = 6371008.8 m: `lat = 60 + z / (R·π/180)` and `lon = x / (R·π/180·cos 60°)`, so `x = lon · R·π/180·cos 60°` and `z = (lat − 60) · R·π/180`. The residual is 0.16 m rms, which is the recording's float32 GPS. An older recording can therefore get heights from one captured lap of the same track.
+- **Elevation on Spa** (flying lap, in the capture's own coordinates): range 102.3 m. Start/finish 22.3 m, Eau Rouge bottom -1.0 m (about 1005 m into the lap), Raidillon top 25.4 m (about 1305 m), highest 74.5 m on the Kemmel straight (about 2484 m), lowest -27.8 m (about 5021 m). Laps agree on the min and max to about 5 cm.
+- **Orientation** is a 3x3 matrix per car next to the position (not yet analysed beyond reading it), and the telemetry also has local velocity, acceleration and rotation rates.
