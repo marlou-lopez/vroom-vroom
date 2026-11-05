@@ -278,7 +278,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
         session_type: sp.type,
         game_build: "1.2.0.3",
         started_at: sp.started_at,
-        driver: "Marlou",
+        driver: "Driver",
         steering_range_deg: sp.steering === "recorded" ? rec.steering_range_deg : null,
       });
       const d = new Date(sp.started_at);
@@ -312,7 +312,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
           meta: {
             lap_id, session_id, lap_no, kind: l.kind, lap_time_s: l.lap_time_s, sectors_s: sectors,
             valid: l.valid ?? true, valid_override: null, pinned_reference: false, source: "own_recording",
-            driver: "Marlou", track_id, car_id: sp.car.car_id,
+            driver: "Driver", track_id, car_id: sp.car.car_id,
             conditions: { track_temp_c: sp.trackTempC, air_temp_c: sp.airTempC, fuel_l: 90 - lap_no * 3, tyre_wear: 0.01 * lap_no },
           },
         });
