@@ -1,32 +1,48 @@
-# React + TypeScript + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 18 + TypeScript + Vite app for the vroom-vroom telemetry coach. Run all commands from
+this directory. Install dependencies once with `npm ci`.
 
-Currently, two official plugins are available:
+## Commands
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm run dev       # dev server at http://localhost:5173
+npm run test      # vitest (single run): *.test.ts in node, *.test.tsx in jsdom
+npm run test:coverage  # tests with v8 coverage, report in coverage/
+npm run lint      # oxlint
+npm run build     # tsc -b && vite build
+npm run preview   # serve the production build
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Mock API
+
+`.env.development` sets `VITE_API=mock`. With it, `npm run dev` starts an MSW service worker
+that answers `/api/*` from `src/api/mock/`. The mock is built on one real Spa recording,
+`public/mock/spa-2026-11-03.json`.
+
+The Vite dev server also proxies `/api` to `127.0.0.1:8765`, where the future backend will
+run.
+
+## Debug tools
+
+The detailed track view shows a frame-rate HUD, a benchmark, a line-source selector and a GPU
+context-loss test only in `npm run dev` or when the URL has `?debug`. Use `?debug=0` in dev to
+preview the production view.
+
+## Source layout
+
+| Path | What |
+|---|---|
+| `src/api/` | The API contract (`types.ts`, `client.ts`) and the MSW mock in `mock/` |
+| `src/pages/` | Telemetry (home), Sessions, Tracks |
+| `src/components/` | UI components, including the track panel views |
+| `src/lib/` | Pure, unit-tested logic: playback, track map projection, strips, formatting |
+| `src/state/` | Zustand playback store, data and coach hooks |
+
+Components reach data only through the `Api` interface in `src/api/client.ts`.
+
+## Naming rule
+
+Do not use tracking-like words in file or folder names: `trackview`, `tracking`, `analytics`,
+`beacon`, `pixel`. Ad blockers block those module URLs in `npm run dev`, which leaves a white
+page.
