@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildElevationIndex, elevationAt, elevationProfile, latLonToWorld, type ElevationTrack,
+  buildElevationIndex, elevationAt, elevationProfile, latLonToWorld, worldToLatLon, type ElevationTrack,
 } from "./elevation";
 
 // A straight 100 m road along +x at z = 0 climbing 10 m, then a separate lap 1000 m away at z = 500.
@@ -73,5 +73,17 @@ describe("elevationProfile", () => {
     const out = elevationProfile(idx, [60, 60.0001], [0, 0]);
     expect(out[0]).toBeCloseTo(0, 6);
     expect(out[1]).toBeNull();
+  });
+});
+
+describe("worldToLatLon", () => {
+  it("is the inverse of latLonToWorld", () => {
+    for (const [x, z] of [[0, 0], [1234.5, -987.6], [-20000, 15000]]) {
+      const { lat, lon } = worldToLatLon(x, z);
+      const w = latLonToWorld(lat, lon);
+      expect(w.x).toBeCloseTo(x, 6);
+      expect(w.z).toBeCloseTo(z, 6);
+    }
+    expect(worldToLatLon(0, 0)).toEqual({ lat: 60, lon: 0 });
   });
 });

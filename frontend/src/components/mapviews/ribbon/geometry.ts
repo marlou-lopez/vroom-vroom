@@ -42,7 +42,7 @@ export function buildLinePositions(xy: XY, heights: Float64Array, lift: number):
 }
 
 /**
- * Kerb stripes: one quad per metre of the kerb polyline, KERB_W_M wide, coloured red or white by stripe (KERB_STRIPE_M each).
+ * Kerb stripes: one quad per metre of the kerb polyline, `kerb.width` (KERB_W_M if unset) wide, coloured red or white by stripe (KERB_STRIPE_M each).
  * Point k lies beside centreline index kerb.start + k, whose height it takes, plus `lift`. `colors` is a flat rgb array per vertex.
  */
 export function buildKerbMesh(kerb: Kerb, heights: Float64Array, lift: number, red: [number, number, number], white: [number, number, number]): MeshData & { colors: Float32Array } {
@@ -51,7 +51,7 @@ export function buildKerbMesh(kerb: Kerb, heights: Float64Array, lift: number, r
   const positions = new Float32Array(segs * 4 * 3);
   const colors = new Float32Array(segs * 4 * 3);
   const indices = new Uint32Array(segs * 6);
-  const half = KERB_W_M / 2;
+  const half = (kerb.width ?? KERB_W_M) / 2;
   const h = (k: number) => (heights[Math.min(kerb.start + k, heights.length - 1)] ?? 0) + lift;
   const normal = (k: number) => {
     const a = Math.max(k - 1, 0), b = Math.min(k + 1, m - 1);

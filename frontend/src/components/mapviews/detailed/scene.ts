@@ -1,9 +1,10 @@
-import type { CarDims, CompareResponse } from "../../../api/types";
+import type { CarDims, CompareResponse, SurveyKerb } from "../../../api/types";
 import { bounds, headingAt, originOf, pointAt, toLocalMetres, type Pt, type XY } from "../../../lib/geo";
 import { distanceAtTime } from "../../../lib/playback";
 import { KERB_W_M, carDimsOrFallback } from "./renderer";
 import { gainRate } from "../../../lib/gainLoss";
 import { edgeHalfWidths, edgeLines, kerbRuns, type EdgeLap } from "../../../lib/trackEdges";
+import { centreProjector, kerbWidth, surveyHalfWidths } from "../../../lib/trackSurvey";
 import { LATERAL_LIMIT_M, NORMAL_HALF_M, centreline, lateralOffsets, lineFromGps, lineFromLateral, normalsLeft } from "../../../lib/racingLine";
 
 /**
@@ -13,7 +14,17 @@ import { LATERAL_LIMIT_M, NORMAL_HALF_M, centreline, lateralOffsets, lineFromGps
 export interface GainLine { normals: XY; clearM: Float64Array; rate: Float64Array }
 
 /** A kerb stretch (#36): a polyline along one side of the track, its centre KERB_OFFSET_M (half the kerb width) outside that side's edge so the inner side lies on the edge line. */
-export interface Kerb { side: "left" | "right"; xy: XY; laps: number; /** Grid index of the first point: point k lies beside centreline index start + k. */ start: number }
+export interface Kerb {
+  side: "left" | "right"; xy: XY;
+  /** Laps that touched it; 0 for a survey kerb (#97), which has no laps. */
+  laps: number;
+  /** Grid index of the first point: point k lies beside centreline index start + k. */
+  start: number;
+  /** Known only for survey kerbs (flat or razor); kerbs rebuilt from laps do not tell. */
+  kind?: SurveyKerb["kind"];
+  /** Width in metres when measured (survey kerbs); drawn KERB_W_M wide when absent. */
+  width?: number;
+}
 
 /** Everything a renderer draws, in local metres (x east, y north). */
 /**
@@ -25,11 +36,13 @@ export interface Scene {
   gain: GainLine; surface: [XY, XY]; bounds: ReturnType<typeof bounds>;
   /** Car footprints in metres, already resolved (generic GT3 size when the contract says null). */
   lapDims: CarDims; refDims: CarDims;
+  /** Where the telemetry-mode edges and kerbs came from: the track survey (#97) or the compared laps; null in stand-in mode. */
+  edgeSource: "survey" | "laps" | null;
 }
 
 export type LineSource = "gps" | "lateral";
 export type CarSync = "time" | "distance";
-/** "stand-in": the centreline +/- 7 m; "telemetry": edges and kerbs rebuilt from the laps' track_edge and kerb channels (#36, experimental). */
+/** "stand-in": the centreline +/- 7 m; "telemetry": edges and kerbs from the track survey when the compare response has one (#97), else rebuilt from the laps' track_edge and kerb channels (#36, experimental). */
 export type EdgeSource = "stand-in" | "telemetry";
 export interface SceneOptions { source: LineSource; gpsHalf: number; edges?: EdgeSource }
 
@@ -168,27 +181,45 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
   let edges: [XY, XY] = [offsetLine(centre, EDGE_OFFSET_M), offsetLine(centre, -EDGE_OFFSET_M)];
   let edgeMeasured: Scene["edgeMeasured"] = null;
   let kerbs: Kerb[] = [];
+  let usedSurvey = false;
   let floorLeft: number | ArrayLike<number> = EDGE_OFFSET_M, floorRight: number | ArrayLike<number> = EDGE_OFFSET_M;
   if (telemetry) {
-    const edgeLap = (c: CompareResponse["lap"]): EdgeLap => ({
-      pathLateral: c.path_lateral.slice(0, n), trackEdge: c.track_edge.slice(0, n), kerb: c.kerb.slice(0, n),
-    });
-    const laps = [edgeLap(cmp.lap), edgeLap(cmp.ref)];
-    const te = edgeHalfWidths(laps, n);
-    edges = edgeLines(centre, normals, te);
-    edgeMeasured = [te.leftMeasured, te.rightMeasured];
-    floorLeft = te.left; floorRight = te.right;
-    kerbs = kerbRuns(laps, n).map((r) => {
-      const half = r.side === "left" ? te.left : te.right, sign = r.side === "left" ? 1 : -1;
-      const m = r.end - r.start + 1;
+    let te: ReturnType<typeof edgeHalfWidths>;
+    const survey = cmp.track_survey;
+    const place = (side: "left" | "right", start: number, end: number, width = KERB_W_M): XY => {
+      const half = side === "left" ? te.left : te.right, sign = side === "left" ? 1 : -1;
+      const m = end - start + 1;
       const x = new Float64Array(m), y = new Float64Array(m);
       for (let k = 0; k < m; k++) {
-        const i = r.start + k, d = sign * (half[i] + KERB_OFFSET_M);
+        const i = start + k, d = sign * (half[i] + width / 2);
         x[k] = centre.x[i] + normals.x[i] * d;
         y[k] = centre.y[i] + normals.y[i] * d;
       }
-      return { side: r.side, xy: { x, y }, laps: r.laps, start: r.start };
-    });
+      return { x, y };
+    };
+    if (survey) {
+      // Survey points are [lat, lon]; the same origin makes them local metres of this scene.
+      const local = (pts: [number, number][]) => toLocalMetres(pts.map((p) => p[0]), pts.map((p) => p[1]), origin);
+      const project = centreProjector(centre);
+      te = { ...surveyHalfWidths(project, local(survey.edge_points ?? []), survey.left_m, survey.right_m, n) };
+      const outer = local(survey.kerb_outer_points ?? []);
+      kerbs = survey.kerbs.filter((k) => k.start_m <= k.end_m && k.start_m >= 0 && k.end_m < n).map((k) => {
+        const half = k.side === "left" ? te.left : te.right;
+        const width = k.width_m ?? kerbWidth(project, outer, k.side, k.start_m, k.end_m, half) ?? undefined;
+        return { side: k.side, xy: place(k.side, k.start_m, k.end_m, width), laps: 0, start: k.start_m, kind: k.kind, ...(width !== undefined && { width }) };
+      });
+      usedSurvey = true;
+    } else {
+      const edgeLap = (c: CompareResponse["lap"]): EdgeLap => ({
+        pathLateral: c.path_lateral.slice(0, n), trackEdge: c.track_edge.slice(0, n), kerb: c.kerb.slice(0, n),
+      });
+      const laps = [edgeLap(cmp.lap), edgeLap(cmp.ref)];
+      te = edgeHalfWidths(laps, n);
+      kerbs = kerbRuns(laps, n).map((r) => ({ side: r.side, xy: place(r.side, r.start, r.end), laps: r.laps, start: r.start }));
+    }
+    edges = edgeLines(centre, normals, te);
+    edgeMeasured = [te.leftMeasured, te.rightMeasured];
+    floorLeft = te.left; floorRight = te.right;
   }
   const gain: GainLine = {
     normals,
@@ -207,7 +238,8 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
     telemetry ? surfaceClearance(centre, [lap, ref], side, floor as ArrayLike<number>) : gainClearance(centre, [lap, ref], side, SURFACE_MARGIN_M, floor);
   const surface: [XY, XY] = [along(border("left", floorLeft), 1), along(border("right", floorRight), -1)];
   return { lap, ref, centre, edges, edgeMeasured, kerbs, gain, surface, bounds: bounds([edges[0], edges[1], lap, ref]),
-    lapDims: carDimsOrFallback(cmp.lap_car_dims), refDims: carDimsOrFallback(cmp.ref_car_dims) };
+    lapDims: carDimsOrFallback(cmp.lap_car_dims), refDims: carDimsOrFallback(cmp.ref_car_dims),
+    edgeSource: telemetry ? (usedSurvey ? "survey" : "laps") : null };
 }
 
 /**

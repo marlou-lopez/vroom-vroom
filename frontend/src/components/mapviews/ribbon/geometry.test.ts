@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { XY } from "../../../lib/geo";
 import type { Kerb } from "../detailed/scene";
+import { KERB_W_M } from "../detailed/renderer";
 import { buildKerbMesh, buildLinePositions, buildRibbonMesh } from "./geometry";
 
 const xy = (pts: [number, number][]): XY => ({ x: Float64Array.from(pts.map((p) => p[0])), y: Float64Array.from(pts.map((p) => p[1])) });
@@ -63,6 +64,13 @@ describe("buildLinePositions", () => {
 describe("buildKerbMesh", () => {
   const kerb: Kerb = { side: "left", xy: xy([[10, 0], [11, 0], [12, 0], [13, 0], [14, 0]]), laps: 1, start: 2 };
   const m = buildKerbMesh(kerb, Float64Array.from([0, 1, 2, 3, 4, 5, 6, 7]), 0.03, [1, 0, 0], [1, 1, 1]);
+
+  it("is KERB_W_M wide, or kerb.width wide when the kerb has one", () => {
+    const wide = buildKerbMesh({ ...kerb, width: 2 }, Float64Array.from([0, 1, 2, 3, 4, 5, 6, 7]), 0, [1, 0, 0], [1, 1, 1]);
+    const span = (mm: { positions: Float32Array }) => Math.abs(mm.positions[2] - mm.positions[5]);
+    expect(span(wide)).toBeCloseTo(2, 5);
+    expect(span(m)).toBeCloseTo(KERB_W_M, 5);
+  });
 
   it("has a quad per metre", () => {
     expect(m.vertexCount).toBe(16);

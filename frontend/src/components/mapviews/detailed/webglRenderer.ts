@@ -109,7 +109,14 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   // Per-vertex colours: telemetry-measured stretches are a bit brighter than filled-in ones (#36).
   const edgeMat = makeMat("#ffffff", EDGE_PX, true);
   /** Kerbs: world-unit width, so they follow the zoom with no per-frame work; excluded from the px-width rescale in draw. */
-  const kerbMat = makeMat("#ffffff", KERB_W_M, true, true);
+  const kerbMats = new Map<number, LineMaterial>();
+  const isKerbMat = (m: LineMaterial) => { for (const k of kerbMats.values()) if (k === m) return true; return false; };
+  const kerbMatFor = (width: number) => {
+    let m = kerbMats.get(width);
+    if (!m) { m = makeMat("#ffffff", width, true, true); kerbMats.set(width, m); }
+    return m;
+  };
+  kerbMatFor(KERB_W_M);
   /** Edges along the track-surface band's borders, shown in Track style instead of the ±7 m stand-in edges. */
   const surfaceEdgeMat = makeMat(colors.line, EDGE_PX);
   const casingMat = makeMat(colors.bg, CASING_PX);
@@ -309,7 +316,7 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
           const c = Math.floor(i / KERB_STRIPE_M) % 2 === 0 ? red : white;
           col[3 * i] = c.r; col[3 * i + 1] = c.g; col[3 * i + 2] = c.b;
         }
-        const line = add(k.xy, kerbMat, 1);
+        const line = add(k.xy, kerbMatFor(k.width ?? KERB_W_M), 1);
         (line.geometry as LineGeometry).setColors(col);
       }
       add(s.surface[0], surfaceEdgeMat, 1);
@@ -348,7 +355,7 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
       const unit = c.widthM / v.w; // metres per px
       // Lines and cars get a bit thicker as you zoom in (1x at 300 m wide, 1.8x at 20 m).
       const z = zoomScale(c.widthM);
-      for (const m of lineMats) if (m !== kerbMat) m.linewidth = (baseWidth.get(m) ?? 1) * z;
+      for (const m of lineMats) if (!isKerbMat(m)) m.linewidth = (baseWidth.get(m) ?? 1) * z;
       for (const m of carMeshes) m.scale.set(unit * z, unit * z, 1);
       const { dash, gap } = dashWorld(c.widthM, v.w, z);
       for (const m of dashedMats) { m.dashSize = dash; m.gapSize = gap; }

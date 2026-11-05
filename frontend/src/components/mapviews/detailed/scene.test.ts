@@ -33,7 +33,7 @@ function makeCmp(nLap = 1000, nRef = 999) {
   void n;
   return {
     lap_id: "a", ref_lap_id: "b", lap_kind: "flying", ref_kind: "flying", distance, delta: new Array(nLap).fill(0), warning: null,
-    lap_steering_range_deg: null, ref_steering_range_deg: null, lap_car_dims: null, ref_car_dims: null, elevation: null,
+    lap_steering_range_deg: null, ref_steering_range_deg: null, lap_car_dims: null, ref_car_dims: null, elevation: null, track_survey: null,
     lap: channels(nLap, a.lat, a.lon, tLap), ref: channels(nRef, b.lat, b.lon, tRef),
   } as unknown as CompareResponse;
 }
@@ -272,6 +272,85 @@ describe("edges: stand-in and telemetry", () => {
     const s = buildScene(withEdges(), { source: "lateral", gpsHalf: 4, edges: "telemetry" });
     // Left floor is 4 m, not the stand-in 7 m; the lines sit near the centre, so the clearance stays well under 7.
     expect(s.gain.clearM[500]).toBeLessThan(6.5);
+  });
+});
+
+describe("edges from a track survey (#97)", () => {
+  const survey = (): NonNullable<CompareResponse["track_survey"]> => ({
+    left_m: new Array(999).fill(6), right_m: new Array(999).fill(8).map((v, i) => (i >= 300 && i < 310 ? null : v)),
+    kerbs: [{ side: "left", start_m: 50, end_m: 70, kind: "flat", width_m: null }, { side: "right", start_m: 400, end_m: 420, kind: "razor", width_m: null }],
+    edge_points: [], kerb_outer_points: [],
+  });
+  const withSurvey = () => {
+    const cmp = makeCmp();
+    cmp.lap.path_lateral = new Array(1000).fill(2);
+    cmp.lap.track_edge = new Array(1000).fill(5); // laps' channels disagree with the survey on purpose
+    cmp.track_survey = survey();
+    return cmp;
+  };
+  const opts = { source: "lateral", gpsHalf: 4, edges: "telemetry" } as const;
+
+  it("without contact points falls back to the (smoothed) LMU half-widths, fills its gaps and flags nothing as measured", () => {
+    const s = buildScene(withSurvey(), opts);
+    expect(s.edgeSource).toBe("survey");
+    const left = lateralOffsets(s.edges[0], s.centre), right = lateralOffsets(s.edges[1], s.centre);
+    for (let i = 20; i < 980; i += 37) {
+      expect(left[i]).toBeCloseTo(-6, 1);
+      expect(right[i]).toBeCloseTo(8, 1);
+    }
+    expect(lateralOffsets(s.edges[1], s.centre)[305]).toBeCloseTo(8, 1); // gap interpolated
+    expect(s.edgeMeasured![1][305]).toBe(0);
+    expect(s.edgeMeasured![1][500]).toBe(0); // measured means: a wheel crossed the edge there
+  });
+
+  it("places survey kerbs beside the survey edge with their kind", () => {
+    const s = buildScene(withSurvey(), opts);
+    expect(s.kerbs.map((k) => [k.side, k.start, k.xy.x.length, k.kind])).toEqual([["left", 50, 21, "flat"], ["right", 400, 21, "razor"]]);
+    const k = s.kerbs[0];
+    for (let j = 0; j < 21; j++) {
+      expect(Math.hypot(k.xy.x[j] - s.centre.x[50 + j], k.xy.y[j] - s.centre.y[50 + j])).toBeCloseTo(6 + KERB_OFFSET_M, 1);
+    }
+  });
+
+  it("draws the edge through wheel-contact points and sizes kerbs from the kerb-outer points", () => {
+    const base = withSurvey();
+    const b = buildScene(base, opts);
+    const o = originOf(base.ref.lat, base.ref.lon);
+    const origin = { lat0: Math.round(o.lat0 * 100) / 100, lon0: Math.round(o.lon0 * 100) / 100 };
+    const toLatLon = (x: number, y: number): [number, number] =>
+      [origin.lat0 + y / (R * DEG), origin.lon0 + x / (Math.cos(origin.lat0 * DEG) * R * DEG)];
+    // points at index i on the left at `d` metres from the scene's own centreline (left normal of the scene's circle: inward)
+    const nl = (i: number) => {
+      const a = (i + 999 - 1) % 999, c = (i + 1) % 999;
+      const tx = b.centre.x[c] - b.centre.x[a], ty = b.centre.y[c] - b.centre.y[a], len = Math.hypot(tx, ty);
+      return [-ty / len, tx / len];
+    };
+    const at = (i: number, d: number) => toLatLon(b.centre.x[i] + nl(i)[0] * d, b.centre.y[i] + nl(i)[1] * d);
+    const range = (a: number, z: number) => Array.from({ length: z - a + 1 }, (_, k) => a + k);
+    const cmp = withSurvey();
+    cmp.track_survey = {
+      ...survey(), left_m: new Array(999).fill(9), right_m: new Array(999).fill(null),
+      edge_points: range(48, 72).map((i) => at(i, 5.5)),         // the edge is at 5.5 m where LMU says 9 m
+      kerb_outer_points: range(50, 70).map((i) => at(i, 6.7)),   // the kerb is 1.2 m wide
+    };
+    const s = buildScene(cmp, opts);
+    const left = lateralOffsets(s.edges[0], s.centre);
+    expect(left[60]).toBeCloseTo(-5.5, 1);
+    expect(s.edgeMeasured![0][60]).toBe(1);
+    expect(s.edgeMeasured![0][300]).toBe(0);
+    const k = s.kerbs[0];
+    expect(k.width).toBeCloseTo(1.2, 1);
+    expect(Math.hypot(k.xy.x[10] - s.centre.x[60], k.xy.y[10] - s.centre.y[60])).toBeCloseTo(5.5 + 0.6, 1);
+    expect(s.kerbs[1].width).toBeUndefined(); // no outer points on the right: drawn KERB_W_M wide
+  });
+
+  it("without a survey, or in stand-in mode, nothing changes", () => {
+    const cmp = withSurvey();
+    expect(buildScene({ ...cmp, track_survey: null }, opts).edgeSource).toBe("laps");
+    expect(buildScene({ ...cmp, track_survey: null }, opts).kerbs.every((k) => k.kind === undefined)).toBe(true);
+    const stand = buildScene(cmp);
+    expect(stand.edgeSource).toBeNull();
+    expect(stand.kerbs).toEqual([]);
   });
 });
 

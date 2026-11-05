@@ -94,9 +94,27 @@ export interface CompareResponse {
    * Experimental. null when the track has no capture; an entry is null where the capture has no path nearby.
    */
   elevation: { lap: (number | null)[]; ref: (number | null)[] } | null;
+  /** Edges and kerbs from a shared-memory survey of the track (#97), on the 1 m grid. null when the track has no survey. Experimental. */
+  track_survey: TrackSurvey | null;
   lap_car_dims: CarDims | null;
   ref_car_dims: CarDims | null;
 }
+
+/**
+ * A survey of the track (#97). `edge_points` are where a wheel crossed between racing tarmac and anything else, i.e. points
+ * on the physical edge; `kerb_outer_points` where a wheel left a kerb for the ground beside it. Both are [lat, lon] (the
+ * recording's GPS frame), track-level and unsided: the view decides which side of its centreline each lies on.
+ * `left_m` / `right_m` are LMU's own half-widths (metres from its centre path, not the middle of the road) per grid
+ * metre, null where unmeasured; they are jumpy (they come from the AI path), so the view only uses them where no edge
+ * point was measured.
+ */
+export interface TrackSurvey {
+  left_m: (number | null)[]; right_m: (number | null)[]; kerbs: SurveyKerb[];
+  edge_points: [lat: number, lon: number][]; kerb_outer_points: [lat: number, lon: number][];
+}
+
+/** A kerb stretch on one side, inclusive grid metres. flat = LMU's flat kerb, razor = the raised kerb. `width_m` is the measured kerb width, null when unknown. */
+export interface SurveyKerb { side: "left" | "right"; start_m: number; end_m: number; kind: "flat" | "razor" | "other"; width_m: number | null }
 
 export interface CompareCandidate {
   lap_id: string;
