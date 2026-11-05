@@ -2,7 +2,8 @@ import { useMemo, useRef, useState, type MouseEvent } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { sessionLapsOptions, useCalibrate, useLandmarkMutation, useLapTrace, useSessions, useTrackMap } from "../api/queries";
 import { errorInfo, type CalibrationResult, type GridChannel, type Landmark, type LandmarkKind, type SessionMeta } from "../api/types";
-import { AddLandmarkForm, landmarkFill, landmarkStroke, LandmarkEditor } from "../components/LandmarkEditor";
+import { AddLandmarkForm, LandmarkEditor } from "../components/LandmarkEditor";
+import { landmarkFill, landmarkStroke } from "../lib/landmarks";
 import { bestValidLap } from "../lib/laps";
 import { projectLatLon, nearestCorner, nearestPoint, pointAtDistance, GPS_SMOOTH_HALF, polylinePath, segmentPath, smoothClosed, type Projection } from "../lib/trackmap";
 import { cx } from "../lib/cx";
@@ -163,6 +164,7 @@ export function TracksPage() {
           </div>
           <div ref={mapBoxRef} className={styles.mapBox}>
             {geo && map ? (
+              // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- Alt-click map; keyboard path tracked in #75
               <svg ref={svgRef} viewBox={VIEWBOX} onClick={onMapClick} role="img" aria-label="Track map" className={styles.map}>
                 <path d={geo.basePath} className={styles.base} />
                 {cornerSegs.map(({ c, d }) =>

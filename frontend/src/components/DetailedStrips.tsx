@@ -226,6 +226,7 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
     const apply = () => {
       const tau = store.get().tau;
       if (tau === lastTau) return;
+      // oxlint-disable-next-line react/immutability -- local of this effect's own closure, not render state
       lastTau = tau;
       const d = distanceAtTime(cmp.lap.t, xs, tau);
       // Clamped to the lap: near the start or end the window stops and the playhead line moves off centre instead.
@@ -339,8 +340,10 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
   };
 
   return (
+    // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- labelled, focusable role="group" with full keyboard handling (arrows scrub, Space plays)
     <div
       className={styles.strips}
+      // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable, keyboard-operated group
       tabIndex={0}
       role="group"
       aria-label="Telemetry strips: drag or arrow keys to scrub, Space to play or pause"
