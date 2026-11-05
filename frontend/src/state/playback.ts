@@ -81,6 +81,7 @@ export function PlaybackProvider({ children }: { children: ReactNode }) {
     const step = (now: number) => {
       // Cap dt so a backgrounded tab does not jump the playhead on return.
       const dt = Math.min((now - last) / 1000, 0.25);
+      // oxlint-disable-next-line react/immutability -- local of this effect's own rAF closure, not render state
       last = now;
       store.tick(dt);
       raf = requestAnimationFrame(step);

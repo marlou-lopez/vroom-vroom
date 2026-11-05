@@ -46,7 +46,7 @@ polars, Pydantic AI), serving `127.0.0.1:8765`.
 ```bash
 npm run dev     # http://localhost:5173; VITE_API=mock in .env.development starts MSW
 npm run test    # vitest
-npm run lint    # oxlint (5 known warnings, tracked in #26)
+npm run lint    # oxlint
 npm run build   # tsc -b && vite build
 ```
 

@@ -1,14 +1,11 @@
 import { useState, type CSSProperties } from "react";
-import type { Corner, Landmark, LandmarkConfidence, LandmarkKind } from "../api/types";
+import type { Corner, Landmark, LandmarkKind } from "../api/types";
 import { cx } from "../lib/cx";
-import { colors } from "../theme";
+import { landmarkFill, landmarkStroke } from "../lib/landmarks";
 import styles from "./LandmarkEditor.module.css";
 import ui from "./ui.module.css";
 
 const KINDS: LandmarkKind[] = ["brake_board", "kerb_entry", "kerb_apex", "kerb_exit", "custom"];
-
-export const landmarkFill = (c: LandmarkConfidence): string => (c === "confirmed" ? colors.you : c === "detected" ? colors.strength : "none");
-export const landmarkStroke = (c: LandmarkConfidence): string => (c === "low" ? colors.muted : landmarkFill(c));
 
 export interface LandmarkEditorProps {
   title: string;

@@ -226,6 +226,7 @@ export function DetailedStrips({ model, annotations, handlers }: DetailedStripsP
     const apply = () => {
       const tau = store.get().tau;
       if (tau === lastTau) return;
+      // oxlint-disable-next-line react/immutability -- local of this effect's own closure, not render state
       lastTau = tau;
       const d = distanceAtTime(cmp.lap.t, xs, tau);
       // Clamped to the lap: near the start or end the window stops and the playhead line moves off centre instead.
