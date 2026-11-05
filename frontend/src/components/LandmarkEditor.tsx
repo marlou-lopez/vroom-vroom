@@ -70,6 +70,7 @@ export function AddLandmarkForm({ distanceM, corners, defaultCornerId, style, on
       style={style}
     >
       <div className={styles.formTitle}>New landmark at {Math.round(distanceM)} m</div>
+      {/* oxlint-disable-next-line jsx-a11y/no-autofocus -- popup the user just opened by Alt-click; moving focus to its first field is intended */}
       <input autoFocus aria-label="Label" placeholder="Label (e.g. 100 board)" value={label} onChange={(e) => setLabel(e.target.value)} className={styles.field} />
       <select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value as LandmarkKind)} className={styles.field}>
         {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
