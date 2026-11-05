@@ -33,7 +33,7 @@ function makeCmp(nLap = 1000, nRef = 999) {
   void n;
   return {
     lap_id: "a", ref_lap_id: "b", lap_kind: "flying", ref_kind: "flying", distance, delta: new Array(nLap).fill(0), warning: null,
-    lap_steering_range_deg: null, ref_steering_range_deg: null, elevation: null,
+    lap_steering_range_deg: null, ref_steering_range_deg: null, lap_car_dims: null, ref_car_dims: null, elevation: null,
     lap: channels(nLap, a.lat, a.lon, tLap), ref: channels(nRef, b.lat, b.lon, tRef),
   } as unknown as CompareResponse;
 }
@@ -41,6 +41,14 @@ function makeCmp(nLap = 1000, nRef = 999) {
 describe("buildScene", () => {
   const cmp = makeCmp();
   const scene = buildScene(cmp);
+  it("passes the contract's dims through and falls back to the generic GT3 size for null", () => {
+    const base = buildScene(cmp);
+    expect(base.lapDims).toEqual({ length_m: 4.7, width_m: 2 });
+    expect(base.refDims).toEqual({ length_m: 4.7, width_m: 2 });
+    const s = buildScene({ ...cmp, lap_car_dims: { length_m: 4.96, width_m: 2.04 } });
+    expect(s.lapDims).toEqual({ length_m: 4.96, width_m: 2.04 });
+    expect(s.refDims).toEqual({ length_m: 4.7, width_m: 2 });
+  });
 
   it("uses the shortest input length", () => {
     expect(scene.lap.x.length).toBe(999);

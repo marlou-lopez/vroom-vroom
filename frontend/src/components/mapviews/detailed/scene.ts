@@ -1,7 +1,7 @@
-import type { CompareResponse } from "../../../api/types";
+import type { CarDims, CompareResponse } from "../../../api/types";
 import { bounds, headingAt, originOf, pointAt, toLocalMetres, type Pt, type XY } from "../../../lib/geo";
 import { distanceAtTime } from "../../../lib/playback";
-import { KERB_W_M } from "./renderer";
+import { KERB_W_M, carDimsOrFallback } from "./renderer";
 import { gainRate } from "../../../lib/gainLoss";
 import { edgeHalfWidths, edgeLines, kerbRuns, type EdgeLap } from "../../../lib/trackEdges";
 import { LATERAL_LIMIT_M, NORMAL_HALF_M, centreline, lateralOffsets, lineFromGps, lineFromLateral, normalsLeft } from "../../../lib/racingLine";
@@ -23,6 +23,8 @@ export interface Kerb { side: "left" | "right"; xy: XY; laps: number }
 export interface Scene {
   lap: XY; ref: XY; centre: XY; edges: [XY, XY]; edgeMeasured: [Uint8Array, Uint8Array] | null; kerbs: Kerb[];
   gain: GainLine; surface: [XY, XY]; bounds: ReturnType<typeof bounds>;
+  /** Car footprints in metres, already resolved (generic GT3 size when the contract says null). */
+  lapDims: CarDims; refDims: CarDims;
 }
 
 export type LineSource = "gps" | "lateral";
@@ -204,7 +206,8 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
   const border = (side: "left" | "right", floor: number | ArrayLike<number>) =>
     telemetry ? surfaceClearance(centre, [lap, ref], side, floor as ArrayLike<number>) : gainClearance(centre, [lap, ref], side, SURFACE_MARGIN_M, floor);
   const surface: [XY, XY] = [along(border("left", floorLeft), 1), along(border("right", floorRight), -1)];
-  return { lap, ref, centre, edges, edgeMeasured, kerbs, gain, surface, bounds: bounds([edges[0], edges[1], lap, ref]) };
+  return { lap, ref, centre, edges, edgeMeasured, kerbs, gain, surface, bounds: bounds([edges[0], edges[1], lap, ref]),
+    lapDims: carDimsOrFallback(cmp.lap_car_dims), refDims: carDimsOrFallback(cmp.ref_car_dims) };
 }
 
 /**

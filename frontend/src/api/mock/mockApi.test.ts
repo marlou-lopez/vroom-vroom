@@ -82,6 +82,9 @@ describe("mockApi: real Spa laps", () => {
     expect(spaNov3.car_id).toBe("mclaren_720s_gt3_evo");
     expect(spaNov3.track_length_m).toBe(6979);
     expect(sessions.find((s) => s.car_name.includes("Porsche"))!.steering_range_deg).toBeNull();
+    // Approximate public dimensions for the 720S; the Porsche race session is unknown (null) to exercise the fallback.
+    expect(spaNov3.car_dims).toEqual({ length_m: 4.96, width_m: 2.04 });
+    expect(sessions.find((s) => s.car_name.includes("Porsche"))!.car_dims).toBeNull();
     for (const l of laps) {
       const tr = await api.lapTrace(l.lap_id);
       const rec = recLap(l.lap_no);
@@ -124,6 +127,7 @@ describe("mockApi: real Spa laps", () => {
     expect(cmp.delta[n]).toBeCloseTo(a.t[n] - b.t[n], 9);
     expect(cmp.lap_id).toBe(lap(1).lap_id);
     expect(cmp.lap_steering_range_deg).toBe(524);
+    expect(cmp.lap_car_dims).toEqual({ length_m: 4.96, width_m: 2.04 });
     expect(cmp.warning).toBeNull();
   });
 
@@ -163,6 +167,8 @@ describe("mockApi: real Spa laps", () => {
     expect(cmp.warning).toBeTruthy();
     expect(cmp.lap_steering_range_deg).toBeNull();
     expect(cmp.ref_steering_range_deg).toBe(524);
+    expect(cmp.lap_car_dims).toBeNull();
+    expect(cmp.ref_car_dims).toEqual({ length_m: 4.96, width_m: 2.04 });
   });
 
   it("compareCandidates excludes Monza laps and the lap itself", async () => {
