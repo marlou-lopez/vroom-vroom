@@ -8,7 +8,7 @@ import { zoomScale } from "../../../lib/camera";
 import { gainStrength } from "../../../lib/gainLoss";
 import type { XY } from "../../../lib/geo";
 import {
-  AHEAD_DIM, CAR_R_PX, LINE_DIM, CASING_PX, CHEVRON_BELOW_M, CHEVRON_LEN_PX, CHEVRON_WID_PX, EDGE_PX, GAIN_PX, LAP_PX, REF_PX, SURFACE_DIM, gainExtraM, readColors,
+  AHEAD_DIM, CAR_R_PX, LINE_DIM, CASING_PX, CHEVRON_BELOW_M, CHEVRON_LEN_PX, CHEVRON_WID_PX, EDGE_MEASURED_LIFT, EDGE_PX, KERB_RED, KERB_STRIPE_M, KERB_W_M, KERB_WHITE, GAIN_PX, LAP_PX, REF_PX, SURFACE_DIM, dashWorld, gainExtraM, mixSrgb, readColors,
   type Frame, type GainStyle, type Renderer, type RendererEvents,
 } from "./renderer";
 import { gainPositions, progressSplit, type GainLine, type Scene } from "./scene";
@@ -88,13 +88,16 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   const lineMats: LineMaterial[] = [];
   /** Base width (px) of each line material; the drawn width is this times zoomScale. */
   const baseWidth = new Map<LineMaterial, number>();
-  const makeMat = (color: string, px: number, vertexColors = false) => {
-    const m = new LineMaterial({ color: new Color(color).getHex(), linewidth: px, worldUnits: false, vertexColors });
+  const makeMat = (color: string, px: number, vertexColors = false, worldUnits = false) => {
+    const m = new LineMaterial({ color: new Color(color).getHex(), linewidth: px, worldUnits, vertexColors });
     lineMats.push(m);
     baseWidth.set(m, px);
     return m;
   };
-  const edgeMat = makeMat(colors.line, EDGE_PX);
+  // Per-vertex colours: telemetry-measured stretches are a bit brighter than filled-in ones (#36).
+  const edgeMat = makeMat("#ffffff", EDGE_PX, true);
+  /** Kerbs: world-unit width, so they follow the zoom with no per-frame work; excluded from the px-width rescale in draw. */
+  const kerbMat = makeMat("#ffffff", KERB_W_M, true, true);
   /** Edges along the track-surface band's borders, shown in Track style instead of the ±7 m stand-in edges. */
   const surfaceEdgeMat = makeMat(colors.line, EDGE_PX);
   const casingMat = makeMat(colors.bg, CASING_PX);
@@ -105,11 +108,16 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   const aheadDim = (c: string) => "#" + new Color(c).lerp(new Color(colors.bg), AHEAD_DIM).getHexString();
   const refAheadMat = makeMat(aheadDim(colors.comparison), REF_PX / 2);
   const lapAheadMat = makeMat(aheadDim(colors.you), LAP_PX / 2);
+  // The reference line is dashed (the casing too, or its gaps would show a background-coloured stripe); sizes are set in draw.
+  const dashedMats = [casingMat, refMat, refAheadMat];
+  for (const m of dashedMats) m.dashed = true;
   // Gain/loss line (#59): per-vertex colours on a white material, one tone the whole lap (no split at the car).
   const gainMat = makeMat("#ffffff", GAIN_PX, true);
   let lines: Line2[] = [];
   let aheadLines: Line2[] = [];
   let showAhead = true;
+  let edgeDebug = false;
+  let edgeLines: { geom: LineGeometry; measured: Uint8Array | null; n: number }[] = [];
   let gainStyle: GainStyle = "side";
   /** Track-surface style: one ribbon, the same tone the whole lap (no split at the car). */
   // Dithering hides the 8-bit steps in long, dark gradients.
@@ -125,7 +133,7 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
    * A line drawn only up to the car: instanceCount covers the driven segments and the last one's end is pulled back
    * to the car. Only that one segment's end floats are re-uploaded each draw.
    */
-  interface Driven { geoms: LineGeometry[]; orig: Float32Array; n: number; moved: number }
+  interface Driven { geoms: LineGeometry[]; orig: Float32Array; n: number; moved: number; dist: Float32Array | null }
   const makeDriven = (xy: XY, mats: [LineMaterial, number][]): Driven => {
     const pos = positions(xy);
     const geoms: LineGeometry[] = [];
@@ -133,14 +141,16 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
       const geom = new LineGeometry();
       geom.setPositions(pos);
       const line = new Line2(geom, m);
+      if (m.dashed) line.computeLineDistances();
       line.frustumCulled = false;
       line.renderOrder = order;
       scene.add(line);
       lines.push(line); lineGeoms.push(geom);
       geoms.push(geom);
     }
-    // Each geometry has its own buffer; one original copy serves them all.
-    return { geoms, orig: pos, n: xy.x.length, moved: -1 };
+    // Each geometry has its own buffer; one original copy serves them all (positions, and the dash distances if dashed).
+    const dist = mats.some(([m]) => m.dashed) && geoms.length ? (geoms[0].getAttribute("instanceDistanceEnd") as InterleavedBufferAttribute).data.array as Float32Array : null;
+    return { geoms, orig: pos, n: xy.x.length, moved: -1, dist: dist && dist.slice() };
   };
   const setProgress = (d: Driven, dist: number) => {
     if (d.n < 2) return;
@@ -153,6 +163,15 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
         const k = d.moved * 6 + 3;
         a[k] = o[3 * (d.moved + 1)]; a[k + 1] = o[3 * (d.moved + 1) + 1];
         b.addUpdateRange(k, 2);
+      }
+      if (d.dist) {
+        // Dashes run on the distance from the lap start: shorten this segment's end distance with its end, or its dashes would squeeze.
+        const db = (g.getAttribute("instanceDistanceEnd") as InterleavedBufferAttribute).data as InterleavedBuffer;
+        const da = db.array as Float32Array;
+        if (d.moved >= 0 && d.moved !== segment) { da[2 * d.moved + 1] = d.dist[2 * d.moved + 1]; db.addUpdateRange(2 * d.moved + 1, 1); }
+        da[2 * segment + 1] = da[2 * segment] + fraction * (d.dist[2 * segment + 1] - da[2 * segment]);
+        db.addUpdateRange(2 * segment + 1, 1);
+        db.needsUpdate = true;
       }
       const k = segment * 6 + 3, s = 3 * segment, e = 3 * (segment + 1);
       a[k] = o[s] + fraction * (o[e] - o[s]);
@@ -222,6 +241,19 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   };
   let lastW = -1, lastH = -1, lastDpr = -1;
 
+  // Plain line colour everywhere; in the debug view the measured stretches get a subtle sRGB tint.
+  const recolourEdges = () => {
+    const plain = new Color(colors.line), tint = new Color(mixSrgb(colors.line, colors.text, EDGE_MEASURED_LIFT));
+    for (const e of edgeLines) {
+      const out = new Float32Array(e.n * 3);
+      for (let i = 0; i < e.n; i++) {
+        const c = edgeDebug && e.measured && e.measured[i] ? tint : plain;
+        out[3 * i] = c.r; out[3 * i + 1] = c.g; out[3 * i + 2] = c.b;
+      }
+      e.geom.setColors(out);
+    }
+  };
+
   return {
     setScene(s: Scene) {
       clearLines();
@@ -229,14 +261,30 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
         const geom = new LineGeometry();
         geom.setPositions(positions(xy));
         const line = new Line2(geom, mat);
+        if (mat.dashed) line.computeLineDistances();
         line.frustumCulled = false;
         line.renderOrder = order;
         scene.add(line);
         lines.push(line); lineGeoms.push(geom);
         return line;
       };
-      add(s.edges[0], edgeMat, 1);
-      add(s.edges[1], edgeMat, 1);
+      edgeLines = [];
+      for (const side of [0, 1]) {
+        const e = add(s.edges[side], edgeMat, 1);
+        edgeLines.push({ geom: e.geometry as LineGeometry, measured: s.edgeMeasured ? s.edgeMeasured[side] : null, n: s.edges[side].x.length });
+      }
+      recolourEdges();
+      const red = new Color(KERB_RED), white = new Color(KERB_WHITE);
+      for (const k of s.kerbs) {
+        const m = k.xy.x.length;
+        const col = new Float32Array(m * 3);
+        for (let i = 0; i < m; i++) {
+          const c = Math.floor(i / KERB_STRIPE_M) % 2 === 0 ? red : white;
+          col[3 * i] = c.r; col[3 * i + 1] = c.g; col[3 * i + 2] = c.b;
+        }
+        const line = add(k.xy, kerbMat, 1);
+        (line.geometry as LineGeometry).setColors(col);
+      }
       add(s.surface[0], surfaceEdgeMat, 1);
       add(s.surface[1], surfaceEdgeMat, 1);
       aheadLines = [add(s.ref, refAheadMat, 2), add(s.lap, lapAheadMat, 3)];
@@ -273,8 +321,10 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
       const unit = c.widthM / v.w; // metres per px
       // Lines and cars get a bit thicker as you zoom in (1x at 300 m wide, 1.8x at 20 m).
       const z = zoomScale(c.widthM);
-      for (const m of lineMats) m.linewidth = (baseWidth.get(m) ?? 1) * z;
+      for (const m of lineMats) if (m !== kerbMat) m.linewidth = (baseWidth.get(m) ?? 1) * z;
       for (const m of carMeshes) m.scale.set(unit * z, unit * z, 1);
+      const { dash, gap } = dashWorld(c.widthM, v.w, z);
+      for (const m of dashedMats) { m.dashSize = dash; m.gapSize = gap; }
       refFill.position.set(f.refCar.x, f.refCar.y, 0.5);
       refRing.position.set(f.refCar.x, f.refCar.y, 0.6);
       lapDot.position.set(f.lapCar.x, f.lapCar.y, 0.7);
@@ -301,6 +351,11 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
     setAheadVisible(visible: boolean) {
       showAhead = visible;
       applyVisibility();
+    },
+    setEdgeDebug(on: boolean) {
+      if (on === edgeDebug) return;
+      edgeDebug = on;
+      recolourEdges();
     },
     setGainStyle(style: GainStyle) {
       gainStyle = style;

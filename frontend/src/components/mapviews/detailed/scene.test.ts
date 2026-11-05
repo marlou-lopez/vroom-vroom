@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { CompareResponse } from "../../../api/types";
 import { originOf, pointAt, toLocalMetres } from "../../../lib/geo";
-import { buildScene, carPositions, progressSplit } from "./scene";
+import { lateralOffsets } from "../../../lib/racingLine";
+import { KERB_OFFSET_M, buildScene, carPositions, progressSplit, surfaceClearance } from "./scene";
 
 const R = 6371008.8, DEG = Math.PI / 180, LAT0 = 60, LON0 = 0;
 
@@ -211,5 +212,96 @@ describe("carPositions distances", () => {
     expect(c.dRef).toBeLessThan(c.dLap);
     const d = carPositions(scene, cmp, 50, "distance");
     expect(d.dRef).toBe(d.dLap);
+  });
+});
+
+describe("edges: stand-in and telemetry", () => {
+  const withEdges = () => {
+    const cmp = makeCmp();
+    cmp.lap.path_lateral = new Array(1000).fill(2);
+    cmp.lap.track_edge = new Array(1000).fill(5); // right side, 5 m
+    cmp.ref.path_lateral = new Array(999).fill(-2);
+    cmp.ref.track_edge = new Array(999).fill(-4); // left side, 4 m
+    for (let i = 100; i <= 120; i++) cmp.lap.kerb[i] = 1; // a right-hand kerb
+    return cmp;
+  };
+
+  it("stand-in has no measured flags and no kerbs", () => {
+    const s = buildScene(withEdges());
+    expect(s.edgeMeasured).toBeNull();
+    expect(s.kerbs).toEqual([]);
+    expect(buildScene(withEdges(), { source: "lateral", gpsHalf: 4, edges: "stand-in" }).kerbs).toEqual([]);
+  });
+
+  it("telemetry puts the left edge left and the right edge right, at the measured half-widths", () => {
+    const s = buildScene(withEdges(), { source: "lateral", gpsHalf: 4, edges: "telemetry" });
+    const left = lateralOffsets(s.edges[0], s.centre), right = lateralOffsets(s.edges[1], s.centre);
+    for (let i = 20; i < 980; i += 37) {
+      expect(left[i]).toBeCloseTo(-4, 1);
+      expect(right[i]).toBeCloseTo(5, 1);
+    }
+    expect(s.edgeMeasured![0][500]).toBe(1);
+    expect(s.edgeMeasured![1][500]).toBe(1);
+  });
+
+  it("puts a right-hand kerb KERB_W_M / 2 outside the right edge, its inner side on the edge line", () => {
+    const s = buildScene(withEdges(), { source: "lateral", gpsHalf: 4, edges: "telemetry" });
+    expect(s.kerbs).toHaveLength(1);
+    const k = s.kerbs[0];
+    expect(k.side).toBe("right");
+    expect(k.xy.x.length).toBe(21);
+    // Distance from the centre point it was placed against, and on the same side as the right edge.
+    const re = lateralOffsets(s.edges[1], s.centre);
+    for (let j = 0; j < 21; j++) {
+      const i = 100 + j;
+      expect(Math.hypot(k.xy.x[j] - s.centre.x[i], k.xy.y[j] - s.centre.y[i])).toBeCloseTo(5 + KERB_OFFSET_M, 1);
+      expect(Math.hypot(k.xy.x[j] - s.edges[1].x[i], k.xy.y[j] - s.edges[1].y[i])).toBeCloseTo(KERB_OFFSET_M, 1);
+      expect(re[i]).toBeGreaterThan(0);
+    }
+  });
+
+  it("the gain/loss clearance follows the real edges", () => {
+    const s = buildScene(withEdges(), { source: "lateral", gpsHalf: 4, edges: "telemetry" });
+    // Left floor is 4 m, not the stand-in 7 m; the lines sit near the centre, so the clearance stays well under 7.
+    expect(s.gain.clearM[500]).toBeLessThan(6.5);
+  });
+});
+
+describe("surfaceClearance", () => {
+  // Counter-clockwise circle: left of travel is inward, right is outward.
+  const N = 628, R0 = 100;
+  const ring = (radius: (i: number) => number) => {
+    const x = new Float64Array(N), y = new Float64Array(N);
+    for (let i = 0; i < N; i++) { const a = (2 * Math.PI * i) / N, r = radius(i); x[i] = r * Math.cos(a); y[i] = r * Math.sin(a); }
+    return { x, y };
+  };
+  const centre = ring(() => R0);
+  const edge = new Float64Array(N).fill(5);
+  const half = 20;
+  const near = (i: number, c: number) => Math.min(Math.abs(i - c), N - Math.abs(i - c));
+
+  it("equals the edge when the lines stay inside it", () => {
+    const inside = ring(() => R0 + 3), insideL = ring(() => R0 - 4);
+    for (const side of ["left", "right"] as const) {
+      const r = surfaceClearance(centre, [inside, insideL], side, edge);
+      for (let i = 0; i < N; i += 7) expect(r[i]).toBeCloseTo(5, 6);
+    }
+  });
+
+  it("widens to cover a line that goes 1 m past the right edge, and is the edge far away", () => {
+    const out = ring((i) => R0 + (i >= 300 && i <= 330 ? 6 : 0));
+    const r = surfaceClearance(centre, [out], "right", edge);
+    for (let i = 300; i <= 330; i++) expect(r[i]).toBeGreaterThanOrEqual(6.5 - 1e-9);
+    for (let i = 0; i < N; i++) if (near(i, 315) > 15 + 2 * half) expect(r[i]).toBeCloseTo(5, 6);
+    // The other side is untouched.
+    const l = surfaceClearance(centre, [out], "left", edge);
+    for (let i = 0; i < N; i += 7) expect(l[i]).toBeCloseTo(5, 6);
+  });
+
+  it("works on the left side too", () => {
+    const out = ring((i) => R0 - (i >= 300 && i <= 330 ? 6 : 0));
+    const r = surfaceClearance(centre, [out], "left", edge);
+    for (let i = 300; i <= 330; i++) expect(r[i]).toBeGreaterThanOrEqual(6.5 - 1e-9);
+    for (let i = 0; i < N; i++) if (near(i, 315) > 15 + 2 * half) expect(r[i]).toBeCloseTo(5, 6);
   });
 });

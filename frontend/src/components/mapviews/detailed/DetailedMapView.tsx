@@ -17,7 +17,7 @@ import ui from "../../ui.module.css";
 import type { TrackViewProps } from "../types";
 import { benchMarkdown, runBench, type BenchControl, type BenchRow, type CameraMode } from "./bench";
 import { GAIN_STYLES, loadRenderer, type GainStyle, type Renderer } from "./renderer";
-import { buildScene, carPositions, type CarSync, type LineSource } from "./scene";
+import { buildScene, carPositions, type CarSync, type EdgeSource, type LineSource } from "./scene";
 import styles from "./DetailedMapView.module.css";
 
 const RING = 120;
@@ -85,6 +85,17 @@ function saveGainStyle(style: GainStyle): void {
   }
 }
 
+/** Where the track edges come from (#36, experimental); default "stand-in". */
+const EDGES_KEY = "vroom.edges";
+
+function loadEdgeSource(): EdgeSource {
+  try {
+    return globalThis.localStorage?.getItem(EDGES_KEY) === "telemetry" ? "telemetry" : "stand-in";
+  } catch {
+    return "stand-in";
+  }
+}
+
 function saveFlag(key: string, on: boolean): void {
   try {
     globalThis.localStorage?.setItem(key, on ? "1" : "0");
@@ -100,7 +111,8 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const [source, setSource] = useState<LineSource>("lateral");
   const [sync, setSyncState] = useState<CarSync>("time");
   const [gpsHalf, setGpsHalf] = useState(4);
-  const scene = useMemo(() => buildScene(cmp, { source, gpsHalf }), [cmp, source, gpsHalf]);
+  const [edgeSource, setEdgeSourceState] = useState<EdgeSource>(loadEdgeSource);
+  const scene = useMemo(() => buildScene(cmp, { source, gpsHalf, edges: edgeSource }), [cmp, source, gpsHalf, edgeSource]);
 
   const [epoch, setEpoch] = useState(0);
   const [gpu, setGpu] = useState<GpuState>("ok");
@@ -278,6 +290,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
       r.setScene(sceneRef.current);
       r.setAheadVisible(lineAheadRef.current);
       r.setGainStyle(gainStyleRef.current);
+      r.setEdgeDebug(debug);
       r.resize(vp.current, window.devicePixelRatio || 1);
       requestDraw();
       return r;
@@ -293,7 +306,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
         if (rendererRef.current === r) rendererRef.current = null;
       });
     };
-  }, [epoch, requestDraw]);
+  }, [epoch, requestDraw, debug]);
 
   // Resize: the host's size feeds the renderer; the free camera keeps its centre and width.
   useEffect(() => {
@@ -338,6 +351,12 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     root.addEventListener("wheel", onWheel, { passive: false });
     return () => root.removeEventListener("wheel", onWheel);
   }, [requestDraw]);
+
+  // The flag is fixed per page load; the renderer also gets it when it is created.
+  useEffect(() => {
+    rendererRef.current?.setEdgeDebug(debug);
+    requestDraw();
+  }, [debug, requestDraw]);
 
   // HUD numbers: at most 4 updates a second, and only while shown.
   useEffect(() => {
@@ -605,6 +624,19 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
             <ToggleGroup.Item value="side" className={ui.toggleItem} title="A line left of the track">Beside</ToggleGroup.Item>
             <ToggleGroup.Item value="track" className={ui.toggleItem} title="Experimental: the whole track width">Track</ToggleGroup.Item>
           </ToggleGroup.Root>
+          <span className={styles.tag} title="Experimental: track edges and kerbs rebuilt from the laps' telemetry">Edges</span>
+          <ToggleGroup.Root
+            type="single" aria-label="Track edges" className={styles.group} value={edgeSource} disabled={running}
+            onValueChange={(v) => {
+              if (v !== "stand-in" && v !== "telemetry") return;
+              setEdgeSourceState(v);
+              try { globalThis.localStorage?.setItem(EDGES_KEY, v); } catch { /* not remembered */ }
+            }}
+          >
+            <ToggleGroup.Item value="stand-in" className={ui.toggleItem} title="The centreline plus and minus 7 m">Stand-in</ToggleGroup.Item>
+            <ToggleGroup.Item value="telemetry" className={ui.toggleItem} title="Edges and kerbs from the laps' telemetry">Telemetry</ToggleGroup.Item>
+          </ToggleGroup.Root>
+          <span className={styles.tag}>experimental</span>
           <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={fit}>Fit</button>
           {debug && (
             <>
