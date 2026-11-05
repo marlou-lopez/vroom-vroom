@@ -28,7 +28,7 @@ describe("Spa elevation attached to the 3 Nov recording", () => {
       const e = elevationProfile(idx, lap.lat, lap.lon) as number[];
       const finite = e.filter((v) => v !== null);
       expect(Math.max(...finite) - Math.min(...finite)).toBeGreaterThan(100); // about 102 m of range
-      expect(e[1005]).toBeCloseTo(-1.0, 0); // Eau Rouge bottom
+      expect(e[1005]).toBeCloseTo(-1.0, 0); // climbing out of Eau Rouge (the valley floor is about -5 m at 926 m)
       expect(e[1305]).toBeCloseTo(25.4, 0); // Raidillon top
       expect(Math.max(...finite)).toBeCloseTo(74.5, 0); // Kemmel
       expect(e[1305] - e[1005]).toBeGreaterThan(20); // Eau Rouge / Raidillon climb

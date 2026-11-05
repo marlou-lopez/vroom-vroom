@@ -13,7 +13,7 @@ import { LATERAL_LIMIT_M, NORMAL_HALF_M, centreline, lateralOffsets, lineFromGps
 export interface GainLine { normals: XY; clearM: Float64Array; rate: Float64Array }
 
 /** A kerb stretch (#36): a polyline along one side of the track, its centre KERB_OFFSET_M (half the kerb width) outside that side's edge so the inner side lies on the edge line. */
-export interface Kerb { side: "left" | "right"; xy: XY; laps: number }
+export interface Kerb { side: "left" | "right"; xy: XY; laps: number; /** Grid index of the first point: point k lies beside centreline index start + k. */ start: number }
 
 /** Everything a renderer draws, in local metres (x east, y north). */
 /**
@@ -187,7 +187,7 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
         x[k] = centre.x[i] + normals.x[i] * d;
         y[k] = centre.y[i] + normals.y[i] * d;
       }
-      return { side: r.side, xy: { x, y }, laps: r.laps };
+      return { side: r.side, xy: { x, y }, laps: r.laps, start: r.start };
     });
   }
   const gain: GainLine = {

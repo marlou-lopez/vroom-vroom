@@ -12,15 +12,16 @@ import { distanceAtTime, timeAtDistance } from "../../../lib/playback";
 import { seekIndexNear } from "../../../lib/seek";
 import { MAP_HIT_PX } from "../../../lib/trackmap";
 import { usePlaybackStore } from "../../../state/playback";
-import { AnnotationHoverCard } from "../../AnnotationPopup";
 import ui from "../../ui.module.css";
 import type { TrackViewProps } from "../types";
 import { benchMarkdown, runBench, type BenchControl, type BenchRow, type CameraMode } from "./bench";
 import { GAIN_STYLES, loadRenderer, type GainStyle, type Renderer } from "./renderer";
 import { buildScene, carPositions, type CarSync, type EdgeSource, type LineSource } from "./scene";
+import { AnnotationBadges } from "../shared/AnnotationBadges";
+import { Ring } from "../shared/ring";
+import { loadFlag, saveFlag } from "../shared/storage";
 import styles from "./DetailedMapView.module.css";
 
-const RING = 120;
 const HUD_MS = 250;
 const DRAG_PX = 3;
 const CLICK_PX = 4;
@@ -35,19 +36,6 @@ const RESTORE_WAIT_MS = 3000;
 
 type GpuState = "ok" | "lost" | "stuck";
 
-/** Fixed-size ring of numbers (the last RING samples). */
-class Ring {
-  private buf = new Float64Array(RING);
-  private n = 0;
-  push(v: number) {
-    this.buf[this.n % RING] = v;
-    this.n++;
-  }
-  values(): Float64Array {
-    return this.buf.subarray(0, Math.min(this.n, RING));
-  }
-}
-
 interface Drag { id: number; lastX: number; lastY: number; total: number; sumX: number; sumY: number }
 
 const f1 = (v: number) => v.toFixed(1);
@@ -56,15 +44,6 @@ const f1 = (v: number) => v.toFixed(1);
 const LINE_AHEAD_KEY = "vroom.lineAhead";
 /** How gain/loss is shown (#59): off, beside the track, or on the track surface. */
 const GAIN_LOSS_KEY = "vroom.gainLoss";
-
-/** An on/off view setting remembered per browser, default on. */
-function loadFlag(key: string): boolean {
-  try {
-    return globalThis.localStorage?.getItem(key) !== "0";
-  } catch {
-    return true;
-  }
-}
 
 /** The remembered gain/loss style; default "side". An older "0" (toggle off) reads as "off". */
 function loadGainStyle(): GainStyle {
@@ -93,14 +72,6 @@ function loadEdgeSource(): EdgeSource {
     return globalThis.localStorage?.getItem(EDGES_KEY) === "telemetry" ? "telemetry" : "stand-in";
   } catch {
     return "stand-in";
-  }
-}
-
-function saveFlag(key: string, on: boolean): void {
-  try {
-    globalThis.localStorage?.setItem(key, on ? "1" : "0");
-  } catch {
-    // Private window or blocked storage: not remembered.
   }
 }
 
@@ -557,26 +528,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
       onLostPointerCapture={endDrag}
     >
       <div ref={hostRef} className={styles.host} aria-hidden="true" />
-      <div className={styles.badges}>
-        {annotations.map((a) => (
-          <AnnotationHoverCard key={a.findingId} annotation={a}>
-            <button
-              type="button"
-              data-annotation-badge=""
-              aria-label={`${a.finding.corner} ${a.label} ${a.finding.kind}`}
-              className={styles.badge}
-              style={{ background: a.color }}
-              ref={(el) => {
-                if (el) badgeEls.current.set(a.findingId, el);
-                else badgeEls.current.delete(a.findingId);
-              }}
-              onClick={() => handlers.onSeek(a)}
-            >
-              {a.label}
-            </button>
-          </AnnotationHoverCard>
-        ))}
-      </div>
+      <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} />
       {gpu !== "ok" && (
         <div className={styles.gpu} data-controls="" role="status">
           <span>Graphics reset — restoring…</span>

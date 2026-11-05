@@ -32,7 +32,7 @@ This section only records facts that change rarely (last checked 2026-11-05):
 | `frontend/src/pages/` | Telemetry (home, `/`), Sessions, Tracks |
 | `frontend/src/lib/` | Pure logic: playback, track map projection, strips, formatting (unit-tested) |
 | `frontend/src/state/` | Zustand playback store, data and coach hooks |
-| `frontend/src/components/mapviews/` | Track panel views (classic 2D SVG, detailed 2D on WebGL) behind one `TrackViewProps` interface |
+| `frontend/src/components/mapviews/` | Track panel views (classic 2D SVG, detailed 2D on WebGL, experimental 3D ribbon in `ribbon/`) behind one `TrackViewProps` interface; `shared/` holds what the WebGL views have in common (badge layer, ring buffer, storage helpers) |
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON (needs `npm i @duckdb/node-api`) |
@@ -56,7 +56,7 @@ Tests named `*.test.ts` run in node and `*.test.tsx` run in jsdom (setup in `src
 
 CI (`.github/workflows/ci.yml`) runs lint, test and build on every PR and push to `main`.
 
-The detailed track view shows its frame-rate HUD, benchmark, line-source selector and a GPU context-loss test only in `npm run dev` or with `?debug` in the URL; `?debug=0` hides them in dev to preview the production view.
+The detailed 2D and 3D track views show their frame-rate HUD, benchmark and GPU context-loss test (and the 2D one its line-source selector) only in `npm run dev` or with `?debug` in the URL; `?debug=0` hides them in dev to preview the production view.
 
 Run test, lint and build before calling frontend work done. Vite proxies `/api` to
 `127.0.0.1:8765` for when the real backend exists.
@@ -68,7 +68,7 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   tests together.
 - **UI stack:** TanStack Query for server data, Zustand for playback state, Radix UI for
   menus, hover cards, sliders and toggles, uPlot for the strips, custom SVG for the classic map and
-  scrubber, three.js (WebGL, lazy-loaded chunk) for the detailed track views (#33, #45), CSS Modules with theme tokens as CSS variables (`src/theme.ts`). The theme is
+  scrubber, three.js (WebGL, lazy-loaded chunk) for the detailed track views (#33, #45, #39), CSS Modules with theme tokens as CSS variables (`src/theme.ts`). The theme is
   dark only and dense: 6 px spacing, 4 px radius, 12 px Inter.
 - **No tracking-like words in frontend file or folder names** (`trackview`, `tracking`,
   `analytics`, `beacon`, `pixel`). Ad blockers block those module URLs in `npm run dev`, which
