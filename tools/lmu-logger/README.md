@@ -92,6 +92,8 @@ Linux/WSL with `LMU_DIR=/mnt/d/Steam/steamapps/common/"Le Mans Ultimate"`).
 python decode.py layout [FILE]                 # sizes computed from your headers; checks they fit FILE's region
 python decode.py player FILE --out player.csv  # one row per distinct telemetry time, the player's car
 python decode.py track  FILE --out track.json  # the car's path every 1 m per lap: [x, z, y] (y = height, up)
+python decode.py survey FILE [FILE ...] --out survey.json  # track edges, kerbs and wheel-contact edge points (see below)
+#   [--half-track M] [--front-z M] [--rear-z M] [--no-fit]
 ```
 
 - `player`: every scalar of the player's telemetry (vectors as `_x/_y/_z`, arrays with indices, wheels
@@ -102,6 +104,35 @@ python decode.py track  FILE --out track.json  # the car's path every 1 m per la
   metres rounded to 0.01 m. Resampled every 1 m of horizontal path length, per lap (the pit lane is
   included). `lap_time_s` is only set when the scoring value agrees with the elapsed time. About 11 s.
   This is how `frontend/public/mock/spa-elevation-2026-11-05.json` was made.
+
+- `survey`: JSON `{source, track, captures, edges, kerbs, contacts, wheel_offsets}`, metres rounded to 0.01 m, `side`
+  0 = left, 1 = right.
+  - `edges: [[x, z, side, half_m], ...]`: LMU's own edge. Every car's scoring entry that is on track (not in the pits or
+    garage, `mTrackEdge` not 0) when its values change; thinned across all files to one per side and metre of lap distance
+    (`half_m` is the median `|mTrackEdge|`, `x`/`z` the mean scoring position). LMU's edge is the AI path's width per
+    waypoint, so it jumps by up to a few metres between waypoints.
+  - `kerbs: [[x, z, side, kind], ...]`: every populated telemetry slot's wheels whose terrain name starts with `RMBL`
+    (`RMBLFLAT` is `flat`, `RMBLRAZOR` is `razor`, else `other`), at the car's position, with the side of the wheel (FL and
+    RL are left), deduplicated on the 1 m cell.
+  - `contacts: [[x, z, kind], ...]`: the physical edge from the wheels (`contacts.py`). Every wheel's terrain name is
+    classed as tarmac (`RDRACE*`, `RDPAINT`), kerb (`RMBL*`) or off (anything else); the empty name is unknown and any
+    change involving it is ignored. Where a wheel changes class between two consecutive new telemetry samples (new
+    `mElapsedTime`, per car) the wheel is on a boundary: `edge` for tarmac to kerb/off or back, `kerb_outer` for kerb to
+    off or back. The position is the wheel's world x/z at the midpoint of the two samples: the car's `mPos` plus its
+    `mOri` (rows of the vehicle-to-world matrix, vehicle +x = left, +z = back) times the wheel's offset. Samples in the
+    pits or garage are skipped, so are jumps over 4 m between samples, and a front and a rear wheel of one side changing
+    in the same sample (a teleport). Deduplicated on a 0.25 m world grid per kind, from every populated telemetry slot.
+  - `wheel_offsets`: `half_track_m`, `front_z_m`, `rear_z_m` (vehicle z of the axles, negative = forward) and `fit`.
+    Wheel positions are not in shared memory, so these are priors for a McLaren 720S GT3 (half-track 0.85 m, wheelbase
+    2.70 m, axles at -1.35 and +1.35 m). Unless `--no-fit`, the **wheelbase** is fitted: front and rear wheels of a side
+    cross the same edge, and the wheelbase that puts the most front/rear crossing pairs within 0.3 m of each other wins
+    (`fit` reports the pairs, residuals before and after, and the wheelbase). Only the wheelbase can be fitted, because
+    moving both axles together moves both crossings alike, so the axles keep the prior's midpoint; the half-track cannot
+    be fitted either. `--half-track`, `--front-z`, `--rear-z` set the priors (with `--no-fit`, the values used).
+  Frames are streamed one at a time, so memory stays modest however long the captures are (the wheel crossings of a
+  session are kept until the end for the fit: about 15,000 for the two Spa captures). About 40 s for the two Spa captures.
+  How to drive a survey: `docs/track-views/edge-survey.md`. This is how `frontend/public/mock/spa-survey-2026-11-06.json`
+  was made.
 
 ## What it does not do
 

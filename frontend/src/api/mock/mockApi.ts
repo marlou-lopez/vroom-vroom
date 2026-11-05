@@ -9,13 +9,15 @@ import {
   type CalibrationResult, type ChannelArrays, type CoachRequest, type CoachResult, type CoachResults,
   type Command, type CompareCandidate, type CompareResponse, type Corner, type Finding,
   type CarDims, type FindingKind, type GridChannel, type LlmCall, type SessionMeta, type SessionSummary, type TraceResponse,
-  type TrackMap, type LapMeta, type LapWithRef,
+  type TrackMap, type LapMeta, type LapWithRef, type TrackSurvey,
 } from "../types";
 import {
   cornerComparison, narrate, narrateInconsistent, spread, type Cause, type CornerComparison, type Narrative,
 } from "./coachFacts";
 import { buildElevationIndex, elevationProfile, type ElevationIndex } from "../../lib/elevation";
+import { mapSurvey, type SurveyFile } from "../../lib/trackSurvey";
 import { fetchSpaElevation, type ElevationLoader } from "./elevation";
+import { fetchSpaSurvey, type SurveyLoader } from "./survey";
 import { fetchSpaRecording, lapToTrace, scaleTime, type SpaLoader, type SpaRecording, type Trace } from "./recording";
 import { makeSpaLap, SPA_TRACK_ID } from "./spa";
 import { deriveLandmarks, spaCorners, SPA_TRACK_LENGTH_M } from "./spaTrack";
@@ -30,6 +32,11 @@ export interface MockOptions {
    * `loadSpa` is given. A failed or null load only means `elevation` is null in compare responses.
    */
   loadElevation?: ElevationLoader;
+  /**
+   * Supplies the Spa track survey (#97). Default: fetch /mock/spa-survey-2026-11-06.json, or none when a custom
+   * `loadSpa` is given. A failed or null load only means `track_survey` is null in compare responses.
+   */
+  loadSurvey?: SurveyLoader;
 }
 
 // ---- seed data ----
@@ -249,6 +256,9 @@ export function createMockApi(opts: MockOptions = {}): Api {
   const loadElevation: ElevationLoader = opts.loadElevation ?? (opts.loadSpa ? async () => null : fetchSpaElevation);
   let elevationIndex: ElevationIndex | null = null;
   const elevationCache = new Map<Trace, (number | null)[]>();
+  const loadSurvey: SurveyLoader = opts.loadSurvey ?? (opts.loadSpa ? async () => null : fetchSpaSurvey);
+  let surveyFile: SurveyFile | null = null;
+  let surveyMapped: TrackSurvey | null = null; // the Spa survey on the 1 m grid, mapped once with a flying lap's line
 
   const sessions: SessionMeta[] = [];
   const laps = new Map<string, LapRec>();
@@ -347,8 +357,9 @@ export function createMockApi(opts: MockOptions = {}): Api {
   // The recording is fetched on the first call of any method, never at import time.
   let ready: Promise<void> | null = null;
   const ensure = (): Promise<void> => {
-    ready ??= Promise.all([loadSpa(), loadElevation().catch(() => null)]).then(([rec, elev]) => {
+    ready ??= Promise.all([loadSpa(), loadElevation().catch(() => null), loadSurvey().catch(() => null)]).then(([rec, elev, survey]) => {
       elevationIndex = elev ? buildElevationIndex(elev) : null;
+      surveyFile = survey;
       build(rec);
     }).catch((e) => {
       ready = null;
@@ -418,6 +429,23 @@ export function createMockApi(opts: MockOptions = {}): Api {
       }
       return e.length === n ? e : e.slice(0, n);
     };
+    // The survey is mapped once, with the longest flying Spa lap's line; shorter grids use its first n metres.
+    const surveyOf = (): TrackSurvey | null => {
+      if (!surveyFile || lap.meta.track_id !== SPA_TRACK_ID) return null;
+      if (!surveyMapped) {
+        const flying = [...laps.values()].filter((l) => l.meta.track_id === SPA_TRACK_ID && l.meta.kind === "flying");
+        const line = flying.sort((x, y) => y.trace.distance.length - x.trace.distance.length)[0]?.trace.ch;
+        if (!line) return null;
+        surveyMapped = mapSurvey(surveyFile, line.lat, line.lon);
+      }
+      const pad = <T,>(v: (T | null)[]): (T | null)[] => v.length >= n ? v.slice(0, n) : [...v, ...new Array<null>(n - v.length).fill(null)];
+      return {
+        left_m: pad(surveyMapped.left_m), right_m: pad(surveyMapped.right_m),
+        kerbs: surveyMapped.kerbs.filter((k) => k.end_m < n),
+        // Track-level points, not tied to a grid index: passed through as they are.
+        edge_points: surveyMapped.edge_points, kerb_outer_points: surveyMapped.kerb_outer_points,
+      };
+    };
     const elevLap = elevationOf(lap);
     const elevRef = elevationOf(ref);
     const carName = (r: LapRec) => sessionOf(r.meta.session_id).car_name;
@@ -437,6 +465,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
       lap_steering_range_deg: sessionOf(lap.meta.session_id).steering_range_deg,
       ref_steering_range_deg: sessionOf(ref.meta.session_id).steering_range_deg,
       elevation: elevLap && elevRef ? { lap: elevLap, ref: elevRef } : null,
+      track_survey: surveyOf(),
       lap_car_dims: sessionOf(lap.meta.session_id).car_dims,
       ref_car_dims: sessionOf(ref.meta.session_id).car_dims,
     };

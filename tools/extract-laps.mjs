@@ -31,7 +31,7 @@ const ch = {
   lat: await series('GPS Latitude'), lon: await series('GPS Longitude'), pl: await series('Path Lateral'), te: await series('Track Edge'),
 };
 const surf = await q('select value1,value2,value3,value4 from SurfaceTypes');
-const kerb = { t: surf.map((_, i) => t0 + i / freq['SurfaceTypes']), v: surf.map(r => [r.value1, r.value2, r.value3, r.value4].some(x => Number(x) === 5) ? 1 : 0) };
+const kerb = { t: surf.map((_, i) => t0 + i / freq['SurfaceTypes']), v: surf.map(r => [r.value1, r.value2, r.value3, r.value4].some(x => Number(x) === 5 || Number(x) === 6) ? 1 : 0) };
 const gearsRaw = await ev('Gear');
 const gears = gearsRaw.filter((g, i) => !(g.v === 0 && gearsRaw[i + 1] && gearsRaw[i + 1].t - g.t < 0.2));
 

@@ -110,13 +110,34 @@ export function edgeHalfWidths(laps: EdgeLap[], n: number, fallbackM = 7): Track
     const v = new Float64Array(n);
     const measured = new Uint8Array(n);
     for (let i = 0; i < n; i++) if (samples[i].length) { v[i] = median(samples[i]); measured[i] = 1; }
-    const out = smoothMeasured(v, measured);
-    fillGaps(out, measured, fallbackM);
-    return [out, measured];
+    return [smoothAndFill(v, measured, fallbackM), measured];
   };
   const [left, leftMeasured] = build(leftS);
   const [right, rightMeasured] = build(rightS);
   return { left, right, leftMeasured, rightMeasured };
+}
+
+/** Smooth the measured half-widths of one side and fill the unmeasured stretches (`fallbackM` if none is measured). */
+function smoothAndFill(v: Float64Array, measured: Uint8Array, fallbackM: number): Float64Array {
+  const out = smoothMeasured(v, measured);
+  fillGaps(out, measured, fallbackM);
+  return out;
+}
+
+/** Same as edgeHalfWidths, from half-widths already measured per grid metre (null/NaN = not measured), e.g. a track survey (#97). Arrays shorter than `n` count as unmeasured at the end. */
+export function edgesFromHalfWidths(left: ArrayLike<number | null>, right: ArrayLike<number | null>, n: number, fallbackM = 7): TrackEdges {
+  const side = (h: ArrayLike<number | null>): [Float64Array, Uint8Array] => {
+    const v = new Float64Array(n);
+    const measured = new Uint8Array(n);
+    for (let i = 0; i < Math.min(n, h.length); i++) {
+      const x = h[i];
+      if (x !== null && Number.isFinite(x) && x > 0) { v[i] = x; measured[i] = 1; }
+    }
+    return [smoothAndFill(v, measured, fallbackM), measured];
+  };
+  const [l, leftMeasured] = side(left);
+  const [r, rightMeasured] = side(right);
+  return { left: l, right: r, leftMeasured, rightMeasured };
 }
 
 /** A stretch of kerb on one side: inclusive grid metres, and how many distinct laps touched it. */

@@ -40,6 +40,11 @@ export function latLonToWorld(lat: number, lon: number): { x: number; z: number 
   return { x: lon * M_PER_DEG * COS_LAT_ORIGIN, z: (lat - LAT_ORIGIN) * M_PER_DEG };
 }
 
+/** The recording's GPS lat/lon (degrees) for world x/z (metres): the inverse of latLonToWorld. */
+export function worldToLatLon(x: number, z: number): { lat: number; lon: number } {
+  return { lat: LAT_ORIGIN + z / M_PER_DEG, lon: x / (M_PER_DEG * COS_LAT_ORIGIN) };
+}
+
 export interface ElevationIndex {
   track: ElevationTrack;
   /** Segment starts: segment k joins points[segStart[k]] and points[segStart[k] + 1]. */

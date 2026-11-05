@@ -13,7 +13,7 @@ through a Windows agent, **v4** conversation, **v5** setup engineer.
 issues, what's In Progress, and milestones `v1`–`v5` and `Track views`. Each issue stands on its
 own and lists its dependencies. Don't rely on this file for progress.
 
-This section only records facts that change rarely (last checked 2026-11-05):
+This section only records facts that change rarely (last checked 2026-11-06):
 - **Phase:** the frontend runs on a mock API serving one real Spa recording. The backend
   hasn't been started, and there's no `backend/` directory yet.
 - **Agreed order:** first the **Track views** milestone (detailed 2D, then 3D), then the backend
@@ -34,9 +34,9 @@ This section only records facts that change rarely (last checked 2026-11-05):
 | `frontend/src/state/` | Zustand playback store, data and coach hooks |
 | `frontend/src/components/mapviews/` | Track panel views (classic 2D SVG, detailed 2D on WebGL, experimental 3D ribbon in `ribbon/`) behind one `TrackViewProps` interface; `shared/` holds what the WebGL views have in common (badge layer, ring buffer, storage helpers) |
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
-| `docs/track-views/` | Spike write-ups and decisions for the Track views milestone |
+| `docs/track-views/` | Spike write-ups and decisions for the Track views milestone (e.g. `edge-survey.md`, `elevation-shared-memory.md`) |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON (needs `npm i @duckdb/node-api`) |
-| `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`) (#94). Captures stay out of git |
+| `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`, `survey`) (#94, #97). Captures stay out of git |
 | `.claude/skills/vroom-issue/` | Project skill for filing GitHub issues |
 
 The planned backend is a Python package `racecoach` in `backend/` (uv, FastAPI, DuckDB,
@@ -79,6 +79,8 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   - "G Force Lat" is longitudinal and "G Force Long" is lateral.
   - GPS is LMU-local, not real-world, and float32 (about 0.4 m steps).
   - Recordings have no elevation channel, but LMU's shared memory has the world position (`y` is up, metres): see "Shared memory" in `docs/lmu-duckdb-schema.md` and `docs/track-views/elevation-shared-memory.md` (#94).
+  - Shared memory has each wheel's terrain name at 100 Hz, and the car's orientation `mOri` (rows of the vehicle-to-world matrix; vehicle +x = left, +z = back). Tarmac to non-tarmac wheel crossings give the physical track edge (`decode.py survey`, `contacts`; #97).
+  - Surface type 6 is the flat kerb (`RMBLFLAT`); 5 is the razor kerb but also drains and concrete (`COBL,DRAIN`, `CRETE`), so the recording's type-5 flag over-counts and type 6 must be counted too (#97). Per-wheel terrain names are in shared memory only (`docs/track-views/edge-survey.md`).
   - GPS is a fixed transform of the world position (verified on Spa): `x = lon·R·π/180·cos 60°`, `z = (lat − 60)·R·π/180`, R = 6371008.8 m.
   - An invalid lap has `Lap Time` = 0.
   - Steering is −100..100 with + meaning right.

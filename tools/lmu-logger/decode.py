@@ -3,6 +3,8 @@
     python decode.py layout [FILE] [--lmu-dir DIR]
     python decode.py player FILE --out player.csv [--lmu-dir DIR]
     python decode.py track  FILE --out track.json [--lmu-dir DIR]
+    python decode.py survey FILE [FILE ...] --out survey.json [--lmu-dir DIR]
+                            [--half-track M] [--front-z M] [--rear-z M] [--no-fit]
 
 The layout is computed at runtime from LMU's headers (see layout.py); nothing about it is
 hard-coded here except the names of a few top-level fields used to find the player's car.
@@ -21,6 +23,7 @@ import time
 from pathlib import Path
 
 import capture
+import contacts as ct
 import layout as lay
 
 OUT = "SharedMemoryObjectOut"
@@ -109,8 +112,9 @@ class Schema:
                 break
         return tel, scor
 
-    def strings_of(self, f: bytes):
-        idx = f[self.o_pidx]
+    def strings_of(self, f: bytes, idx: int | None = None):
+        if idx is None:
+            idx = f[self.o_pidx]
         t0 = self.o_tel + idx * self.tsize
         return {n: bytes(f[t0 + off:t0 + off + ln]).split(b"\0")[0].decode(errors="replace")
                 for n, off, ln in self.strings}
@@ -193,6 +197,160 @@ def build_track(samples, source: str, track_name: str | None, tolerance_s: float
         laps.append({"lap": lap, "start_index": start, "end_index": len(points),
                      "lap_time_s": round(t, 4) if t is not None else None})
     return {"source": source, "track": track_name, "points": points, "laps": laps}
+
+
+# ---------------------------------------------------------------- survey
+
+KERB_KINDS = {b"RMBLFLAT": "flat", b"RMBLRAZOR": "razor"}
+
+
+def median(values):
+    s = sorted(values)
+    n = len(s)
+    return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
+
+
+class Survey:
+    """Collects track edges (from every car's scoring entry) and kerb hits (from every populated
+    telemetry slot) while frames are fed one at a time. Memory stays small: edge samples are bucketed
+    per (side, metre of lap distance) and kerb hits are deduplicated on the spot."""
+
+    WHEEL_COUNT = 4
+
+    def __init__(self, schema: Schema, geometry: ct.Geometry | None = None, fit: bool = True):
+        L = schema.layout
+        self.sc = schema
+        self.geometry = geometry or ct.Geometry()
+        self.fit = fit
+        self.tracker = ct.ContactTracker()
+        self.file_index = -1
+        self.last_et: dict[tuple, float] = {}
+        srec, trec, wrec = L.record(SCOR), L.record(TELEM), L.record("TelemWheelV01")
+        self.o_lapdist = srec.offsetof("mLapDist")
+        self.o_edge = srec.offsetof("mTrackEdge")
+        self.o_pits = srec.offsetof("mInPits")
+        self.o_garage = srec.offsetof("mInGarageStall")
+        self.o_spos = srec.offsetof("mPos")
+        self.o_tpos = trec.offsetof("mPos")
+        self.o_tori = trec.offsetof("mOri")
+        self.o_tid = trec.offsetof("mID")
+        self.o_tet = trec.offsetof("mElapsedTime")
+        self.o_sid = srec.offsetof("mID")
+        self.o_wheel = trec.offsetof("mWheel")
+        self.wheel_size = wrec.size
+        self.o_terrain = wrec.offsetof("mTerrainName")
+        self.terrain_len = wrec.find("mTerrainName")[1].count
+        self.buckets: dict[tuple[int, int], list] = {}   # (side, metre) -> [[half], [x], [z]]
+        self.last_sig: dict[int, tuple] = {}              # vehicle slot -> last scoring values
+        self.kerbs: dict[tuple, tuple] = {}               # (round x, round z, side, kind) -> (x, z)
+        self.track: str | None = None
+        self.frames = 0
+
+    def start_file(self):
+        """Call before the frames of each capture: cars' sample history does not carry over."""
+        self.file_index += 1
+        self.tracker.state.clear()
+        self.last_et.clear()
+
+    def add_frame(self, f: bytes):
+        self.frames += 1
+        sc = self.sc
+        nveh = min(struct.unpack_from("<i", f, sc.o_nveh)[0], sc.max_veh)
+        parked: set[int] = set()    # vehicle ids in the pits or garage
+        for k in range(max(nveh, 0)):
+            v = sc.o_veh + k * sc.ssize
+            if f[v + self.o_pits] or f[v + self.o_garage]:
+                parked.add(struct.unpack_from("<i", f, v + self.o_sid)[0])
+                continue
+            edge, = struct.unpack_from("<d", f, v + self.o_edge)
+            if edge == 0:
+                continue
+            lapdist, = struct.unpack_from("<d", f, v + self.o_lapdist)
+            x, _y, z = struct.unpack_from("<3d", f, v + self.o_spos)
+            sig = (lapdist, edge, x, z)
+            if self.last_sig.get(k) == sig:
+                continue
+            self.last_sig[k] = sig
+            if lapdist < 0:
+                continue
+            b = self.buckets.setdefault((0 if edge < 0 else 1, int(lapdist)), [[], [], []])
+            b[0].append(abs(edge))
+            b[1].append(x)
+            b[2].append(z)
+        for k in range(sc.max_veh):
+            t0 = sc.o_tel + k * sc.tsize
+            x, _y, z = struct.unpack_from("<3d", f, t0 + self.o_tpos)
+            if x == 0:
+                continue
+            if self.track is None:
+                self.track = next((v for n, v in sc.strings_of(f, k).items() if n.endswith("TrackName")), None) or None
+            self.add_telemetry(f, k, t0, x, z, parked)
+
+    def add_telemetry(self, f: bytes, k: int, t0: int, x: float, z: float, parked: set[int]):
+        """One populated telemetry slot: kerb hits and wheel surface changes (once per new elapsed time)."""
+        car = (self.file_index, k)
+        classes = []
+        for w in range(self.WHEEL_COUNT):
+            s = t0 + self.o_wheel + w * self.wheel_size + self.o_terrain
+            name = bytes(f[s:s + self.terrain_len]).split(b"\0")[0]
+            classes.append(ct.classify(name))
+            if name.startswith(b"RMBL"):
+                kind = KERB_KINDS.get(name, "other")
+                side = 0 if w in (0, 2) else 1
+                key = (round(x), round(z), side, kind)
+                if key not in self.kerbs:
+                    self.kerbs[key] = (x, z)
+        et, = struct.unpack_from("<d", f, t0 + self.o_tet)
+        if self.last_et.get(car) == et:
+            return
+        self.last_et[car] = et
+        if struct.unpack_from("<i", f, t0 + self.o_tid)[0] in parked:
+            self.tracker.reset(car)
+            return
+        o = struct.unpack_from("<9d", f, t0 + self.o_tori)
+        self.tracker.add(car, et, (x, z), (o[0:3], o[3:6], o[6:9]), classes)
+
+    def fitted_geometry(self):
+        """(Geometry, info): the configured one with the axle offsets fitted to the events, unless fitting is off."""
+        if not self.fit:
+            return self.geometry, {"fitted": False}
+        return ct.fit_axles(self.tracker.events, self.geometry)
+
+    def result(self, captures: list[str]):
+        geom, fit_info = self.fitted_geometry()
+        edges = []
+        for (side, _m), (half, xs, zs) in sorted(self.buckets.items(), key=lambda kv: (kv[0][1], kv[0][0])):
+            edges.append([round(sum(xs) / len(xs), 2), round(sum(zs) / len(zs), 2), side,
+                          round(median(half), 2)])
+        kerbs = [[round(x, 2), round(z, 2), side, kind]
+                 for (_rx, _rz, side, kind), (x, z) in sorted(self.kerbs.items())]
+        return {"source": "lmu-logger survey", "track": self.track, "captures": captures,
+                "edges": edges, "kerbs": kerbs,
+                "contacts": ct.build_contacts(self.tracker.events, geom),
+                "wheel_offsets": {"half_track_m": geom.half_track, "front_z_m": round(geom.front_z, 3),
+                                  "rear_z_m": round(geom.rear_z, 3), "fit": fit_info}}
+
+
+def cmd_survey(args) -> int:
+    L = load_layout(args)
+    sc = Schema(L)
+    prior = ct.Geometry(args.half_track, args.front_z, args.rear_z)
+    sv = Survey(sc, prior, fit=not args.no_fit)
+    t0 = time.time()
+    for path in args.files:
+        sv.start_file()
+        for _perf, _wall, f in capture.iter_frames(path):   # one frame at a time, never collected
+            sv.add_frame(f)
+    data = sv.result([Path(p).name for p in args.files])
+    with open(args.out, "w") as fp:
+        json.dump(data, fp, separators=(",", ":"))
+    size = os.path.getsize(args.out)
+    print(f"{sv.frames} frames, {len(data['edges'])} edge samples, {len(data['kerbs'])} kerb hits, "
+          f"{len(data['contacts'])} contacts ({len(sv.tracker.events)} surface changes) "
+          f"-> {args.out} ({size / 1e3:.0f} KB, {time.time() - t0:.1f} s)")
+    print("wheel offsets:", json.dumps(data["wheel_offsets"]))
+    print("track:", data["track"])
+    return 0
 
 
 # ---------------------------------------------------------------- commands
@@ -280,10 +438,21 @@ def main(argv=None) -> int:
     p = sub.add_parser("track", parents=[common], help="the car's path resampled every 1 m, per lap, as JSON")
     p.add_argument("file")
     p.add_argument("--out", required=True)
+    p = sub.add_parser("survey", parents=[common],
+                       help="track edges and kerbs from every car in one or more captures, as JSON")
+    p.add_argument("files", nargs="+")
+    p.add_argument("--out", required=True)
+    p.add_argument("--half-track", type=float, default=ct.DEFAULT_HALF_TRACK,
+                   help="wheel centre to car centre, metres; assumed, it cannot be fitted (default %(default)s)")
+    p.add_argument("--front-z", type=float, default=ct.DEFAULT_FRONT_Z,
+                   help="front axle, vehicle z (negative = forward); the fit's prior (default %(default)s)")
+    p.add_argument("--rear-z", type=float, default=ct.DEFAULT_REAR_Z,
+                   help="rear axle, vehicle z; the fit's prior (default %(default)s)")
+    p.add_argument("--no-fit", action="store_true", help="use --front-z and --rear-z as given instead of fitting them")
     ap.set_defaults(lmu_dir=None)
     args = ap.parse_args(argv)
     try:
-        return {"layout": cmd_layout, "player": cmd_player, "track": cmd_track}[args.cmd](args)
+        return {"layout": cmd_layout, "player": cmd_player, "track": cmd_track, "survey": cmd_survey}[args.cmd](args)
     except (lay.LayoutError, capture.CaptureError, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

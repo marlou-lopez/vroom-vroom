@@ -576,7 +576,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
             <ToggleGroup.Item value="side" className={ui.toggleItem} title="A line left of the track">Beside</ToggleGroup.Item>
             <ToggleGroup.Item value="track" className={ui.toggleItem} title="Experimental: the whole track width">Track</ToggleGroup.Item>
           </ToggleGroup.Root>
-          <span className={styles.tag} title="Experimental: track edges and kerbs rebuilt from the laps' telemetry">Edges</span>
+          <span className={styles.tag} title="Experimental: track edges and kerbs from a survey of the track or, without one, rebuilt from the laps' telemetry">Edges</span>
           <ToggleGroup.Root
             type="single" aria-label="Track edges" className={styles.group} value={edgeSource} disabled={running}
             onValueChange={(v) => {
@@ -586,7 +586,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
             }}
           >
             <ToggleGroup.Item value="stand-in" className={ui.toggleItem} title="The centreline plus and minus 7 m">Stand-in</ToggleGroup.Item>
-            <ToggleGroup.Item value="telemetry" className={ui.toggleItem} title="Edges and kerbs from the laps' telemetry">Telemetry</ToggleGroup.Item>
+            <ToggleGroup.Item value="telemetry" className={ui.toggleItem} title={cmp.track_survey ? "Edges and kerbs from a survey of the track (shared-memory capture)" : "Edges and kerbs from the laps' telemetry"}>{cmp.track_survey ? "Survey" : "Telemetry"}</ToggleGroup.Item>
           </ToggleGroup.Root>
           <span className={styles.tag}>experimental</span>
           <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={fit}>Fit</button>
