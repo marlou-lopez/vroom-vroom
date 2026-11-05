@@ -4,7 +4,7 @@
 
 **Target:** edges look continuous and plausible at ~20 m zoom across Spa, with problem areas documented.
 
-**Status:** spike, prototype in the app (PR #65): detailed 2D map, **Edges: Stand-in / Telemetry** toggle, labelled experimental. **Decision: pending.**
+**Status:** spike, prototype in the app (PR #65): detailed 2D map, **Edges: Stand-in / Telemetry** toggle, labelled experimental. **Decision (2026-11-05): keep, as recommended below.**
 
 ## Data facts this relies on
 
@@ -93,4 +93,4 @@ _To add: Telemetry edges at La Source and the Bus Stop at ~20 m, a long filled s
 
 ## Decision
 
-_Pending: keep / change / drop, recorded on #36._
+**Keep** (2026-11-05), recorded on #36. The build work goes into #38 (TrackGeometry contract and mock: edges and kerbs computed from all laps, with measured coverage) and #41 (the same computation in the backend). The Stand-in toggle stays until the backend serves geometry.

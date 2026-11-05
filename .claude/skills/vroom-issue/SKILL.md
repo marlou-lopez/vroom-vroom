@@ -51,10 +51,13 @@ GitHub calls, so you write the content and it handles the rest.
 
 Use every area that applies.
 
-**Milestones:** `v1` is the post-session coach (current work). `v2` is live coaching (Windows
-agent, voice). `v3` is conversation with the coach. `v4` is the setup engineer. `views` is the
-"Track views" milestone: detailed 2D and 3D track rendering, elevation, per-lap racing lines.
-Default to `v1` unless the work clearly belongs elsewhere.
+**Milestones:** `v1` is "UI on mock data" (current work): the full post-session UI built and
+polished against the mock API, which freezes the API contract in `frontend/src/api/types.ts`. `v2`
+is the real backend: the `racecoach` Python package and switching the frontend to the real API.
+`v3` is live coaching (Windows agent, voice). `v4` is conversation with the coach. `v5` is the
+setup engineer. `views` is the "Track views" milestone: detailed 2D and 3D track rendering,
+elevation, per-lap racing lines. Default to `v1` for UI work and `v2` for backend work, unless the
+work clearly belongs elsewhere.
 
 **Priority:**
 - **P0:** blocks work, or loses or corrupts data
