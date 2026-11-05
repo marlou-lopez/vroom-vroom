@@ -7,7 +7,8 @@ this directory. Install dependencies once with `npm ci`.
 
 ```bash
 npm run dev       # dev server at http://localhost:5173
-npm run test      # vitest (single run)
+npm run test      # vitest (single run): *.test.ts in node, *.test.tsx in jsdom
+npm run test:coverage  # tests with v8 coverage, report in coverage/
 npm run lint      # oxlint
 npm run build     # tsc -b && vite build
 npm run preview   # serve the production build
