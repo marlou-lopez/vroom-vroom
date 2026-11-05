@@ -33,7 +33,7 @@ function makeCmp(nLap = 1000, nRef = 999) {
   void n;
   return {
     lap_id: "a", ref_lap_id: "b", lap_kind: "flying", ref_kind: "flying", distance, delta: new Array(nLap).fill(0), warning: null,
-    lap_steering_range_deg: null, ref_steering_range_deg: null, lap_car_dims: null, ref_car_dims: null,
+    lap_steering_range_deg: null, ref_steering_range_deg: null, lap_car_dims: null, ref_car_dims: null, elevation: null,
     lap: channels(nLap, a.lat, a.lon, tLap), ref: channels(nRef, b.lat, b.lon, tRef),
   } as unknown as CompareResponse;
 }

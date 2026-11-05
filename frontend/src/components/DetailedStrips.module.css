@@ -35,3 +35,4 @@
   pointer-events: none;
 }
 .value { position: absolute; right: 6px; top: 3px; font-family: var(--font-mono); font-size: 11px; pointer-events: none; }
+.exp { margin-left: 4px; font-size: 9px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; }

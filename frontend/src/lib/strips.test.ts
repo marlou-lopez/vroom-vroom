@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipFraction, chipLayerGeometry, clipBand, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, valueToPx, withAlpha } from "./strips";
+import { chipFraction, chipLayerGeometry, clipBand, elevationRange, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, valueToPx, withAlpha } from "./strips";
 
 describe("stripRanges", () => {
   const c = {
@@ -107,4 +107,16 @@ describe("stripWindow", () => {
   it("starts at the lap start when the lap is shorter than the window", () => {
     expect(stripWindow(100, 350, 0, 400)).toEqual({ min: 0, max: 700, playhead: 100 / 700 });
   });
+});
+
+describe("elevationRange", () => {
+  it("spans both laps with 5 % padding, ignoring nulls", () => {
+    expect(elevationRange([0, null, 100], [-20, 50])).toEqual([-26, 106]);
+  });
+  it("keeps at least 10 m of span on a flat lap", () => {
+    const [lo, hi] = elevationRange([5, 5], [5, null]);
+    expect(hi - lo).toBeCloseTo(10, 6);
+    expect((lo + hi) / 2).toBeCloseTo(5, 6);
+  });
+  it("has a default when there is no data", () => expect(elevationRange([null], [])).toEqual([-5, 5]));
 });

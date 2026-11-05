@@ -3,21 +3,21 @@
 A personal telemetry coach for **Le Mans Ultimate (LMU)**. It imports LMU's own `.duckdb`
 recordings, aligns laps on a 1 m distance grid, plays a lap against a reference lap, and has
 an LLM coach annotate where time was lost. The data model is meant to work for any sim, not
-just LMU. Stages: **v1** post-session analysis (current), **v2** live voice coaching through a
-Windows agent, **v3** conversation, **v4** setup engineer.
+just LMU. Stages: **v1** UI on mock data (current), **v2** real backend, **v3** live voice coaching
+through a Windows agent, **v4** conversation, **v5** setup engineer.
 
 ## Where things stand
 
 **The GitHub board is the source of truth for status:** repo `marlou-lopez/vroom-vroom`
 (private), board https://github.com/users/marlou-lopez/projects/7. Before starting, check open
-issues, what's In Progress, and milestones `v1`–`v4` and `Track views`. Each issue stands on its
+issues, what's In Progress, and milestones `v1`–`v5` and `Track views`. Each issue stands on its
 own and lists its dependencies. Don't rely on this file for progress.
 
 This section only records facts that change rarely (last checked 2026-11-05):
 - **Phase:** the frontend runs on a mock API serving one real Spa recording. The backend
   hasn't been started, and there's no `backend/` directory yet.
-- **Agreed order:** first the **Track views** milestone (detailed 2D, then 3D), then backend
-  Tasks 1–13, then switching the frontend to the real API.
+- **Agreed order:** first the **Track views** milestone (detailed 2D, then 3D), then the backend
+  (milestone `v2 – Real backend`, Tasks 1–13), then switching the frontend to the real API.
 - The design spec, the v1 plan and handover notes live outside the repo, in
   `~/.claude/plans/superpowers/ai-sim-racing-engineer/`. The issues already copy the details
   that matter.
@@ -36,6 +36,7 @@ This section only records facts that change rarely (last checked 2026-11-05):
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON (needs `npm i @duckdb/node-api`) |
+| `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`) (#94). Captures stay out of git |
 | `.claude/skills/vroom-issue/` | Project skill for filing GitHub issues |
 
 The planned backend is a Python package `racecoach` in `backend/` (uv, FastAPI, DuckDB,
@@ -77,7 +78,8 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
 - **LMU data facts** (details in `docs/lmu-duckdb-schema.md`):
   - "G Force Lat" is longitudinal and "G Force Long" is lateral.
   - GPS is LMU-local, not real-world, and float32 (about 0.4 m steps).
-  - No elevation channel exists.
+  - Recordings have no elevation channel, but LMU's shared memory has the world position (`y` is up, metres): see "Shared memory" in `docs/lmu-duckdb-schema.md` and `docs/track-views/elevation-shared-memory.md` (#94).
+  - GPS is a fixed transform of the world position (verified on Spa): `x = lon·R·π/180·cos 60°`, `z = (lat − 60)·R·π/180`, R = 6371008.8 m.
   - An invalid lap has `Lap Time` = 0.
   - Steering is −100..100 with + meaning right.
   - `Path Lateral` is metres from the track centreline, + meaning right of travel (10 Hz).
