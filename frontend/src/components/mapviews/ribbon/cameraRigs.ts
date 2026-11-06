@@ -54,7 +54,7 @@ export function chasePlacement(car: Vec3, heading: number, ahead: Vec3, p: Chase
 
 export class ChaseRig implements CameraRig {
   readonly id = "chase";
-  private zoomK = 1;
+  zoomK = 1;
   private heading = 0;
   private height = 0;
   enter(f: CameraFrame, cam: PerspectiveCamera) {
@@ -115,7 +115,7 @@ export const TOP_DEFAULT_M = 600, TOP_MIN_M = 60, TOP_MAX_M = 9000;
 /** Straight down above the car, north at the top of the screen. */
 export class TopRig implements CameraRig {
   readonly id = "top";
-  private h = TOP_DEFAULT_M;
+  h = TOP_DEFAULT_M;
   enter(_f: CameraFrame, cam: PerspectiveCamera) {
     cam.near = 5;
     cam.updateProjectionMatrix();
@@ -170,5 +170,35 @@ export class OrbitRig implements CameraRig {
   }
   leave() {
     this.controls.enabled = false;
+  }
+}
+
+/**
+ * The orbit camera of the second pane in the split view: the same viewing offset from its car as the first pane's camera has from its car
+ * (the user's drag and wheel steer the first pane's controls, and both panes turn together). Update the first pane's camera before this one.
+ */
+export class OrbitFollowRig implements CameraRig {
+  readonly id = "orbit";
+  private readonly lead: PerspectiveCamera;
+  private readonly leadTarget: Vector3;
+  private readonly target = new Vector3();
+  constructor(lead: PerspectiveCamera, leadTarget: Vector3) {
+    this.lead = lead;
+    this.leadTarget = leadTarget;
+  }
+  enter(f: CameraFrame, cam: PerspectiveCamera) {
+    cam.up.set(0, 1, 0);
+    cam.near = 0.5;
+    cam.updateProjectionMatrix();
+    this.update(f, cam);
+  }
+  update(f: CameraFrame, cam: PerspectiveCamera) {
+    this.target.set(f.car.x, f.car.y + 1, f.car.z);
+    cam.position.copy(this.lead.position).sub(this.leadTarget).add(this.target);
+    cam.lookAt(this.target);
+  }
+  zoom() { /* follows the first pane's controls */ }
+  distance(cam: PerspectiveCamera) {
+    return cam.position.distanceTo(this.target);
   }
 }

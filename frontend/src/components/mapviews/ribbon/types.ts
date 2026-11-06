@@ -4,6 +4,7 @@ import type { AttitudeAt } from "../../../lib/carAttitude";
 import type { RpmLimits } from "../../../lib/shiftLights";
 import type { DashValues } from "./dashValues";
 import type { CarPose } from "./pose";
+import type { RefPaneFrame } from "./split";
 import type { ViewMode } from "./viewModes";
 
 /** What the 3D renderer draws besides the 2D scene: the road height per centreline grid index. */
@@ -20,6 +21,8 @@ export interface RibbonFrame {
   /** The lap car's steering, gear, rpm and speed at lapDist (cockpit wheel and dash), and the lap's rev limits for the shift lights. */
   dash: DashValues;
   limits: RpmLimits | null;
+  /** Set in the split view: the reference car gets its own pane and camera (same mode), drawn beside the lap car's. Absent = one pane. */
+  refPane?: RefPaneFrame;
   /** True after a seek: camera smoothing restarts. */
   jumped: boolean;
   /** Vertical exaggeration applied to the heights. */
@@ -40,7 +43,7 @@ export interface RibbonRenderer {
   zoom(factor: number): void;
   /** Debug and benchmark: turns the orbit camera around the car by `rad` about the vertical. */
   nudgeOrbit(rad: number): void;
-  /** Screen position (CSS px) of a scene point at the last drawn camera; visible is false behind the camera. */
+  /** Screen position (CSS px, host coordinates) of a scene point at the last drawn camera (the reference pane's in the split view); visible is false behind the camera. */
   project(east: number, north: number, height: number, out: ScreenPoint): ScreenPoint;
   /** Draw calls and triangles of the last draw (debug HUD). */
   stats(): { calls: number; triangles: number };

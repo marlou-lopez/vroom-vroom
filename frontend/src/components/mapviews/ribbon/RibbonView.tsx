@@ -19,6 +19,7 @@ import { loadString, saveString } from "../shared/storage";
 import type { TrackViewProps } from "../types";
 import { dashAt } from "./dashValues";
 import { runRibbonBench, type RibbonBenchControl } from "./bench";
+import { deltaLabel, paneReadout, paneTitle } from "./split";
 import { VIEW_MODES, type ViewMode } from "./viewModes";
 import { heightAt, roadHeights } from "./heights";
 import { aheadPoint, carPose } from "./pose";
@@ -48,6 +49,7 @@ export const EXAGGERATION_MAX = 5;
 export const EXAGGERATION_DEFAULT = 1;
 const EXAGGERATION_KEY = "vroom.ribbonExaggeration";
 const MODE_KEY = "vroom.ribbonCamera";
+const SPLIT_KEY = "vroom.ribbonSplit";
 
 const MODE_LABEL: Record<ViewMode, string> = { chase: "Chase", cockpit: "Cockpit", orbit: "Orbit", top: "Top" };
 
@@ -61,11 +63,15 @@ function loadMode(): ViewMode {
   return VIEW_MODES.includes(v as ViewMode) ? (v as ViewMode) : "chase";
 }
 
+function loadSplit(): boolean {
+  return loadString(SPLIT_KEY) === "1";
+}
+
 type GpuState = "ok" | "lost" | "stuck" | "failed";
 const f1 = (v: number) => v.toFixed(1);
 
 /** Experimental 3D view (#39): the track as a ribbon with elevation, both cars, and chase / cockpit (#100) / orbit / top-down cameras. */
-export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
+export function RibbonView({ model, annotations, handlers, lapTimes }: TrackViewProps) {
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
@@ -85,8 +91,20 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
     [scene, heights, cmp],
   );
 
+  // The same for the reference car, for its pane in the split view.
+  const refAttitude = useMemo(
+    () => estimateAttitude({
+      line: scene.ref, heights, gLat: cmp.ref.g_lat, gLong: cmp.ref.g_long,
+      bank: cmp.track_survey?.bank_deg.map((d) => (d === null ? null : (d * Math.PI) / 180)),
+    }),
+    [scene, heights, cmp],
+  );
+
   // The rev limit and first shift light, from the lap's own upshifts (the cockpit dash).
   const limits = useMemo(() => deriveRpmLimits(cmp.lap.rpm, cmp.lap.gear), [cmp]);
+  const refLimits = useMemo(() => deriveRpmLimits(cmp.ref.rpm, cmp.ref.gear), [cmp]);
+  // The reference dash shows how far the reference is behind the lap: the opposite sign of the lap's delta.
+  const refDelta = useMemo(() => cmp.delta.map((x) => -x), [cmp]);
 
   const carEntries = useMemo(
     () => [{ carId: cmp.lap_car_id, name: cmp.lap_car_name }, { carId: cmp.ref_car_id, name: cmp.ref_car_name }],
@@ -98,6 +116,7 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
   const [mode, setModeState] = useState<ViewMode>(loadMode);
   const [exag, setExagState] = useState(loadExaggeration);
   const [sync, setSyncState] = useState<CarSync>("time");
+  const [split, setSplitState] = useState(loadSplit);
   const [showHud, setShowHud] = useState(true);
   const [hudText, setHudText] = useState("");
   const [running, setRunning] = useState(false);
@@ -113,7 +132,14 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
   const sceneRef = useRef(scene);
   const heightsRef = useRef(heights);
   const attitudeRef = useRef(attitude);
+  const refAttitudeRef = useRef(refAttitude);
   const limitsRef = useRef(limits);
+  const refLimitsRef = useRef(refLimits);
+  const refDeltaRef = useRef(refDelta);
+  const splitRef = useRef(split);
+  const lastRefDist = useRef(0);
+  const paneEls = useRef<Record<"lapInfo" | "refInfo" | "delta", HTMLElement | null>>({ lapInfo: null, refInfo: null, delta: null });
+  const paneText = useRef({ lapInfo: "", refInfo: "", delta: "" });
   const cmpRef = useRef(cmp);
   const annRef = useRef(annotations);
   const modeRef = useRef(mode);
@@ -131,6 +157,13 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
   const badgeEls = useRef(new Map<string, HTMLButtonElement>());
   const screenPt = useRef<ScreenPoint>({ x: 0, y: 0, visible: false });
 
+  const setPaneText = useCallback((key: "lapInfo" | "refInfo" | "delta", text: string) => {
+    if (paneText.current[key] === text) return;
+    paneText.current[key] = text;
+    const el = paneEls.current[key];
+    if (el) el.textContent = text;
+  }, []);
+
   const drawFrame = useCallback((now: number) => {
     raf.current = 0;
     const r = rendererRef.current;
@@ -141,6 +174,10 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
     const cars = carPositions(sc, cmpRef.current, tau, syncRef.current);
     const jumped = Math.abs(cars.dLap - lastDist.current) > JUMP_M;
     lastDist.current = cars.dLap;
+    const c = cmpRef.current;
+    const splitting = splitRef.current;
+    const refJumped = Math.abs(cars.dRef - lastRefDist.current) > JUMP_M;
+    lastRefDist.current = cars.dRef;
 
     const t0 = performance.now();
     r.draw({
@@ -148,9 +185,16 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
       ref: carPose(sc.ref, h, cars.dRef, cars.refHeading, k),
       lapDist: cars.dLap, refDist: cars.dRef,
       lapAtt: attitudeAt(attitudeRef.current, cars.dLap),
-      dash: dashAt(cmpRef.current.lap, cars.dLap, cmpRef.current.lap_steering_range_deg, tau, cmpRef.current.delta),
+      dash: dashAt(c.lap, cars.dLap, c.lap_steering_range_deg, tau, c.delta),
       limits: limitsRef.current,
       ahead: aheadPoint(sc.lap, h, cars.dLap, LOOK_AHEAD_M),
+      refPane: splitting ? {
+        att: attitudeAt(refAttitudeRef.current, cars.dRef),
+        dash: dashAt(c.ref, cars.dRef, c.ref_steering_range_deg, tau, refDeltaRef.current),
+        limits: refLimitsRef.current,
+        ahead: aheadPoint(sc.ref, h, cars.dRef, LOOK_AHEAD_M),
+        jumped: refJumped,
+      } : undefined,
       jumped, exaggeration: k,
     });
     const dt = performance.now() - t0;
@@ -162,7 +206,17 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
     }
     lastDrawT.current = now;
 
+    if (splitting) {
+      // The pane labels: the live speed and gear of each car where it is, and the delta at the lap car's metre.
+      const lapAt = Math.min(Math.max(Math.round(cars.dLap), 0), c.lap.speed_kmh.length - 1);
+      const refAt = Math.min(Math.max(Math.round(cars.dRef), 0), c.ref.speed_kmh.length - 1);
+      setPaneText("lapInfo", paneReadout(c.lap.speed_kmh[lapAt], c.lap.gear[lapAt]));
+      setPaneText("refInfo", paneReadout(c.ref.speed_kmh[refAt], c.ref.gear[refAt]));
+      setPaneText("delta", deltaLabel(c.delta[lapAt] ?? 0));
+    }
+
     const s = screenPt.current;
+    const minX = splitting ? Math.floor(v.w / 2) : 0; // in the split view the badges sit in the reference pane
     for (const a of annRef.current) {
       const el = badgeEls.current.get(a.findingId);
       if (!el) continue;
@@ -170,9 +224,9 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
       r.project(p.x, p.y, heightAt(h, a.apexM) + BADGE_LIFT_M / k, s);
       const y = s.y - (BADGE_OFFSET_PX + a.stack * BADGE_STACK_PX);
       el.style.transform = `translate(${s.x.toFixed(1)}px, ${y.toFixed(1)}px)`;
-      el.style.visibility = !s.visible || s.x < -10 || s.x > v.w + 10 || y < -10 || y > v.h + 10 ? "hidden" : "visible";
+      el.style.visibility = !s.visible || s.x < minX - 10 || s.x > v.w + 10 || y < -10 || y > v.h + 10 ? "hidden" : "visible";
     }
-  }, [store]);
+  }, [store, setPaneText]);
 
   const requestDraw = useCallback(() => {
     if (!raf.current) raf.current = requestAnimationFrame(drawFrame);
@@ -195,10 +249,13 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
     sceneRef.current = scene;
     heightsRef.current = heights;
     attitudeRef.current = attitude;
+    refAttitudeRef.current = refAttitude;
     limitsRef.current = limits;
+    refLimitsRef.current = refLimits;
+    refDeltaRef.current = refDelta;
     rendererRef.current?.setScene({ scene, heights });
     requestDraw();
-  }, [scene, heights, attitude, limits, requestDraw]);
+  }, [scene, heights, attitude, refAttitude, limits, refLimits, refDelta, requestDraw]);
 
   // While playing, tau changes once per frame inside the playback loop's own rAF: draw right then (no one-frame lag).
   useEffect(() => store.subscribe(() => {
@@ -332,6 +389,21 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
     requestDraw();
   };
 
+  const applySplit = useCallback((on: boolean) => {
+    splitRef.current = on;
+    setSplitState(on);
+    // The labels are mounted afresh: forget what they showed, and let the reference car's camera restart at its car.
+    paneText.current = { lapInfo: "", refInfo: "", delta: "" };
+    lastRefDist.current = Number.POSITIVE_INFINITY;
+    requestDraw();
+  }, [requestDraw]);
+
+  const selectSplit = () => {
+    const next = !splitRef.current;
+    saveString(SPLIT_KEY, next ? "1" : "0");
+    applySplit(next);
+  };
+
   const loseContext = () => {
     if (!rendererRef.current?.simulateContextLoss()) console.warn("WEBGL_lose_context is not available");
   };
@@ -343,10 +415,12 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
     play: () => store.play(),
     pause: () => store.pause(),
     setMode: (m) => applyMode(m),
+    setSplit: (on) => applySplit(on),
     nudgeOrbit: (rad) => rendererRef.current?.nudgeOrbit(rad),
-    snapshot: () => ({ playing: store.get().playing, tau: store.get().tau, mode: modeRef.current }),
+    snapshot: () => ({ playing: store.get().playing, tau: store.get().tau, mode: modeRef.current, split: splitRef.current }),
     restore: (s) => {
       applyMode(s.mode);
+      applySplit(s.split);
       store.seek(s.tau);
       if (s.playing) store.play();
       else store.pause();
@@ -391,6 +465,23 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
     <div ref={rootRef} className={styles.root}>
       <div ref={hostRef} className={styles.host} aria-hidden="true" />
       <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} />
+      {split && (
+        <div className={styles.panes} role="group" aria-label="Lap and reference lap, side by side">
+          <div className={cx(styles.pane, styles.paneLap)}>
+            <span className={styles.paneTitle}>{paneTitle("Lap", lapTimes?.lap ?? cmp.lap.t[cmp.lap.t.length - 1] ?? null)}</span>
+            <span ref={(el) => { paneEls.current.lapInfo = el; }} className={styles.paneInfo} />
+          </div>
+          <div className={cx(styles.pane, styles.paneRef)}>
+            <span className={styles.paneTitle}>{paneTitle("Reference", lapTimes?.ref ?? cmp.ref.t[cmp.ref.t.length - 1] ?? null)}</span>
+            <span ref={(el) => { paneEls.current.refInfo = el; }} className={styles.paneInfo} />
+          </div>
+          <div className={styles.seam} />
+          <div className={styles.deltaPill} title="Lap minus reference at the lap car's metre; + means the lap is behind">
+            <span className={styles.tag}>Δ</span>
+            <span ref={(el) => { paneEls.current.delta = el; }} />
+          </div>
+        </div>
+      )}
       {gpu !== "ok" && (
         <div className={styles.gpu} data-controls="" role="status">
           <span>{gpu === "failed" ? "The 3D view could not load." : "Graphics reset — restoring…"}</span>
@@ -415,6 +506,12 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
             <ToggleGroup.Item value="time" className={ui.toggleItem}>Time</ToggleGroup.Item>
             <ToggleGroup.Item value="distance" className={ui.toggleItem}>Distance</ToggleGroup.Item>
           </ToggleGroup.Root>
+          <button
+            type="button" className={cx(ui.btn, styles.small)} aria-pressed={split} disabled={running} onClick={selectSplit}
+            title="Two panes: the lap and the reference lap, each followed by its own camera"
+          >
+            Split
+          </button>
           <span className={styles.tag}>experimental</span>
         </div>
         <div className={styles.bar}>
@@ -447,7 +544,7 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
                 HUD
               </button>
               <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={startBench}>
-                {running ? "Running (40 s)" : "Run benchmark"}
+                {running ? "Running (60 s)" : "Run benchmark"}
               </button>
               <button type="button" className={cx(ui.btn, styles.small)} disabled={running || gpu !== "ok"} onClick={loseContext}>
                 Lose GPU context

@@ -43,3 +43,21 @@
   color: var(--color-text); background: var(--color-bg);
   border: 1px solid var(--color-border); border-radius: var(--radius);
 }
+
+/* Split view (#104): labels at the foot of each pane (above the engineer line), a seam between the panes, and the delta where they meet. */
+.panes { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.pane {
+  position: absolute; bottom: 48px; display: flex; align-items: baseline; gap: 8px; padding: 2px 8px;
+  background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+}
+.paneLap { left: 8px; border-left: 3px solid var(--color-you); }
+.paneRef { left: calc(50% + 8px); border-left: 3px solid var(--color-comparison); }
+.paneTitle { color: var(--color-text); font-weight: 600; }
+.paneInfo { color: var(--color-muted); min-width: 9ch; }
+.seam { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--color-border-strong, var(--color-border)); }
+.deltaPill {
+  position: absolute; left: 50%; bottom: 78px; transform: translateX(-50%); display: flex; align-items: baseline; gap: 6px;
+  padding: 2px 8px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius);
+  font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--color-text);
+}
