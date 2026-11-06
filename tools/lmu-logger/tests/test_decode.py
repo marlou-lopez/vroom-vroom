@@ -1,3 +1,4 @@
+import math
 import struct
 import unittest
 
@@ -71,7 +72,7 @@ class BuildTrackTests(unittest.TestCase):
 SURVEY_HEADER = """
 struct V3 { double x; double y; double z; };
 struct TelemWheelV01 { double mSuspensionDeflection; char mTerrainName[16]; unsigned char mSurfaceType; };
-struct TelemInfoV01 { int mID; double mElapsedTime; V3 mPos; V3 mOri[3]; char mTrackName[16]; TelemWheelV01 mWheel[4]; };
+struct TelemInfoV01 { int mID; double mElapsedTime; V3 mPos; V3 mOri[3]; V3 mLocalAccel; char mTrackName[16]; TelemWheelV01 mWheel[4]; };
 struct VehicleScoringInfoV01 {
   int mID; double mLapDist; double mTrackEdge; unsigned char mInPits; unsigned char mInGarageStall;
   unsigned char mIsPlayer; V3 mPos;
@@ -117,6 +118,7 @@ class SurveyTests(unittest.TestCase):
             struct.pack_into("<d", f, t0 + trec.offsetof("mElapsedTime"), extra.get("et", 0.0))
             struct.pack_into("<9d", f, t0 + trec.offsetof("mOri"), *[c for row in extra.get("ori", IDENTITY) for c in row])
             struct.pack_into("<3d", f, t0 + trec.offsetof("mPos"), x, 0.0, z)
+            struct.pack_into("<3d", f, t0 + trec.offsetof("mLocalAccel"), *extra.get("accel", (0.0, 0.0, 0.0)))
             f[t0 + trec.offsetof("mTrackName"):t0 + trec.offsetof("mTrackName") + 3] = b"Spa"
             for w, n in enumerate(names):
                 o = t0 + trec.offsetof("mWheel") + w * wrec.size + wrec.offsetof("mTerrainName")
@@ -147,6 +149,50 @@ class SurveyTests(unittest.TestCase):
         self.assertEqual(got, [(0, "flat"), (0, "razor"), (1, "other")])
         self.assertEqual(len(r["kerbs"]), 3)
         self.assertEqual(r["kerbs"][0][:2], [10.0, 20.0])
+
+
+class BankTests(SurveyTests):
+    """Road bank = roll from the orientation minus K_ROLL x lateral g, for cars with all four wheels on tarmac."""
+
+    def bank_after(self, samples, names=None):
+        sv = decode.Survey(self.sc)
+        sv.start_file()
+        for et, x, z, ori, accel, *rest in samples:
+            sv.add_frame(self.frame(slots=[(x, z, rest[0] if rest else [ROAD] * 4, {"et": et, "ori": ori, "accel": accel})]))
+        return sv.result([])["bank"]
+
+    @staticmethod
+    def tilted(deg):
+        """Orientation whose left vector (column 0) points up by `deg`: left side up, i.e. leaning right."""
+        a = math.radians(deg)
+        return ((math.cos(a), 0.0, 0.0), (math.sin(a), 1.0, 0.0), (0.0, 0.0, 1.0))
+
+    def test_bank_is_roll_minus_the_lateral_g_part(self):
+        # 3 deg of roll, 2 g to the left: the g explains K_ROLL * 2 degrees, the rest is bank.
+        samples = [(1.0 + i * 0.01, 100.0, 50.0, self.tilted(3.0), (2 * decode.G, 0.0, 0.0)) for i in range(3)]
+        (x, z, deg), = self.bank_after(samples)
+        self.assertEqual((x, z), (100.0, 50.0))
+        self.assertAlmostEqual(deg, 3.0 - decode.K_ROLL_DEG * 2, places=2)
+
+    def test_level_car_on_flat_road_with_no_g_is_zero_and_signs_follow_the_lean(self):
+        flat = [(1.0 + i * 0.01, 20.0, 8.0, self.tilted(0.0), (0.0, 0.0, 0.0)) for i in range(3)]
+        self.assertEqual(self.bank_after(flat)[0][2], 0.0)
+        lean_left = [(1.0 + i * 0.01, 20.0, 8.0, self.tilted(-2.0), (0.0, 0.0, 0.0)) for i in range(3)]
+        self.assertAlmostEqual(self.bank_after(lean_left)[0][2], -2.0, places=2)
+
+    def test_off_tarmac_few_samples_and_repeated_times_do_not_count(self):
+        off = [(1.0 + i * 0.01, 20.0, 8.0, self.tilted(3.0), (0.0, 0.0, 0.0), [ROAD, ROAD, ROAD, DRAIN]) for i in range(5)]
+        self.assertEqual(self.bank_after(off), [])
+        two = [(1.0 + i * 0.01, 20.0, 8.0, self.tilted(3.0), (0.0, 0.0, 0.0)) for i in range(2)]
+        self.assertEqual(self.bank_after(two), [])
+        same = [(1.0, 20.0, 8.0, self.tilted(3.0), (0.0, 0.0, 0.0))] * 5
+        self.assertEqual(self.bank_after(same), [])
+
+    def test_cells_average_nearby_samples(self):
+        samples = [(1.0 + i * 0.01, 12.0 + i * 0.5, 8.0, self.tilted(1.0 + i), (0.0, 0.0, 0.0)) for i in range(3)]
+        (x, _z, deg), = self.bank_after(samples)
+        self.assertAlmostEqual(deg, 2.0, places=2)
+        self.assertAlmostEqual(x, 12.5)
 
 
 class ContactTests(SurveyTests):

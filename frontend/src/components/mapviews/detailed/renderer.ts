@@ -53,6 +53,9 @@ export const CHEVRON_WID_PX = 9;
 export const FALLBACK_CAR_DIMS: CarDims = { length_m: 4.7, width_m: 2.0 };
 
 /** The dims to draw with: the contract's, or the generic GT3 size when unknown. */
+/** How far the car's visual centre is ahead of the recorded position (m); 0 when the car has no known offset. */
+export const visualForwardM = (d: CarDims): number => d.visual_offset?.forward_m ?? 0;
+
 export const carDimsOrFallback = (d: CarDims | null | undefined): CarDims => d ?? FALLBACK_CAR_DIMS;
 
 /**

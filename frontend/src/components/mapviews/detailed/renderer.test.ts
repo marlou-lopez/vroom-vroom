@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { zoomScale } from "../../../lib/camera";
-import { CHEVRON_LEN_PX, FALLBACK_CAR_DIMS, REF_DASH_PX, REF_GAP_PX, carDimsOrFallback, dashWorld, mixSrgb, showFootprint } from "./renderer";
+import { CHEVRON_LEN_PX, FALLBACK_CAR_DIMS, REF_DASH_PX, REF_GAP_PX, carDimsOrFallback, dashWorld, mixSrgb, showFootprint, visualForwardM } from "./renderer";
 
 describe("mixSrgb", () => {
   it("mixes in sRGB space", () => {
@@ -40,6 +40,13 @@ describe("showFootprint", () => {
   it("needs a longer car to flip earlier", () => {
     expect(showFootprint({ length_m: 10, width_m: 2 }, 150, 600)).toBe(true);
     expect(showFootprint({ length_m: 1, width_m: 2 }, 150, 600)).toBe(false);
+  });
+});
+
+describe("visualForwardM", () => {
+  it("is the dims' forward offset, 0 when unknown", () => {
+    expect(visualForwardM({ length_m: 4.7, width_m: 2, visual_offset: { forward_m: 0.07, up_m: -0.3 } })).toBe(0.07);
+    expect(visualForwardM(FALLBACK_CAR_DIMS)).toBe(0);
   });
 });
 

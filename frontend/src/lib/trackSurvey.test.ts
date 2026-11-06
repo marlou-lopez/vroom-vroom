@@ -51,6 +51,29 @@ describe("mapSurvey edges", () => {
   });
 });
 
+describe("mapSurvey bank", () => {
+  const { lat, lon } = line(100);
+
+  it("takes the median bank per index (degrees, right side lower positive) and null where nothing", () => {
+    const s = mapSurvey({ ...empty, bank: [[10.2, 3, 2], [9.8, -2, 4], [10.1, 0, 6], [60, 1, -1.5]] }, lat, lon);
+    expect(s.bank_deg).toHaveLength(100);
+    expect(s.bank_deg[10]).toBe(4);
+    expect(s.bank_deg[60]).toBe(-1.5);
+    expect(s.bank_deg[30]).toBeNull();
+  });
+
+  it("interpolates gaps of up to 8 m and leaves longer ones, and drops samples off the road", () => {
+    const s = mapSurvey({ ...empty, bank: [[10, 0, 1], [14, 0, 3], [30, 0, 1], [45, 0, 1], [20, 40, 9]] }, lat, lon);
+    expect(s.bank_deg[12]).toBeCloseTo(2);
+    expect(s.bank_deg[20]).toBeNull();
+    expect(s.bank_deg.filter((v) => v === 9)).toHaveLength(0);
+  });
+
+  it("is all null without bank samples", () => {
+    expect(mapSurvey(empty, lat, lon).bank_deg.every((v) => v === null)).toBe(true);
+  });
+});
+
 describe("mapSurvey kerbs", () => {
   const { lat, lon } = line(200);
   const hits = (from: number, to: number, side: 0 | 1, kind: "flat" | "razor" | "other"): [number, number, 0 | 1, typeof kind][] =>

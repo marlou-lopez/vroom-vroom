@@ -44,10 +44,16 @@ export interface MockOptions {
 const MONZA_TRACK_ID = "monza-grand-prix";
 const MONZA_LENGTH_M = 5793;
 /**
- * Approximate public specs (overall length x width), not measured; real values would come from config/cars.yaml.
- * The Porsche 911 GT3 R (about 4.62 x 2.05 m) is only in the mock as the Spa race session, which is deliberately unknown (null) to exercise the fallback.
+ * McLaren 720S GT3: length 4,664 mm, width 2,040 mm, wheelbase 2,696 mm, from McLaren's customer-racing technical sheet
+ * (https://mclaren.pagetiger.com/coeljug/1/page3.htm) and https://www.ultimatecarpage.com/spec/6972/McLaren-720S-GT3.html.
+ * These are the original 720S GT3 figures; an Evo-specific sheet was not found, and the mock's car is the Evo.
+ * `visual_offset` is LMU's `mPhysicsToGraphicsOffset` for this car, read from the player in four shared-memory captures
+ * (constant in all of them): (0, -0.3335, -0.0745) in vehicle axes (+x left, +y up, +z back), i.e. the visual centre is
+ * 7.45 cm ahead of and 33.35 cm below the recorded position. See docs/track-views/cockpit-view.md.
+ * Real values would come from config/cars.yaml. The Porsche 911 GT3 R is only in the mock as the Spa race session, which is
+ * deliberately unknown (null) to exercise the fallback.
  */
-const DIMS_720S: CarDims = { length_m: 4.96, width_m: 2.04 };
+const DIMS_720S: CarDims = { length_m: 4.664, width_m: 2.04, wheelbase_m: 2.696, visual_offset: { forward_m: 0.0745, up_m: -0.3335 } };
 const CAR_720S = { car_name: "McLaren 720S GT3 Evo", car_id: "mclaren_720s_gt3_evo" };
 const CAR_PORSCHE = { car_name: "Porsche 911 GT3 R", car_id: "porsche_911_gt3_r" };
 
@@ -440,7 +446,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
       }
       const pad = <T,>(v: (T | null)[]): (T | null)[] => v.length >= n ? v.slice(0, n) : [...v, ...new Array<null>(n - v.length).fill(null)];
       return {
-        left_m: pad(surveyMapped.left_m), right_m: pad(surveyMapped.right_m),
+        left_m: pad(surveyMapped.left_m), right_m: pad(surveyMapped.right_m), bank_deg: pad(surveyMapped.bank_deg),
         kerbs: surveyMapped.kerbs.filter((k) => k.end_m < n),
         // Track-level points, not tied to a grid index: passed through as they are.
         edge_points: surveyMapped.edge_points, kerb_outer_points: surveyMapped.kerb_outer_points,

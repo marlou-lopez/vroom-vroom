@@ -1,6 +1,7 @@
 import {
   BufferAttribute, BufferGeometry, CircleGeometry, InterleavedBuffer, InterleavedBufferAttribute, Color, Float32BufferAttribute, Mesh, MeshBasicMaterial, DoubleSide, OrthographicCamera, RingGeometry, Scene as ThreeScene, Shape, ShapeGeometry, WebGLRenderer,
 } from "three";
+import type { CarDims } from "../../../api/types";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
@@ -8,7 +9,7 @@ import { zoomScale } from "../../../lib/camera";
 import { gainStrength } from "../../../lib/gainLoss";
 import type { XY } from "../../../lib/geo";
 import {
-  AHEAD_DIM, CAR_R_PX, LINE_DIM, CASING_PX, CHEVRON_BELOW_M, CHEVRON_LEN_PX, CHEVRON_WID_PX, EDGE_MEASURED_LIFT, EDGE_PX, KERB_RED, KERB_STRIPE_M, KERB_W_M, KERB_WHITE, GAIN_PX, LAP_PX, REF_PX, SURFACE_DIM, FALLBACK_CAR_DIMS, dashWorld, gainExtraM, mixSrgb, readColors, showFootprint,
+  AHEAD_DIM, CAR_R_PX, LINE_DIM, CASING_PX, CHEVRON_BELOW_M, CHEVRON_LEN_PX, CHEVRON_WID_PX, EDGE_MEASURED_LIFT, EDGE_PX, KERB_RED, KERB_STRIPE_M, KERB_W_M, KERB_WHITE, GAIN_PX, LAP_PX, REF_PX, SURFACE_DIM, FALLBACK_CAR_DIMS, dashWorld, gainExtraM, mixSrgb, readColors, showFootprint, visualForwardM,
   type Frame, type GainStyle, type Renderer, type RendererEvents,
 } from "./renderer";
 import { gainPositions, progressSplit, type GainLine, type Scene } from "./scene";
@@ -65,14 +66,16 @@ function chevron(len: number, wid: number): BufferGeometry {
 
 /**
  * Car footprint in metres (not px), centred on the origin, pointing +y: a rectangle with the nose corners chamfered so the direction shows.
- * Assumption: the recorded position is the footprint centre. LMU may report the car's origin or centre of gravity instead (unverified),
- * which would shift the real car along the footprint by tens of cm.
+ * The recorded position is LMU's physics point (the CG), not the visual centre; `shift` is how far ahead of it the visual centre is
+ * (`mPhysicsToGraphicsOffset`, 7.45 cm on the 720S), so the footprint is moved forward by it. Zero for unknown cars.
  */
-function footprint(len: number, wid: number): BufferGeometry {
+function footprint(len: number, wid: number, shift = 0): BufferGeometry {
   const hl = len / 2, hw = wid / 2, ch = Math.min(wid * 0.3, len * 0.2);
   const s = new Shape();
   s.moveTo(-hw, -hl); s.lineTo(hw, -hl); s.lineTo(hw, hl - ch); s.lineTo(hw - ch, hl); s.lineTo(-hw + ch, hl); s.lineTo(-hw, hl - ch); s.closePath();
-  return new ShapeGeometry(s);
+  const g = new ShapeGeometry(s);
+  g.translate(0, shift, 0);
+  return g;
 }
 
 export function createWebglRenderer(host: HTMLElement, events: RendererEvents): Renderer {
@@ -241,17 +244,17 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   const refChev = new Mesh(chevron(CHEVRON_LEN_PX, CHEVRON_WID_PX), mat(colors.bg));
   refChevOut.renderOrder = 10; refChev.renderOrder = 11; lapChevOut.renderOrder = 12; lapChev.renderOrder = 13;
   // True-size footprints (#93), built in metres and never scaled; the outline is a slightly larger shape underneath (0.08 m lap, 0.12 m ref per side, like the chevrons' thin outline).
-  const fpDims = { lap: FALLBACK_CAR_DIMS, ref: FALLBACK_CAR_DIMS };
+  const fpDims: { lap: CarDims; ref: CarDims } = { lap: FALLBACK_CAR_DIMS, ref: FALLBACK_CAR_DIMS };
   const fpMesh = (c: string, order: number) => { const m = new Mesh(footprint(1, 1), mat(c)); m.renderOrder = order; (m.material as MeshBasicMaterial).depthTest = false; scene.add(m); return m; };
   const lapFpOut = fpMesh(colors.text, 12), lapFp = fpMesh(colors.you, 13);
   const refFpOut = fpMesh(colors.comparison, 10), refFp = fpMesh(colors.bg, 11);
   const fpMeshes = [lapFpOut, lapFp, refFpOut, refFp];
   // Rebuilds the four footprint geometries when the car sizes change (on setScene); the unit placeholders above are replaced.
-  const setFootprints = (lap: typeof FALLBACK_CAR_DIMS, ref: typeof FALLBACK_CAR_DIMS) => {
+  const setFootprints = (lap: CarDims, ref: CarDims) => {
     fpDims.lap = lap; fpDims.ref = ref;
     for (const [m, d, grow] of [[lapFpOut, lap, 0.16], [lapFp, lap, 0], [refFpOut, ref, 0.24], [refFp, ref, 0]] as const) {
       m.geometry.dispose();
-      m.geometry = footprint(d.length_m + grow, d.width_m + grow);
+      m.geometry = footprint(d.length_m + grow, d.width_m + grow, visualForwardM(d));
     }
   };
   const dotMeshes = [refFill, refRing, lapDot];
