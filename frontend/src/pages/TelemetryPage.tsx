@@ -1,5 +1,5 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { HeaderSlot } from "../components/AppShell";
 import { AnalysisBar } from "../components/AnalysisBar";
@@ -72,8 +72,9 @@ function Telemetry() {
     [cmp, trackMap, coach.results, coach.showNotes],
   );
 
-  const seekTo = (a: Annotation) => cmp && store.seek(leadInTime(cmp, a));
-  const handlers: BadgeHandlers = { onSeek: seekTo };
+  const seekTo = useCallback((a: Annotation) => cmp && store.seek(leadInTime(cmp, a)), [cmp, store]);
+  // Stable between renders, so the memoised track views only render when something they draw changes.
+  const handlers = useMemo<BadgeHandlers>(() => ({ onSeek: seekTo }), [seekTo]);
   const cardActions: AnnotationCardActions = {
     deepDives: coach.deepDives,
     setOpen: popup.setOpen,
