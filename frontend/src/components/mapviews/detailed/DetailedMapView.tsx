@@ -34,7 +34,7 @@ const BADGE_STACK_PX = 14;
 /** A lost context not restored within this long offers a Retry button. */
 const RESTORE_WAIT_MS = 3000;
 
-type GpuState = "ok" | "lost" | "stuck";
+type GpuState = "ok" | "lost" | "stuck" | "failed";
 
 interface Drag { id: number; lastX: number; lastY: number; total: number; sumX: number; sumY: number }
 
@@ -267,6 +267,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
       return r;
     }, (err) => {
       console.error("renderer failed", err);
+      if (!ac.signal.aborted) setGpu("failed");
       return null;
     });
     return () => {
@@ -531,9 +532,13 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
       <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} />
       {gpu !== "ok" && (
         <div className={styles.gpu} data-controls="" role="status">
-          <span>Graphics reset — restoring…</span>
-          {gpu === "stuck" && (
-            <button type="button" className={cx(ui.btn, styles.small)} onClick={() => setEpoch((e) => e + 1)}>Retry</button>
+          <span>
+            {gpu === "failed"
+              ? "The detailed view could not start (WebGL unavailable, or its code failed to load). Retry, or switch to the classic 2D view."
+              : "Graphics reset — restoring…"}
+          </span>
+          {(gpu === "stuck" || gpu === "failed") && (
+            <button type="button" className={cx(ui.btn, styles.small)} onClick={() => { setGpu("lost"); setEpoch((e) => e + 1); }}>Retry</button>
           )}
         </div>
       )}
