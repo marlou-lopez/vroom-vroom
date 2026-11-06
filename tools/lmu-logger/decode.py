@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
 import re
 import struct
@@ -210,6 +211,15 @@ def median(values):
     return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
 
 
+# Road bank (#100): a car's body roll minus what its lateral g explains is the road's banking. The gain is the physical
+# body roll (outward) fitted across laps in docs/track-views/cockpit-view.md; keep it equal to K_ROLL in
+# frontend/src/lib/carAttitude.ts. Degrees of right-side-down roll per g of left-turn lateral acceleration.
+K_ROLL_DEG = 0.476
+G = 9.80665
+BANK_CELL_M = 4.0        # bank samples are averaged per cell of this size (world x/z)
+BANK_MIN_SAMPLES = 3     # cells with fewer samples are dropped
+
+
 class Survey:
     """Collects track edges (from every car's scoring entry) and kerb hits (from every populated
     telemetry slot) while frames are fed one at a time. Memory stays small: edge samples are bucketed
@@ -233,6 +243,7 @@ class Survey:
         self.o_spos = srec.offsetof("mPos")
         self.o_tpos = trec.offsetof("mPos")
         self.o_tori = trec.offsetof("mOri")
+        self.o_taccel = trec.offsetof("mLocalAccel")
         self.o_tid = trec.offsetof("mID")
         self.o_tet = trec.offsetof("mElapsedTime")
         self.o_sid = srec.offsetof("mID")
@@ -243,6 +254,7 @@ class Survey:
         self.buckets: dict[tuple[int, int], list] = {}   # (side, metre) -> [[half], [x], [z]]
         self.last_sig: dict[int, tuple] = {}              # vehicle slot -> last scoring values
         self.kerbs: dict[tuple, tuple] = {}               # (round x, round z, side, kind) -> (x, z)
+        self.bank_cells: dict[tuple[int, int], list] = {}  # cell -> [sum deg, sum x, sum z, n]
         self.track: str | None = None
         self.frames = 0
 
@@ -309,6 +321,24 @@ class Survey:
             return
         o = struct.unpack_from("<9d", f, t0 + self.o_tori)
         self.tracker.add(car, et, (x, z), (o[0:3], o[3:6], o[6:9]), classes)
+        if all(c == ct.TARMAC for c in classes):
+            self.add_bank(f, t0, o, x, z)
+
+    def add_bank(self, f: bytes, t0: int, o, x: float, z: float):
+        """Road bank at (x, z) from a car with all four wheels on tarmac: roll (left side up = leaning right, positive;
+        asin of the left vector's height, column 0 of the orientation rows) minus K_ROLL times lateral g (local x
+        acceleration, positive = left, which equals the recording's g_lat). Degrees, right side lower positive."""
+        ax, = struct.unpack_from("<d", f, t0 + self.o_taccel)
+        left_len = math.sqrt(o[0] ** 2 + o[3] ** 2 + o[6] ** 2)
+        if left_len < 0.5:
+            return
+        roll = math.degrees(math.asin(max(-1.0, min(1.0, o[3] / left_len))))
+        bank = roll - K_ROLL_DEG * ax / G
+        c = self.bank_cells.setdefault((round(x / BANK_CELL_M), round(z / BANK_CELL_M)), [0.0, 0.0, 0.0, 0])
+        c[0] += bank
+        c[1] += x
+        c[2] += z
+        c[3] += 1
 
     def fitted_geometry(self):
         """(Geometry, info): the configured one with the axle offsets fitted to the events, unless fitting is off."""
@@ -324,8 +354,10 @@ class Survey:
                           round(median(half), 2)])
         kerbs = [[round(x, 2), round(z, 2), side, kind]
                  for (_rx, _rz, side, kind), (x, z) in sorted(self.kerbs.items())]
+        bank = [[round(c[1] / c[3], 1), round(c[2] / c[3], 1), round(c[0] / c[3], 2)]
+                for _k, c in sorted(self.bank_cells.items()) if c[3] >= BANK_MIN_SAMPLES]
         return {"source": "lmu-logger survey", "track": self.track, "captures": captures,
-                "edges": edges, "kerbs": kerbs,
+                "edges": edges, "kerbs": kerbs, "bank": bank,
                 "contacts": ct.build_contacts(self.tracker.events, geom),
                 "wheel_offsets": {"half_track_m": geom.half_track, "front_z_m": round(geom.front_z, 3),
                                   "rear_z_m": round(geom.rear_z, 3), "fit": fit_info}}
@@ -346,7 +378,7 @@ def cmd_survey(args) -> int:
         json.dump(data, fp, separators=(",", ":"))
     size = os.path.getsize(args.out)
     print(f"{sv.frames} frames, {len(data['edges'])} edge samples, {len(data['kerbs'])} kerb hits, "
-          f"{len(data['contacts'])} contacts ({len(sv.tracker.events)} surface changes) "
+          f"{len(data['bank'])} bank cells, {len(data['contacts'])} contacts ({len(sv.tracker.events)} surface changes) "
           f"-> {args.out} ({size / 1e3:.0f} KB, {time.time() - t0:.1f} s)")
     print("wheel offsets:", json.dumps(data["wheel_offsets"]))
     print("track:", data["track"])

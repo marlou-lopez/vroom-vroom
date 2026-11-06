@@ -1,6 +1,6 @@
 import {
-  AmbientLight, BoxGeometry, BufferAttribute, BufferGeometry, Color, DirectionalLight, Fog, Group, HemisphereLight, Mesh, MeshLambertMaterial,
-  PerspectiveCamera, Scene as ThreeScene, Vector3, WebGLRenderer,
+  AmbientLight, BackSide, BoxGeometry, BufferAttribute, BufferGeometry, Color, DirectionalLight, DoubleSide, Fog, Group, HemisphereLight, Mesh,
+  MeshBasicMaterial, MeshLambertMaterial, PerspectiveCamera, Scene as ThreeScene, SphereGeometry, Vector3, WebGLRenderer,
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
@@ -10,9 +10,12 @@ import type { CarDims } from "../../../api/types";
 import type { Viewport } from "../../../lib/camera";
 import type { XY } from "../../../lib/geo";
 import { AHEAD_DIM, EDGE_PX, KERB_RED, KERB_WHITE, LAP_PX, LINE_DIM, REF_PX, mixSrgb, readColors } from "../detailed/renderer";
-import { OrbitRig, ChaseRig, TopRig, type CameraFrame, type CameraRig, type ViewMode } from "./cameraRigs";
+import { CockpitRig, DEFAULT_FOV, OrbitRig, ChaseRig, TopRig, type CameraFrame, type CameraRig, type ViewMode } from "./cameraRigs";
+import { cockpitEye } from "./cockpit";
+import { buildCockpitFrameGeometry } from "./cockpitFrame";
+import { visualForwardM } from "../detailed/renderer";
 import { toThree } from "./coords";
-import { buildKerbMesh, buildLinePositions, buildRibbonMesh } from "./geometry";
+import { buildKerbMesh, buildLinePositions, buildRibbonMesh, buildVergeMesh } from "./geometry";
 import type { CarPose } from "./pose";
 import { carEuler } from "./pose";
 import type { RibbonEvents, RibbonFrame, RibbonRenderer, ScreenPoint } from "./types";
@@ -21,7 +24,37 @@ import type { RibbonEvents, RibbonFrame, RibbonRenderer, ScreenPoint } from "./t
 const EDGE_LIFT = 0.02, KERB_LIFT = 0.03, AHEAD_LIFT = 0.05, DRIVEN_LIFT = 0.07;
 const CAR_BODY_H = 0.6, CAR_BODY_Y = 0.15, CAB_H = 0.45;
 const MAX_DPR = 2;
-const FOV = 55;
+/** Fog in cockpit mode: the road fades into the haze within a couple of kilometres. */
+const COCKPIT_FOG_NEAR = 150, COCKPIT_FOG_FAR = 2200;
+const SKY_RADIUS = 10000;
+
+/** Sky and grass colours from the theme tokens (--color-sky, ...), with the dark theme's values as fallback. */
+function readScenery(el: Element) {
+  const cs = getComputedStyle(el);
+  const get = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
+  return {
+    sky: get("--color-sky", "#2F4F78"), horizon: get("--color-sky-horizon", "#8EA3B8"),
+    grass: get("--color-grass", "#3A5629"), grassAlt: get("--color-grass-alt", "#42612F"), interior: get("--color-cockpit-interior", "#121417"),
+  };
+}
+
+/** A big sphere seen from inside: haze at and below the horizon, rising to the sky colour overhead. */
+function makeSkyDome(sky: string, horizon: string): Mesh {
+  const g = new SphereGeometry(SKY_RADIUS, 24, 16);
+  const pos = g.getAttribute("position");
+  const top = new Color(sky), low = new Color(horizon), c = new Color();
+  const colors = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) {
+    const up = Math.max(pos.getY(i) / SKY_RADIUS, 0);
+    c.copy(low).lerp(top, Math.pow(up, 0.55));
+    c.toArray(colors, 3 * i);
+  }
+  g.setAttribute("color", new BufferAttribute(colors, 3));
+  const m = new Mesh(g, new MeshBasicMaterial({ vertexColors: true, side: BackSide, fog: false, depthWrite: false, depthTest: false }));
+  m.renderOrder = -1;
+  m.frustumCulled = false;
+  return m;
+}
 
 interface RacingLine { driven: Line2; ahead: Line2; segments: number }
 
@@ -53,7 +86,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
 
   const scene = new ThreeScene();
   scene.fog = new Fog(new Color(colors.bg), 600, 3600);
-  const camera = new PerspectiveCamera(FOV, 1, 0.5, 20000);
+  const camera = new PerspectiveCamera(DEFAULT_FOV, 1, 0.5, 20000);
   scene.add(new HemisphereLight(0xdfe6f0, 0x20242b, 1.9));
   const sun = new DirectionalLight(0xffffff, 2.6);
   sun.position.set(-0.5, 1, 0.7);
@@ -64,6 +97,25 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   scene.add(world);
   const cars = new Group();
   scene.add(cars);
+  const scenery = readScenery(host);
+  /** Grass verges and the sky: shown in the cockpit view only, where the camera is low enough to see past the road. */
+  const verges = new Group();
+  verges.visible = false;
+  world.add(verges);
+  const sky = makeSkyDome(scenery.sky, scenery.horizon);
+  sky.visible = false;
+  scene.add(sky);
+  /** The windscreen frame: fixed to the camera, so the camera itself must be in the scene for it to render. */
+  const cockpitFrame = new Mesh(
+    buildCockpitFrameGeometry(),
+    new MeshBasicMaterial({ color: new Color(scenery.interior), side: DoubleSide, depthTest: false, depthWrite: false, fog: false }),
+  );
+  cockpitFrame.renderOrder = 1000;
+  cockpitFrame.frustumCulled = false;
+  cockpitFrame.visible = false;
+  camera.add(cockpitFrame);
+  scene.add(camera);
+  const hazeColor = new Color(scenery.horizon), bgColor = new Color(colors.bg);
 
   const lineMats: LineMaterial[] = [];
   const makeLineMat = (color: string, px: number) => {
@@ -92,7 +144,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   let drawing = false;
   controls.addEventListener("change", () => { if (!drawing) events.onNeedsDraw(); });
 
-  const rigs: Record<ViewMode, CameraRig> = { chase: new ChaseRig(), orbit: new OrbitRig(controls), top: new TopRig() };
+  const rigs: Record<ViewMode, CameraRig> = { chase: new ChaseRig(), cockpit: new CockpitRig(), orbit: new OrbitRig(controls), top: new TopRig() };
   let mode: ViewMode = "chase";
   let entered: ViewMode | null = null;
 
@@ -100,6 +152,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   let exag = 1;
   let racing: RacingLine[] = [];
   let lapCar: Group | null = null, refCar: Group | null = null;
+  let lapForward = 0; // the lap car's visual centre ahead of the recorded point (m); the cockpit eye is measured from the visual centre
   let sceneMeshes: (Mesh | Line2)[] = [];
   let lastStats = { calls: 0, triangles: 0 };
 
@@ -111,16 +164,19 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
     lineMats.length = 0;
     for (const c of [lapCar, refCar]) if (c) { cars.remove(c); disposeObject(c); }
     lapCar = refCar = null;
+    for (const v of [...verges.children]) { verges.remove(v); disposeObject(v as Mesh); }
   };
 
   const makeCar = (dims: CarDims, color: string): Group => {
     const g = new Group();
     const mat = new MeshLambertMaterial({ color: new Color(color) });
     const body = new Mesh(new BoxGeometry(dims.width_m, CAR_BODY_H, dims.length_m), mat);
-    body.position.y = CAR_BODY_Y + CAR_BODY_H / 2;
+    // The recorded point is the physics point; the box is centred on the visual centre, ahead of it (+z is the nose).
+    const shift = visualForwardM(dims);
+    body.position.set(0, CAR_BODY_Y + CAR_BODY_H / 2, shift);
     // Cabin: narrower and shorter, set back from the nose (+z), so the heading shows.
     const cab = new Mesh(new BoxGeometry(dims.width_m * 0.75, CAB_H, dims.length_m * 0.4), mat);
-    cab.position.set(0, CAR_BODY_Y + CAR_BODY_H + CAB_H / 2, -dims.length_m * 0.08);
+    cab.position.set(0, CAR_BODY_Y + CAR_BODY_H + CAB_H / 2, shift - dims.length_m * 0.08);
     g.add(body, cab);
     g.rotation.order = "YXZ";
     return g;
@@ -137,6 +193,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   };
 
   const v3 = new Vector3();
+  const toRgb = (hex: string) => new Color(hex).toArray().slice(0, 3) as [number, number, number];
   const frame: CameraFrame = { car: { x: 0, y: 0, z: 0 }, heading: 0, ahead: { x: 0, y: 0, z: 0 }, jumped: false };
 
   return {
@@ -180,6 +237,20 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
         world.add(kerbs);
         sceneMeshes.push(kerbs);
       }
+      // Grass beside the road (cockpit view): one strip per side, following the road heights.
+      const vergeMat = new MeshBasicMaterial({
+        vertexColors: true, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: 3, polygonOffsetUnits: 3,
+      });
+      for (const e of sc.edges) {
+        const v = buildVergeMesh(e, sc.centre, heights, toRgb(scenery.grass), toRgb(scenery.grassAlt), toRgb(scenery.horizon));
+        const vg = new BufferGeometry();
+        vg.setAttribute("position", new BufferAttribute(v.positions, 3));
+        vg.setAttribute("color", new BufferAttribute(v.colors, 3));
+        vg.setIndex(new BufferAttribute(v.indices, 1));
+        const vm = new Mesh(vg, vergeMat);
+        vm.frustumCulled = false;
+        verges.add(vm);
+      }
       // Edge lines.
       const edgeMat = makeLineMat(mixSrgb(colors.line, colors.text, 0.5), EDGE_PX * 1.5);
       for (const e of sc.edges) add(addLine(lineRgb(e, heights, EDGE_LIFT), edgeMat));
@@ -191,6 +262,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
         return { driven, ahead, segments: xy.x.length - 1 };
       };
       racing = [mk(sc.ref, colors.comparison, REF_PX), mk(sc.lap, colors.you, LAP_PX)];
+      lapForward = visualForwardM(sc.lapDims);
       lapCar = makeCar(sc.lapDims, colors.you);
       refCar = makeCar(sc.refDims, colors.comparison);
       cars.add(lapCar, refCar);
@@ -220,6 +292,18 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       frame.ahead = ahead;
       frame.heading = f.lap.heading;
       frame.jumped = f.jumped;
+      const cockpit = mode === "cockpit";
+      if (cockpit) {
+        frame.eye = cockpitEye(car, f.lapAtt.heading, f.lap.pitch + f.lapAtt.dive, f.lapAtt.roll, lapForward);
+      } else {
+        frame.eye = undefined;
+      }
+      // Cockpit scenery: the lap car is the camera (hide its box, keep the reference car as the ghost); grass, sky and haze.
+      if (lapCar) lapCar.visible = !cockpit;
+      verges.visible = cockpit;
+      sky.visible = cockpit;
+      cockpitFrame.visible = cockpit;
+      (scene.fog as Fog).color.copy(cockpit ? hazeColor : bgColor);
       const rig = rigs[mode];
       if (entered !== mode) {
         if (entered) rigs[entered].leave?.();
@@ -230,8 +314,9 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       // Fog starts beyond the car and the near scenery, whatever the camera distance.
       const dist = rig.distance(camera);
       const fog = scene.fog as Fog;
-      fog.near = dist * 1.5 + 400;
-      fog.far = fog.near + 3000;
+      fog.near = cockpit ? COCKPIT_FOG_NEAR : dist * 1.5 + 400;
+      fog.far = cockpit ? COCKPIT_FOG_FAR : fog.near + 3000;
+      if (cockpit) sky.position.copy(camera.position);
       const [ref, lap] = racing;
       if (ref) setDrawn(ref.driven, Math.min(Math.floor(f.refDist), ref.segments));
       if (lap) setDrawn(lap.driven, Math.min(Math.floor(f.lapDist), lap.segments));
@@ -270,6 +355,9 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       canvas.removeEventListener("webglcontextrestored", onRestored);
       controls.dispose();
       clearScene();
+      disposeObject(sky);
+      camera.remove(cockpitFrame);
+      disposeObject(cockpitFrame);
       gl.dispose();
       try { gl.forceContextLoss(); } catch { /* context already lost */ }
       canvas.remove();

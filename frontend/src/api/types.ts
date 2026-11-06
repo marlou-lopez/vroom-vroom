@@ -15,8 +15,18 @@ export type ChannelArrays = Record<GridChannel, number[]>;
 export type LapKind = "flying" | "out" | "in" | "incomplete";
 export type LapSource = "own_recording" | "imported_file" | "online";
 
-/** Car footprint in metres, for drawing it true to size (detailed 2D map now; 3D and cockpit views later). */
-export interface CarDims { length_m: number; width_m: number }
+/**
+ * Car size in metres, for drawing it true to size (detailed 2D map, 3D view, cockpit eye).
+ * `wheelbase_m` is optional (axle-relative placement, the logger's axle prior). `visual_offset` is where the car's visual centre
+ * is relative to the recorded position (LMU's `mPhysicsToGraphicsOffset`, a per-car constant): `forward_m` positive = ahead of
+ * the recorded point, `up_m` positive = above it. Absent or null = the recorded point is the visual centre.
+ */
+export interface CarDims {
+  length_m: number;
+  width_m: number;
+  wheelbase_m?: number | null;
+  visual_offset?: { forward_m: number; up_m: number } | null;
+}
 
 export interface SessionMeta {
   session_id: string;
@@ -107,9 +117,12 @@ export interface CompareResponse {
  * `left_m` / `right_m` are LMU's own half-widths (metres from its centre path, not the middle of the road) per grid
  * metre, null where unmeasured; they are jumpy (they come from the AI path), so the view only uses them where no edge
  * point was measured.
+ * `bank_deg` is the road's banking per grid metre in degrees (positive = the right side lower, seen along the direction of
+ * travel), null where unmeasured. It is the body roll of cars driving on tarmac minus what their lateral g explains
+ * (see tools/lmu-logger/decode.py), and the cockpit camera adds it to its roll estimate (#100).
  */
 export interface TrackSurvey {
-  left_m: (number | null)[]; right_m: (number | null)[]; kerbs: SurveyKerb[];
+  left_m: (number | null)[]; right_m: (number | null)[]; bank_deg: (number | null)[]; kerbs: SurveyKerb[];
   edge_points: [lat: number, lon: number][]; kerb_outer_points: [lat: number, lon: number][];
 }
 

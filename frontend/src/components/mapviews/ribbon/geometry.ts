@@ -71,3 +71,50 @@ export function buildKerbMesh(kerb: Kerb, heights: Float64Array, lift: number, r
   }
   return { positions, indices, colors, vertexCount: segs * 4, triangleCount: segs * 2 };
 }
+
+/** Distances (m) from the track edge of the verge's three rows: grass right at the edge, grass still, then haze at the far edge. */
+export const VERGE_ROWS_M = [0, 10, 70] as const;
+/** The verge lies this far (m, before the exaggeration) below the road and kerbs, so it never fights them. */
+export const VERGE_DROP_M = 0.04;
+/** Mowing bands along the road: grass colours alternate every this many grid metres. */
+export const VERGE_BAND_M = 25;
+
+/**
+ * Grass beside the track (#100): a strip from one track edge outward, three rows of vertices per grid index (at
+ * VERGE_ROWS_M from the edge), at the road height of that index minus VERGE_DROP_M, so it follows the terrain heights.
+ * The outward direction is from the centreline to the edge at the same index. Rows 0 and 1 are `grass` / `grassAlt` by
+ * VERGE_BAND_M band; the last row is `haze`, so the strip fades into the fog colour instead of ending in a hard line.
+ * Three.js axes, heights unexaggerated. Not wound consistently: draw it double sided.
+ */
+export function buildVergeMesh(
+  edge: XY, centre: XY, heights: Float64Array,
+  grass: [number, number, number], grassAlt: [number, number, number], haze: [number, number, number],
+): MeshData & { colors: Float32Array } {
+  const n = Math.min(edge.x.length, centre.x.length, heights.length);
+  const rows = VERGE_ROWS_M.length;
+  const positions = new Float32Array(n * rows * 3);
+  const colors = new Float32Array(n * rows * 3);
+  let ox = 0, oy = 1;
+  for (let i = 0; i < n; i++) {
+    const dx = edge.x[i] - centre.x[i], dy = edge.y[i] - centre.y[i];
+    const len = Math.hypot(dx, dy);
+    if (len > 1e-6) { ox = dx / len; oy = dy / len; } // a zero-width stretch keeps the previous direction
+    const band = Math.floor(i / VERGE_BAND_M) % 2 === 0 ? grass : grassAlt;
+    for (let r = 0; r < rows; r++) {
+      const v = i * rows + r;
+      writeThree(positions, v, edge.x[i] + ox * VERGE_ROWS_M[r], edge.y[i] + oy * VERGE_ROWS_M[r], heights[i] - VERGE_DROP_M);
+      colors.set(r === rows - 1 ? haze : band, 3 * v);
+    }
+  }
+  const segs = Math.max(n - 1, 0);
+  const indices = new Uint32Array(segs * (rows - 1) * 6);
+  let o = 0;
+  for (let i = 0; i < segs; i++) {
+    for (let r = 0; r < rows - 1; r++) {
+      const a = i * rows + r, b = a + 1, c = a + rows, d = c + 1;
+      indices.set([a, b, c, b, d, c], o);
+      o += 6;
+    }
+  }
+  return { positions, indices, colors, vertexCount: n * rows, triangleCount: segs * (rows - 1) * 2 };
+}

@@ -1,5 +1,6 @@
-import { PerspectiveCamera, Vector3 } from "three";
+import { PerspectiveCamera, Quaternion, Vector3 } from "three";
 import { smoothHeading } from "../../../lib/camera";
+import { COCKPIT_FOV, COCKPIT_NEAR_M, EYE_PITCH_DOWN_DEG } from "./cockpit";
 import { headingDir, type Vec3 } from "./coords";
 import type { ViewMode } from "./viewModes";
 
@@ -8,8 +9,7 @@ export type { ViewMode } from "./viewModes";
 /**
  * What a rig is given each draw: the lap car and the line ahead of it, in three.js world coordinates (heights already
  * exaggerated). `jumped` is true after a seek, so smoothing restarts instead of swinging.
- * A cockpit rig will use `eye`: the driver's eye position and orientation (from the shared-memory position and orientation
- * matrix, #94 follow-up), which this frame can carry without changing the other rigs.
+ * `eye` is set only in cockpit mode: the driver's eye position and orientation (cockpit.ts), which the cockpit rig applies.
  */
 export interface CameraFrame {
   car: Vec3;
@@ -30,6 +30,9 @@ export interface CameraRig {
   /** Called when another mode takes over. */
   leave?(): void;
 }
+
+/** Vertical field of view of every mode except the cockpit (degrees). */
+export const DEFAULT_FOV = 55;
 
 export interface ChaseParams { back: number; height: number }
 export const CHASE_DEFAULT: ChaseParams = { back: 12, height: 4.5 };
@@ -73,6 +76,37 @@ export class ChaseRig implements CameraRig {
   }
   distance(_cam?: PerspectiveCamera) {
     return Math.hypot(CHASE_DEFAULT.back, CHASE_DEFAULT.height) * this.zoomK;
+  }
+}
+
+const TILT_DOWN = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -(EYE_PITCH_DOWN_DEG * Math.PI) / 180);
+
+/** The driver's view: the camera sits at `frame.eye` and takes its orientation. No zoom; the wheel does nothing. */
+export class CockpitRig implements CameraRig {
+  readonly id = "cockpit";
+  private cam: PerspectiveCamera | null = null;
+  enter(f: CameraFrame, cam: PerspectiveCamera) {
+    this.cam = cam;
+    cam.up.set(0, 1, 0);
+    cam.fov = COCKPIT_FOV;
+    cam.near = COCKPIT_NEAR_M;
+    cam.updateProjectionMatrix();
+    this.update(f, cam);
+  }
+  update(f: CameraFrame, cam: PerspectiveCamera) {
+    if (!f.eye) return;
+    cam.position.set(f.eye.position.x, f.eye.position.y, f.eye.position.z);
+    cam.quaternion.set(...f.eye.quaternion).multiply(TILT_DOWN); // tilt about the camera's own x axis (negative = down)
+  }
+  zoom() { /* fixed field of view */ }
+  distance(_cam?: PerspectiveCamera) {
+    return 5;
+  }
+  leave() {
+    if (!this.cam) return;
+    this.cam.fov = DEFAULT_FOV;
+    this.cam.updateProjectionMatrix();
+    this.cam = null;
   }
 }
 

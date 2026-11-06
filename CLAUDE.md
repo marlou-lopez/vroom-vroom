@@ -9,7 +9,7 @@ through a Windows agent, **v4** conversation, **v5** setup engineer.
 ## Where things stand
 
 **The GitHub board is the source of truth for status:** repo `marlou-lopez/vroom-vroom`
-(private), board https://github.com/users/marlou-lopez/projects/7. Before starting, check open
+(public), board https://github.com/users/marlou-lopez/projects/7. Before starting, check open
 issues, what's In Progress, and milestones `v1`–`v5` and `Track views`. Each issue stands on its
 own and lists its dependencies. Don't rely on this file for progress.
 
@@ -30,9 +30,9 @@ This section only records facts that change rarely (last checked 2026-11-06):
 | `frontend/src/api/types.ts`, `client.ts` | **The API contract.** The future backend must match it |
 | `frontend/src/api/mock/` | MSW mock API built on the real Spa laps (`public/mock/spa-2026-11-03.json`) |
 | `frontend/src/pages/` | Telemetry (home, `/`), Sessions, Tracks |
-| `frontend/src/lib/` | Pure logic: playback, track map projection, strips, formatting (unit-tested) |
+| `frontend/src/lib/` | Pure logic: playback, track map projection, strips, formatting, car attitude estimate for the cockpit camera (unit-tested) |
 | `frontend/src/state/` | Zustand playback store, data and coach hooks |
-| `frontend/src/components/mapviews/` | Track panel views (classic 2D SVG, detailed 2D on WebGL, experimental 3D ribbon in `ribbon/`) behind one `TrackViewProps` interface; `shared/` holds what the WebGL views have in common (badge layer, ring buffer, storage helpers) |
+| `frontend/src/components/mapviews/` | Track panel views (classic 2D SVG, detailed 2D on WebGL, experimental 3D ribbon in `ribbon/`, with chase, cockpit, orbit and top cameras) behind one `TrackViewProps` interface; `shared/` holds what the WebGL views have in common (badge layer, ring buffer, storage helpers) |
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone (e.g. `edge-survey.md`, `elevation-shared-memory.md`) |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON (needs `npm i @duckdb/node-api`) |
@@ -84,13 +84,15 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   - GPS is a fixed transform of the world position (verified on Spa): `x = lon·R·π/180·cos 60°`, `z = (lat − 60)·R·π/180`, R = 6371008.8 m.
   - An invalid lap has `Lap Time` = 0.
   - Steering is −100..100 with + meaning right.
+  - Grid channels: `g_lat` > 0 is a left turn and `g_long` > 0 is braking. The recordings have no orientation channel; the cockpit camera estimates it (`docs/track-views/cockpit-view.md`).
   - `Path Lateral` is metres from the track centreline, + meaning right of travel (10 Hz).
   - Driver throttle is `Throttle Pos Unfiltered`; `Throttle Pos` is after the game's interventions (0 at every upshift).
 - **The coach** (planned backend): the LLM only phrases facts computed in code. Every number
   it uses must appear in the facts it's given, and fixes never use metre distances.
-- **Write as if the repo were public:** no absolute home paths, emails, API keys or the driver
-  name in code, issues or commits. The repo is private since 2026-11-05, but it was public and
-  may be again (a public fork holds a 2026-11-04 snapshot). `.env` is git-ignored.
+- **The repo is public** (again, as of 2026-11-06; a public fork also holds a 2026-11-04
+  snapshot): no absolute home paths, emails, API keys or the driver name in code, issues or
+  commits, and only commit third-party assets whose licence allows redistribution. `.env` is
+  git-ignored.
 - **Game assets:** LMU track files are encrypted and the EULA forbids extracting them. 3D work
   is procedural, built from telemetry and public terrain data.
 

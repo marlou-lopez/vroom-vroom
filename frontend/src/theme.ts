@@ -23,6 +23,13 @@ export const colors = {
   onAccent: "#061317",
   textSoft: "#A9B0BA",
   wheelSpoke: "#3A404A",
+  /** Scenery of the 3D cockpit view: sky overhead, haze at the horizon (also the fog colour), and two mowing-band greens. */
+  sky: "#2F4F78",
+  skyHorizon: "#8EA3B8",
+  grass: "#3A5629",
+  grassAlt: "#42612F",
+  /** The car interior around the windscreen in the cockpit view: near-black carbon. */
+  cockpitInterior: "#121417",
 } as const;
 
 /** Annotation colour per finding kind (spec §9). `inconsistent` has no colour in the spec; it reuses `minor`. */

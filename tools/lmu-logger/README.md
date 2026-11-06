@@ -105,7 +105,7 @@ python decode.py survey FILE [FILE ...] --out survey.json  # track edges, kerbs 
   included). `lap_time_s` is only set when the scoring value agrees with the elapsed time. About 11 s.
   This is how `frontend/public/mock/spa-elevation-2026-11-05.json` was made.
 
-- `survey`: JSON `{source, track, captures, edges, kerbs, contacts, wheel_offsets}`, metres rounded to 0.01 m, `side`
+- `survey`: JSON `{source, track, captures, edges, kerbs, bank, contacts, wheel_offsets}`, metres rounded to 0.01 m, `side`
   0 = left, 1 = right.
   - `edges: [[x, z, side, half_m], ...]`: LMU's own edge. Every car's scoring entry that is on track (not in the pits or
     garage, `mTrackEdge` not 0) when its values change; thinned across all files to one per side and metre of lap distance
@@ -114,6 +114,12 @@ python decode.py survey FILE [FILE ...] --out survey.json  # track edges, kerbs 
   - `kerbs: [[x, z, side, kind], ...]`: every populated telemetry slot's wheels whose terrain name starts with `RMBL`
     (`RMBLFLAT` is `flat`, `RMBLRAZOR` is `razor`, else `other`), at the car's position, with the side of the wheel (FL and
     RL are left), deduplicated on the 1 m cell.
+  - `bank: [[x, z, deg], ...]`: the road's banking (#100), for the cockpit camera. Every populated telemetry slot's sample
+    (new `mElapsedTime`, per car) with all four wheels on tarmac and not in the pits or garage: roll (asin of the height
+    of the orientation's left vector; right side lower is positive) minus `K_ROLL_DEG` (0.476 deg per g, the physical body
+    roll, equal to `K_ROLL` in `carAttitude.ts`) times the lateral g (`mLocalAccel` x / 9.80665, positive = left, which
+    equals the recording's `g_lat`). Averaged per 4 m world cell, cells with fewer than 3 samples dropped. Cars differ in
+    roll stiffness, so slow laps and many cars average toward the road; the Spa file has 5,262 cells.
   - `contacts: [[x, z, kind], ...]`: the physical edge from the wheels (`contacts.py`). Every wheel's terrain name is
     classed as tarmac (`RDRACE*`, `RDPAINT`), kerb (`RMBL*`) or off (anything else); the empty name is unknown and any
     change involving it is ignored. Where a wheel changes class between two consecutive new telemetry samples (new
@@ -133,6 +139,18 @@ python decode.py survey FILE [FILE ...] --out survey.json  # track edges, kerbs 
   session are kept until the end for the fit: about 15,000 for the two Spa captures). About 40 s for the two Spa captures.
   How to drive a survey: `docs/track-views/edge-survey.md`. This is how `frontend/public/mock/spa-survey-2026-11-06.json`
   was made.
+
+## Checking the cockpit camera's attitude estimate: `attitude_check.py`
+
+```
+python attitude_check.py FILE.lmucap GRID.json [--fit-lap N] [--fixture OUT.json]
+```
+
+`GRID.json` is `tools/extract-laps.mjs` run on the same session's recording. Aligns the capture's exact orientation
+(`mOri`) to the grid by time and prints the pitch and roll gains fitted on the flying lap, the errors of the estimate in
+`frontend/src/lib/carAttitude.ts` per lap, and the slip angle (true yaw minus path heading). `--fixture` writes the flying
+lap's inputs and truth (quantised) for `frontend/src/lib/carAttitude.spa.test.ts`. Numbers and method:
+`docs/track-views/cockpit-view.md`. Streams the capture (about 20 s for the Spa one).
 
 ## What it does not do
 

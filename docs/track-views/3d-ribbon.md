@@ -58,7 +58,7 @@ To add.
 ## Next
 
 - **Cockpit camera:** a new `CameraRig` that places the camera at the driver's eye, using position and orientation (`mPos` / `mOri`) from shared memory once the backend serves them.
-- **#40:** a low-poly car model instead of the boxes.
+- **#102:** a real 3D car model instead of the boxes (spike). #40 is the procedural low-poly track model.
 - Banking from `mOri` roll; terrain and scenery from public data if the view is kept.
 - Move the renderer-lifecycle code (load, context loss, retry) shared by the detailed and 3D views into one hook as part of #77.
 

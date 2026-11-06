@@ -277,7 +277,7 @@ describe("edges: stand-in and telemetry", () => {
 
 describe("edges from a track survey (#97)", () => {
   const survey = (): NonNullable<CompareResponse["track_survey"]> => ({
-    left_m: new Array(999).fill(6), right_m: new Array(999).fill(8).map((v, i) => (i >= 300 && i < 310 ? null : v)),
+    bank_deg: new Array(999).fill(null), left_m: new Array(999).fill(6), right_m: new Array(999).fill(8).map((v, i) => (i >= 300 && i < 310 ? null : v)),
     kerbs: [{ side: "left", start_m: 50, end_m: 70, kind: "flat", width_m: null }, { side: "right", start_m: 400, end_m: 420, kind: "razor", width_m: null }],
     edge_points: [], kerb_outer_points: [],
   });

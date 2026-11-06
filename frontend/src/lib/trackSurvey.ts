@@ -19,6 +19,8 @@ export interface SurveyFile {
   kerbs: [x: number, z: number, side: 0 | 1, kind: SurveyKerbKind][];
   /** Wheel crossings (world x/z, 0.25 m apart at most): "edge" = tarmac <-> anything else, "kerb_outer" = kerb <-> ground beside it. */
   contacts?: [x: number, z: number, kind: "edge" | "kerb_outer"][];
+  /** Road bank samples (#100): world x/z and the bank in degrees (positive = right side lower), one per 4 m cell. */
+  bank?: [x: number, z: number, deg: number][];
   /** The wheel offsets the contacts were placed with, for the record. */
   wheel_offsets?: Record<string, unknown>;
 }
@@ -95,7 +97,7 @@ function commonKind(counts: Record<SurveyKerbKind, number>): SurveyKerbKind {
  * across the start/finish line (same as kerbRuns).
  */
 export function mapSurvey(
-  survey: Pick<SurveyFile, "edges" | "kerbs"> & Partial<Pick<SurveyFile, "contacts">>, lat: ArrayLike<number>, lon: ArrayLike<number>, maxM = SURVEY_MATCH_M,
+  survey: Pick<SurveyFile, "edges" | "kerbs"> & Partial<Pick<SurveyFile, "contacts" | "bank">>, lat: ArrayLike<number>, lon: ArrayLike<number>, maxM = SURVEY_MATCH_M,
 ): TrackSurvey {
   const n = Math.min(lat.length, lon.length);
   const match = polylineMatcher(lat, lon, maxM);
@@ -104,8 +106,8 @@ export function mapSurvey(
     const i = match(x, z);
     if (i !== null && i < n) samples[side][i].push(half);
   }
-  const edge = (side: 0 | 1) => {
-    const v = samples[side].map((s) => (s.length ? median(s) : null));
+  const fill = (groups: number[][]) => {
+    const v = groups.map((s) => (s.length ? median(s) : null));
     let prev = -1;
     for (let i = 0; i < n; i++) {
       if (v[i] === null) continue;
@@ -116,6 +118,12 @@ export function mapSurvey(
     }
     return v.map((x) => (x === null ? null : Math.round(x * 100) / 100));
   };
+  const edge = (side: 0 | 1) => fill(samples[side]);
+  const bankSamples: number[][] = Array.from({ length: n }, () => []);
+  for (const [x, z, deg] of survey.bank ?? []) {
+    const i = match(x, z);
+    if (i !== null && i < n) bankSamples[i].push(deg);
+  }
 
   const kerbs: SurveyKerb[] = [];
   const hits: [Map<number, Record<SurveyKerbKind, number>>, Map<number, Record<SurveyKerbKind, number>>] = [new Map(), new Map()];
@@ -152,7 +160,7 @@ export function mapSurvey(
     const { lat: la, lon: lo } = worldToLatLon(x, z);
     (kind === "edge" ? edge_points : kerb_outer_points).push([Math.round(la * 1e7) / 1e7, Math.round(lo * 1e7) / 1e7]);
   }
-  return { left_m: edge(0), right_m: edge(1), kerbs, edge_points, kerb_outer_points };
+  return { left_m: edge(0), right_m: edge(1), bank_deg: fill(bankSamples), kerbs, edge_points, kerb_outer_points };
 }
 
 // ---------------------------------------------------------------- the scene's side: contacts to half-widths

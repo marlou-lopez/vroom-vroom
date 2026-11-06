@@ -83,7 +83,7 @@ describe("mockApi: real Spa laps", () => {
     expect(spaNov3.track_length_m).toBe(6979);
     expect(sessions.find((s) => s.car_name.includes("Porsche"))!.steering_range_deg).toBeNull();
     // Approximate public dimensions for the 720S; the Porsche race session is unknown (null) to exercise the fallback.
-    expect(spaNov3.car_dims).toEqual({ length_m: 4.96, width_m: 2.04 });
+    expect(spaNov3.car_dims).toEqual({ length_m: 4.664, width_m: 2.04, wheelbase_m: 2.696, visual_offset: { forward_m: 0.0745, up_m: -0.3335 } });
     expect(sessions.find((s) => s.car_name.includes("Porsche"))!.car_dims).toBeNull();
     for (const l of laps) {
       const tr = await api.lapTrace(l.lap_id);
@@ -127,7 +127,7 @@ describe("mockApi: real Spa laps", () => {
     expect(cmp.delta[n]).toBeCloseTo(a.t[n] - b.t[n], 9);
     expect(cmp.lap_id).toBe(lap(1).lap_id);
     expect(cmp.lap_steering_range_deg).toBe(524);
-    expect(cmp.lap_car_dims).toEqual({ length_m: 4.96, width_m: 2.04 });
+    expect(cmp.lap_car_dims).toEqual({ length_m: 4.664, width_m: 2.04, wheelbase_m: 2.696, visual_offset: { forward_m: 0.0745, up_m: -0.3335 } });
     expect(cmp.warning).toBeNull();
   });
 
@@ -149,7 +149,7 @@ describe("mockApi: real Spa laps", () => {
   });
 
   it("compare returns the Spa track survey on the grid (null without one or off Spa); a failing loader gives null", async () => {
-    const survey = { source: "t", track: null, captures: [], edges: [], kerbs: [], contacts: [[0, 0, "edge"] as [number, number, "edge"]] };
+    const survey = { source: "t", track: null, captures: [], edges: [], kerbs: [], contacts: [[0, 0, "edge"] as [number, number, "edge"]], bank: [] };
     const mk = async (loadSurvey: () => Promise<typeof survey | null>) => {
       const api = createMockApi({ coachDelayMs: 0, loadSpa, loadSurvey });
       const s = (await api.sessions()).find((x) => x.track_id === TRACK && x.started_at.startsWith("2026-11-03"))!;
@@ -160,6 +160,7 @@ describe("mockApi: real Spa laps", () => {
     const { cmp } = await mk(async () => survey);
     expect(cmp.track_survey!.left_m).toHaveLength(cmp.distance.length);
     expect(cmp.track_survey!.right_m.every((v) => v === null)).toBe(true);
+    expect(cmp.track_survey!.bank_deg).toHaveLength(cmp.distance.length);
     expect((await mk(async () => null)).cmp.track_survey).toBeNull();
     expect((await mk(async () => { throw new Error("x"); })).cmp.track_survey).toBeNull();
     // default: with a custom loadSpa and no loadSurvey there is none
@@ -187,7 +188,7 @@ describe("mockApi: real Spa laps", () => {
     expect(cmp.lap_steering_range_deg).toBeNull();
     expect(cmp.ref_steering_range_deg).toBe(524);
     expect(cmp.lap_car_dims).toBeNull();
-    expect(cmp.ref_car_dims).toEqual({ length_m: 4.96, width_m: 2.04 });
+    expect(cmp.ref_car_dims).toEqual({ length_m: 4.664, width_m: 2.04, wheelbase_m: 2.696, visual_offset: { forward_m: 0.0745, up_m: -0.3335 } });
   });
 
   it("compareCandidates excludes Monza laps and the lap itself", async () => {

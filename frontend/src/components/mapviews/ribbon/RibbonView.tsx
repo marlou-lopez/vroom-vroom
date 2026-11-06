@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Viewport } from "../../../lib/camera";
 import { cx } from "../../../lib/cx";
 import { debugEnabled } from "../../../lib/debugFlag";
+import { attitudeAt, estimateAttitude } from "../../../lib/carAttitude";
 import { pointAt } from "../../../lib/geo";
 import { summarize } from "../../../lib/perf";
 import { timeAtDistance } from "../../../lib/playback";
@@ -43,7 +44,7 @@ export const EXAGGERATION_DEFAULT = 1;
 const EXAGGERATION_KEY = "vroom.ribbonExaggeration";
 const MODE_KEY = "vroom.ribbonCamera";
 
-const MODE_LABEL: Record<ViewMode, string> = { chase: "Chase", orbit: "Orbit", top: "Top" };
+const MODE_LABEL: Record<ViewMode, string> = { chase: "Chase", cockpit: "Cockpit", orbit: "Orbit", top: "Top" };
 
 function loadExaggeration(): number {
   const v = Number(loadString(EXAGGERATION_KEY));
@@ -58,7 +59,7 @@ function loadMode(): ViewMode {
 type GpuState = "ok" | "lost" | "stuck" | "failed";
 const f1 = (v: number) => v.toFixed(1);
 
-/** Experimental 3D view (#39): the track as a ribbon with elevation, both cars, and chase / orbit / top-down cameras. */
+/** Experimental 3D view (#39): the track as a ribbon with elevation, both cars, and chase / cockpit (#100) / orbit / top-down cameras. */
 export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
@@ -68,6 +69,16 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
     const h = roadHeights(cmp.elevation, scene.centre.x.length);
     return { heights: h ?? new Float64Array(scene.centre.x.length), hasElevation: h !== null };
   }, [cmp, scene]);
+
+  // Heading, dive and roll of the lap car per grid metre, for the cockpit camera (estimated from GPS, heights and G forces).
+  // The road's banking comes from the track survey when there is one (degrees there, radians in the estimate).
+  const attitude = useMemo(
+    () => estimateAttitude({
+      line: scene.lap, heights, gLat: cmp.lap.g_lat, gLong: cmp.lap.g_long,
+      bank: cmp.track_survey?.bank_deg.map((d) => (d === null ? null : (d * Math.PI) / 180)),
+    }),
+    [scene, heights, cmp],
+  );
 
   const [epoch, setEpoch] = useState(0);
   const [gpu, setGpu] = useState<GpuState>("ok");
@@ -88,6 +99,7 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
   const lostTimer = useRef(0);
   const sceneRef = useRef(scene);
   const heightsRef = useRef(heights);
+  const attitudeRef = useRef(attitude);
   const cmpRef = useRef(cmp);
   const annRef = useRef(annotations);
   const modeRef = useRef(mode);
@@ -121,6 +133,7 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
       lap: carPose(sc.lap, h, cars.dLap, cars.heading, k),
       ref: carPose(sc.ref, h, cars.dRef, cars.refHeading, k),
       lapDist: cars.dLap, refDist: cars.dRef,
+      lapAtt: attitudeAt(attitudeRef.current, cars.dLap),
       ahead: aheadPoint(sc.lap, h, cars.dLap, LOOK_AHEAD_M),
       jumped, exaggeration: k,
     });
@@ -165,9 +178,10 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
   useEffect(() => {
     sceneRef.current = scene;
     heightsRef.current = heights;
+    attitudeRef.current = attitude;
     rendererRef.current?.setScene({ scene, heights });
     requestDraw();
-  }, [scene, heights, requestDraw]);
+  }, [scene, heights, attitude, requestDraw]);
 
   // While playing, tau changes once per frame inside the playback loop's own rAF: draw right then (no one-frame lag).
   useEffect(() => store.subscribe(() => {

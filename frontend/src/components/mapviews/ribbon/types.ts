@@ -1,5 +1,6 @@
 import type { Scene } from "../detailed/scene";
 import type { Viewport } from "../../../lib/camera";
+import type { AttitudeAt } from "../../../lib/carAttitude";
 import type { CarPose } from "./pose";
 import type { ViewMode } from "./viewModes";
 
@@ -12,6 +13,8 @@ export interface RibbonFrame {
   lapDist: number; refDist: number;
   /** The point on the lap line a little ahead of the lap car (the chase camera looks at it). */
   ahead: { east: number; north: number; height: number };
+  /** The lap car's estimated attitude at lapDist (cockpit camera). */
+  lapAtt: AttitudeAt;
   /** True after a seek: camera smoothing restarts. */
   jumped: boolean;
   /** Vertical exaggeration applied to the heights. */
