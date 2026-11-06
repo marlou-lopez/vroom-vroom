@@ -474,6 +474,10 @@ export function createMockApi(opts: MockOptions = {}): Api {
       track_survey: surveyOf(),
       lap_car_dims: sessionOf(lap.meta.session_id).car_dims,
       ref_car_dims: sessionOf(ref.meta.session_id).car_dims,
+      lap_car_id: lap.meta.car_id,
+      ref_car_id: ref.meta.car_id,
+      lap_car_name: sessionOf(lap.meta.session_id).car_name,
+      ref_car_name: sessionOf(ref.meta.session_id).car_name,
     };
     compareCache.set(key, res);
     return res;

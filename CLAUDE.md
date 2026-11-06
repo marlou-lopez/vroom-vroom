@@ -33,10 +33,12 @@ This section only records facts that change rarely (last checked 2026-11-06):
 | `frontend/src/lib/` | Pure logic: playback, track map projection, strips, formatting, car attitude estimate for the cockpit camera (unit-tested) |
 | `frontend/src/state/` | Zustand playback store, data and coach hooks |
 | `frontend/src/components/mapviews/` | Track panel views (classic 2D SVG, detailed 2D on WebGL, experimental 3D ribbon in `ribbon/`, with chase, cockpit, orbit and top cameras) behind one `TrackViewProps` interface; `shared/` holds what the WebGL views have in common (badge layer, ring buffer, storage helpers) |
+| `frontend/public/local-models/` | **Git-ignored** developer-fallback folder for 3D car models, `<car_id>.glb` (#102). Only its `README.md` is committed. The 3D view's lookup order is the user's model stored in the browser (IndexedDB, loaded in the 3D view's Car popover, which converts raw glTF folders, zips and large .glb files in a Web Worker), then this folder, then the box. Never commit a model, its textures or a converted copy (licence) |
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone (e.g. `edge-survey.md`, `elevation-shared-memory.md`) |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON (needs `npm i @duckdb/node-api`) |
 | `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`, `survey`) (#94, #97). Captures stay out of git |
+| `tools/optimize-car-model.mjs` | Command-line twin of the Car popover's in-browser converter: turns a downloaded car glTF (folder, zip, .gltf, .glb) into one small GLB for `frontend/public/local-models/`. Imports `frontend/src/components/mapviews/ribbon/convert/` (the shared drop list, settings and pipeline; needs `npm ci` in `frontend/`, and network once for `sharp`). Its output is never committed (#102, `docs/track-views/car-model.md`) |
 | `.claude/skills/vroom-issue/` | Project skill for filing GitHub issues |
 
 The planned backend is a Python package `racecoach` in `backend/` (uv, FastAPI, DuckDB,
@@ -73,6 +75,7 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
 - **No tracking-like words in frontend file or folder names** (`trackview`, `tracking`,
   `analytics`, `beacon`, `pixel`). Ad blockers block those module URLs in `npm run dev`, which
   leaves a white page.
+- **Never commit a 3D car model**, its textures, a converted copy or anything derived from one. The repo is public and most downloadable models are game rips that cannot be redistributed (#102). Users bring their own through the 3D view's Car popover (kept in their browser only), or as a developer into the git-ignored `frontend/public/local-models/`; check `git status` before committing.
 - **Never modify an LMU recording.** Copy it first, then open the copy read-only. LMU lives at
   `/mnt/d/Steam/steamapps/common/Le Mans Ultimate` (this is WSL).
 - **LMU data facts** (details in `docs/lmu-duckdb-schema.md`):

@@ -36,6 +36,8 @@ export interface Scene {
   gain: GainLine; surface: [XY, XY]; bounds: ReturnType<typeof bounds>;
   /** Car footprints in metres, already resolved (generic GT3 size when the contract says null). */
   lapDims: CarDims; refDims: CarDims;
+  /** `car_id` of each car, to look up an optional 3D model (#102). */
+  lapCarId: string; refCarId: string;
   /** Where the telemetry-mode edges and kerbs came from: the track survey (#97) or the compared laps; null in stand-in mode. */
   edgeSource: "survey" | "laps" | null;
 }
@@ -239,6 +241,7 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
   const surface: [XY, XY] = [along(border("left", floorLeft), 1), along(border("right", floorRight), -1)];
   return { lap, ref, centre, edges, edgeMeasured, kerbs, gain, surface, bounds: bounds([edges[0], edges[1], lap, ref]),
     lapDims: carDimsOrFallback(cmp.lap_car_dims), refDims: carDimsOrFallback(cmp.ref_car_dims),
+    lapCarId: cmp.lap_car_id, refCarId: cmp.ref_car_id,
     edgeSource: telemetry ? (usedSurvey ? "survey" : "laps") : null };
 }
 

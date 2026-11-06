@@ -128,6 +128,8 @@ describe("mockApi: real Spa laps", () => {
     expect(cmp.lap_id).toBe(lap(1).lap_id);
     expect(cmp.lap_steering_range_deg).toBe(524);
     expect(cmp.lap_car_dims).toEqual({ length_m: 4.664, width_m: 2.04, wheelbase_m: 2.696, visual_offset: { forward_m: 0.0745, up_m: -0.3335 } });
+    expect(cmp.lap_car_id).toBe("mclaren_720s_gt3_evo");
+    expect(cmp.ref_car_id).toBe("mclaren_720s_gt3_evo");
     expect(cmp.warning).toBeNull();
   });
 

@@ -1,6 +1,6 @@
 import * as Slider from "@radix-ui/react-slider";
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Viewport } from "../../../lib/camera";
 import { cx } from "../../../lib/cx";
 import { debugEnabled } from "../../../lib/debugFlag";
@@ -22,6 +22,9 @@ import { heightAt, roadHeights } from "./heights";
 import { aheadPoint, carPose } from "./pose";
 import { loadRibbonRenderer, type RibbonRenderer, type ScreenPoint } from "./types";
 import styles from "./RibbonView.module.css";
+
+/** The Car popover (Radix popover, the model store, the converter's client) loads with the 3D view, not with the app's main bundle. */
+const CarModelControl = lazy(() => import("./CarModelControl").then((m) => ({ default: m.CarModelControl })));
 
 const HUD_MS = 250;
 const MIN_INTERVAL_MS = 4;
@@ -78,6 +81,11 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
       bank: cmp.track_survey?.bank_deg.map((d) => (d === null ? null : (d * Math.PI) / 180)),
     }),
     [scene, heights, cmp],
+  );
+
+  const carEntries = useMemo(
+    () => [{ carId: cmp.lap_car_id, name: cmp.lap_car_name }, { carId: cmp.ref_car_id, name: cmp.ref_car_name }],
+    [cmp],
   );
 
   const [epoch, setEpoch] = useState(0);
@@ -418,6 +426,9 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
           ) : (
             <span className={styles.note} role="note">No elevation for this track</span>
           )}
+          <Suspense fallback={<button type="button" className={cx(ui.btn, styles.small)} disabled>Car</button>}>
+            <CarModelControl cars={carEntries} disabled={running} />
+          </Suspense>
           {debug && (
             <>
               <button
