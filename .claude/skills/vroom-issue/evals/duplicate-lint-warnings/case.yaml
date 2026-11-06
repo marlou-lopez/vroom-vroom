@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: duplicate-lint-warnings
-expected_outcome: |
-  Spots that issue #26 already tracks the lint warnings and does not file a duplicate.

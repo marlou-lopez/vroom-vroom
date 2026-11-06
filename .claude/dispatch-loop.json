@@ -1,0 +1,10 @@
+{
+  "main_branch": "main",
+  "merge_method": "merge",
+  "wip_limit": 3,
+  "quality": [
+    {"name": "test", "run": "npm run test", "cwd": "frontend"},
+    {"name": "lint", "run": "npm run lint", "cwd": "frontend"},
+    {"name": "build", "run": "npm run build", "cwd": "frontend"}
+  ]
+}
