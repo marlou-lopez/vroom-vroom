@@ -12,4 +12,6 @@ export interface TrackViewProps {
   trackMap: TrackMap | null;
   annotations: Annotation[];
   handlers: BadgeHandlers;
+  /** Recorded lap times (s) of the lap and the reference lap, for pane labels; absent or null falls back to the comparison grid's last time. */
+  lapTimes?: { lap: number | null; ref: number | null };
 }

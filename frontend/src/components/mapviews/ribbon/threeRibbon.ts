@@ -11,10 +11,10 @@ import type { CarDims } from "../../../api/types";
 import type { Viewport } from "../../../lib/camera";
 import type { XY } from "../../../lib/geo";
 import { AHEAD_DIM, EDGE_PX, KERB_RED, KERB_WHITE, LAP_PX, LINE_DIM, REF_PX, mixSrgb, readColors } from "../detailed/renderer";
-import { CockpitRig, DEFAULT_FOV, OrbitRig, ChaseRig, TopRig, type CameraFrame, type CameraRig, type ViewMode } from "./cameraRigs";
-import { createCockpitDash } from "./cockpitDash";
+import { CockpitRig, DEFAULT_FOV, OrbitFollowRig, OrbitRig, ChaseRig, TopRig, type CameraFrame, type CameraRig, type ViewMode } from "./cameraRigs";
+import { createCockpitDash, type CockpitDash } from "./cockpitDash";
 import { MIRROR_PX } from "./cockpitLayout";
-import { createCockpitMirror } from "./cockpitMirror";
+import { createCockpitMirror, type CockpitMirror } from "./cockpitMirror";
 import { readCockpitPalette } from "./cockpitPaint";
 import { cockpitEye } from "./cockpit";
 import { invalidateCarModel, loadCarModel, placeModel, type PlacedModel } from "./carModel";
@@ -24,6 +24,7 @@ import { toThree } from "./coords";
 import { buildKerbMesh, buildLinePositions, buildRibbonMesh, buildVergeMesh } from "./geometry";
 import type { CarPose } from "./pose";
 import { carEuler } from "./pose";
+import { paneRects } from "./split";
 import type { RibbonEvents, RibbonFrame, RibbonRenderer, ScreenPoint } from "./types";
 
 /** Lifts (m, before the vertical exaggeration) that keep each layer clear of the one below it. */
@@ -64,6 +65,16 @@ function makeSkyDome(sky: string, horizon: string): Mesh {
   return m;
 }
 
+/** One camera of the view with what belongs to it: its rigs, its cockpit (fixed to the camera) and the cockpit's mirror. The split view has two. */
+interface Pane {
+  camera: PerspectiveCamera;
+  rigs: Record<ViewMode, CameraRig>;
+  entered: ViewMode | null;
+  frame: CameraFrame;
+  dash: CockpitDash;
+  mirror: CockpitMirror | null;
+}
+
 interface RacingLine { driven: Line2; ahead: Line2; segments: number }
 
 function disposeObject(root: Group | Mesh | Line2) {
@@ -96,6 +107,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   const scene = new ThreeScene();
   scene.fog = new Fog(new Color(colors.bg), 600, 3600);
   const camera = new PerspectiveCamera(DEFAULT_FOV, 1, 0.5, 20000);
+  const cameraFrame = (): CameraFrame => ({ car: { x: 0, y: 0, z: 0 }, heading: 0, ahead: { x: 0, y: 0, z: 0 }, jumped: false });
   scene.add(new HemisphereLight(0xdfe6f0, 0x20242b, 1.9));
   const sun = new DirectionalLight(0xffffff, 2.6);
   sun.position.set(-0.5, 1, 0.7);
@@ -115,10 +127,14 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   sky.visible = false;
   scene.add(sky);
   /** The cockpit (trim, bonnet, dash, mirror, displays, wheel): fixed to the camera, so the camera itself must be in the scene for it to render. */
-  const mirror = LIVE_MIRROR ? createCockpitMirror() : null;
-  const cockpitDash = createCockpitDash(readCockpitPalette(host), mirror?.texture ?? null);
-  camera.add(cockpitDash.root);
-  scene.add(camera);
+  const palette = readCockpitPalette(host);
+  const makeCockpit = (cam: PerspectiveCamera) => {
+    const mirror = LIVE_MIRROR ? createCockpitMirror() : null;
+    const dash = createCockpitDash(palette, mirror?.texture ?? null);
+    cam.add(dash.root);
+    scene.add(cam);
+    return { mirror, dash };
+  };
   const hazeColor = new Color(scenery.horizon), bgColor = new Color(colors.bg);
 
   const lineMats: LineMaterial[] = [];
@@ -148,9 +164,27 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   let drawing = false;
   controls.addEventListener("change", () => { if (!drawing) events.onNeedsDraw(); });
 
-  const rigs: Record<ViewMode, CameraRig> = { chase: new ChaseRig(), cockpit: new CockpitRig(), orbit: new OrbitRig(controls), top: new TopRig() };
+  /** The lap car's pane, always there. The reference car's pane is made on first use of the split view. */
+  const lapPane: Pane = {
+    camera, rigs: { chase: new ChaseRig(), cockpit: new CockpitRig(), orbit: new OrbitRig(controls), top: new TopRig() },
+    entered: null, frame: cameraFrame(), ...makeCockpit(camera),
+  };
+  let refPane: Pane | null = null;
+  const ensureRefPane = (): Pane => {
+    if (refPane) return refPane;
+    const cam = new PerspectiveCamera(DEFAULT_FOV, 1, 0.5, 20000);
+    refPane = {
+      camera: cam, rigs: { chase: new ChaseRig(), cockpit: new CockpitRig(), orbit: new OrbitFollowRig(camera, controls.target), top: new TopRig() },
+      entered: null, frame: cameraFrame(), ...makeCockpit(cam),
+    };
+    // Start at the zoom the user already chose on the lap pane.
+    (refPane.rigs.chase as ChaseRig).zoomK = (lapPane.rigs.chase as ChaseRig).zoomK;
+    (refPane.rigs.top as TopRig).h = (lapPane.rigs.top as TopRig).h;
+    return refPane;
+  };
   let mode: ViewMode = "chase";
-  let entered: ViewMode | null = null;
+  /** True while the reference pane is drawn (the last frame had `refPane`). */
+  let splitting = false;
 
   let viewport: Viewport = { w: 1, h: 1 };
   let exag = 1;
@@ -168,7 +202,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
     }
     return envTexture;
   };
-  let lapForward = 0; // the lap car's visual centre ahead of the recorded point (m); the cockpit eye is measured from the visual centre
+  let lapForward = 0, refForward = 0; // each car's visual centre ahead of the recorded point (m); the cockpit eye is measured from the visual centre
   let sceneMeshes: (Mesh | Line2)[] = [];
   let lastStats = { calls: 0, triangles: 0 };
 
@@ -253,7 +287,6 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
 
   const v3 = new Vector3();
   const toRgb = (hex: string) => new Color(hex).toArray().slice(0, 3) as [number, number, number];
-  const frame: CameraFrame = { car: { x: 0, y: 0, z: 0 }, heading: 0, ahead: { x: 0, y: 0, z: 0 }, jumped: false };
 
   return {
     setScene({ scene: sc, heights }) {
@@ -322,6 +355,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       };
       racing = [mk(sc.ref, colors.comparison, REF_PX), mk(sc.lap, colors.you, LAP_PX)];
       lapForward = visualForwardM(sc.lapDims);
+      refForward = visualForwardM(sc.refDims);
       lapCar = makeCar(sc.lapDims, colors.you);
       refCar = makeCar(sc.refDims, colors.comparison);
       cars.add(lapCar, refCar);
@@ -341,9 +375,6 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       viewport = v;
       gl.setPixelRatio(Math.min(dpr, MAX_DPR));
       gl.setSize(Math.max(v.w, 1), Math.max(v.h, 1), false);
-      camera.aspect = Math.max(v.w, 1) / Math.max(v.h, 1);
-      camera.updateProjectionMatrix();
-      for (const m of lineMats) m.resolution.set(Math.max(v.w, 1), Math.max(v.h, 1));
     },
     draw(f: RibbonFrame) {
       drawing = true;
@@ -351,57 +382,84 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       world.scale.y = exag;
       placeCar(lapCar, f.lap);
       placeCar(refCar, f.ref);
-      const car = toThree(f.lap.east, f.lap.north, f.lap.height, exag);
-      const ahead = toThree(f.ahead.east, f.ahead.north, f.ahead.height, exag);
-      frame.car = car;
-      frame.ahead = ahead;
-      frame.heading = f.lap.heading;
-      frame.jumped = f.jumped;
-      const cockpit = mode === "cockpit";
-      if (cockpit) {
-        frame.eye = cockpitEye(car, f.lapAtt.heading, f.lap.pitch + f.lapAtt.dive, f.lapAtt.roll, lapForward);
-      } else {
-        frame.eye = undefined;
+      const split = f.refPane;
+      const ref = split ? ensureRefPane() : null;
+      if (!split && splitting && refPane) {
+        // Leaving the split view: the second camera and its cockpit must not stay in the scene's picture, and re-enter its rig next time.
+        refPane.dash.root.visible = false;
+        if (refPane.entered) refPane.rigs[refPane.entered].leave?.();
+        refPane.entered = null;
       }
-      // Cockpit scenery: the lap car is the camera (hide its box and any model, keep the reference car as the ghost); our own cockpit
-      // (fixed to the camera) is always what is shown, whether or not the car has a loaded model; grass, sky and haze.
-      if (lapCar) lapCar.visible = !cockpit;
-      cockpitDash.root.visible = cockpit;
-      if (cockpit) cockpitDash.update(f.dash, f.limits);
+      splitting = !!split;
+      const cockpit = mode === "cockpit";
+      // Cockpit scenery: grass, sky and haze (both panes share them; they are the same mode).
       verges.visible = cockpit;
       sky.visible = cockpit;
       (scene.fog as Fog).color.copy(cockpit ? hazeColor : bgColor);
-      const rig = rigs[mode];
-      if (entered !== mode) {
-        if (entered) rigs[entered].leave?.();
-        rig.enter(frame, camera);
-        entered = mode;
-      }
-      rig.update(frame, camera);
+
+      const place = (pane: Pane, pose: CarPose, aheadPt: { east: number; north: number; height: number }, att: { heading: number; dive: number; roll: number }, forward: number, jumped: boolean) => {
+        const fr = pane.frame;
+        fr.car = toThree(pose.east, pose.north, pose.height, exag);
+        fr.ahead = toThree(aheadPt.east, aheadPt.north, aheadPt.height, exag);
+        fr.heading = pose.heading;
+        fr.jumped = jumped;
+        fr.eye = cockpit ? cockpitEye(fr.car, att.heading, pose.pitch + att.dive, att.roll, forward) : undefined;
+        const rig = pane.rigs[mode];
+        if (pane.entered !== mode) {
+          if (pane.entered) pane.rigs[pane.entered].leave?.();
+          rig.enter(fr, pane.camera);
+          pane.entered = mode;
+        }
+        rig.update(fr, pane.camera);
+      };
+      // The lap pane's camera first: the reference pane's orbit follows its offset.
+      place(lapPane, f.lap, f.ahead, f.lapAtt, lapForward, f.jumped);
+      if (ref && split) place(ref, f.ref, split.ahead, split.att, refForward, f.jumped || split.jumped);
+
       // Fog starts beyond the car and the near scenery, whatever the camera distance.
-      const dist = rig.distance(camera);
+      const dist = Math.max(lapPane.rigs[mode].distance(lapPane.camera), ref && split ? ref.rigs[mode].distance(ref.camera) : 0);
       const fog = scene.fog as Fog;
       fog.near = cockpit ? COCKPIT_FOG_NEAR : dist * 1.5 + 400;
       fog.far = cockpit ? COCKPIT_FOG_FAR : fog.near + 3000;
-      if (cockpit) sky.position.copy(camera.position);
-      const [ref, lap] = racing;
-      if (ref) setDrawn(ref.driven, Math.min(Math.floor(f.refDist), ref.segments));
-      if (lap) setDrawn(lap.driven, Math.min(Math.floor(f.lapDist), lap.segments));
-      // The mirror's picture first (its own pass, at most every other frame), then the main pass; the stats count both.
+      const [refLine, lapLine] = racing;
+      if (refLine) setDrawn(refLine.driven, Math.min(Math.floor(f.refDist), refLine.segments));
+      if (lapLine) setDrawn(lapLine.driven, Math.min(Math.floor(f.lapDist), lapLine.segments));
+
+      // One pass per pane into its part of the canvas; the stats count all passes (and the mirrors').
       gl.info.reset();
-      if (cockpit && mirror) {
-        mirror.render(
-          gl, scene, camera, cockpitDash.root, performance.now(), f.jumped,
-          () => { for (const m of lineMats) m.resolution.set(MIRROR_PX[0], MIRROR_PX[1]); },
-          () => { for (const m of lineMats) m.resolution.set(Math.max(viewport.w, 1), Math.max(viewport.h, 1)); },
-        );
-      }
-      gl.render(scene, camera);
+      const rects = paneRects(viewport, !!split);
+      gl.setScissorTest(rects.length > 1);
+      const panes = ref && split ? [lapPane, ref] : [lapPane];
+      panes.forEach((pane, i) => {
+        const r = rects[i];
+        const w = Math.max(r.w, 1), h = Math.max(r.h, 1);
+        const setLines = (lw: number, lh: number) => { for (const m of lineMats) m.resolution.set(lw, lh); };
+        pane.camera.aspect = w / h;
+        pane.camera.updateProjectionMatrix();
+        // Each pane draws only its own cockpit; in the cockpit view the pane's own car is the camera (hide it) and the other car stays visible as the ghost.
+        panes.forEach((q) => { q.dash.root.visible = q === pane && cockpit; });
+        if (lapCar) lapCar.visible = !(cockpit && i === 0);
+        if (refCar) refCar.visible = !(cockpit && i === 1);
+        if (cockpit) {
+          pane.dash.update(i === 0 ? f.dash : split!.dash, i === 0 ? f.limits : split!.limits);
+          sky.position.copy(pane.camera.position);
+        }
+        gl.setViewport(r.x, viewport.h - r.y - r.h, r.w, r.h);
+        gl.setScissor(r.x, viewport.h - r.y - r.h, r.w, r.h);
+        setLines(w, h);
+        // The mirror's picture first (its own pass, at most every other frame), then the pane's main pass.
+        if (cockpit && pane.mirror) {
+          pane.mirror.render(gl, scene, pane.camera, pane.dash.root, performance.now(), f.jumped || (i === 1 && split!.jumped), () => setLines(MIRROR_PX[0], MIRROR_PX[1]), () => setLines(w, h));
+        }
+        gl.render(scene, pane.camera);
+      });
       lastStats = { calls: gl.info.render.calls, triangles: gl.info.render.triangles };
       drawing = false;
     },
     zoom(factor) {
-      if (mode !== "orbit") rigs[mode].zoom(factor);
+      if (mode === "orbit") return;
+      lapPane.rigs[mode].zoom(factor);
+      refPane?.rigs[mode].zoom(factor);
     },
     nudgeOrbit(rad) {
       if (mode !== "orbit") return;
@@ -409,11 +467,15 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       camera.position.copy(controls.target).add(v3);
     },
     project(east, north, height, out): ScreenPoint {
-      v3.set(east, height * exag, -north).applyMatrix4(camera.matrixWorldInverse);
-      out.visible = v3.z < -camera.near;
-      v3.applyMatrix4(camera.projectionMatrix);
-      out.x = (v3.x * 0.5 + 0.5) * viewport.w;
-      out.y = (-v3.y * 0.5 + 0.5) * viewport.h;
+      // The badges mark the reference line, so in the split view they are drawn in the reference pane (the right half).
+      const pane = splitting && refPane ? refPane : lapPane;
+      const r = paneRects(viewport, splitting)[splitting ? 1 : 0];
+      const cam = pane.camera;
+      v3.set(east, height * exag, -north).applyMatrix4(cam.matrixWorldInverse);
+      out.visible = v3.z < -cam.near;
+      v3.applyMatrix4(cam.projectionMatrix);
+      out.x = r.x + (v3.x * 0.5 + 0.5) * r.w;
+      out.y = r.y + (-v3.y * 0.5 + 0.5) * r.h;
       return out;
     },
     stats: () => lastStats,
@@ -434,9 +496,12 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       controls.dispose();
       clearScene();
       disposeObject(sky);
-      camera.remove(cockpitDash.root);
-      cockpitDash.dispose();
-      mirror?.dispose();
+      for (const pane of [lapPane, refPane]) {
+        if (!pane) continue;
+        pane.camera.remove(pane.dash.root);
+        pane.dash.dispose();
+        pane.mirror?.dispose();
+      }
       envTexture?.dispose();
       gl.dispose();
       try { gl.forceContextLoss(); } catch { /* context already lost */ }

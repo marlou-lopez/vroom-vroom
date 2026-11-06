@@ -2,7 +2,7 @@ import { summarize } from "../../../lib/perf";
 import { PHASE_MS, runPhase, type BenchRow } from "../detailed/bench";
 import type { ViewMode } from "./viewModes";
 
-export interface RibbonBenchState { playing: boolean; tau: number; mode: ViewMode }
+export interface RibbonBenchState { playing: boolean; tau: number; mode: ViewMode; split: boolean }
 
 /** What the ribbon benchmark may drive in the view. Every method is cheap and safe to call once per frame. */
 export interface RibbonBenchControl {
@@ -12,6 +12,8 @@ export interface RibbonBenchControl {
   play(): void;
   pause(): void;
   setMode(mode: ViewMode): void;
+  /** Turns the split view (the lap and the reference lap in two panes) on or off. */
+  setSplit(on: boolean): void;
   /** Turns the orbit camera around the car by `rad`. */
   nudgeOrbit(rad: number): void;
   snapshot(): RibbonBenchState;
@@ -24,7 +26,10 @@ const SCRUB_STEP_M = 40;
 /** One full turn around the car every 8 s. */
 const ORBIT_RAD_PER_MS = (2 * Math.PI) / 8000;
 
-/** Four 10 s phases: follow-play in the chase camera, scrub the whole lap, orbit around the car while it drives, and play in the cockpit (the own cockpit and the mirror's second pass; compare with `?mirror=0`). */
+/**
+ * Six 10 s phases: follow-play in the chase camera, scrub the whole lap, orbit around the car while it drives, and play in the cockpit (the own
+ * cockpit and the mirror's second pass; compare with `?mirror=0`), then the same chase and cockpit plays in the split view (two passes, two mirrors).
+ */
 export async function runRibbonBench(ctl: RibbonBenchControl, signal?: AbortSignal): Promise<BenchRow[]> {
   const before = ctl.snapshot();
   const rows: BenchRow[] = [];
@@ -40,6 +45,7 @@ export async function runRibbonBench(ctl: RibbonBenchControl, signal?: AbortSign
   };
   try {
     await record("follow", () => {
+      ctl.setSplit(false);
       ctl.setMode("chase");
       ctl.seek(0);
       ctl.play();
@@ -67,6 +73,19 @@ export async function runRibbonBench(ctl: RibbonBenchControl, signal?: AbortSign
     });
 
     await record("cockpit", () => {
+      ctl.setMode("cockpit");
+      ctl.seek(0);
+      ctl.play();
+    }, () => {});
+
+    await record("split", () => {
+      ctl.setSplit(true);
+      ctl.setMode("chase");
+      ctl.seek(0);
+      ctl.play();
+    }, () => {});
+
+    await record("split-cockpit", () => {
       ctl.setMode("cockpit");
       ctl.seek(0);
       ctl.play();

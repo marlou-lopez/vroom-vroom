@@ -1,7 +1,7 @@
 import { PerspectiveCamera, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { headingDir } from "./coords";
-import { CHASE_DEFAULT, CHASE_LOOK_LIFT_M, CHASE_ZOOM_MAX, ChaseRig, OrbitRig, TOP_MAX_M, TopRig, chasePlacement, type CameraFrame } from "./cameraRigs";
+import { CHASE_DEFAULT, CHASE_LOOK_LIFT_M, CHASE_ZOOM_MAX, ChaseRig, OrbitFollowRig, OrbitRig, TOP_MAX_M, TopRig, chasePlacement, type CameraFrame } from "./cameraRigs";
 
 const frame = (over: Partial<CameraFrame> = {}): CameraFrame => ({
   car: { x: 100, y: 10, z: -50 }, heading: 0, ahead: { x: 130, y: 12, z: -50 }, jumped: false, ...over,
@@ -85,5 +85,24 @@ describe("rigs", () => {
     expect(cam.position.clone().sub(controls.target).distanceTo(offset)).toBeCloseTo(0, 6);
     rig.leave();
     expect(controls.enabled).toBe(false);
+  });
+
+  it("the follow orbit rig keeps the lead camera's offset to its own car", () => {
+    const lead = new PerspectiveCamera();
+    const leadTarget = new Vector3(100, 11, -50);
+    lead.position.set(110, 31, -20); // offset (10, 20, 30) from the lead's target
+    const cam = new PerspectiveCamera();
+    const rig = new OrbitFollowRig(lead, leadTarget);
+    rig.enter(frame({ car: { x: 500, y: 3, z: 80 } }), cam);
+    expect(cam.position.x).toBeCloseTo(510);
+    expect(cam.position.y).toBeCloseTo(4 + 20);
+    expect(cam.position.z).toBeCloseTo(110);
+    // The user turns the lead camera; the follower turns with it.
+    lead.position.set(90, 11, -50);
+    rig.update(frame({ car: { x: 500, y: 3, z: 80 } }), cam);
+    expect(cam.position.x).toBeCloseTo(490);
+    expect(cam.position.y).toBeCloseTo(4);
+    expect(cam.position.z).toBeCloseTo(80);
+    expect(cam.getWorldDirection(new Vector3()).x).toBeGreaterThan(0.99); // looks at its car
   });
 });

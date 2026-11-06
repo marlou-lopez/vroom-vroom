@@ -126,6 +126,7 @@ function Telemetry() {
             <TrackPanel
               model={model} trackMap={trackMap}
               annotations={annotations} handlers={handlers}
+              lapTimes={cmp ? { lap: ctx?.laps.find((l) => l.lap_id === cmp.lap_id)?.lap_time_s ?? null, ref: ctx?.laps.find((l) => l.lap_id === cmp.ref_lap_id)?.lap_time_s ?? null } : undefined}
               expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
               footer={<EngineerLine annotations={annotations} trackMap={trackMap} model={model} />}
             />
