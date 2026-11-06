@@ -24,7 +24,7 @@ const SCRUB_STEP_M = 40;
 /** One full turn around the car every 8 s. */
 const ORBIT_RAD_PER_MS = (2 * Math.PI) / 8000;
 
-/** Three 10 s phases: follow-play in the chase camera, scrub the whole lap, orbit around the car while it drives. */
+/** Four 10 s phases: follow-play in the chase camera, scrub the whole lap, orbit around the car while it drives, and play in the cockpit (the own cockpit and the mirror's second pass; compare with `?mirror=0`). */
 export async function runRibbonBench(ctl: RibbonBenchControl, signal?: AbortSignal): Promise<BenchRow[]> {
   const before = ctl.snapshot();
   const rows: BenchRow[] = [];
@@ -65,6 +65,12 @@ export async function runRibbonBench(ctl: RibbonBenchControl, signal?: AbortSign
       ctl.nudgeOrbit((elapsed - last) * ORBIT_RAD_PER_MS);
       last = elapsed;
     });
+
+    await record("cockpit", () => {
+      ctl.setMode("cockpit");
+      ctl.seek(0);
+      ctl.play();
+    }, () => {});
   } finally {
     ctl.recordDraws(false);
     ctl.restore(before);

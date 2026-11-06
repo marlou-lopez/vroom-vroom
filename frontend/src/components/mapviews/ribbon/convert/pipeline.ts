@@ -61,10 +61,16 @@ export function dropParts(doc: Document, o: Pick<ConvertOptions, "keepCockpit">)
     sub.reverse().forEach((x) => x.dispose());
     dropped++;
   }
+  // Work out every name before renaming anything: a renamed node ("RPM_LED_5") would no longer match the pattern, because
+  // `baseName` takes its index for a Sketchfab suffix.
+  const names = new Map<Node, string>();
   for (const n of all) {
     if (n.isDisposed()) continue;
     let name = "";
     for (let p: Node | null = n; p && !name; p = p.getParentNode()) name = namedPart(p.getName());
+    names.set(n, name);
+  }
+  for (const [n, name] of names) {
     n.setName(name);
     n.getMesh()?.setName(name);
   }

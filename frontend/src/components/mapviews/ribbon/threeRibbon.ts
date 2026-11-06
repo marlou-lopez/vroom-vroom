@@ -12,10 +12,13 @@ import type { Viewport } from "../../../lib/camera";
 import type { XY } from "../../../lib/geo";
 import { AHEAD_DIM, EDGE_PX, KERB_RED, KERB_WHITE, LAP_PX, LINE_DIM, REF_PX, mixSrgb, readColors } from "../detailed/renderer";
 import { CockpitRig, DEFAULT_FOV, OrbitRig, ChaseRig, TopRig, type CameraFrame, type CameraRig, type ViewMode } from "./cameraRigs";
+import { createCockpitDash } from "./cockpitDash";
+import { MIRROR_PX } from "./cockpitLayout";
+import { createCockpitMirror } from "./cockpitMirror";
+import { readCockpitPalette } from "./cockpitPaint";
 import { cockpitEye } from "./cockpit";
 import { invalidateCarModel, loadCarModel, placeModel, type PlacedModel } from "./carModel";
 import { carModelStore } from "./carModelStore";
-import { buildCockpitFrameGeometry } from "./cockpitFrame";
 import { visualForwardM } from "../detailed/renderer";
 import { toThree } from "./coords";
 import { buildKerbMesh, buildLinePositions, buildRibbonMesh, buildVergeMesh } from "./geometry";
@@ -30,6 +33,8 @@ const MAX_DPR = 2;
 /** Fog in cockpit mode: the road fades into the haze within a couple of kilometres. */
 const COCKPIT_FOG_NEAR = 150, COCKPIT_FOG_FAR = 2200;
 const SKY_RADIUS = 10000;
+/** The rear-view mirror renders the scene again from the eye, looking back; `?mirror=0` in the URL turns that off (the glass then shows a still picture). */
+const LIVE_MIRROR = typeof location === "undefined" || !/[?&]mirror=0\b/.test(location.search);
 
 /** Sky and grass colours from the theme tokens (--color-sky, ...), with the dark theme's values as fallback. */
 function readScenery(el: Element) {
@@ -37,7 +42,7 @@ function readScenery(el: Element) {
   const get = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
   return {
     sky: get("--color-sky", "#2F4F78"), horizon: get("--color-sky-horizon", "#8EA3B8"),
-    grass: get("--color-grass", "#3A5629"), grassAlt: get("--color-grass-alt", "#42612F"), interior: get("--color-cockpit-interior", "#121417"),
+    grass: get("--color-grass", "#3A5629"), grassAlt: get("--color-grass-alt", "#42612F"),
   };
 }
 
@@ -73,6 +78,7 @@ function disposeObject(root: Group | Mesh | Line2) {
 export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): RibbonRenderer {
   const colors = readColors(host);
   const gl = new WebGLRenderer({ antialias: true });
+  gl.info.autoReset = false; // `draw` resets it once per frame, so the stats also count the cockpit mirror's pass
   gl.setClearColor(new Color(colors.bg), 1);
   const canvas = gl.domElement;
   canvas.style.position = "absolute";
@@ -108,15 +114,10 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   const sky = makeSkyDome(scenery.sky, scenery.horizon);
   sky.visible = false;
   scene.add(sky);
-  /** The windscreen frame: fixed to the camera, so the camera itself must be in the scene for it to render. */
-  const cockpitFrame = new Mesh(
-    buildCockpitFrameGeometry(),
-    new MeshBasicMaterial({ color: new Color(scenery.interior), side: DoubleSide, depthTest: false, depthWrite: false, fog: false }),
-  );
-  cockpitFrame.renderOrder = 1000;
-  cockpitFrame.frustumCulled = false;
-  cockpitFrame.visible = false;
-  camera.add(cockpitFrame);
+  /** The cockpit (trim, bonnet, dash, mirror, displays, wheel): fixed to the camera, so the camera itself must be in the scene for it to render. */
+  const mirror = LIVE_MIRROR ? createCockpitMirror() : null;
+  const cockpitDash = createCockpitDash(readCockpitPalette(host), mirror?.texture ?? null);
+  camera.add(cockpitDash.root);
   scene.add(camera);
   const hazeColor = new Color(scenery.horizon), bgColor = new Color(colors.bg);
 
@@ -362,11 +363,13 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       } else {
         frame.eye = undefined;
       }
-      // Cockpit scenery: the lap car is the camera (hide its box, keep the reference car as the ghost); grass, sky and haze.
+      // Cockpit scenery: the lap car is the camera (hide its box and any model, keep the reference car as the ghost); our own cockpit
+      // (fixed to the camera) is always what is shown, whether or not the car has a loaded model; grass, sky and haze.
       if (lapCar) lapCar.visible = !cockpit;
+      cockpitDash.root.visible = cockpit;
+      if (cockpit) cockpitDash.update(f.dash, f.limits);
       verges.visible = cockpit;
       sky.visible = cockpit;
-      cockpitFrame.visible = cockpit;
       (scene.fog as Fog).color.copy(cockpit ? hazeColor : bgColor);
       const rig = rigs[mode];
       if (entered !== mode) {
@@ -384,6 +387,15 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       const [ref, lap] = racing;
       if (ref) setDrawn(ref.driven, Math.min(Math.floor(f.refDist), ref.segments));
       if (lap) setDrawn(lap.driven, Math.min(Math.floor(f.lapDist), lap.segments));
+      // The mirror's picture first (its own pass, at most every other frame), then the main pass; the stats count both.
+      gl.info.reset();
+      if (cockpit && mirror) {
+        mirror.render(
+          gl, scene, camera, cockpitDash.root, performance.now(), f.jumped,
+          () => { for (const m of lineMats) m.resolution.set(MIRROR_PX[0], MIRROR_PX[1]); },
+          () => { for (const m of lineMats) m.resolution.set(Math.max(viewport.w, 1), Math.max(viewport.h, 1)); },
+        );
+      }
       gl.render(scene, camera);
       lastStats = { calls: gl.info.render.calls, triangles: gl.info.render.triangles };
       drawing = false;
@@ -422,8 +434,9 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       controls.dispose();
       clearScene();
       disposeObject(sky);
-      camera.remove(cockpitFrame);
-      disposeObject(cockpitFrame);
+      camera.remove(cockpitDash.root);
+      cockpitDash.dispose();
+      mirror?.dispose();
       envTexture?.dispose();
       gl.dispose();
       try { gl.forceContextLoss(); } catch { /* context already lost */ }

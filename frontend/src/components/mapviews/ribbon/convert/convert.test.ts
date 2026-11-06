@@ -1,4 +1,4 @@
-import { WebIO } from "@gltf-transform/core";
+import { Document, WebIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import { zipSync } from "fflate";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -7,7 +7,7 @@ import { MeshoptDecoder as WasmDecoder, MeshoptEncoder } from "meshoptimizer";
 import { convertFiles, unzipFiles } from "./convert.ts";
 import { ConvertError } from "./fileSet.ts";
 import { makeGltfFiles } from "./fixture.ts";
-import { countTriangles, type TextureEncoder } from "./pipeline.ts";
+import { countTriangles, dropParts, type TextureEncoder } from "./pipeline.ts";
 import type { Stage } from "./settings.ts";
 
 /** OffscreenCanvas / createImageBitmap do not exist in node, so the WebP encoder is injected: this stub claims every image became a tiny "webp". */
@@ -92,5 +92,21 @@ describe("convertFiles on a generated .gltf folder", () => {
   it("rejects an unsupported file", async () => {
     const err = await convertFiles([{ path: "car.obj", data: new Uint8Array(4) }], {}, {}).catch((e: unknown) => e);
     expect((err as ConvertError).code).toBe("unsupported");
+  });
+});
+
+describe("dropParts", () => {
+  it("names the meshes below a kept part after it, whatever the part's own index (a renamed RPM_LED_5 must not lose its children's name)", () => {
+    const doc = new Document();
+    doc.createBuffer();
+    const mk = (name: string) => doc.createNode(name).setMesh(doc.createMesh(name));
+    // The LED's mesh node has a name of its own that does not match, so its name must come from its parent, whose index (5) must still read as an index.
+    const led = (i: number) => doc.createNode(`RPM_LED_${i}_${100 + i}`).addChild(mk(`Quad_${i}`));
+    const data = doc.createNode("DISPLAY_DATA_1").addChild(led(5)).addChild(led(0));
+    const root = doc.createNode("car").addChild(mk("body")).addChild(doc.createNode("STEER_LR_2").addChild(mk("STEER_LR_SUB0_3"))).addChild(data);
+    doc.createScene("s").addChild(root);
+    dropParts(doc, { keepCockpit: false });
+    const meshNames = doc.getRoot().listNodes().filter((n) => n.getMesh()).map((n) => n.getMesh()!.getName()).sort();
+    expect(meshNames).toEqual(["", "RPM_LED_0", "RPM_LED_5", "STEER_LR"]);
   });
 });

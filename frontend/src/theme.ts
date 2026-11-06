@@ -30,6 +30,10 @@ export const colors = {
   grassAlt: "#42612F",
   /** The car interior around the windscreen in the cockpit view: near-black carbon. */
   cockpitInterior: "#121417",
+  /** The lit side of the cockpit's carbon trim: the roof header, pillar and dash top shade from `cockpitInterior` towards it; edge highlights. */
+  cockpitTrim: "#4A525E",
+  /** The car's bonnet paint seen at the windscreen's lower corners (a neutral silver-grey, lit from above). */
+  cockpitBonnet: "#7D8691",
 } as const;
 
 /** Annotation colour per finding kind (spec §9). `inconsistent` has no colour in the spec; it reuses `minor`. */
