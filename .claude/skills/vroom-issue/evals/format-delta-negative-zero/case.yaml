@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: format-delta-negative-zero
-expected_outcome: |
-  A verified bug issue labelled bug and area: frontend on milestone v1, citing src/lib/format.ts with a line number, with reproduction, expected, actual and a suggested fix, and a P2 or P3 priority.

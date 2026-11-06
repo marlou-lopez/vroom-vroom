@@ -1,4 +1,0 @@
-schema_version: "1.1"
-name: csv-export-batch
-expected_outcome: |
-  Two feature issues for v1: a backend one and a frontend one, the frontend body naming the backend issue as its dependency, both with scope and acceptance criteria.

@@ -8,19 +8,22 @@ through a Windows agent, **v4** conversation, **v5** setup engineer.
 
 ## Where things stand
 
-**The GitHub board is the source of truth for status:** repo `marlou-lopez/vroom-vroom`
-(public), board https://github.com/users/marlou-lopez/projects/7. Before starting, check open
-issues, what's In Progress, and milestones `v1`–`v5` and `Track views`. Each issue stands on its
-own and lists its dependencies. Don't rely on this file for progress.
+**Beads (`bd`) is the source of truth for status.** The repo `marlou-lopez/vroom-vroom` is public,
+and GitHub Issues is disabled. Before starting, run `bd ready --exclude-type epic` for the queue and
+`bd list --status in_progress,review` for work in flight. Each milestone is a Beads epic (`bd list -t
+epic`). Each issue stands on its own and lists its dependencies. Don't rely on this file for progress.
 
-This section only records facts that change rarely (last checked 2026-11-06):
+This section only records facts that change rarely (last checked 2026-11-07):
 - **Phase:** the frontend runs on a mock API serving one real Spa recording. The backend
   hasn't been started, and there's no `backend/` directory yet.
-- **Agreed order:** first the **Track views** milestone (detailed 2D, then 3D), then the backend
-  (milestone `v2 – Real backend`, Tasks 1–13), then switching the frontend to the real API.
+- **Agreed order:** first the **Track views** milestone (detailed 2D, then 3D), then the remaining
+  `v1 – UI on mock data` issues, then the `Analysis features` milestone (new analysis split out of v1
+  on 2026-11-07), then the backend (milestone `v2 – Real backend`, Tasks 1–13), then switching the
+  frontend to the real API. v1 and Analysis features are both done before the backend starts. Goals,
+  non-goals and milestones are in `docs/spec.md`.
 - The design spec, the v1 plan and handover notes live outside the repo, in
-  `~/.claude/plans/superpowers/ai-sim-racing-engineer/`. The issues already copy the details
-  that matter.
+  `~/.claude/plans/superpowers/ai-sim-racing-engineer/`. The Beads issues and `docs/spec.md`
+  already copy the details that matter.
 
 ## Layout
 
@@ -39,7 +42,8 @@ This section only records facts that change rarely (last checked 2026-11-06):
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON (needs `npm i @duckdb/node-api`) |
 | `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`, `survey`) (#94, #97). Captures stay out of git |
 | `tools/optimize-car-model.mjs` | Command-line twin of the Car popover's in-browser converter: turns a downloaded car glTF (folder, zip, .gltf, .glb) into one small GLB for `frontend/public/local-models/`. Imports `frontend/src/components/mapviews/ribbon/convert/` (the shared drop list, settings and pipeline; needs `npm ci` in `frontend/`, and network once for `sharp`). Its output is never committed (#102, `docs/track-views/car-model.md`) |
-| `.claude/skills/vroom-issue/` | Project skill for filing GitHub issues |
+| `docs/spec.md` | Product spec: goals, non-goals, milestones as Beads epics, order of work |
+| `.claude/dispatch-loop.json` | Dispatch Loop config: the quality commands `/dl:ship` runs |
 
 The planned backend is a Python package `racecoach` in `backend/` (uv, FastAPI, DuckDB,
 polars, Pydantic AI), serving `127.0.0.1:8765`.
@@ -101,18 +105,20 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
 
 ## Workflow
 
-- **File issues with the `vroom-issue` skill.** It applies the labels (type and area),
-  milestone, Status and Priority on the board. Reference issues in commits and PRs
-  (`Fixes #N`).
+- **Work runs on the Dispatch Loop.** Start an issue with `/dl:dispatch <id>` from the main
+  checkout: it opens a worktree on branch `dl/<id>` with a fresh session and the issue's contract.
+  When the user says ship it, use `/dl:ship`. It runs the quality commands, opens the PR, merges
+  and closes the issue. New ideas mid-task go in `bd q "<title>" -t task`; don't widen the current
+  issue. Goals and order of work are in `docs/spec.md`.
 - **Branch off `main`** and open a PR; don't commit directly to `main`. Only commit or push
-  when asked.
+  when asked. Outside the loop, reference the Beads ID in the PR text.
 - Exploration issues (label `spike`) end with a prototype in the app labelled
   "experimental", a write-up in `docs/track-views/<topic>.md`, and the user's keep / change /
   drop decision.
 
 ## Keeping this file current
 
-Status goes on the board, not here. Update this file **in the same PR** as any change that
+Status goes in Beads, not here. Update this file **in the same PR** as any change that
 makes it wrong:
 - a phase change (e.g. `backend/` is created, the frontend switches to the real API);
 - an agreed change to the order of work;
@@ -122,4 +128,4 @@ makes it wrong:
 - a newly verified LMU fact (put it in `docs/lmu-duckdb-schema.md` as well).
 
 When you touch "Where things stand", update its "last checked" date. If you find this file
-contradicting the code or the board, fix it or say so.
+contradicting the code or Beads, fix it or say so.

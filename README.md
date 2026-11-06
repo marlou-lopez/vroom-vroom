@@ -16,8 +16,9 @@ just LMU.
 ## Status
 
 The frontend runs on a mock API that serves one real Spa recording. The backend has not been
-started. For live status, open issues and milestones, see the
-[GitHub project board](https://github.com/users/marlou-lopez/projects/7).
+started.
+
+GitHub Issues is disabled: work is tracked privately. Outside contributions are welcome as pull requests.
 
 ## Quick start
 
