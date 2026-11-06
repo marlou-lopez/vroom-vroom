@@ -1,5 +1,5 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import type { TrackMap } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import type { PlaybackModel } from "../lib/model";
@@ -27,17 +27,7 @@ export interface TrackPanelProps {
 }
 
 export function TrackPanel({ model, trackMap, annotations, handlers, footer, expanded, onToggleExpanded }: TrackPanelProps) {
-  const tau = usePlayback((s) => s.tau);
-  const { cmp } = model;
   const [viewId, setViewId] = useState<TrackViewId>(loadTrackView);
-
-  const iy = indexAtTime(cmp.lap.t, tau);
-  const dYou = distanceAtTime(cmp.lap.t, cmp.distance, tau);
-  const dRef = distanceAtTime(cmp.ref.t, cmp.distance, tau);
-  const corner = trackMap ? cornerAt(trackMap, dYou) : null;
-  const delta = cmp.delta[iy] ?? 0;
-  const gap = Math.round(dRef - dYou);
-  const gapLabel = gap > 0 ? `reference ${gap} m ahead` : gap < 0 ? `reference ${-gap} m behind` : "level with reference";
 
   const active = TRACK_VIEWS.find((v) => v.id === viewId) ?? TRACK_VIEWS[0];
   const View = active.Component;
@@ -51,16 +41,7 @@ export function TrackPanel({ model, trackMap, annotations, handlers, footer, exp
   return (
     <section aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
       <View model={model} trackMap={trackMap} annotations={annotations} handlers={handlers} />
-      <div className={styles.readout}>
-        <div className={styles.corner}>{corner ? corner.name : "Straight"}</div>
-        <div className={cx(styles.mono, styles.muted)}>
-          {Math.round(dYou).toLocaleString("en-US")} m · gear {gearLabel(cmp.lap.gear[iy])} · {Math.round(cmp.lap.speed_kmh[iy])} km/h
-        </div>
-      </div>
-      <div className={styles.deltaBox}>
-        <div className={cx(styles.delta, delta > 0.005 && styles.loss, delta < -0.005 && styles.gain)}>{formatDelta(delta)} s</div>
-        <div className={cx(styles.mono, styles.muted)}>{gapLabel}</div>
-      </div>
+      <Readout model={model} trackMap={trackMap} />
       <div className={styles.toolbar}>
         <ToggleGroup.Root
           type="single" aria-label="Track view" className={styles.viewToggle}
@@ -87,5 +68,32 @@ export function TrackPanel({ model, trackMap, annotations, handlers, footer, exp
       </div>
       {footer && <div className={styles.footer}>{footer}</div>}
     </section>
+  );
+}
+
+/** Corner, distance, gear, speed and delta read-out. The only part of the panel that follows the playhead, so the view above it stays still. */
+function Readout({ model, trackMap }: { model: PlaybackModel; trackMap: TrackMap | null }) {
+  const tau = usePlayback((s) => s.tau);
+  const { cmp } = model;
+  const iy = indexAtTime(cmp.lap.t, tau);
+  const dYou = distanceAtTime(cmp.lap.t, cmp.distance, tau);
+  const dRef = distanceAtTime(cmp.ref.t, cmp.distance, tau);
+  const corner = trackMap ? cornerAt(trackMap, dYou) : null;
+  const delta = cmp.delta[iy] ?? 0;
+  const gap = Math.round(dRef - dYou);
+  const gapLabel = gap > 0 ? `reference ${gap} m ahead` : gap < 0 ? `reference ${-gap} m behind` : "level with reference";
+  return (
+    <Fragment>
+      <div className={styles.readout}>
+        <div className={styles.corner}>{corner ? corner.name : "Straight"}</div>
+        <div className={cx(styles.mono, styles.muted)}>
+          {Math.round(dYou).toLocaleString("en-US")} m · gear {gearLabel(cmp.lap.gear[iy])} · {Math.round(cmp.lap.speed_kmh[iy])} km/h
+        </div>
+      </div>
+      <div className={styles.deltaBox}>
+        <div className={cx(styles.delta, delta > 0.005 && styles.loss, delta < -0.005 && styles.gain)}>{formatDelta(delta)} s</div>
+        <div className={cx(styles.mono, styles.muted)}>{gapLabel}</div>
+      </div>
+    </Fragment>
   );
 }
