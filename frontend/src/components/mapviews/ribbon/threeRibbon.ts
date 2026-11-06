@@ -1,7 +1,8 @@
 import {
   AmbientLight, BackSide, BoxGeometry, BufferAttribute, BufferGeometry, Color, DirectionalLight, DoubleSide, Fog, Group, HemisphereLight, Mesh,
-  MeshBasicMaterial, MeshLambertMaterial, PerspectiveCamera, Scene as ThreeScene, SphereGeometry, Vector3, WebGLRenderer,
+  MeshBasicMaterial, MeshLambertMaterial, PMREMGenerator, PerspectiveCamera, Scene as ThreeScene, SphereGeometry, Texture, Vector3, WebGLRenderer,
 } from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
@@ -12,6 +13,8 @@ import type { XY } from "../../../lib/geo";
 import { AHEAD_DIM, EDGE_PX, KERB_RED, KERB_WHITE, LAP_PX, LINE_DIM, REF_PX, mixSrgb, readColors } from "../detailed/renderer";
 import { CockpitRig, DEFAULT_FOV, OrbitRig, ChaseRig, TopRig, type CameraFrame, type CameraRig, type ViewMode } from "./cameraRigs";
 import { cockpitEye } from "./cockpit";
+import { invalidateCarModel, loadCarModel, placeModel, type PlacedModel } from "./carModel";
+import { carModelStore } from "./carModelStore";
 import { buildCockpitFrameGeometry } from "./cockpitFrame";
 import { visualForwardM } from "../detailed/renderer";
 import { toThree } from "./coords";
@@ -152,6 +155,18 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   let exag = 1;
   let racing: RacingLine[] = [];
   let lapCar: Group | null = null, refCar: Group | null = null;
+  /** Bumped on every setScene and on destroy: a model that finishes loading for an older scene is ignored. */
+  let sceneToken = 0;
+  /** A small generated environment (no HDR download) for the optional models' PBR materials; made on first use. */
+  let envTexture: Texture | null = null;
+  const environment = (): Texture => {
+    if (!envTexture) {
+      const pmrem = new PMREMGenerator(gl);
+      envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      pmrem.dispose();
+    }
+    return envTexture;
+  };
   let lapForward = 0; // the lap car's visual centre ahead of the recorded point (m); the cockpit eye is measured from the visual centre
   let sceneMeshes: (Mesh | Line2)[] = [];
   let lastStats = { calls: 0, triangles: 0 };
@@ -162,10 +177,52 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
     for (const m of lineMats) m.dispose();
     racing = [];
     lineMats.length = 0;
-    for (const c of [lapCar, refCar]) if (c) { cars.remove(c); disposeObject(c); }
+    for (const c of [lapCar, refCar]) if (c) { detachModel(c); cars.remove(c); disposeObject(c); }
     lapCar = refCar = null;
+    slots = [];
     for (const v of [...verges.children]) { verges.remove(v); disposeObject(v as Mesh); }
   };
+
+  /** The shared model parts must outlive a car (other cars and later scenes reuse them): take the model out before disposing the car's own box. */
+  const detachModel = (car: Group) => {
+    const placed = car.userData.placed as PlacedModel | undefined;
+    if (!placed) return;
+    car.remove(placed.group);
+    placed.ownMaterial?.dispose();
+    car.userData.placed = undefined;
+  };
+
+  /** The cars of the current scene, to re-fit when a car_id's stored model changes. */
+  let slots: { car: Group; carId: string; dims: CarDims; ghost?: string }[] = [];
+  let loadSeq = 0;
+
+  /** Swaps a car's box for the optional 3D model of `carId` when one exists (#102); keeps the box otherwise. */
+  const swapInModel = (car: Group, carId: string, dims: CarDims, ghost?: string) => {
+    const token = sceneToken;
+    const seq = (car.userData.seq = ++loadSeq);
+    void loadCarModel(carId).then((model) => {
+      if (!model || token !== sceneToken || car.userData.seq !== seq || car.userData.placed) return;
+      const placed = placeModel(model, dims, environment(), ghost);
+      car.userData.placed = placed;
+      for (const o of car.userData.box as Mesh[]) o.visible = false;
+      car.add(placed.group);
+      events.onNeedsDraw();
+    });
+  };
+
+  /** The user added, changed or removed the model of `carId`: put the box back on its cars and load again. */
+  const unsubscribeModels = carModelStore().subscribe((carId) => {
+    const hit = slots.filter((s) => s.carId === carId);
+    if (!hit.length) return;
+    for (const s of hit) {
+      detachModel(s.car);
+      for (const o of s.car.userData.box as Mesh[]) o.visible = true;
+      s.car.userData.seq = ++loadSeq;
+    }
+    invalidateCarModel(carId);
+    for (const s of hit) swapInModel(s.car, s.carId, s.dims, s.ghost);
+    events.onNeedsDraw();
+  });
 
   const makeCar = (dims: CarDims, color: string): Group => {
     const g = new Group();
@@ -178,6 +235,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
     const cab = new Mesh(new BoxGeometry(dims.width_m * 0.75, CAB_H, dims.length_m * 0.4), mat);
     cab.position.set(0, CAR_BODY_Y + CAR_BODY_H + CAB_H / 2, shift - dims.length_m * 0.08);
     g.add(body, cab);
+    g.userData.box = [body, cab];
     g.rotation.order = "YXZ";
     return g;
   };
@@ -266,6 +324,12 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       lapCar = makeCar(sc.lapDims, colors.you);
       refCar = makeCar(sc.refDims, colors.comparison);
       cars.add(lapCar, refCar);
+      sceneToken++;
+      slots = [
+        { car: lapCar, carId: sc.lapCarId, dims: sc.lapDims },
+        { car: refCar, carId: sc.refCarId, dims: sc.refDims, ghost: colors.comparison },
+      ];
+      for (const s of slots) swapInModel(s.car, s.carId, s.dims, s.ghost);
       for (const m of lineMats) m.resolution.set(viewport.w, viewport.h);
       world.scale.y = exag;
     },
@@ -350,6 +414,8 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       return true;
     },
     destroy() {
+      sceneToken++;
+      unsubscribeModels();
       window.clearTimeout(restoreTimer);
       canvas.removeEventListener("webglcontextlost", onLost);
       canvas.removeEventListener("webglcontextrestored", onRestored);
@@ -358,6 +424,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       disposeObject(sky);
       camera.remove(cockpitFrame);
       disposeObject(cockpitFrame);
+      envTexture?.dispose();
       gl.dispose();
       try { gl.forceContextLoss(); } catch { /* context already lost */ }
       canvas.remove();

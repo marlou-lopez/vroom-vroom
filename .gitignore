@@ -7,3 +7,7 @@ frontend/dist/
 __pycache__/
 .pyright/
 *.lmucap
+
+# User-supplied 3D car models are never committed (licence); see frontend/public/local-models/README.md
+frontend/public/local-models/*
+!frontend/public/local-models/README.md

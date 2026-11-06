@@ -4,6 +4,8 @@ import { defineConfig } from 'vitest/config'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // The model converter is a module worker that imports its heavy parts lazily, which needs the ES worker format.
+  worker: { format: 'es' },
   server: {
     // Unused while VITE_API=mock; the real backend listens on 127.0.0.1:8765.
     proxy: { '/api': 'http://127.0.0.1:8765' },

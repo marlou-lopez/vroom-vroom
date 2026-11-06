@@ -108,6 +108,12 @@ export interface CompareResponse {
   track_survey: TrackSurvey | null;
   lap_car_dims: CarDims | null;
   ref_car_dims: CarDims | null;
+  /** `car_id` of each lap's car; the 3D view uses it to find an optional local 3D model (`/local-models/<car_id>.glb`, #102). */
+  lap_car_id: string;
+  ref_car_id: string;
+  /** Display names of those cars (the 3D view's car popover). */
+  lap_car_name: string;
+  ref_car_name: string;
 }
 
 /**
