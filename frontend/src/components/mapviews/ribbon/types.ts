@@ -1,6 +1,8 @@
 import type { Scene } from "../detailed/scene";
 import type { Viewport } from "../../../lib/camera";
 import type { AttitudeAt } from "../../../lib/carAttitude";
+import type { RpmLimits } from "../../../lib/shiftLights";
+import type { DashValues } from "./dashValues";
 import type { CarPose } from "./pose";
 import type { ViewMode } from "./viewModes";
 
@@ -15,6 +17,9 @@ export interface RibbonFrame {
   ahead: { east: number; north: number; height: number };
   /** The lap car's estimated attitude at lapDist (cockpit camera). */
   lapAtt: AttitudeAt;
+  /** The lap car's steering, gear, rpm and speed at lapDist (cockpit wheel and dash), and the lap's rev limits for the shift lights. */
+  dash: DashValues;
+  limits: RpmLimits | null;
   /** True after a seek: camera smoothing restarts. */
   jumped: boolean;
   /** Vertical exaggeration applied to the heights. */

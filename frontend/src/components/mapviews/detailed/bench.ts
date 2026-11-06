@@ -3,7 +3,7 @@ import type { Pt } from "../../../lib/geo";
 import { summarize } from "../../../lib/perf";
 
 export type CameraMode = "follow" | "free";
-export type BenchPhase = "follow" | "scrub" | "zoom-pan" | "orbit";
+export type BenchPhase = "follow" | "scrub" | "zoom-pan" | "orbit" | "cockpit";
 
 export interface BenchRow {
   renderer: "webgl";

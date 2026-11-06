@@ -7,6 +7,7 @@ import { debugEnabled } from "../../../lib/debugFlag";
 import { attitudeAt, estimateAttitude } from "../../../lib/carAttitude";
 import { pointAt } from "../../../lib/geo";
 import { summarize } from "../../../lib/perf";
+import { deriveRpmLimits } from "../../../lib/shiftLights";
 import { timeAtDistance } from "../../../lib/playback";
 import { usePlaybackStore } from "../../../state/playback";
 import ui from "../../ui.module.css";
@@ -16,6 +17,7 @@ import { AnnotationBadges } from "../shared/AnnotationBadges";
 import { Ring } from "../shared/ring";
 import { loadString, saveString } from "../shared/storage";
 import type { TrackViewProps } from "../types";
+import { dashAt } from "./dashValues";
 import { runRibbonBench, type RibbonBenchControl } from "./bench";
 import { VIEW_MODES, type ViewMode } from "./viewModes";
 import { heightAt, roadHeights } from "./heights";
@@ -83,6 +85,9 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
     [scene, heights, cmp],
   );
 
+  // The rev limit and first shift light, from the lap's own upshifts (the cockpit dash).
+  const limits = useMemo(() => deriveRpmLimits(cmp.lap.rpm, cmp.lap.gear), [cmp]);
+
   const carEntries = useMemo(
     () => [{ carId: cmp.lap_car_id, name: cmp.lap_car_name }, { carId: cmp.ref_car_id, name: cmp.ref_car_name }],
     [cmp],
@@ -108,6 +113,7 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
   const sceneRef = useRef(scene);
   const heightsRef = useRef(heights);
   const attitudeRef = useRef(attitude);
+  const limitsRef = useRef(limits);
   const cmpRef = useRef(cmp);
   const annRef = useRef(annotations);
   const modeRef = useRef(mode);
@@ -142,6 +148,8 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
       ref: carPose(sc.ref, h, cars.dRef, cars.refHeading, k),
       lapDist: cars.dLap, refDist: cars.dRef,
       lapAtt: attitudeAt(attitudeRef.current, cars.dLap),
+      dash: dashAt(cmpRef.current.lap, cars.dLap, cmpRef.current.lap_steering_range_deg, tau, cmpRef.current.delta),
+      limits: limitsRef.current,
       ahead: aheadPoint(sc.lap, h, cars.dLap, LOOK_AHEAD_M),
       jumped, exaggeration: k,
     });
@@ -187,9 +195,10 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
     sceneRef.current = scene;
     heightsRef.current = heights;
     attitudeRef.current = attitude;
+    limitsRef.current = limits;
     rendererRef.current?.setScene({ scene, heights });
     requestDraw();
-  }, [scene, heights, attitude, requestDraw]);
+  }, [scene, heights, attitude, limits, requestDraw]);
 
   // While playing, tau changes once per frame inside the playback loop's own rAF: draw right then (no one-frame lag).
   useEffect(() => store.subscribe(() => {
@@ -438,7 +447,7 @@ export function RibbonView({ model, annotations, handlers }: TrackViewProps) {
                 HUD
               </button>
               <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={startBench}>
-                {running ? "Running (30 s)" : "Run benchmark"}
+                {running ? "Running (40 s)" : "Run benchmark"}
               </button>
               <button type="button" className={cx(ui.btn, styles.small)} disabled={running || gpu !== "ok"} onClick={loseContext}>
                 Lose GPU context

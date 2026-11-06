@@ -58,7 +58,7 @@ Tests named `*.test.ts` run in node and `*.test.tsx` run in jsdom (setup in `src
 
 CI (`.github/workflows/ci.yml`) runs lint, test and build on every PR and push to `main`.
 
-The detailed 2D and 3D track views show their frame-rate HUD, benchmark and GPU context-loss test (and the 2D one its line-source selector) only in `npm run dev` or with `?debug` in the URL; `?debug=0` hides them in dev to preview the production view.
+The detailed 2D and 3D track views show their frame-rate HUD, benchmark and GPU context-loss test (and the 2D one its line-source selector) only in `npm run dev` or with `?debug` in the URL; `?debug=0` hides them in dev to preview the production view. `?mirror=0` turns off the 3D cockpit's live rear-view mirror (a second render pass; the glass then shows a still picture), to measure its cost.
 
 Run test, lint and build before calling frontend work done. Vite proxies `/api` to
 `127.0.0.1:8765` for when the real backend exists.
