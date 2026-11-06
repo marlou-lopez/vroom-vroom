@@ -170,6 +170,60 @@ describe("mockApi: real Spa laps", () => {
     expect((await api.compare(lap(4).lap_id, lap(3).lap_id)).track_survey).toBeNull();
   });
 
+  describe("trackGeometry", () => {
+    const survey = {
+      source: "t", track: null, captures: [], kerbs: [], bank: [],
+      contacts: [[0, 0, "edge"] as [number, number, "edge"]],
+      edges: [] as [number, number, 0 | 1, number][],
+    };
+    const elevation = { source: "t", track: null, points: [] as [number, number, number][], laps: [] };
+
+    it("serves the Spa centreline, survey, coverage and the verified local transform on one grid", async () => {
+      const api = createMockApi({ coachDelayMs: 0, loadSpa, loadSurvey: async () => survey, loadElevation: async () => elevation });
+      const g = await api.trackGeometry(TRACK);
+      const n = g.centre.lat.length;
+      expect(g.track_id).toBe(TRACK);
+      expect(n).toBeGreaterThan(6900);
+      expect(g.centre.lon).toHaveLength(n);
+      expect(g.survey!.left_m).toHaveLength(n);
+      expect(g.survey!.bank_deg).toHaveLength(n);
+      expect(g.elevation_m).toHaveLength(n);
+      expect(g.coverage).toEqual({ left: 0, right: 0 }); // the stub survey measures nothing
+      expect(g.transform.local).toMatchObject({ kind: "equirectangular", origin_lat_deg: 60, origin_lon_deg: 0 });
+      expect(g.transform.real_world).toBeNull();
+    });
+
+    it("with the real Spa survey and elevation: partial edge coverage, heights present, kerbs found", async () => {
+      const read = (f: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../public/mock/${f}`, import.meta.url)), "utf8"));
+      const api = createMockApi({
+        coachDelayMs: 0, loadSpa, loadSurvey: async () => read("spa-survey-2026-11-06.json"), loadElevation: async () => read("spa-elevation-2026-11-05.json"),
+      });
+      const g = await api.trackGeometry(TRACK);
+      expect(g.coverage!.left).toBeGreaterThan(0.3);
+      expect(g.coverage!.left).toBeLessThan(1);
+      expect(g.coverage!.right).toBeGreaterThan(0.3);
+      expect(g.elevation_m!.filter((v) => v !== null).length).toBeGreaterThan(g.centre.lat.length * 0.9);
+      expect(g.survey!.kerbs.length).toBeGreaterThan(5);
+    });
+
+    it("has null elevation, survey and coverage without captures, and fails for unknown tracks", async () => {
+      const { api } = await setup();
+      const g = await api.trackGeometry(TRACK);
+      expect(g.elevation_m).toBeNull();
+      expect(g.survey).toBeNull();
+      expect(g.coverage).toBeNull();
+      expect((await rejection(api.trackGeometry("nope"))).code).toBe("unknown_track");
+      expect((await rejection(api.trackGeometry("monza-grand-prix"))).code).toBe("unknown_track"); // synthetic
+    });
+
+    it("returns an independent copy each time", async () => {
+      const { api } = await setup();
+      const a = await api.trackGeometry(TRACK);
+      a.centre.lat[0] = 999;
+      expect((await api.trackGeometry(TRACK)).centre.lat[0]).not.toBe(999);
+    });
+  });
+
   it("compare without ref uses the reference for that track and car", async () => {
     const { api, lap } = await setup();
     expect((await api.compare(lap(1).lap_id)).ref_lap_id).toBe(lap(4).lap_id);

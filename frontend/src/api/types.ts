@@ -145,6 +145,61 @@ export interface CompareCandidate {
   other_car: boolean;
 }
 
+// ---- Track geometry ----
+
+/**
+ * How the recording's GPS (lat/lon) relates to the game's world x/z, in metres. Verified on Spa (docs/lmu-duckdb-schema.md):
+ * `x = lon * R * pi/180 * cos(origin_lat)`, `z = (lat - origin_lat) * R * pi/180`. World `y` is up.
+ */
+export interface LocalTransform {
+  kind: "equirectangular";
+  earth_radius_m: number;
+  origin_lat_deg: number;
+  origin_lon_deg: number;
+}
+
+/**
+ * Where the LMU-local frame sits on the real Earth: a similarity transform from world x/z (metres) to real lat/lon.
+ * Nothing in the recordings or captures pins this down, so it is null until a fit exists (public terrain data is not used
+ * yet). Views must work without it.
+ */
+export interface RealWorldFit {
+  /** Real lat/lon (degrees) of world x = 0, z = 0. */
+  origin_lat_deg: number;
+  origin_lon_deg: number;
+  /** Rotation of the local frame against east/north, degrees, and the scale (1 = metres match). */
+  rotation_deg: number;
+  scale: number;
+  /** RMS residual of the fit, metres. */
+  rms_m: number;
+}
+
+/**
+ * Everything the detailed 2D and 3D views need to draw a track, once per track (GET /api/tracks/{id}/geometry).
+ * Per-metre arrays share one 1 m grid starting at the start/finish line: index i is i metres along the centreline.
+ * Their length is the centreline's, about `length_m`. Edges and kerbs come from all laps and surveys, not one comparison.
+ */
+export interface TrackGeometry {
+  track_id: string;
+  /** Track length; the per-metre arrays follow the centreline and may differ by a few metres, so index by their own length. */
+  length_m: number;
+  /** The centreline in the recording's GPS frame (the line of a flying lap), one point per grid metre. */
+  centre: { lat: number[]; lon: number[] };
+  /**
+   * Metres, the game's world height (+ up) per grid metre, from a shared-memory capture (#94). Experimental.
+   * null when the track has no capture; an entry is null where the capture has no path nearby.
+   */
+  elevation_m: (number | null)[] | null;
+  /** Edges, kerbs and banking from a shared-memory survey (#97), on the same grid. null when the track has no survey. */
+  survey: TrackSurvey | null;
+  /**
+   * Share of the grid (0..1) where each side's edge is known, i.e. non-null in `survey.left_m` / `right_m`: measured, or
+   * interpolated across gaps of at most 8 m between samples. Lets later work (3D, coach facts) skip unmeasured stretches. null when there is no survey.
+   */
+  coverage: { left: number; right: number } | null;
+  transform: { local: LocalTransform; real_world: RealWorldFit | null };
+}
+
 // ---- Tracks (tracks.py) ----
 
 export interface Corner {

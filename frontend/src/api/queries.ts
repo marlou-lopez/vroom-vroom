@@ -11,6 +11,7 @@ export const qk = {
   compare: (lap: string, ref: string | null) => ["compare", lap, ref] as const,
   candidates: (lap: string) => ["candidates", lap] as const,
   trackMap: (trackId: string) => ["trackMap", trackId] as const,
+  trackGeometry: (trackId: string) => ["trackGeometry", trackId] as const,
   coachResults: (lap: string, ref: string | null) => ["coachResults", lap, ref] as const,
   summary: (sessionId: string) => ["summary", sessionId] as const,
   trace: (lapId: string, channels: GridChannel[] | undefined) => ["trace", lapId, channels?.join(",") ?? null] as const,
@@ -45,6 +46,15 @@ export const useCompareCandidates = (lap: string | null) =>
 
 export const useTrackMap = (trackId: string | null) =>
   useQuery({ queryKey: qk.trackMap(trackId ?? ""), queryFn: () => api.trackMap(trackId!), enabled: trackId !== null });
+
+/** Track geometry is large and the same for every comparison on the track, so it is fetched once and never refetched. */
+export const useTrackGeometry = (trackId: string | null) =>
+  useQuery({
+    queryKey: qk.trackGeometry(trackId ?? ""),
+    queryFn: () => api.trackGeometry(trackId!),
+    enabled: trackId !== null,
+    staleTime: Infinity,
+  });
 
 /** Stored coach results; only fetched once there is a comparison (`ref`). Writes made for a null `ref` live in the cache only. */
 export const useCoachResults = (lap: string | null, ref: string | null) =>

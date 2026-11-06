@@ -9,12 +9,12 @@ import {
   type CalibrationResult, type ChannelArrays, type CoachRequest, type CoachResult, type CoachResults,
   type Command, type CompareCandidate, type CompareResponse, type Corner, type Finding,
   type CarDims, type FindingKind, type GridChannel, type LlmCall, type SessionMeta, type SessionSummary, type TraceResponse,
-  type TrackMap, type LapMeta, type LapWithRef, type TrackSurvey,
+  type TrackMap, type LapMeta, type LapWithRef, type TrackGeometry, type TrackSurvey,
 } from "../types";
 import {
   cornerComparison, narrate, narrateInconsistent, spread, type Cause, type CornerComparison, type Narrative,
 } from "./coachFacts";
-import { buildElevationIndex, elevationProfile, type ElevationIndex } from "../../lib/elevation";
+import { buildElevationIndex, elevationProfile, EARTH_RADIUS_M, type ElevationIndex } from "../../lib/elevation";
 import { mapSurvey, type SurveyFile } from "../../lib/trackSurvey";
 import { fetchSpaElevation, type ElevationLoader } from "./elevation";
 import { fetchSpaSurvey, type SurveyLoader } from "./survey";
@@ -410,6 +410,40 @@ export function createMockApi(opts: MockOptions = {}): Api {
     return ref;
   };
 
+  /**
+   * The track's geometry on its own 1 m grid, built once: the centreline is the longest flying lap's line, the survey and
+   * elevation are mapped onto it in full. (The mock has one capture and one survey per track, so "all laps" is the capture.)
+   */
+  const geometryCache = new Map<string, TrackGeometry>();
+  const geometryOf = (trackId: string): TrackGeometry => {
+    const hit = geometryCache.get(trackId);
+    if (hit) return hit;
+    const map = mapOf(trackId);
+    // Monza is the Spa line stretched (no real geometry), so only Spa has any.
+    if (trackId !== SPA_TRACK_ID) throw new ApiError("unknown_track", `No geometry for ${trackId}`);
+    const flying = [...laps.values()].filter((l) => l.meta.track_id === trackId && l.meta.kind === "flying");
+    const line = flying.sort((x, y) => y.trace.distance.length - x.trace.distance.length)[0]?.trace.ch;
+    if (!line) throw new ApiError("unknown_track", `No laps on ${trackId}, so no geometry`);
+    const lat = Array.from(line.lat), lon = Array.from(line.lon);
+    const isSpa = trackId === SPA_TRACK_ID;
+    const survey = isSpa && surveyFile ? mapSurvey(surveyFile, lat, lon) : null;
+    const share = (v: (number | null)[]) => (v.length ? v.filter((x) => x !== null).length / v.length : 0);
+    const geometry: TrackGeometry = {
+      track_id: trackId,
+      length_m: map.length_m,
+      centre: { lat, lon },
+      elevation_m: isSpa && elevationIndex ? elevationProfile(elevationIndex, lat, lon) : null,
+      survey,
+      coverage: survey ? { left: round3(share(survey.left_m)), right: round3(share(survey.right_m)) } : null,
+      transform: {
+        local: { kind: "equirectangular", earth_radius_m: EARTH_RADIUS_M, origin_lat_deg: 60, origin_lon_deg: 0 },
+        real_world: null,
+      },
+    };
+    geometryCache.set(trackId, geometry);
+    return geometry;
+  };
+
   /** Compared on the common grid 0..min(lenA, lenB); laps of equal length share their arrays, longer ones are cut. */
   const compareRecs = (lap: LapRec, ref: LapRec): CompareResponse => {
     const key = `${lap.meta.lap_id}|${ref.meta.lap_id}`;
@@ -688,6 +722,10 @@ export function createMockApi(opts: MockOptions = {}): Api {
     },
     async trackMap(trackId) {
       return clone(mapOf(trackId));
+    },
+    async trackGeometry(trackId) {
+      await ensure();
+      return clone(geometryOf(trackId));
     },
     async addLandmark(trackId, landmark) {
       const m = mapOf(trackId);

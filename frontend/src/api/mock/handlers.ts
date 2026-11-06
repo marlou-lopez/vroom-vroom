@@ -44,6 +44,7 @@ export function createHandlers(engine: Api): HttpHandler[] {
       return reply(() => engine.compare(lap, param(request.url, "ref")));
     }),
     http.get("*/api/tracks/:id/map", ({ params }) => reply(() => engine.trackMap(str(params.id)))),
+    http.get("*/api/tracks/:id/geometry", ({ params }) => reply(() => engine.trackGeometry(str(params.id)))),
     http.post("*/api/tracks/:id/landmarks", async ({ params, request }) => {
       const landmark = (await request.json()) as Landmark;
       return reply(() => engine.addLandmark(str(params.id), landmark));
