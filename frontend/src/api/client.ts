@@ -3,7 +3,7 @@ import {
   type CalibrationResult, type CoachRequest, type CoachResult, type CoachResults, type CompareCandidate,
   type CompareResponse, type Finding, type GridChannel, type ImportResult, type Landmark, type LandmarkPatch,
   type LapMeta, type LapPatch, type LapWithRef, type LlmUsage, type SessionMeta, type SessionSummary,
-  type TraceResponse, type TrackMap,
+  type TraceResponse, type TrackGeometry, type TrackMap,
 } from "./types";
 
 /** The only way components talk to the backend. One method per route. */
@@ -16,6 +16,8 @@ export interface Api {
   compare(lap: string, ref?: string): Promise<CompareResponse>;
   compareCandidates(lapId: string): Promise<CompareCandidate[]>;
   trackMap(trackId: string): Promise<TrackMap>;
+  /** Centreline, elevation, edges, kerbs and the coordinate transform of a track, computed once per track. */
+  trackGeometry(trackId: string): Promise<TrackGeometry>;
   addLandmark(trackId: string, landmark: Landmark): Promise<TrackMap>;
   patchLandmark(trackId: string, landmarkId: string, patch: LandmarkPatch): Promise<TrackMap>;
   deleteLandmark(trackId: string, landmarkId: string): Promise<TrackMap>;
@@ -80,6 +82,7 @@ export function createRealApi(baseUrl = ""): Api {
     compare: (lap, ref) => request(`/compare${query({ lap, ref })}`),
     compareCandidates: (lap) => request(`/laps/${enc(lap)}/compare-candidates`),
     trackMap: (trackId) => request(`/tracks/${enc(trackId)}/map`),
+    trackGeometry: (trackId) => request(`/tracks/${enc(trackId)}/geometry`),
     addLandmark: (trackId, lm) => request(`/tracks/${enc(trackId)}/landmarks`, { method: "POST", body: lm }),
     patchLandmark: (trackId, id, patch) =>
       request(`/tracks/${enc(trackId)}/landmarks/${enc(id)}`, { method: "PATCH", body: patch }),

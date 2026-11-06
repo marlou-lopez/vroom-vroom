@@ -38,6 +38,13 @@ describe("realApi over MSW", () => {
     expect(laps.length).toBeGreaterThan(0);
   });
 
+  it("fetches track geometry, and 404s for an unknown track", async () => {
+    const g = await api.trackGeometry("spa-francorchamps-grand-prix");
+    expect(g.track_id).toBe("spa-francorchamps-grand-prix");
+    expect(g.centre.lat.length).toBeGreaterThan(1000);
+    expect((await rejection(api.trackGeometry("nope"))).code).toBe("unknown_track");
+  });
+
   it("compares a lap with its reference", async () => {
     const sessions = await api.sessions();
     const spa = sessions.find((s) => s.started_at.startsWith("2026-11-03"))!;
