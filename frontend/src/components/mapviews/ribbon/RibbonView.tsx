@@ -15,7 +15,7 @@ import { benchMarkdown, type BenchRow } from "../detailed/bench";
 import { buildScene, carPositions, type CarSync } from "../detailed/scene";
 import { AnnotationBadges } from "../shared/AnnotationBadges";
 import { Ring } from "../shared/ring";
-import { loadString, saveString } from "../shared/storage";
+import { loadSetting, loadString, saveString } from "../shared/storage";
 import type { TrackViewProps } from "../types";
 import { dashAt } from "./dashValues";
 import { runRibbonBench, type RibbonBenchControl } from "./bench";
@@ -59,8 +59,7 @@ function loadExaggeration(): number {
 }
 
 function loadMode(): ViewMode {
-  const v = loadString(MODE_KEY);
-  return VIEW_MODES.includes(v as ViewMode) ? (v as ViewMode) : "chase";
+  return loadSetting(MODE_KEY, VIEW_MODES, "chase");
 }
 
 function loadSplit(): boolean {

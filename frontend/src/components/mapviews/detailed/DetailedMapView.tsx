@@ -1,30 +1,25 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  FOLLOW_WIDTH_M, MIN_WIDTH_M, fitBounds, followCamera, northUp, panBy, screenToWorld, smoothHeading, worldToScreen, zoomAt,
+  FOLLOW_WIDTH_M, fitBounds, followCamera, northUp, panBy, smoothHeading, worldToScreen, zoomAt,
   type Camera, type Viewport,
 } from "../../../lib/camera";
 import { cx } from "../../../lib/cx";
 import { debugEnabled } from "../../../lib/debugFlag";
 import { pointAt } from "../../../lib/geo";
-import { summarize } from "../../../lib/perf";
 import { distanceAtTime, timeAtDistance } from "../../../lib/playback";
-import { seekIndexNear } from "../../../lib/seek";
-import { MAP_HIT_PX } from "../../../lib/trackmap";
 import { usePlaybackStore } from "../../../state/playback";
 import ui from "../../ui.module.css";
 import type { TrackViewProps } from "../types";
-import { benchMarkdown, runBench, type BenchControl, type BenchRow, type CameraMode } from "./bench";
+import type { BenchControl, CameraMode } from "./bench";
 import { GAIN_STYLES, loadRenderer, type GainStyle, type Renderer } from "./renderer";
 import { buildScene, carPositions, type CarSync, type EdgeSource, type LineSource } from "./scene";
 import { AnnotationBadges } from "../shared/AnnotationBadges";
-import { Ring } from "../shared/ring";
-import { loadFlag, saveFlag } from "../shared/storage";
+import { loadFlag, loadSetting, saveFlag, saveSetting } from "../shared/storage";
 import styles from "./DetailedMapView.module.css";
+import { useBenchHud } from "./useBenchHud";
+import { useMapGestures } from "./useMapGestures";
 
-const HUD_MS = 250;
-const DRAG_PX = 3;
-const CLICK_PX = 4;
 const HEADING_ALPHA = 0.2;
 const HEADING_JUMP_M = 50;
 /** Draws closer together than this are not frame intervals (a second draw within the same frame). */
@@ -36,44 +31,19 @@ const RESTORE_WAIT_MS = 3000;
 
 type GpuState = "ok" | "lost" | "stuck" | "failed";
 
-interface Drag { id: number; lastX: number; lastY: number; total: number; sumX: number; sumY: number }
-
-const f1 = (v: number) => v.toFixed(1);
-
 /** Whether the line ahead of each car is shown (#48). */
 const LINE_AHEAD_KEY = "vroom.lineAhead";
 /** How gain/loss is shown (#59): off, beside the track, or on the track surface. */
 const GAIN_LOSS_KEY = "vroom.gainLoss";
 
 /** The remembered gain/loss style; default "side". An older "0" (toggle off) reads as "off". */
-function loadGainStyle(): GainStyle {
-  try {
-    const v = globalThis.localStorage?.getItem(GAIN_LOSS_KEY);
-    if (v === "0") return "off";
-    return GAIN_STYLES.includes(v as GainStyle) ? (v as GainStyle) : "side";
-  } catch {
-    return "side";
-  }
-}
-
-function saveGainStyle(style: GainStyle): void {
-  try {
-    globalThis.localStorage?.setItem(GAIN_LOSS_KEY, style);
-  } catch {
-    // Private window or blocked storage: not remembered.
-  }
-}
+const loadGainStyle = (): GainStyle => loadSetting(GAIN_LOSS_KEY, GAIN_STYLES, "side", { legacy: { "0": "off" } });
 
 /** Where the track edges come from (#36, experimental); default "stand-in". */
 const EDGES_KEY = "vroom.edges";
 
-function loadEdgeSource(): EdgeSource {
-  try {
-    return globalThis.localStorage?.getItem(EDGES_KEY) === "telemetry" ? "telemetry" : "stand-in";
-  } catch {
-    return "stand-in";
-  }
-}
+const EDGE_SOURCES: readonly EdgeSource[] = ["stand-in", "telemetry"];
+const loadEdgeSource = (): EdgeSource => loadSetting(EDGES_KEY, EDGE_SOURCES, "stand-in");
 
 export function DetailedMapView({ model, annotations, handlers }: TrackViewProps) {
   const store = usePlaybackStore();
@@ -93,16 +63,9 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const [freeRotated, setFreeRotated] = useState(false);
   const [lineAhead, setLineAheadState] = useState(() => loadFlag(LINE_AHEAD_KEY));
   const [gainStyle, setGainStyleState] = useState(loadGainStyle);
-  const [showHud, setShowHud] = useState(true);
-  const [hudText, setHudText] = useState("");
-  const [dragging, setDragging] = useState(false);
-  const [running, setRunning] = useState(false);
-  const [rows, setRows] = useState<BenchRow[]>([]);
-  const [panel, setPanel] = useState<Viewport | undefined>(undefined);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
-  const reportRef = useRef<HTMLTextAreaElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
   const lostRef = useRef(false);
   const lostTimer = useRef(0);
@@ -123,13 +86,12 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const vp = useRef<Viewport>({ w: 0, h: 0 });
   const raf = useRef(0);
   const lastDrawT = useRef(0);
-  const frames = useRef(new Ring());
-  const draws = useRef(new Ring());
-  const drawRec = useRef<number[] | null>(null);
-  const benchRunning = useRef(false);
-  const abort = useRef<AbortController | null>(null);
   const badgeEls = useRef(new Map<string, HTMLButtonElement>());
-  const drag = useRef<Drag | null>(null);
+
+  const {
+    showHud, setShowHud, hudText, running, rows, clearRows, markdown, copy, startBench, reportRef,
+    frames, draws, drawRec, benchRunning,
+  } = useBenchHud({ debug, viewport: () => vp.current, makeControl, onRunStart: suspendHeadingUp });
 
   const drawFrame = useCallback((now: number) => {
     raf.current = 0;
@@ -177,7 +139,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
       el.style.transform = `translate(${s.x.toFixed(1)}px, ${y.toFixed(1)}px)`;
       el.style.visibility = s.x < -10 || s.x > v.w + 10 || y < -10 || y > v.h + 10 ? "hidden" : "visible";
     }
-  }, [store]);
+  }, [store, frames, draws, drawRec, benchRunning]);
 
   const requestDraw = useCallback(() => {
     if (!raf.current) raf.current = requestAnimationFrame(drawFrame);
@@ -198,6 +160,26 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     setModeState(next);
     requestDraw();
   }, [requestDraw, setFreeCam]);
+
+  const zoomBy = useCallback((factor: number, anchor: { x: number; y: number }, limits: { minM: number; maxM: number }) => {
+    if (modeRef.current === "follow") {
+      followW.current = Math.min(Math.max(followW.current * factor, limits.minM), limits.maxM);
+    } else {
+      const cam = freeCam.current ?? fitBounds(sceneRef.current.bounds, vp.current);
+      freeCam.current = zoomAt(cam, vp.current, anchor, factor, limits);
+    }
+    requestDraw();
+  }, [requestDraw]);
+
+  const panFree = useCallback((dx: number, dy: number) => {
+    const cam = freeCam.current ?? fitBounds(sceneRef.current.bounds, vp.current);
+    freeCam.current = panBy(cam, vp.current, dx, dy);
+    requestDraw();
+  }, [requestDraw]);
+
+  const gestures = useMapGestures({
+    rootRef, vp, sceneRef, cmpRef, modeRef, shownCam, benchRunning, store, applyMode, zoomBy, panFree,
+  });
 
   // Keep the refs the draw loop reads in step with the props.
   useEffect(() => {
@@ -226,7 +208,6 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   useEffect(() => () => {
     cancelAnimationFrame(raf.current);
     raf.current = 0;
-    abort.current?.abort();
     window.clearTimeout(lostTimer.current);
   }, []);
 
@@ -299,107 +280,11 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     };
   }, [requestDraw]);
 
-  // Wheel needs preventDefault, so it is attached non-passive by hand.
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-    const onWheel = (e: WheelEvent) => {
-      if ((e.target as Element).closest("[data-controls]")) return;
-      e.preventDefault();
-      if (benchRunning.current) return;
-      const v = vp.current;
-      const sc = sceneRef.current;
-      const factor = Math.pow(1.0015, e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY);
-      const limits = { minM: MIN_WIDTH_M, maxM: fitBounds(sc.bounds, v).widthM * 1.2 };
-      if (modeRef.current === "follow") {
-        followW.current = Math.min(Math.max(followW.current * factor, limits.minM), limits.maxM);
-      } else {
-        const rect = root.getBoundingClientRect();
-        const cam = freeCam.current ?? fitBounds(sc.bounds, v);
-        freeCam.current = zoomAt(cam, v, { x: e.clientX - rect.left, y: e.clientY - rect.top }, factor, limits);
-      }
-      requestDraw();
-    };
-    root.addEventListener("wheel", onWheel, { passive: false });
-    return () => root.removeEventListener("wheel", onWheel);
-  }, [requestDraw]);
-
   // The flag is fixed per page load; the renderer also gets it when it is created.
   useEffect(() => {
     rendererRef.current?.setEdgeDebug(debug);
     requestDraw();
   }, [debug, requestDraw]);
-
-  // HUD numbers: at most 4 updates a second, and only while shown.
-  useEffect(() => {
-    if (!debug || !showHud) return;
-    const id = setInterval(() => {
-      const s = summarize(frames.current.values());
-      const d = summarize(draws.current.values());
-      if (s.fps === 0) return;
-      setHudText(`${s.fps.toFixed(0)} fps  ${f1(s.meanMs)} ms  p95 ${f1(s.p95Ms)}  max ${f1(s.maxMs)}  >20ms ${s.over20}\ndraw p95 ${f1(d.p95Ms)} ms`);
-    }, HUD_MS);
-    return () => clearInterval(id);
-  }, [debug, showHud]);
-
-  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || drag.current || benchRunning.current) return;
-    // Hover cards render in a portal, but React still bubbles their events here; capturing them would eat their clicks.
-    if (!e.currentTarget.contains(e.target as Node)) return;
-    if ((e.target as Element).closest("[data-annotation-badge],[data-controls]")) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = { id: e.pointerId, lastX: e.clientX, lastY: e.clientY, total: 0, sumX: 0, sumY: 0 };
-  };
-
-  const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    const d = drag.current;
-    if (!d || e.pointerId !== d.id) return;
-    const dx = e.clientX - d.lastX, dy = e.clientY - d.lastY;
-    d.lastX = e.clientX;
-    d.lastY = e.clientY;
-    d.total += Math.abs(dx) + Math.abs(dy);
-    d.sumX += dx;
-    d.sumY += dy;
-    let pan: [number, number] | null = [dx, dy];
-    if (modeRef.current === "follow") {
-      if (d.total <= DRAG_PX) return;
-      // Start free from the picture on screen, then catch up with the movement so far.
-      applyMode("free");
-      pan = [d.sumX, d.sumY];
-    }
-    if (!dragging) setDragging(true);
-    const cam = freeCam.current ?? fitBounds(sceneRef.current.bounds, vp.current);
-    freeCam.current = panBy(cam, vp.current, pan[0], pan[1]);
-    requestDraw();
-  };
-
-  /** A press and release with < CLICK_PX movement seeks to the lap-line point within MAP_HIT_PX nearest your car along the lap. */
-  const seekAt = (e: PointerEvent<HTMLDivElement>) => {
-    const cam = shownCam.current;
-    const v = vp.current;
-    const root = rootRef.current;
-    if (!cam || !root || v.w <= 0) return;
-    const rect = root.getBoundingClientRect();
-    const w = screenToWorld(cam, v, { x: e.clientX - rect.left, y: e.clientY - rect.top });
-    const c = cmpRef.current;
-    const here = Math.round(distanceAtTime(c.lap.t, c.distance, store.get().tau));
-    const best = seekIndexNear(sceneRef.current.lap, w, MAP_HIT_PX / (v.w / cam.widthM), here);
-    if (best < 0) return;
-    store.seek(timeAtDistance(c.lap.t, c.distance, best));
-  };
-
-  const onPointerUp = (e: PointerEvent<HTMLDivElement>) => {
-    const d = drag.current;
-    if (d && e.pointerId === d.id && d.total < CLICK_PX) seekAt(e);
-    endDrag(e);
-  };
-
-  const endDrag = (e: PointerEvent<HTMLDivElement>) => {
-    if (!drag.current || e.pointerId !== drag.current.id) return;
-    drag.current = null;
-    setDragging(false);
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-  };
 
   const fit = () => {
     modeRef.current = "free";
@@ -430,7 +315,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     const next = v as GainStyle;
     gainStyleRef.current = next;
     setGainStyleState(next);
-    saveGainStyle(next);
+    saveSetting(GAIN_LOSS_KEY, next);
     rendererRef.current?.setGainStyle(next);
     requestDraw();
   };
@@ -454,79 +339,50 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
     requestDraw();
   };
 
-  const makeControl = (): BenchControl => ({
-    viewport: () => vp.current,
-    fitCamera: () => fitBounds(sceneRef.current.bounds, vp.current),
-    lapLength: () => sceneRef.current.ref.x.length,
-    refPoint: (d) => pointAt(sceneRef.current.ref, d),
-    lapTimeAtDistance: (d) => timeAtDistance(cmpRef.current.lap.t, cmpRef.current.distance, d),
-    seek: (tau) => store.seek(tau),
-    play: () => store.play(),
-    pause: () => store.pause(),
-    setMode: (m) => applyMode(m),
-    setCamera: (c) => {
-      setFreeCam(c);
-      requestDraw();
-    },
-    snapshot: () => ({ playing: store.get().playing, tau: store.get().tau, mode: modeRef.current, camera: shownCam.current }),
-    restore: (s) => {
-      if (s.camera) setFreeCam(s.camera);
-      applyMode(s.mode);
-      store.seek(s.tau);
-      if (s.playing) store.play();
-      else store.pause();
-      requestDraw();
-    },
-    recordDraws: (on) => {
-      drawRec.current = on ? [] : null;
-    },
-    drawTimes: () => drawRec.current ?? [],
-  });
+  /** Hoisted: the bench hook is created before the camera functions this reads. */
+  function makeControl(): Omit<BenchControl, "recordDraws" | "drawTimes"> {
+    return {
+      viewport: () => vp.current,
+      fitCamera: () => fitBounds(sceneRef.current.bounds, vp.current),
+      lapLength: () => sceneRef.current.ref.x.length,
+      refPoint: (d) => pointAt(sceneRef.current.ref, d),
+      lapTimeAtDistance: (d) => timeAtDistance(cmpRef.current.lap.t, cmpRef.current.distance, d),
+      seek: (tau) => store.seek(tau),
+      play: () => store.play(),
+      pause: () => store.pause(),
+      setMode: (m) => applyMode(m),
+      setCamera: (c) => {
+        setFreeCam(c);
+        requestDraw();
+      },
+      snapshot: () => ({ playing: store.get().playing, tau: store.get().tau, mode: modeRef.current, camera: shownCam.current }),
+      restore: (s) => {
+        if (s.camera) setFreeCam(s.camera);
+        applyMode(s.mode);
+        store.seek(s.tau);
+        if (s.playing) store.play();
+        else store.pause();
+        requestDraw();
+      },
+    };
+  }
 
-  const startBench = async () => {
-    if (benchRunning.current) return;
-    benchRunning.current = true;
-    setRunning(true);
-    setPanel({ ...vp.current });
-    const ac = new AbortController();
-    abort.current = ac;
-    const ctl = makeControl();
-    const hadHeadingUp = headingUpRef.current;
+  /** Heading-up is off during a benchmark run; the returned function puts it back. */
+  function suspendHeadingUp() {
+    const had = headingUpRef.current;
     headingUpRef.current = false;
-    try {
-      const out = await runBench(ctl, ac.signal);
-      setRows((prev) => [...prev, ...out]);
-    } finally {
-      headingUpRef.current = hadHeadingUp;
+    return () => {
+      headingUpRef.current = had;
       resetHeading.current = true;
-      benchRunning.current = false;
-      setRunning(false);
-    }
-  };
-
-  const markdown = benchMarkdown(rows, { panel });
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(markdown);
-    } catch {
-      const ta = reportRef.current;
-      if (!ta) return;
-      ta.select();
-      document.execCommand("copy");
-    }
-  };
+    };
+  }
 
   return (
     <div
       ref={rootRef}
       className={styles.root}
-      data-dragging={dragging}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={endDrag}
-      onLostPointerCapture={endDrag}
+      data-dragging={gestures.dragging}
+      {...gestures.handlers}
     >
       <div ref={hostRef} className={styles.host} aria-hidden="true" />
       <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} />
@@ -587,7 +443,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
             onValueChange={(v) => {
               if (v !== "stand-in" && v !== "telemetry") return;
               setEdgeSourceState(v);
-              try { globalThis.localStorage?.setItem(EDGES_KEY, v); } catch { /* not remembered */ }
+              saveSetting(EDGES_KEY, v);
             }}
           >
             <ToggleGroup.Item value="stand-in" className={ui.toggleItem} title="The centreline plus and minus 7 m">Stand-in</ToggleGroup.Item>
@@ -648,7 +504,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
             <textarea ref={reportRef} readOnly rows={Math.min(rows.length + 6, 14)} value={markdown} aria-label="Benchmark results" />
             <div className={styles.bar}>
               <button type="button" className={cx(ui.btn, styles.small)} onClick={copy}>Copy as Markdown</button>
-              <button type="button" className={cx(ui.btn, ui.btnMuted, styles.small)} disabled={running} onClick={() => setRows([])}>Clear</button>
+              <button type="button" className={cx(ui.btn, ui.btnMuted, styles.small)} disabled={running} onClick={clearRows}>Clear</button>
             </div>
           </div>
         )}
