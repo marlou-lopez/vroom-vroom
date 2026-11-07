@@ -14,9 +14,10 @@ describe("formatLapTime", () => {
     for (const v of [null, NaN, Infinity, -Infinity]) expect(formatLapTime(v)).toBe("–:––.–––");
   });
 
-  it.fails("carries into the minute when seconds round up to 60 (#1)", () => {
+  it("carries into the minute when seconds round up to 60 (#1)", () => {
     expect(formatLapTime(59.9996)).toBe("1:00.000");
     expect(formatLapTime(119.9996)).toBe("2:00.000");
+    expect(formatLapTime(9.9996)).toBe("0:10.000");
   });
 });
 
@@ -28,8 +29,15 @@ describe("formatClock", () => {
     expect(formatClock(600)).toBe("10:00.0");
   });
 
-  it.fails("carries into the minute when seconds round up to 60 (#1)", () => {
+  it("carries into the minute when seconds round up to 60 (#1)", () => {
     expect(formatClock(59.96)).toBe("1:00.0");
+    expect(formatClock(59.97)).toBe("1:00.0");
+    expect(formatClock(3599.96)).toBe("60:00.0");
+  });
+
+  it("keeps values that round down under the minute and carries past 10 s", () => {
+    expect(formatClock(59.94)).toBe("0:59.9");
+    expect(formatClock(9.96)).toBe("0:10.0");
   });
 });
 
