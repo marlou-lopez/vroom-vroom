@@ -1,16 +1,22 @@
+/** Rounds to 1/`perSec` s first, then splits into `m:ss.fff`, so 59.97 can't become `0:60.0`. */
+function splitRounded(s: number, perSec: number): string {
+  const units = Math.round(s * perSec);
+  const m = Math.floor(units / (60 * perSec));
+  const rest = units - m * 60 * perSec;
+  const digits = String(perSec).length - 1;
+  const sec = (rest / perSec).toFixed(digits);
+  return `${m}:${rest < 10 * perSec ? "0" : ""}${sec}`;
+}
+
 /** `2:23.751` */
 export function formatLapTime(s: number | null): string {
   if (s === null || !Number.isFinite(s)) return "–:––.–––";
-  const m = Math.floor(s / 60);
-  const sec = s - m * 60;
-  return `${m}:${sec < 10 ? "0" : ""}${sec.toFixed(3)}`;
+  return splitRounded(s, 1000);
 }
 
 /** `1:32.4` playback clock. */
 export function formatClock(s: number): string {
-  const m = Math.floor(s / 60);
-  const sec = s - m * 60;
-  return `${m}:${sec < 10 ? "0" : ""}${sec.toFixed(1)}`;
+  return splitRounded(s, 10);
 }
 
 /** `+0.841` / `−0.120` (true minus sign). */
