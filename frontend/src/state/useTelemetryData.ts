@@ -26,23 +26,29 @@ export function useTelemetryData(lapParam: string | null, refParam: string | nul
   // Laps of every session, in parallel and cached (the Sessions page shares them); the scan below still goes newest first.
   const lapsQ = useQueries({
     queries: sorted.map((s) => sessionLapsOptions(s.session_id)),
-    combine: (rs) => ({ laps: rs.map((r) => r.data), error: rs.find((r) => r.error)?.error ?? null }),
+    combine: (rs) => ({ laps: rs.map((r) => r.data), errors: rs.map((r) => r.error) }),
   });
 
-  // Scan newest first; stop at the first session that is still loading.
+  // Scan newest first; stop at the first session that is still loading. A session whose own /laps failed is skipped
+  // (its error is only shown if no other session has the lap); another session's error never counts for this one.
   let found: LapContext | null = null;
   let error: unknown = sessionsQ.error;
   let pending = !sessionsQ.data && !error;
+  let lapsError: unknown = null;
   for (let i = 0; !error && !found && i < sorted.length; i++) {
     const laps = lapsQ.laps[i];
     if (!laps) {
-      error = lapsQ.error;
-      pending = !error;
+      if (lapsQ.errors[i]) {
+        lapsError ??= lapsQ.errors[i];
+        continue;
+      }
+      pending = true;
       break;
     }
     const lap = lapParam ? laps.find((l) => l.lap_id === lapParam) : bestValidLap(laps);
     if (lap) found = { session: sorted[i], laps, lap };
   }
+  if (!found && !pending && !error) error = lapsError;
   // Keep the context's identity while its parts are unchanged (an effect on the page depends on it).
   const ctx = useMemo(() => found, [found?.session, found?.laps, found?.lap]); // oxlint-disable-line react-hooks/exhaustive-deps
 
