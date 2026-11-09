@@ -1,10 +1,12 @@
 // One-off extractor: LMU .duckdb -> 1 m grid JSON for the mock API. Run from a dir with @duckdb/node-api installed:
-//   node extract-laps.mjs <recording.duckdb> <out.json>
+//   node extract-laps.mjs <recording.duckdb> <out.json> "<source label>" [lap,numbers,to,keep]
 // NOTE LMU swaps its G channels: 'G Force Lat' is longitudinal, 'G Force Long' is lateral (mapped below).
 // Throttle comes from 'Throttle Pos Unfiltered' (the pedal); 'Throttle Pos' includes the ignition cut at every upshift (#49).
 import { DuckDBInstance } from '@duckdb/node-api';
 import fs from 'node:fs';
-const [,, file, out] = process.argv;
+const [,, file, out, label, keepArg] = process.argv;
+const keep = keepArg ? new Set(keepArg.split(',').map(Number)) : null; // lap numbers to write; the default is every lap
+if (!file || !out || !label) throw new Error('usage: node extract-laps.mjs <recording.duckdb> <out.json> "<source label>" [lap,numbers]');
 const db = await DuckDBInstance.create(file, { access_mode: 'READ_ONLY' });
 const c = await db.connect();
 const q = async (s) => (await c.runAndReadAll(s)).getRowObjectsJson();
@@ -67,8 +69,9 @@ for (let k = 0; k < laps.length; k++) {
     g.track_edge[d] = +interp(ch.te.t, ch.te.v, t).toFixed(2);
     g.kerb[d] = step(kerb.t, kerb.v, t);
   }
+  if (keep && !keep.has(k)) continue;
   out_laps.push({ lap_no: k, start_ts: a, end_ts: b, lap_time_s: lt ? (lt.v > 0 ? +lt.v.toFixed(3) : 0) : null, length_m: L, ...g });
   console.log('lap', k, 'start', a.toFixed(2), 'dur', (b - a).toFixed(2), 'time', lt ? lt.v.toFixed(3) : '-', 'firstDist', ds[0].toFixed(1), 'L', L, 'gridT', g.t[L]);
 }
-fs.writeFileSync(out, JSON.stringify({ source: 'LMU recording 2026-11-03 Spa practice, 720S (Garage 59 #58)', steering_range_deg: 524, laps: out_laps }));
+fs.writeFileSync(out, JSON.stringify({ source: label, steering_range_deg: 524, laps: out_laps }));
 console.log('bytes', fs.statSync(out).size);

@@ -3,11 +3,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { createMockApi } from "../api/mock/mockApi";
-import type { SpaRecording } from "../api/mock/recording";
+import type { Recording } from "../api/mock/recording";
 import { buildElevationIndex, elevationProfile, type ElevationTrack } from "./elevation";
 
 const read = (p: string) => JSON.parse(readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8"));
-const REC = read("../../public/mock/spa-2026-11-03.json") as SpaRecording;
+const REC = read("../../public/mock/spa-2026-11-03.json") as Recording;
+const MONZA = read("../../public/mock/monza-2026-11-05.json") as Recording;
 const CAP = read("../../public/mock/spa-elevation-2026-11-05.json") as ElevationTrack;
 const idx = buildElevationIndex(CAP);
 const FLYING = [1, 2, 3, 4];
@@ -50,7 +51,7 @@ describe("Spa elevation attached to the 3 Nov recording", () => {
   });
 
   it("is served through compare for Spa laps and is null for Monza", async () => {
-    const api = createMockApi({ coachDelayMs: 0, loadSpa: async () => REC, loadElevation: async () => CAP });
+    const api = createMockApi({ coachDelayMs: 0, loadSpa: async () => REC, loadMonza: async () => MONZA, loadElevation: async () => CAP });
     const sessions = await api.sessions();
     const spa = sessions.find((s) => s.track_id === "spa-francorchamps-grand-prix")!;
     const laps = await api.sessionLaps(spa.session_id);

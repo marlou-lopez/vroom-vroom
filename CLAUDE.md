@@ -14,7 +14,7 @@ and GitHub Issues is disabled. Before starting, run `bd ready --exclude-type epi
 epic`). Each issue stands on its own and lists its dependencies. Don't rely on this file for progress.
 
 This section only records facts that change rarely (last checked 2026-11-07):
-- **Phase:** the frontend runs on a mock API serving one real Spa recording. The backend
+- **Phase:** the frontend runs on a mock API serving real Spa and Monza recordings. The backend
   hasn't been started, and there's no `backend/` directory yet.
 - **Agreed order:** first the **Track views** milestone (detailed 2D, then 3D), then the remaining
   `v1 – UI on mock data` issues, then the `Analysis features` milestone (new analysis split out of v1
@@ -31,7 +31,7 @@ This section only records facts that change rarely (last checked 2026-11-07):
 |---|---|
 | `frontend/` | React 18 + TypeScript (~5.9) + Vite app |
 | `frontend/src/api/types.ts`, `client.ts` | **The API contract.** The future backend must match it |
-| `frontend/src/api/mock/` | MSW mock API built on the real Spa laps (`public/mock/spa-2026-11-03.json`) |
+| `frontend/src/api/mock/` | MSW mock API built on real laps: Spa (`public/mock/spa-2026-11-03.json`) and Monza (`monza-2026-11-05.json`). Spa also has the edge survey and elevation; Monza has only the centreline |
 | `frontend/src/pages/` | Telemetry (home, `/`), Sessions, Tracks |
 | `frontend/src/lib/` | Pure logic: playback, track map projection, strips, formatting, car attitude estimate for the cockpit camera (unit-tested) |
 | `frontend/src/state/` | Zustand playback store, data and coach hooks |
@@ -39,7 +39,7 @@ This section only records facts that change rarely (last checked 2026-11-07):
 | `frontend/public/local-models/` | **Git-ignored** developer-fallback folder for 3D car models, `<car_id>.glb` (#102). Only its `README.md` is committed. The 3D view's lookup order is the user's model stored in the browser (IndexedDB, loaded in the 3D view's Car popover, which converts raw glTF folders, zips and large .glb files in a Web Worker), then this folder, then the box. Never commit a model, its textures or a converted copy (licence) |
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone (e.g. `edge-survey.md`, `elevation-shared-memory.md`) |
-| `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON (needs `npm i @duckdb/node-api`) |
+| `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON: `node extract-laps.mjs <copy.duckdb> <out.json> "<source label>" [laps]` (needs `npm i @duckdb/node-api`) |
 | `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`, `survey`) (#94, #97). Captures stay out of git |
 | `tools/optimize-car-model.mjs` | Command-line twin of the Car popover's in-browser converter: turns a downloaded car glTF (folder, zip, .gltf, .glb) into one small GLB for `frontend/public/local-models/`. Imports `frontend/src/components/mapviews/ribbon/convert/` (the shared drop list, settings and pipeline; needs `npm ci` in `frontend/`, and network once for `sharp`). Its output is never committed (#102, `docs/track-views/car-model.md`) |
 | `docs/spec.md` | Product spec: goals, non-goals, milestones as Beads epics, order of work |

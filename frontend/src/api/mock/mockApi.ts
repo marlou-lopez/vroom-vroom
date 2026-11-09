@@ -1,5 +1,5 @@
 // In-memory implementation of the Api interface, used while VITE_API=mock (and by tests).
-// Spa sessions are built from the real 3 Nov recording (fetched lazily on the first call); Monza stays synthetic.
+// Spa and Monza sessions are built from the real 3 Nov (Spa) and 5 Nov (Monza) recordings, fetched lazily on the first call.
 // All state lives inside the object returned by createMockApi(); a page reload resets it.
 import type { Api } from "../client";
 import {
@@ -18,31 +18,34 @@ import { buildElevationIndex, elevationProfile, EARTH_RADIUS_M, type ElevationIn
 import { mapSurvey, type SurveyFile } from "../../lib/trackSurvey";
 import { fetchSpaElevation, type ElevationLoader } from "./elevation";
 import { fetchSpaSurvey, type SurveyLoader } from "./survey";
-import { fetchSpaRecording, lapToTrace, scaleTime, type SpaLoader, type SpaRecording, type Trace } from "./recording";
-import { makeSpaLap, SPA_TRACK_ID } from "./spa";
-import { deriveLandmarks, spaCorners, SPA_TRACK_LENGTH_M } from "./spaTrack";
+import { fetchRecording, lapToTrace, scaleTime, type Recording, type RecordingLap, type RecordingLoader, type RecordingTrack, type Trace } from "./recording";
+import { monzaCorners, MONZA_TRACK_ID, MONZA_TRACK_LENGTH_M } from "./monzaTrack";
+import { deriveLandmarks, spaCorners, SPA_TRACK_ID, SPA_TRACK_LENGTH_M } from "./spaTrack";
 
 export interface MockOptions {
   /** Delay before coach() resolves (ms). The plan asks for 1.2 s; tests pass 0. */
   coachDelayMs?: number;
   /** Supplies the real Spa recording. Called once, on the first Api call. Default: fetch /mock/spa-2026-11-03.json. */
-  loadSpa?: SpaLoader;
+  loadSpa?: RecordingLoader;
+  /**
+   * Supplies the real Monza recording, like `loadSpa`. Default: fetch /mock/monza-2026-11-05.json. When a custom loader is
+   * given for one track and not the other, the other track has no sessions.
+   */
+  loadMonza?: RecordingLoader;
   /**
    * Supplies the Spa elevation capture (#94). Default: fetch /mock/spa-elevation-2026-11-05.json, or none when a custom
-   * `loadSpa` is given. A failed or null load only means `elevation` is null in compare responses.
+   * `loadSpa` or `loadMonza` is given. A failed or null load only means `elevation` is null in compare responses.
    */
   loadElevation?: ElevationLoader;
   /**
    * Supplies the Spa track survey (#97). Default: fetch /mock/spa-survey-2026-11-06.json, or none when a custom
-   * `loadSpa` is given. A failed or null load only means `track_survey` is null in compare responses.
+   * `loadSpa` or `loadMonza` is given. A failed or null load only means `track_survey` is null in compare responses.
    */
   loadSurvey?: SurveyLoader;
 }
 
 // ---- seed data ----
 
-const MONZA_TRACK_ID = "monza-grand-prix";
-const MONZA_LENGTH_M = 5793;
 /**
  * McLaren 720S GT3: length 4,664 mm, width 2,040 mm, wheelbase 2,696 mm, from McLaren's customer-racing technical sheet
  * (https://mclaren.pagetiger.com/coeljug/1/page3.htm) and https://www.ultimatecarpage.com/spec/6972/McLaren-720S-GT3.html.
@@ -58,43 +61,37 @@ const CAR_720S = { car_name: "McLaren 720S GT3 Evo", car_id: "mclaren_720s_gt3_e
 const CAR_PORSCHE = { car_name: "Porsche 911 GT3 R", car_id: "porsche_911_gt3_r" };
 
 /** `src` is the lap_no in the recording. With `time`, the lap's t is scaled to that time; without, the recording's own time is kept. */
-interface SpaLapSpec {
+interface LapSpec {
   kind: LapMeta["kind"];
   src: number;
   time?: number;
   valid?: boolean;
 }
 
-interface MonzaLapSpec {
-  kind: LapMeta["kind"];
-  time: number;
-  valid?: boolean;
-}
-
 interface SessionSpec {
   seed: string;
+  track: RecordingTrack;
   started_at: string;
   car: typeof CAR_720S;
   type: string;
-  /** Spa only: the recording's range for the 720S, null for the Porsche. */
+  /** The recording's steering range for the 720S, null for the Porsche. */
   steering: "recorded" | null;
   /** null = config/cars.yaml doesn't know the car (exercises the generic GT3 size fallback). */
   dims: CarDims | null;
   trackTempC: number;
   airTempC: number;
   focus: { instruction: string; improved: boolean | null } | null;
-  spa?: SpaLapSpec[];
-  monza?: MonzaLapSpec[];
+  laps: LapSpec[];
 }
 
 const SEED: SessionSpec[] = [
   {
     // The real session, laps 0-6 exactly as recorded. Lap 5 is the over-the-limits lap (time 0 = invalid).
-    seed: "spa-2026-11-03", started_at: "2026-11-03T19:42:00", car: CAR_720S, type: "Practice",
+    seed: "spa-2026-11-03", track: "spa", started_at: "2026-11-03T19:42:00", car: CAR_720S, type: "Practice",
     dims: DIMS_720S,
     steering: "recorded", trackTempC: 31, airTempC: 22,
     focus: { instruction: "Bus Stop: brake at the 100 board", improved: true },
-    spa: [
+    laps: [
       { kind: "out", src: 0 },
       { kind: "flying", src: 1 },
       { kind: "flying", src: 2 },
@@ -105,11 +102,11 @@ const SEED: SessionSpec[] = [
     ],
   },
   {
-    seed: "spa-2026-11-01", started_at: "2026-11-01T18:05:00", car: CAR_720S, type: "Practice",
+    seed: "spa-2026-11-01", track: "spa", started_at: "2026-11-01T18:05:00", car: CAR_720S, type: "Practice",
     dims: DIMS_720S,
     steering: "recorded", trackTempC: 27, airTempC: 19,
     focus: { instruction: "Pouhon: one steering input through both apexes", improved: true },
-    spa: [
+    laps: [
       { kind: "out", src: 0 },
       { kind: "flying", src: 3, time: 143.12 },
       { kind: "flying", src: 2, time: 143.909 },
@@ -118,11 +115,11 @@ const SEED: SessionSpec[] = [
     ],
   },
   {
-    seed: "spa-2026-10-29-practice", started_at: "2026-10-29T14:30:00", car: CAR_720S, type: "Practice",
+    seed: "spa-2026-10-29-practice", track: "spa", started_at: "2026-10-29T14:30:00", car: CAR_720S, type: "Practice",
     dims: DIMS_720S,
     steering: "recorded", trackTempC: 24, airTempC: 17,
     focus: { instruction: "La Source: brake where you did on lap 3", improved: null },
-    spa: [
+    laps: [
       { kind: "out", src: 0 },
       { kind: "flying", src: 1, time: 143.402 },
       { kind: "flying", src: 3, time: 144.2 },
@@ -131,26 +128,48 @@ const SEED: SessionSpec[] = [
   },
   {
     // A different car, and no steering range in the recording or config/cars.yaml (exercises the % fallback).
-    seed: "spa-2026-10-29-race", started_at: "2026-10-29T20:10:00", car: CAR_PORSCHE, type: "Race",
+    seed: "spa-2026-10-29-race", track: "spa", started_at: "2026-10-29T20:10:00", car: CAR_PORSCHE, type: "Race",
     dims: null,
     steering: null, trackTempC: 24, airTempC: 16,
     focus: null,
-    spa: [
+    laps: [
       { kind: "out", src: 0 },
       { kind: "flying", src: 2, time: 144.35 },
       { kind: "in", src: 6 },
     ],
   },
   {
-    // Only an invalid flying lap: no reference, so coach() answers no_reference (Review Focus 2).
-    seed: "monza-2026-10-26", started_at: "2026-10-26T16:20:00", car: CAR_720S, type: "Practice",
+    // The real Monza session, laps 0 and 5-13 as recorded (laps 1-4 are left out to keep the file small: they have no official
+    // time). Laps 7 and 13 end in the pits (in laps), lap 8 starts there (out lap). Their recorded time is 0, so the mock shows
+    // the elapsed time.
+    seed: "monza-2026-11-05", track: "monza", started_at: "2026-11-05T08:10:00", car: CAR_720S, type: "Practice",
     dims: DIMS_720S,
-    steering: "recorded", trackTempC: 29, airTempC: 21,
+    steering: "recorded", trackTempC: 33, airTempC: 24,
+    focus: { instruction: "Ascari: stay tight through the first apex", improved: null },
+    laps: [
+      { kind: "out", src: 0 },
+      { kind: "flying", src: 5 },
+      { kind: "flying", src: 6 },
+      { kind: "in", src: 7 },
+      { kind: "out", src: 8 },
+      { kind: "flying", src: 9 },
+      { kind: "flying", src: 10 },
+      { kind: "flying", src: 11 },
+      { kind: "flying", src: 12 },
+      { kind: "in", src: 13 },
+    ],
+  },
+  {
+    // A different car with only an invalid flying lap: no reference for that car, so coach() answers no_reference (Review Focus 2).
+    // The laps are the 720S recording's, as with the Spa race session.
+    seed: "monza-2026-10-26", track: "monza", started_at: "2026-10-26T16:20:00", car: CAR_PORSCHE, type: "Practice",
+    dims: null,
+    steering: null, trackTempC: 29, airTempC: 21,
     focus: null,
-    monza: [
-      { kind: "out", time: 131.5 },
-      { kind: "flying", time: 107.9, valid: false },
-      { kind: "in", time: 124.7 },
+    laps: [
+      { kind: "out", src: 0 },
+      { kind: "flying", src: 9, valid: false },
+      { kind: "in", src: 13 },
     ],
   },
 ];
@@ -180,45 +199,6 @@ export function formatLapTime(s: number | null): string {
   const m = Math.floor(s / 60);
   const r = (s - m * 60).toFixed(3);
   return `${m}:${Number(r) < 10 ? "0" : ""}${r}`;
-}
-
-function monzaMap(): TrackMap {
-  const c = (id: string, name: string, start: number, apex: number, end: number, complex: string | null = null): Corner =>
-    ({ id, name, start_m: start, apex_m: apex, end_m: end, complex, approx: true });
-  return {
-    track_id: MONZA_TRACK_ID,
-    length_m: MONZA_LENGTH_M,
-    corners: [
-      c("rettifilo1", "Variante del Rettifilo 1", 600, 760, 840, "Rettifilo"),
-      c("rettifilo2", "Variante del Rettifilo 2", 840, 900, 1000, "Rettifilo"),
-      c("curvagrande", "Curva Grande", 1300, 1700, 1950),
-      c("roggia", "Roggia", 2300, 2480, 2600),
-      c("lesmo1", "Lesmo 1", 2800, 2920, 3010),
-      c("lesmo2", "Lesmo 2", 3200, 3330, 3430),
-      c("ascari", "Ascari", 4150, 4330, 4560),
-      c("parabolica", "Parabolica", 5150, 5420, 5700),
-    ],
-    landmarks: [],
-  };
-}
-
-/** Stretch a Spa trace onto another track length (used for Monza, which has no model of its own). */
-function stretch(src: { distance: number[]; ch: ChannelArrays }, length: number): { distance: number[]; ch: ChannelArrays } {
-  const n = src.distance.length;
-  const ch = {} as ChannelArrays;
-  for (const key of GRID_CHANNELS) {
-    const a = src.ch[key];
-    const out = new Array<number>(length);
-    const stepwise = key === "gear" || key === "kerb";
-    for (let j = 0; j < length; j++) {
-      const pos = (j * (n - 1)) / (length - 1);
-      const i0 = Math.floor(pos);
-      const i1 = Math.min(i0 + 1, n - 1);
-      out[j] = stepwise ? a[i0] : a[i0] + (pos - i0) * (a[i1] - a[i0]);
-    }
-    ch[key] = out;
-  }
-  return { distance: Array.from({ length }, (_, j) => j), ch };
 }
 
 const COST: Record<Command, { cost: number; input: number; output: number }> = {
@@ -258,11 +238,16 @@ const METRIC: Record<Cause, string> = {
 
 export function createMockApi(opts: MockOptions = {}): Api {
   const coachDelayMs = opts.coachDelayMs ?? 1200;
-  const loadSpa = opts.loadSpa ?? fetchSpaRecording;
-  const loadElevation: ElevationLoader = opts.loadElevation ?? (opts.loadSpa ? async () => null : fetchSpaElevation);
+  // A custom loader for either track means a test or caller is in charge: the other track and the Spa extras are then off unless given.
+  const custom = !!(opts.loadSpa || opts.loadMonza);
+  const loaders: Record<RecordingTrack, RecordingLoader | null> = {
+    spa: opts.loadSpa ?? (custom ? null : () => fetchRecording("spa")),
+    monza: opts.loadMonza ?? (custom ? null : () => fetchRecording("monza")),
+  };
+  const loadElevation: ElevationLoader = opts.loadElevation ?? (custom ? async () => null : fetchSpaElevation);
   let elevationIndex: ElevationIndex | null = null;
   const elevationCache = new Map<Trace, (number | null)[]>();
-  const loadSurvey: SurveyLoader = opts.loadSurvey ?? (opts.loadSpa ? async () => null : fetchSpaSurvey);
+  const loadSurvey: SurveyLoader = opts.loadSurvey ?? (custom ? async () => null : fetchSpaSurvey);
   let surveyFile: SurveyFile | null = null;
   let surveyMapped: TrackSurvey | null = null; // the Spa survey on the 1 m grid, mapped once with a flying lap's line
 
@@ -277,39 +262,56 @@ export function createMockApi(opts: MockOptions = {}): Api {
   const compareCache = new Map<string, CompareResponse>();
   let counter = 0;
 
-  /** Builds every session, trace, map and per-lap structure once, after the recording has loaded. */
-  function build(rec: SpaRecording) {
-    const refLap = rec.laps.find((l) => l.lap_no === 4) ?? rec.laps[0];
-    const spaCornerList = spaCorners(refLap);
-    const spaMap: TrackMap = {
-      track_id: SPA_TRACK_ID, length_m: SPA_TRACK_LENGTH_M, corners: spaCornerList,
-      landmarks: deriveLandmarks(spaCornerList, refLap),
+  /** Builds every session, trace, map and per-lap structure once, after the recordings have loaded. */
+  function build(recs: Partial<Record<RecordingTrack, Recording>>) {
+    const trackInfo: Record<RecordingTrack, { id: string; name: string; length: number; map: (ref: RecordingLap) => TrackMap }> = {
+      spa: {
+        id: SPA_TRACK_ID, name: "Spa-Francorchamps", length: SPA_TRACK_LENGTH_M,
+        map: (ref) => {
+          const corners = spaCorners(ref);
+          return { track_id: SPA_TRACK_ID, length_m: SPA_TRACK_LENGTH_M, corners, landmarks: deriveLandmarks(corners, ref) };
+        },
+      },
+      monza: {
+        id: MONZA_TRACK_ID, name: "Monza", length: MONZA_TRACK_LENGTH_M,
+        map: (ref) => {
+          const corners = monzaCorners(ref);
+          return { track_id: MONZA_TRACK_ID, length_m: MONZA_TRACK_LENGTH_M, corners, landmarks: deriveLandmarks(corners, ref) };
+        },
+      },
     };
-    maps.set(SPA_TRACK_ID, spaMap);
-    maps.set(MONZA_TRACK_ID, monzaMap());
+    // The reference lap the corner map is read from: Spa lap 4, Monza lap 6 (the fastest valid lap of each recording).
+    const REF_LAP: Record<RecordingTrack, number> = { spa: 4, monza: 6 };
+    for (const track of Object.keys(recs) as RecordingTrack[]) {
+      const rec = recs[track]!;
+      maps.set(trackInfo[track].id, trackInfo[track].map(rec.laps.find((l) => l.lap_no === REF_LAP[track]) ?? rec.laps[0]));
+    }
     const bounds = new Map([...maps].map(([id, m]) => [id, segmentBounds(m)]));
-    const baseTraces = new Map<number, Trace>();
-    const baseTrace = (no: number) => {
-      let tr = baseTraces.get(no);
+    const baseTraces = new Map<string, Trace>();
+    const baseTrace = (track: RecordingTrack, no: number) => {
+      const key = `${track}:${no}`;
+      let tr = baseTraces.get(key);
       if (!tr) {
-        const lap = rec.laps.find((l) => l.lap_no === no);
-        if (!lap) throw new ApiError("unknown_lap", `The recording has no lap ${no}`);
+        const lap = recs[track]!.laps.find((l) => l.lap_no === no);
+        if (!lap) throw new ApiError("unknown_lap", `The ${track} recording has no lap ${no}`);
         tr = lapToTrace(lap);
-        baseTraces.set(no, tr);
+        baseTraces.set(key, tr);
       }
       return tr;
     };
 
     for (const sp of SEED) {
+      const rec = recs[sp.track];
+      if (!rec) continue;
+      const info = trackInfo[sp.track];
       const session_id = fakeSha(sp.seed);
-      const spa = !!sp.spa;
-      const track_id = spa ? SPA_TRACK_ID : MONZA_TRACK_ID;
+      const track_id = info.id;
       sessions.push({
         session_id,
-        track_name: spa ? "Spa-Francorchamps" : "Monza",
+        track_name: info.name,
         track_layout: "Grand Prix",
         track_id,
-        track_length_m: spa ? SPA_TRACK_LENGTH_M : MONZA_LENGTH_M,
+        track_length_m: info.length,
         car_name: sp.car.car_name,
         car_id: sp.car.car_id,
         car_class: "GT3",
@@ -324,21 +326,16 @@ export function createMockApi(opts: MockOptions = {}): Api {
       dateLabel.set(session_id, `${d.getDate()} ${DATE_FMT[d.getMonth()]}`);
       extras.set(session_id, { trackTempC: sp.trackTempC, focus: sp.focus });
 
-      const specs: { kind: LapMeta["kind"]; valid?: boolean; trace: Trace; lap_time_s: number | null }[] = spa
-        ? sp.spa!.map((l) => {
-            const recLap = rec.laps.find((x) => x.lap_no === l.src)!;
-            const base = baseTrace(l.src);
-            return {
-              kind: l.kind, valid: l.valid,
-              trace: l.time !== undefined ? scaleTime(base, l.time) : base,
-              // A recorded 0 means invalid: show the elapsed time instead (the lap stays valid: false).
-              lap_time_s: l.time ?? (recLap.lap_time_s === 0 ? recLap.t[recLap.t.length - 1] : recLap.lap_time_s),
-            };
-          })
-        : sp.monza!.map((l) => {
-            const synth = makeSpaLap({ lapTimeS: l.time, variant: "ref" });
-            return { kind: l.kind, valid: l.valid, trace: stretch(synth, MONZA_LENGTH_M), lap_time_s: l.time };
-          });
+      const specs: { kind: LapMeta["kind"]; valid?: boolean; trace: Trace; lap_time_s: number | null }[] = sp.laps.map((l) => {
+        const recLap = rec.laps.find((x) => x.lap_no === l.src)!;
+        const base = baseTrace(sp.track, l.src);
+        return {
+          kind: l.kind, valid: l.valid,
+          trace: l.time !== undefined ? scaleTime(base, l.time) : base,
+          // A recorded 0 means invalid: show the elapsed time instead (the lap stays valid: false).
+          lap_time_s: l.time ?? (recLap.lap_time_s === 0 ? recLap.t[recLap.t.length - 1] : recLap.lap_time_s),
+        };
+      });
       specs.forEach((l, lap_no) => {
         const lap_id = `${session_id.slice(0, 12)}-${pad3(lap_no)}`;
         const t = l.trace.ch.t;
@@ -360,16 +357,21 @@ export function createMockApi(opts: MockOptions = {}): Api {
     sessions.sort((a, b) => b.started_at.localeCompare(a.started_at));
   }
 
-  // The recording is fetched on the first call of any method, never at import time.
+  // The recordings are fetched on the first call of any method, never at import time.
   let ready: Promise<void> | null = null;
   const ensure = (): Promise<void> => {
-    ready ??= Promise.all([loadSpa(), loadElevation().catch(() => null), loadSurvey().catch(() => null)]).then(([rec, elev, survey]) => {
+    const tracks = (Object.keys(loaders) as RecordingTrack[]).filter((t) => loaders[t]);
+    ready ??= Promise.all([
+      Promise.all(tracks.map((t) => loaders[t]!())),
+      loadElevation().catch(() => null),
+      loadSurvey().catch(() => null),
+    ]).then(([loaded, elev, survey]) => {
       elevationIndex = elev ? buildElevationIndex(elev) : null;
       surveyFile = survey;
-      build(rec);
+      build(Object.fromEntries(tracks.map((t, i) => [t, loaded[i]])));
     }).catch((e) => {
       ready = null;
-      throw e instanceof ApiError ? e : new ApiError("network", e instanceof Error ? e.message : "could not load the Spa recording");
+      throw e instanceof ApiError ? e : new ApiError("network", e instanceof Error ? e.message : "could not load the recordings");
     });
     return ready;
   };
@@ -412,15 +414,13 @@ export function createMockApi(opts: MockOptions = {}): Api {
 
   /**
    * The track's geometry on its own 1 m grid, built once: the centreline is the longest flying lap's line, the survey and
-   * elevation are mapped onto it in full. (The mock has one capture and one survey per track, so "all laps" is the capture.)
+   * elevation (Spa only) are mapped onto it in full. (The mock has one capture and one survey per track, so "all laps" is the capture.)
    */
   const geometryCache = new Map<string, TrackGeometry>();
   const geometryOf = (trackId: string): TrackGeometry => {
     const hit = geometryCache.get(trackId);
     if (hit) return hit;
     const map = mapOf(trackId);
-    // Monza is the Spa line stretched (no real geometry), so only Spa has any.
-    if (trackId !== SPA_TRACK_ID) throw new ApiError("unknown_track", `No geometry for ${trackId}`);
     const flying = [...laps.values()].filter((l) => l.meta.track_id === trackId && l.meta.kind === "flying");
     const line = flying.sort((x, y) => y.trace.distance.length - x.trace.distance.length)[0]?.trace.ch;
     if (!line) throw new ApiError("unknown_track", `No laps on ${trackId}, so no geometry`);

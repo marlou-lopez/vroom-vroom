@@ -9,13 +9,13 @@ import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
 import type { Api } from "../api/client";
 import { createHandlers } from "../api/mock/handlers";
 import { createMockApi } from "../api/mock/mockApi";
-import type { SpaRecording } from "../api/mock/recording";
+import type { Recording } from "../api/mock/recording";
 import { effectiveValid } from "../api/types";
 import { bestValidLap } from "../lib/laps";
 
 const RECORDING = JSON.parse(
   readFileSync(resolve(import.meta.dirname, "../../public/mock/spa-2026-11-03.json"), "utf8"),
-) as SpaRecording;
+) as Recording;
 
 /**
  * Starts an MSW server for the test file. Every test gets a fresh in-memory engine (so mutations don't leak)

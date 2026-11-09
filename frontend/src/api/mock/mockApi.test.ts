@@ -6,22 +6,25 @@ import type { Api } from "../client";
 import { ApiError, type CoachResult, type Corner, type LapWithRef, type SessionMeta } from "../types";
 import { spread, steeringCorrections, steeringExtrema } from "./coachFacts";
 import { createMockApi } from "./mockApi";
-import type { SpaRecording } from "./recording";
-import { makeSpaLap } from "./spa";
+import type { Recording } from "./recording";
 import { brakeOnset, deriveLandmarks, kerbRuns, spaCorners } from "./spaTrack";
 
 const round3 = (x: number) => Number(x.toFixed(3));
 /** The user's real recording, read from disk (the app fetches the same file from /mock). */
 const RECORDING = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../../public/mock/spa-2026-11-03.json", import.meta.url)), "utf8"),
-) as SpaRecording;
+) as Recording;
+const MONZA = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../../../public/mock/monza-2026-11-05.json", import.meta.url)), "utf8"),
+) as Recording;
 const loadSpa = async () => RECORDING;
+const loadMonza = async () => MONZA;
 const recLap = (no: number) => RECORDING.laps.find((l) => l.lap_no === no)!;
 const METRE_CUE = /\b\d+(\.\d+)?\s?(m|metres|meters)\b/;
 const TRACK = "spa-francorchamps-grand-prix";
 
 async function setup() {
-  const api: Api = createMockApi({ coachDelayMs: 0, loadSpa });
+  const api: Api = createMockApi({ coachDelayMs: 0, loadSpa, loadMonza });
   const sessions = await api.sessions();
   const spaNov3 = sessions.find((s) => s.track_id === TRACK && s.started_at.startsWith("2026-11-03"))!;
   const laps = await api.sessionLaps(spaNov3.session_id);
@@ -38,32 +41,26 @@ async function rejection(p: Promise<unknown>): Promise<ApiError> {
   throw new Error("expected rejection");
 }
 
-describe("makeSpaLap (synthetic, still behind the Monza session)", () => {
-  it("7004-point 1 m grid, strictly increasing t, final t == lap time", () => {
-    const lap = makeSpaLap({ lapTimeS: 142.91, variant: "ref" });
-    expect(lap.distance).toHaveLength(7004);
-    const t = lap.ch.t;
-    for (let i = 1; i < t.length; i++) expect(t[i]).toBeGreaterThan(t[i - 1]);
-    expect(Math.abs(t[t.length - 1] - 142.91)).toBeLessThan(0.001);
-  });
-});
-
 describe("loading", () => {
   it("does not call the loader until the first Api call, then only once", async () => {
-    const loader = vi.fn(loadSpa);
-    const api = createMockApi({ coachDelayMs: 0, loadSpa: loader });
-    expect(loader).not.toHaveBeenCalled();
+    const spa = vi.fn(loadSpa);
+    const monza = vi.fn(loadMonza);
+    const api = createMockApi({ coachDelayMs: 0, loadSpa: spa, loadMonza: monza });
+    expect(spa).not.toHaveBeenCalled();
+    expect(monza).not.toHaveBeenCalled();
     const [a] = await Promise.all([api.sessions(), api.sessions()]);
-    expect(loader).toHaveBeenCalledTimes(1);
+    expect(spa).toHaveBeenCalledTimes(1);
+    expect(monza).toHaveBeenCalledTimes(1);
     await api.trackMap(a[0].track_id);
-    expect(loader).toHaveBeenCalledTimes(1);
+    expect(spa).toHaveBeenCalledTimes(1);
+    expect(monza).toHaveBeenCalledTimes(1);
   });
 
   it("maps a failed load to a network ApiError and retries on the next call", async () => {
     let n = 0;
-    const api = createMockApi({ loadSpa: async () => { if (n++ === 0) throw new Error("offline"); return RECORDING; } });
+    const api = createMockApi({ loadSpa: async () => { if (n++ === 0) throw new Error("offline"); return RECORDING; }, loadMonza });
     expect((await rejection(api.sessions())).code).toBe("network");
-    expect((await api.sessions()).length).toBe(5);
+    expect((await api.sessions()).length).toBe(6);
   });
 });
 
@@ -153,7 +150,7 @@ describe("mockApi: real Spa laps", () => {
   it("compare returns the Spa track survey on the grid (null without one or off Spa); a failing loader gives null", async () => {
     const survey = { source: "t", track: null, captures: [], edges: [], kerbs: [], contacts: [[0, 0, "edge"] as [number, number, "edge"]], bank: [] };
     const mk = async (loadSurvey: () => Promise<typeof survey | null>) => {
-      const api = createMockApi({ coachDelayMs: 0, loadSpa, loadSurvey });
+      const api = createMockApi({ coachDelayMs: 0, loadSpa, loadMonza, loadSurvey });
       const s = (await api.sessions()).find((x) => x.track_id === TRACK && x.started_at.startsWith("2026-11-03"))!;
       const laps = await api.sessionLaps(s.session_id);
       const id = (n: number) => laps.find((l) => l.lap_no === n)!.lap_id;
@@ -179,7 +176,7 @@ describe("mockApi: real Spa laps", () => {
     const elevation = { source: "t", track: null, points: [] as [number, number, number][], laps: [] };
 
     it("serves the Spa centreline, survey, coverage and the verified local transform on one grid", async () => {
-      const api = createMockApi({ coachDelayMs: 0, loadSpa, loadSurvey: async () => survey, loadElevation: async () => elevation });
+      const api = createMockApi({ coachDelayMs: 0, loadSpa, loadMonza, loadSurvey: async () => survey, loadElevation: async () => elevation });
       const g = await api.trackGeometry(TRACK);
       const n = g.centre.lat.length;
       expect(g.track_id).toBe(TRACK);
@@ -196,7 +193,7 @@ describe("mockApi: real Spa laps", () => {
     it("with the real Spa survey and elevation: partial edge coverage, heights present, kerbs found", async () => {
       const read = (f: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../public/mock/${f}`, import.meta.url)), "utf8"));
       const api = createMockApi({
-        coachDelayMs: 0, loadSpa, loadSurvey: async () => read("spa-survey-2026-11-06.json"), loadElevation: async () => read("spa-elevation-2026-11-05.json"),
+        coachDelayMs: 0, loadSpa, loadMonza, loadSurvey: async () => read("spa-survey-2026-11-06.json"), loadElevation: async () => read("spa-elevation-2026-11-05.json"),
       });
       const g = await api.trackGeometry(TRACK);
       expect(g.coverage!.left).toBeGreaterThan(0.3);
@@ -213,7 +210,25 @@ describe("mockApi: real Spa laps", () => {
       expect(g.survey).toBeNull();
       expect(g.coverage).toBeNull();
       expect((await rejection(api.trackGeometry("nope"))).code).toBe("unknown_track");
-      expect((await rejection(api.trackGeometry("monza-grand-prix"))).code).toBe("unknown_track"); // synthetic
+    });
+
+    it("serves Monza's own centreline from the real recording, with no survey or elevation", async () => {
+      const read = (f: string) => JSON.parse(readFileSync(fileURLToPath(new URL(`../../../public/mock/${f}`, import.meta.url)), "utf8"));
+      const { api } = await setup();
+      const g = await api.trackGeometry("monza-grand-prix");
+      expect(g.track_id).toBe("monza-grand-prix");
+      expect(g.centre.lat.length).toBeGreaterThan(5700);
+      expect(g.centre.lat.length).toBeLessThan(5800);
+      expect(g.survey).toBeNull();
+      expect(g.elevation_m).toBeNull();
+      expect(g.coverage).toBeNull();
+      // Even with the Spa captures loaded, Monza gets none of them.
+      const withSpa = createMockApi({
+        coachDelayMs: 0, loadSpa, loadMonza, loadSurvey: async () => read("spa-survey-2026-11-06.json"), loadElevation: async () => read("spa-elevation-2026-11-05.json"),
+      });
+      const m = await withSpa.trackGeometry("monza-grand-prix");
+      expect(m.survey).toBeNull();
+      expect(m.elevation_m).toBeNull();
     });
 
     it("returns an independent copy each time", async () => {
@@ -388,7 +403,7 @@ describe("coach", () => {
   it("coach resolves only after the 1.2 s delay", async () => {
     vi.useFakeTimers();
     try {
-      const api = createMockApi({ loadSpa });
+      const api = createMockApi({ loadSpa, loadMonza });
       const sessions = await api.sessions();
       const laps = await api.sessionLaps(sessions.find((s) => s.started_at.startsWith("2026-11-03"))!.session_id);
       let done = false;
@@ -410,7 +425,8 @@ describe("coach", () => {
 
   it("analyze with no reference throws no_reference", async () => {
     const { api, sessions } = await setup();
-    const monza = sessions.find((s) => s.track_id.startsWith("monza"))!;
+    // The Porsche Monza session has only an invalid flying lap, and the Porsche has no other lap on the track.
+    const monza = sessions.find((s) => s.track_id.startsWith("monza") && s.car_name.includes("Porsche"))!;
     const lapId = (await api.sessionLaps(monza.session_id)).find((l) => l.kind === "flying")!.lap_id;
     const err = await rejection(api.coach({ command: "analyze", lap_id: lapId, ref_lap_id: null, corner_id: null }));
     expect(err.code).toBe("no_reference");
@@ -540,8 +556,8 @@ describe("laps, pinning and sessions", () => {
   });
 
   it("sessions list is typed and newest first", async () => {
-    const s: SessionMeta[] = await createMockApi({ coachDelayMs: 0, loadSpa }).sessions();
-    expect(s.length).toBe(5);
+    const s: SessionMeta[] = await createMockApi({ coachDelayMs: 0, loadSpa, loadMonza }).sessions();
+    expect(s.length).toBe(6);
     const times = s.map((x) => x.started_at);
     expect([...times].sort().reverse()).toEqual(times);
   });

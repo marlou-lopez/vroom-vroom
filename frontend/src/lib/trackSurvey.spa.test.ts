@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { createMockApi } from "../api/mock/mockApi";
-import type { SpaRecording } from "../api/mock/recording";
+import type { Recording } from "../api/mock/recording";
 import { buildScene } from "../components/mapviews/detailed/scene";
 import { originOf, toLocalMetres } from "./geo";
 import { centreProjector, smoothLmu, surveyHalfWidths, type SurveyFile } from "./trackSurvey";
@@ -14,7 +14,7 @@ const read = (p: string) => JSON.parse(readFileSync(fileURLToPath(new URL(p, imp
 // LMU has no sample for 17 m and the smoothed width swings around its one value) and 0.35 m on the right (a contact boundary);
 // LMU's own raw width steps by 3.6 to 5.2 m.
 const STEP_BOUND_M = 1.25;
-const REC = read("../../public/mock/spa-2026-11-03.json") as SpaRecording;
+const REC = read("../../public/mock/spa-2026-11-03.json") as Recording;
 const SURVEY = read("../../public/mock/spa-survey-2026-11-06.json") as SurveyFile;
 
 // The 6 Nov survey (an 18-car session plus four slow laps along the edges) mapped onto the 3 Nov recording purely by position (#97).
