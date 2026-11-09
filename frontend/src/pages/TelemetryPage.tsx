@@ -20,6 +20,8 @@ import { useTelemetryData } from "../state/useTelemetryData";
 import styles from "./TelemetryPage.module.css";
 import ui from "../components/ui.module.css";
 
+const EMPTY_ANNOTATIONS: Annotation[] = [];
+
 export function TelemetryPage() {
   return (
     <PlaybackProvider>
@@ -67,9 +69,15 @@ function Telemetry() {
   // Coach results for this lap and comparison; Analyze and Average together form one annotation set.
   const coach = useCoach(ctx?.lap.lap_id ?? null, cmp?.ref_lap_id ?? null);
   const popup = useAnnotationPopup();
+  // All findings, kept whether or not the notes are shown: the Analysis bar counts these.
+  const allAnnotations = useMemo<Annotation[]>(
+    () => (cmp && trackMap ? toAnnotations(coach.results, cmp, trackMap) : []),
+    [cmp, trackMap, coach.results],
+  );
+  // What the map, strips and scrubber draw: nothing while notes are hidden.
   const annotations = useMemo<Annotation[]>(
-    () => (cmp && trackMap && coach.showNotes ? toAnnotations(coach.results, cmp, trackMap) : []),
-    [cmp, trackMap, coach.results, coach.showNotes],
+    () => (coach.showNotes ? allAnnotations : EMPTY_ANNOTATIONS),
+    [coach.showNotes, allAnnotations],
   );
 
   const seekTo = useCallback((a: Annotation) => cmp && store.seek(leadInTime(cmp, a)), [cmp, store]);
@@ -111,7 +119,7 @@ function Telemetry() {
       )}
       {ctx && (
         <AnalysisBar
-          coach={coach} annotations={annotations} disabled={coach.running !== null}
+          coach={coach} annotations={allAnnotations} disabled={coach.running !== null}
           totalDelta={cmp ? (cmp.delta[cmp.delta.length - 1] ?? null) : null}
         />
       )}
