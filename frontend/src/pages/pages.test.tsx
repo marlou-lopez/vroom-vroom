@@ -2,7 +2,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { AppShell } from "../components/AppShell";
 import { createTestClient, newestBest, setupMockServer, spaPairs } from "../test/mockServer";
 import { formatLapTime } from "../lib/format";
@@ -92,5 +92,51 @@ describe("pages", () => {
     const table = await within(panel).findByRole("table");
     expect(within(table).getByRole("columnheader", { name: "Name" })).toBeTruthy();
     expect(await within(table).findAllByRole("row")).not.toHaveLength(1);
+  });
+  it("Tracks resets the Add landmark form on a second Alt-click without cancelling", async () => {
+    // jsdom has no SVG screen matrix: make client coordinates equal map coordinates.
+    const proto = SVGSVGElement.prototype as unknown as Record<string, unknown>;
+    const orig = { ctm: proto.getScreenCTM, pt: proto.createSVGPoint };
+    onTestFinished(() => {
+      proto.getScreenCTM = orig.ctm;
+      proto.createSVGPoint = orig.pt;
+    });
+    proto.getScreenCTM = () => ({ inverse: () => ({}) });
+    proto.createSVGPoint = () => {
+      const pt = { x: 0, y: 0, matrixTransform: () => ({ x: pt.x, y: pt.y }) };
+      return pt;
+    };
+    renderApp("/tracks");
+    const svg = await screen.findByRole("img", { name: "Track map" });
+    const names = Array.from(svg.querySelectorAll("text"));
+    expect(names.length).toBeGreaterThan(2);
+    const altClick = (el: Element) => {
+      const x = Number(el.getAttribute("x")), y = Number(el.getAttribute("y"));
+      const anchor = el.getAttribute("text-anchor");
+      fireEvent.click(svg, { altKey: true, clientX: x + (anchor === "start" ? -8 : 8), clientY: y - 2 });
+    };
+    const first = names[0], second = names[Math.floor(names.length / 2)];
+    altClick(first);
+    await screen.findByRole("form", { name: "Add landmark" });
+    const form = () => screen.getByRole("form", { name: "Add landmark" });
+    const corner = () => within(form()).getByRole("combobox", { name: "Corner" }) as HTMLSelectElement;
+    const selectedName = () => corner().selectedOptions[0].textContent;
+    expect(selectedName()).toBe(first.textContent);
+    fireEvent.change(within(form()).getByRole("textbox", { name: "Label" }), { target: { value: "stale label" } });
+
+    altClick(second);
+    expect(selectedName()).toBe(second.textContent);
+    expect((within(form()).getByRole("textbox", { name: "Label" }) as HTMLInputElement).value).toBe("");
+
+    // Submit: the landmark is saved under the second corner, not the first.
+    fireEvent.change(within(form()).getByRole("textbox", { name: "Label" }), { target: { value: "second board" } });
+    fireEvent.click(within(form()).getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(screen.queryByRole("form", { name: "Add landmark" })).toBeNull());
+    fireEvent.click(svg.querySelector(`path[aria-label="${second.textContent}"]`)!);
+    // The map's <title> also carries the label; the editor list is what the corner filter changes.
+    const inList = () => screen.queryAllByText("second board").filter((e) => e.tagName.toLowerCase() !== "title");
+    await waitFor(() => expect(inList()).toHaveLength(1));
+    fireEvent.click(svg.querySelector(`path[aria-label="${first.textContent}"]`)!);
+    await waitFor(() => expect(inList()).toHaveLength(0));
   });
 });

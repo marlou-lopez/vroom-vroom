@@ -33,7 +33,8 @@ export function TracksPage() {
   const [trackId, setTrackId] = useState<string | null>(null);
   const [selectedCorner, setSelectedCorner] = useState<string | null>(null);
   const [calResult, setCalResult] = useState<CalibrationResult | null>(null);
-  const [adding, setAdding] = useState<{ distanceM: number; cornerId: string | null; left: number; top: number } | null>(null);
+  const [adding, setAdding] = useState<{ seq: number; distanceM: number; cornerId: string | null; left: number; top: number } | null>(null);
+  const addSeq = useRef(0);
   const svgRef = useRef<SVGSVGElement>(null);
   const mapBoxRef = useRef<HTMLDivElement>(null);
 
@@ -119,6 +120,7 @@ export function TracksPage() {
     const distanceM = geo.distance[index];
     const box = mapBoxRef.current.getBoundingClientRect();
     setAdding({
+      seq: ++addSeq.current,
       distanceM,
       cornerId: nearestCorner(map, distanceM)?.id ?? null,
       left: Math.min(Math.max(4, e.clientX - box.left + 8), Math.max(4, box.width - 238)),
@@ -205,6 +207,7 @@ export function TracksPage() {
             )}
             {adding && map && (
               <AddLandmarkForm
+                key={adding.seq} // remount per Alt-click: the form's state only reads its props initially
                 distanceM={adding.distanceM}
                 corners={map.corners}
                 defaultCornerId={adding.cornerId}
