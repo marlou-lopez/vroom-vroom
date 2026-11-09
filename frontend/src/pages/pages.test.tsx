@@ -1,10 +1,10 @@
 // Smoke tests: each page renders against the MSW mock API without an error message.
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { AppShell } from "../components/AppShell";
-import { createTestClient, newestBest, setupMockServer } from "../test/mockServer";
+import { createTestClient, newestBest, setupMockServer, spaPairs } from "../test/mockServer";
 import { formatLapTime } from "../lib/format";
 import { SessionsPage } from "./SessionsPage";
 import { TelemetryPage } from "./TelemetryPage";
@@ -55,6 +55,22 @@ describe("pages", () => {
     expect(await within(header).findByText(new RegExp(`L${best.lap_no} ${formatLapTime(best.lap_time_s).replace(".", "\\.")}`))).toBeTruthy();
     expect(screen.queryByText(/unknown_lap|no_laps|Loading…/)).toBeNull();
   });
+
+  it("Telemetry keeps the Analysis bar counts when notes are hidden", async () => {
+    // The default lap is its own reference (no findings), so open a lap that has a different reference.
+    const [pair] = await spaPairs(mock.engine(), 1);
+    renderApp(`/?lap=${pair.lap}&ref=${pair.ref}`);
+    const analyze = await screen.findByRole("button", { name: /Analyze lap/ });
+    await waitFor(() => expect((analyze as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(analyze);
+    const hide = await screen.findByRole("button", { name: "Hide notes" }, { timeout: 5000 });
+    const countRe = /\d+ (issues?|minor|strengths?|inconsistent)/;
+    const before = (await screen.findAllByText(countRe, {}, { timeout: 5000 })).map((e) => e.textContent);
+    expect(before.length).toBeGreaterThan(0);
+    fireEvent.click(hide);
+    expect(await screen.findByRole("button", { name: "Show notes" })).toBeTruthy();
+    expect(screen.getAllByText(countRe).map((e) => e.textContent)).toEqual(before);
+  }, 20000);
 
   it("Telemetry shows an error for an unknown lap", async () => {
     renderApp("/?lap=nope");
