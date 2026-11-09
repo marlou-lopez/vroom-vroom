@@ -16,6 +16,7 @@ import {
 } from "./coachFacts";
 import { buildElevationIndex, elevationProfile, EARTH_RADIUS_M, type ElevationIndex } from "../../lib/elevation";
 import { mapSurvey, type SurveyFile } from "../../lib/trackSurvey";
+import { formatLapTime } from "../../lib/format";
 import { fetchSpaElevation, type ElevationLoader } from "./elevation";
 import { fetchSpaSurvey, type SurveyLoader } from "./survey";
 import { fetchRecording, lapToTrace, scaleTime, type Recording, type RecordingLap, type RecordingLoader, type RecordingTrack, type Trace } from "./recording";
@@ -193,13 +194,6 @@ function fakeSha(seed: string): string {
 const pad3 = (n: number) => String(n).padStart(3, "0");
 const round3 = (x: number) => Number(x.toFixed(3));
 const clone = <T,>(x: T): T => structuredClone(x);
-
-export function formatLapTime(s: number | null): string {
-  if (s === null || !Number.isFinite(s)) return "–:––.–––";
-  const m = Math.floor(s / 60);
-  const r = (s - m * 60).toFixed(3);
-  return `${m}:${Number(r) < 10 ? "0" : ""}${r}`;
-}
 
 const COST: Record<Command, { cost: number; input: number; output: number }> = {
   analyze: { cost: 0.0127, input: 2310, output: 690 },
