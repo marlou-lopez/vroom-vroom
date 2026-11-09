@@ -6,7 +6,7 @@ import type { Annotation } from "../lib/annotations";
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
-import { chipLayerGeometry, clipBand, elevationRange, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, withAlpha, type Range } from "../lib/strips";
+import { chipLayerGeometry, cornerBands, clipBand, elevationRange, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, withAlpha, type Range } from "../lib/strips";
 import { usePlaybackStore } from "../state/playback";
 import { colors } from "../theme";
 import styles from "./DetailedStrips.module.css";
@@ -104,17 +104,23 @@ function buildSpecs(cmp: CompareResponse): Spec[] {
 function drawBands(u: uPlot, anns: Annotation[]) {
   const { ctx, bbox } = u;
   const dpr = uPlot.pxRatio;
+  const xs = u.data[0];
+  const lapEnd = xs[xs.length - 1];
+  const onScreen = (x: number) => x >= bbox.left && x <= bbox.left + bbox.width;
   for (const a of anns) {
-    const x0 = bbox.left + u.valToPos(a.startM, "x", true);
-    const x1 = bbox.left + u.valToPos(a.endM, "x", true);
-    const c = clipBand(x0, x1, bbox.left, bbox.width);
-    if (!c) continue;
-    ctx.fillStyle = withAlpha(a.color, 0.1);
-    ctx.fillRect(c[0], bbox.top, c[1] - c[0], bbox.height);
-    // Edge lines only where the band's real edge is on screen.
-    ctx.fillStyle = withAlpha(a.color, 0.33);
-    if (x0 >= bbox.left && x0 <= bbox.left + bbox.width) ctx.fillRect(x0, bbox.top, dpr, bbox.height);
-    if (x1 >= bbox.left && x1 <= bbox.left + bbox.width) ctx.fillRect(x1 - dpr, bbox.top, dpr, bbox.height);
+    // A corner over the start line is two bands: its start to the lap end, and the lap start to its end.
+    for (const { d0, d1, startEdge, endEdge } of cornerBands(a.startM, a.endM, lapEnd)) {
+      const x0 = bbox.left + u.valToPos(d0, "x", true);
+      const x1 = bbox.left + u.valToPos(d1, "x", true);
+      const c = clipBand(x0, x1, bbox.left, bbox.width);
+      if (!c) continue;
+      ctx.fillStyle = withAlpha(a.color, 0.1);
+      ctx.fillRect(c[0], bbox.top, c[1] - c[0], bbox.height);
+      // Edge lines only at the corner's real edges, and only where on screen.
+      ctx.fillStyle = withAlpha(a.color, 0.33);
+      if (startEdge && onScreen(x0)) ctx.fillRect(x0, bbox.top, dpr, bbox.height);
+      if (endEdge && onScreen(x1)) ctx.fillRect(x1 - dpr, bbox.top, dpr, bbox.height);
+    }
   }
 }
 

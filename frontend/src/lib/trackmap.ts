@@ -161,3 +161,14 @@ export function scrubTarget(
   if (hit.index < 0) return null;
   return center || hit.dist <= maxDist ? hit : null;
 }
+
+/** A corner's `[start, end]` as one or two intervals on a lap of `length`: one that wraps over the start line (start > end) is split at the line. */
+export function splitWrapping(start: number, end: number, length: number): Array<[number, number]> {
+  if (start <= end) return [[start, end]];
+  return [[start, length], [0, end]];
+}
+
+/** Path of a corner's range, both halves when it wraps over the start line. */
+export function cornerSegmentPath(proj: Projection, distance: number[], start: number, end: number): string {
+  return splitWrapping(start, end, distance[distance.length - 1]).map(([d0, d1]) => segmentPath(proj, distance, d0, d1)).join("");
+}

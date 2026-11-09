@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipFraction, chipLayerGeometry, clipBand, elevationRange, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, valueToPx, withAlpha } from "./strips";
+import { chipFraction, chipLayerGeometry, clipBand, cornerBands, elevationRange, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, valueToPx, withAlpha } from "./strips";
 
 describe("stripRanges", () => {
   const c = {
@@ -119,4 +119,16 @@ describe("elevationRange", () => {
     expect((lo + hi) / 2).toBeCloseTo(5, 6);
   });
   it("has a default when there is no data", () => expect(elevationRange([null], [])).toEqual([-5, 5]));
+});
+
+describe("cornerBands", () => {
+  it("is one band with both edges for a normal corner", () => {
+    expect(cornerBands(100, 220, 7000)).toEqual([{ d0: 100, d1: 220, startEdge: true, endEdge: true }]);
+  });
+  it("splits a corner over the start line, with edges only at the real start and end", () => {
+    expect(cornerBands(6900, 120, 7000)).toEqual([
+      { d0: 6900, d1: 7000, startEdge: true, endEdge: false },
+      { d0: 0, d1: 120, startEdge: false, endEdge: true },
+    ]);
+  });
 });

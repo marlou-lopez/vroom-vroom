@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TrackMap } from "../api/types";
-import { cornerAt, nearestCorner, nearestPoint, nearestPointInWindow, pointAtDistance, polylinePath, projectLatLon, scrubTarget, segmentPath, smoothClosed } from "./trackmap";
+import { cornerAt, nearestCorner, nearestPoint, nearestPointInWindow, pointAtDistance, polylinePath, projectLatLon, scrubTarget, segmentPath, cornerSegmentPath, smoothClosed, splitWrapping } from "./trackmap";
 
 const map: TrackMap = {
   track_id: "x",
@@ -152,5 +152,24 @@ describe("scrubTarget", () => {
   it("during a drag it is windowed and has no distance threshold", () => {
     expect(scrubTarget(proj, 59, 50, 5, { index: 3, halfWindow: 2 })?.index).toBe(5);
     expect(scrubTarget(proj, 59, 50, 5, { index: 5, halfWindow: 2 })?.index).toBe(6);
+  });
+});
+
+describe("splitWrapping", () => {
+  it("keeps a normal corner as one interval", () => {
+    expect(splitWrapping(100, 220, 7000)).toEqual([[100, 220]]);
+  });
+  it("splits a corner over the start line into the end of the lap and the start", () => {
+    expect(splitWrapping(6900, 120, 7000)).toEqual([[6900, 7000], [0, 120]]);
+  });
+});
+
+describe("cornerSegmentPath", () => {
+  it("draws both halves of a corner over the start line", () => {
+    const distance = Array.from({ length: 101 }, (_, i) => i);
+    const proj = { x: distance.map((i) => i), y: distance.map(() => 0), w: 100, h: 10 } as unknown as Parameters<typeof segmentPath>[0];
+    const d = cornerSegmentPath(proj, distance, 90, 10);
+    expect(d.match(/M/g)).toHaveLength(2);
+    expect(d).toBe(segmentPath(proj, distance, 90, 100) + segmentPath(proj, distance, 0, 10));
   });
 });
