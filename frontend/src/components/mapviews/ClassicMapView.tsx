@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type PointerEvent } from "react";
 import { MAP_H, MAP_PAD, MAP_W } from "../../lib/model";
 import { distanceAtTime, timeAtDistance } from "../../lib/playback";
-import { cornerAt, MAP_HIT_PX, pointAtDistance, SCRUB_WINDOW_M, scrubTarget, segmentPath } from "../../lib/trackmap";
+import { cornerAt, MAP_HIT_PX, pointAtDistance, SCRUB_WINDOW_M, scrubTarget, cornerSegmentPath } from "../../lib/trackmap";
 import { usePlayback, usePlaybackStore } from "../../state/playback";
 import { MapBadges, MapSegments } from "../AnnotationOverlays";
 import type { TrackViewProps } from "./types";
@@ -45,8 +45,8 @@ export function ClassicMapView({ model, trackMap, annotations, handlers }: Track
   const cornerId = corner?.id ?? null;
   const cornerPath = useMemo(() => {
     const c = trackMap?.corners.find((k) => k.id === cornerId);
-    if (!c || c.start_m > c.end_m) return "";
-    return segmentPath(proj, cmp.distance, c.start_m, c.end_m);
+    if (!c) return "";
+    return cornerSegmentPath(proj, cmp.distance, c.start_m, c.end_m);
   }, [trackMap, cornerId, proj, cmp.distance]);
 
   const toMap = (e: PointerEvent<SVGSVGElement>) => {

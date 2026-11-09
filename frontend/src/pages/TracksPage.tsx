@@ -5,7 +5,7 @@ import { errorInfo, type CalibrationResult, type GridChannel, type Landmark, typ
 import { AddLandmarkForm, LandmarkEditor } from "../components/LandmarkEditor";
 import { landmarkFill, landmarkStroke } from "../lib/landmarks";
 import { bestValidLap } from "../lib/laps";
-import { projectLatLon, nearestCorner, nearestPoint, pointAtDistance, GPS_SMOOTH_HALF, polylinePath, segmentPath, smoothClosed, type Projection } from "../lib/trackmap";
+import { projectLatLon, nearestCorner, nearestPoint, pointAtDistance, GPS_SMOOTH_HALF, polylinePath, cornerSegmentPath, smoothClosed, type Projection } from "../lib/trackmap";
 import { cx } from "../lib/cx";
 import ui from "../components/ui.module.css";
 import styles from "./TracksPage.module.css";
@@ -95,7 +95,7 @@ export function TracksPage() {
     if (!map || !geo) return [];
     return map.corners.map((c) => ({
       c,
-      d: c.start_m > c.end_m ? "" : segmentPath(geo.proj, geo.distance, c.start_m, c.end_m),
+      d: cornerSegmentPath(geo.proj, geo.distance, c.start_m, c.end_m),
       label: pointAtDistance(geo.proj, geo.distance, c.apex_m),
     }));
   }, [map, geo]);

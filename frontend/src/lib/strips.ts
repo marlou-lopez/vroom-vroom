@@ -1,3 +1,4 @@
+import { splitWrapping } from "./trackmap";
 // Pure helpers for the uPlot telemetry strips: fixed y ranges, chip-layer geometry, band clipping, colour alpha.
 
 export type Range = [number, number];
@@ -121,4 +122,9 @@ export function elevationRange(lap: ArrayLike<number | null>, ref: ArrayLike<num
   if (!Number.isFinite(lo)) return [-5, 5];
   const pad = Math.max((hi - lo) * 0.05, (10 - (hi - lo)) / 2, 0);
   return [lo - pad, hi + pad];
+}
+
+/** The bands to shade for a corner (two when it wraps over the start line), and which ends are the corner's real edges. */
+export function cornerBands(startM: number, endM: number, lapEnd: number): Array<{ d0: number; d1: number; startEdge: boolean; endEdge: boolean }> {
+  return splitWrapping(startM, endM, lapEnd).map(([d0, d1]) => ({ d0, d1, startEdge: d0 === startM, endEdge: d1 === endM }));
 }

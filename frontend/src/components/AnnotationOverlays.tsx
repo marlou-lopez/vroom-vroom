@@ -2,7 +2,7 @@ import { useMemo, type CSSProperties, type KeyboardEvent, type Ref } from "react
 import { MAP_W, type PlaybackModel } from "../lib/model";
 import type { Annotation } from "../lib/annotations";
 import { chipFraction } from "../lib/strips";
-import { pointAtDistance, segmentPath } from "../lib/trackmap";
+import { cornerSegmentPath, pointAtDistance, splitWrapping } from "../lib/trackmap";
 import styles from "./AnnotationOverlays.module.css";
 import { AnnotationHoverCard } from "./AnnotationPopup";
 
@@ -26,7 +26,7 @@ const aria = (a: Annotation) => `${a.finding.corner} ${a.label} ${a.finding.kind
 /** Tinted corner segments on the map (SVG, map coordinates). The paths are built once per annotation set. */
 export function MapSegments({ annotations, model }: { annotations: Annotation[]; model: PlaybackModel }) {
   const segs = useMemo(
-    () => annotations.map((a) => ({ a, d: a.startM > a.endM ? "" : segmentPath(model.proj, model.cmp.distance, a.startM, a.endM) })),
+    () => annotations.map((a) => ({ a, d: cornerSegmentPath(model.proj, model.cmp.distance, a.startM, a.endM) })),
     [annotations, model],
   );
   return (
@@ -115,13 +115,15 @@ export function ScrubberSections({ annotations, duration }: { annotations: Annot
   if (duration <= 0) return null;
   return (
     <>
-      {annotations.map((a) => (
-        <div
-          key={a.findingId}
-          className={styles.section}
-          style={{ left: `${(a.tStart / duration) * 100}%`, width: `${((a.tEnd - a.tStart) / duration) * 100}%`, background: `${a.color}33` }}
-        />
-      ))}
+      {annotations.flatMap((a) =>
+        splitWrapping(a.tStart, a.tEnd, duration).map(([t0, t1], i) => (
+          <div
+            key={`${a.findingId}-${i}`}
+            className={styles.section}
+            style={{ left: `${(t0 / duration) * 100}%`, width: `${((t1 - t0) / duration) * 100}%`, background: `${a.color}33` }}
+          />
+        )),
+      )}
     </>
   );
 }
