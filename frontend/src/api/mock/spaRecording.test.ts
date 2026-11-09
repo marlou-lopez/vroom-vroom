@@ -2,12 +2,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { SpaRecording } from "./recording";
+import type { Recording } from "./recording";
 import { phaseStart } from "./spaTrack";
 
 const REC = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../../public/mock/spa-2026-11-03.json", import.meta.url)), "utf8"),
-) as SpaRecording;
+) as Recording;
 
 describe("Spa recording mock data", () => {
   // LMU's filtered 'Throttle Pos' drops to 0 at every upshift (the game's ignition cut); the pedal channel does not (#49).

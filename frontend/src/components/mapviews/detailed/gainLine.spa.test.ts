@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { SpaRecording } from "../../../api/mock/recording";
+import type { Recording } from "../../../api/mock/recording";
 import { createMockApi } from "../../../api/mock/mockApi";
 import { fitBounds, MIN_WIDTH_M, zoomScale } from "../../../lib/camera";
 import { gainStrength } from "../../../lib/gainLoss";
@@ -12,7 +12,7 @@ import { buildScene, gainPositions, SURFACE_MARGIN_M } from "./scene";
 
 const REC = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../../../public/mock/spa-2026-11-03.json", import.meta.url)), "utf8"),
-) as SpaRecording;
+) as Recording;
 
 async function spa(lapNo: number, refNo: number) {
   const api = createMockApi({ coachDelayMs: 0, loadSpa: async () => REC });

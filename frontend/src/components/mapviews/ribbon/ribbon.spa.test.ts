@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { SpaRecording } from "../../../api/mock/recording";
+import type { Recording } from "../../../api/mock/recording";
 import { createMockApi } from "../../../api/mock/mockApi";
 import type { ElevationTrack } from "../../../lib/elevation";
 import { buildScene } from "../detailed/scene";
@@ -11,7 +11,7 @@ import { heightAt, roadHeights } from "./heights";
 import { carPose } from "./pose";
 
 const read = (p: string) => JSON.parse(readFileSync(fileURLToPath(new URL(p, import.meta.url)), "utf8"));
-const REC = read("../../../../public/mock/spa-2026-11-03.json") as SpaRecording;
+const REC = read("../../../../public/mock/spa-2026-11-03.json") as Recording;
 const CAP = read("../../../../public/mock/spa-elevation-2026-11-05.json") as ElevationTrack;
 
 async function spa(lapNo: number, refNo: number) {

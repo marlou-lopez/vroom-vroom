@@ -7,14 +7,18 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createRealApi } from "./client";
 import { createHandlers } from "./mock/handlers";
 import { createMockApi } from "./mock/mockApi";
-import type { SpaRecording } from "./mock/recording";
+import type { Recording } from "./mock/recording";
 import { ApiError } from "./types";
 
 const RECORDING = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../public/mock/spa-2026-11-03.json", import.meta.url)), "utf8"),
-) as SpaRecording;
+) as Recording;
 
-const server = setupServer(...createHandlers(createMockApi({ coachDelayMs: 0, loadSpa: async () => RECORDING })));
+const MONZA = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../../public/mock/monza-2026-11-05.json", import.meta.url)), "utf8"),
+) as Recording;
+
+const server = setupServer(...createHandlers(createMockApi({ coachDelayMs: 0, loadSpa: async () => RECORDING, loadMonza: async () => MONZA })));
 const api = createRealApi("http://localhost");
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));

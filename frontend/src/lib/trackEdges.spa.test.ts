@@ -2,12 +2,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { SpaRecording } from "../api/mock/recording";
+import type { Recording } from "../api/mock/recording";
 import { edgeHalfWidths, kerbRuns, type EdgeLap } from "./trackEdges";
 
 const REC = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../public/mock/spa-2026-11-03.json", import.meta.url)), "utf8"),
-) as SpaRecording;
+) as Recording;
 const N = 6980;
 const lapsOf = (nos: number[]): EdgeLap[] =>
   nos.map((no) => REC.laps.find((l) => l.lap_no === no)!).map((l) => ({ pathLateral: l.path_lateral, trackEdge: l.track_edge, kerb: l.kerb }));

@@ -1,10 +1,13 @@
-// The Spa corner map and the landmarks derived from the real reference lap (lap 4 of the 3 Nov recording).
+// The corner map and the landmarks derived from a real reference lap (Spa: lap 4 of the 3 Nov recording). Shared with Monza.
 import type { Corner, Landmark } from "../types";
 
+export const SPA_TRACK_ID = "spa-francorchamps-grand-prix";
 export const SPA_TRACK_LENGTH_M = 6979;
 
 /** Corners from speed minima and steering peaks on the reference lap. */
-const APEXES: { id: string; name: string; apex: number; complex?: string }[] = [
+export interface ApexSpec { id: string; name: string; apex: number; complex?: string }
+
+const SPA_APEXES: ApexSpec[] = [
   { id: "lasource", name: "La Source", apex: 279 },
   { id: "eaurouge", name: "Eau Rouge", apex: 907, complex: "Raidillon" },
   { id: "raidillon", name: "Raidillon", apex: 1008, complex: "Raidillon" },
@@ -56,8 +59,8 @@ export function phaseStart(sig: CornerSignals, apex: number, floor: number): num
  * end = min(midpoint to the next apex, apex + 150). start = the braking/lift phase start on the reference lap minus 50 m,
  * clamped to the midpoint to the previous apex; flat corners keep max(midpoint, apex - 200). Track ends clamp to 0 and the length.
  */
-export function spaCorners(ref?: CornerSignals, lengthM: number = SPA_TRACK_LENGTH_M): Corner[] {
-  return APEXES.map((c, i, all) => {
+export function cornersFromApexes(apexes: readonly ApexSpec[], ref: CornerSignals | undefined, lengthM: number): Corner[] {
+  return apexes.map((c, i, all) => {
     const prevMid = i > 0 ? Math.round((all[i - 1].apex + c.apex) / 2) : 0;
     const nextMid = i < all.length - 1 ? (c.apex + all[i + 1].apex) / 2 : lengthM;
     const phase = ref ? phaseStart(ref, c.apex, prevMid) : null;
@@ -68,6 +71,10 @@ export function spaCorners(ref?: CornerSignals, lengthM: number = SPA_TRACK_LENG
       end_m: Math.round(Math.min(nextMid, c.apex + 150)),
     };
   });
+}
+
+export function spaCorners(ref?: CornerSignals, lengthM: number = SPA_TRACK_LENGTH_M): Corner[] {
+  return cornersFromApexes(SPA_APEXES, ref, lengthM);
 }
 
 export interface LapSignals {

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Corner, TrackMap } from "../api/types";
-import type { SpaRecording, SpaRecordingLap } from "../api/mock/recording";
+import type { Recording, RecordingLap } from "../api/mock/recording";
 import { deriveLandmarks, spaCorners, SPA_TRACK_LENGTH_M } from "../api/mock/spaTrack";
 import { createMockApi } from "../api/mock/mockApi";
 import { buildScene } from "../components/mapviews/detailed/scene";
@@ -14,14 +14,14 @@ import {
 
 const REC = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../public/mock/spa-2026-11-03.json", import.meta.url)), "utf8"),
-) as SpaRecording;
+) as Recording;
 const lap = (no: number) => REC.laps.find((l) => l.lap_no === no)!;
 const FLYING = [1, 2, 3, 4];
 const ref = lap(4);
 const corners = spaCorners(ref);
 const MAP: TrackMap = { track_id: "spa", length_m: SPA_TRACK_LENGTH_M, corners, landmarks: deriveLandmarks(corners, ref) };
 const origin = originOf(ref.lat, ref.lon);
-const xyOf = (l: SpaRecordingLap): XY => toLocalMetres(l.lat, l.lon, origin);
+const xyOf = (l: RecordingLap): XY => toLocalMetres(l.lat, l.lon, origin);
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
 /** Index set covering the given corners' [start_m, end_m]. */
