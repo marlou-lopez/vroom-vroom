@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CompareResponse } from "../../../api/types";
+import type { CompareResponse, TrackSurvey } from "../../../api/types";
 import { originOf, pointAt, toLocalMetres } from "../../../lib/geo";
 import { lateralOffsets } from "../../../lib/racingLine";
 import { KERB_OFFSET_M, buildScene, carPositions, progressSplit, surfaceClearance } from "./scene";
@@ -33,7 +33,7 @@ function makeCmp(nLap = 1000, nRef = 999) {
   void n;
   return {
     lap_id: "a", ref_lap_id: "b", lap_kind: "flying", ref_kind: "flying", distance, delta: new Array(nLap).fill(0), warning: null,
-    lap_steering_range_deg: null, ref_steering_range_deg: null, lap_car_dims: null, ref_car_dims: null, lap_car_id: "c", ref_car_id: "c", elevation: null, track_survey: null,
+    lap_steering_range_deg: null, ref_steering_range_deg: null, lap_car_dims: null, ref_car_dims: null, lap_car_id: "c", ref_car_id: "c",
     lap: channels(nLap, a.lat, a.lon, tLap), ref: channels(nRef, b.lat, b.lon, tRef),
   } as unknown as CompareResponse;
 }
@@ -276,7 +276,7 @@ describe("edges: stand-in and telemetry", () => {
 });
 
 describe("edges from a track survey (#97)", () => {
-  const survey = (): NonNullable<CompareResponse["track_survey"]> => ({
+  const survey = (): TrackSurvey => ({
     bank_deg: new Array(999).fill(null), left_m: new Array(999).fill(6), right_m: new Array(999).fill(8).map((v, i) => (i >= 300 && i < 310 ? null : v)),
     kerbs: [{ side: "left", start_m: 50, end_m: 70, kind: "flat", width_m: null }, { side: "right", start_m: 400, end_m: 420, kind: "razor", width_m: null }],
     edge_points: [], kerb_outer_points: [],
@@ -285,10 +285,9 @@ describe("edges from a track survey (#97)", () => {
     const cmp = makeCmp();
     cmp.lap.path_lateral = new Array(1000).fill(2);
     cmp.lap.track_edge = new Array(1000).fill(5); // laps' channels disagree with the survey on purpose
-    cmp.track_survey = survey();
     return cmp;
   };
-  const opts = { source: "lateral", gpsHalf: 4, edges: "telemetry" } as const;
+  const opts = { source: "lateral", gpsHalf: 4, edges: "telemetry", survey: survey() } as const;
 
   it("without contact points falls back to the (smoothed) LMU half-widths, fills its gaps and flags nothing as measured", () => {
     const s = buildScene(withSurvey(), opts);
@@ -328,12 +327,12 @@ describe("edges from a track survey (#97)", () => {
     const at = (i: number, d: number) => toLatLon(b.centre.x[i] + nl(i)[0] * d, b.centre.y[i] + nl(i)[1] * d);
     const range = (a: number, z: number) => Array.from({ length: z - a + 1 }, (_, k) => a + k);
     const cmp = withSurvey();
-    cmp.track_survey = {
+    const custom: TrackSurvey = {
       ...survey(), left_m: new Array(999).fill(9), right_m: new Array(999).fill(null),
       edge_points: range(48, 72).map((i) => at(i, 5.5)),         // the edge is at 5.5 m where LMU says 9 m
       kerb_outer_points: range(50, 70).map((i) => at(i, 6.7)),   // the kerb is 1.2 m wide
     };
-    const s = buildScene(cmp, opts);
+    const s = buildScene(cmp, { ...opts, survey: custom });
     const left = lateralOffsets(s.edges[0], s.centre);
     expect(left[60]).toBeCloseTo(-5.5, 1);
     expect(s.edgeMeasured![0][60]).toBe(1);
@@ -346,8 +345,8 @@ describe("edges from a track survey (#97)", () => {
 
   it("without a survey, or in stand-in mode, nothing changes", () => {
     const cmp = withSurvey();
-    expect(buildScene({ ...cmp, track_survey: null }, opts).edgeSource).toBe("laps");
-    expect(buildScene({ ...cmp, track_survey: null }, opts).kerbs.every((k) => k.kind === undefined)).toBe(true);
+    expect(buildScene(cmp, { ...opts, survey: null }).edgeSource).toBe("laps");
+    expect(buildScene(cmp, { ...opts, survey: null }).kerbs.every((k) => k.kind === undefined)).toBe(true);
     const stand = buildScene(cmp);
     expect(stand.edgeSource).toBeNull();
     expect(stand.kerbs).toEqual([]);

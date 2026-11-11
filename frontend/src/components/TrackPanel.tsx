@@ -1,6 +1,6 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { Fragment, useState, type ReactNode } from "react";
-import type { TrackMap } from "../api/types";
+import type { TrackGeometry, TrackMap } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, indexAtTime } from "../lib/playback";
@@ -19,6 +19,7 @@ import styles from "./TrackPanel.module.css";
 export interface TrackPanelProps {
   model: PlaybackModel;
   trackMap: TrackMap | null;
+  geometry: TrackGeometry | null;
   annotations: Annotation[];
   handlers: BadgeHandlers;
   lapTimes?: { lap: number | null; ref: number | null };
@@ -28,7 +29,7 @@ export interface TrackPanelProps {
   onToggleExpanded(): void;
 }
 
-export function TrackPanel({ model, trackMap, annotations, handlers, lapTimes, footer, expanded, onToggleExpanded }: TrackPanelProps) {
+export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, footer, expanded, onToggleExpanded }: TrackPanelProps) {
   const [viewId, setViewId] = useState<TrackViewId>(loadTrackView);
 
   const active = TRACK_VIEWS.find((v) => v.id === viewId) ?? TRACK_VIEWS[0];
@@ -43,7 +44,7 @@ export function TrackPanel({ model, trackMap, annotations, handlers, lapTimes, f
   return (
     <section aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
       <ErrorBoundary label="track view" variant="panel" resetKeys={[model, active.id]}>
-        <View model={model} trackMap={trackMap} annotations={annotations} handlers={handlers} lapTimes={lapTimes} />
+        <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} />
       </ErrorBoundary>
       <Readout model={model} trackMap={trackMap} />
       <div className={styles.toolbar}>

@@ -50,25 +50,20 @@ describe("Spa elevation attached to the 3 Nov recording", () => {
     expect(worst).toBeLessThan(0.5);
   });
 
-  it("is served through compare for Spa laps and is null for Monza", async () => {
+  it("is served through the track geometry for Spa and is null for Monza", async () => {
     const api = createMockApi({ coachDelayMs: 0, loadSpa: async () => REC, loadMonza: async () => MONZA, loadElevation: async () => CAP });
     const sessions = await api.sessions();
     const spa = sessions.find((s) => s.track_id === "spa-francorchamps-grand-prix")!;
-    const laps = await api.sessionLaps(spa.session_id);
-    const fly = laps.filter((l) => l.kind === "flying" && l.lap_time_s !== null);
-    const cmp = await api.compare(fly[0].lap_id, fly[1].lap_id);
-    expect(cmp.elevation!.lap).toHaveLength(cmp.distance.length);
-    expect(cmp.elevation!.ref).toHaveLength(cmp.distance.length);
-    expect(cmp.elevation!.lap[1005]).toBeCloseTo(-1.0, 0);
+    const g = await api.trackGeometry(spa.track_id);
+    expect(g.elevation_m).toHaveLength(g.centre.lat.length);
+    expect(g.elevation_m![1005]).toBeCloseTo(-1.0, 0);
     const monza = sessions.find((s) => s.track_id === "monza-grand-prix")!;
-    const ml = await api.sessionLaps(monza.session_id);
-    expect((await api.compare(ml[1].lap_id, ml[0].lap_id)).elevation).toBeNull();
+    expect((await api.trackGeometry(monza.track_id)).elevation_m).toBeNull();
   });
 
   it("is null without a capture", async () => {
     const api = createMockApi({ coachDelayMs: 0, loadSpa: async () => REC, loadElevation: async () => { throw new Error("offline"); } });
     const spa = (await api.sessions()).find((s) => s.track_id === "spa-francorchamps-grand-prix")!;
-    const fly = (await api.sessionLaps(spa.session_id)).filter((l) => l.kind === "flying" && l.lap_time_s !== null);
-    expect((await api.compare(fly[0].lap_id, fly[1].lap_id)).elevation).toBeNull();
+    expect((await api.trackGeometry(spa.track_id)).elevation_m).toBeNull();
   });
 });

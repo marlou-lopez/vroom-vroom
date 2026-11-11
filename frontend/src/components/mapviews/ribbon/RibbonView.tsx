@@ -70,33 +70,37 @@ type GpuState = "ok" | "lost" | "stuck" | "failed";
 const f1 = (v: number) => v.toFixed(1);
 
 /** Experimental 3D view (#39): the track as a ribbon with elevation, both cars, and chase / cockpit (#100) / orbit / top-down cameras. */
-export function RibbonView({ model, annotations, handlers, lapTimes }: TrackViewProps) {
+export function RibbonView({ model, geometry, annotations, handlers, lapTimes }: TrackViewProps) {
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
-  const scene = useMemo(() => buildScene(cmp, { source: "lateral", gpsHalf: 4, edges: "telemetry" }), [cmp]);
+  const scene = useMemo(() => buildScene(cmp, { source: "lateral", gpsHalf: 4, edges: "telemetry", survey: geometry?.survey }), [cmp, geometry]);
   const { heights, hasElevation } = useMemo(() => {
-    const h = roadHeights(cmp.elevation, scene.centre.x.length);
+    const h = roadHeights(geometry?.elevation_m, scene.centre.x.length);
     return { heights: h ?? new Float64Array(scene.centre.x.length), hasElevation: h !== null };
-  }, [cmp, scene]);
+  }, [geometry, scene]);
 
   // Heading, dive and roll of the lap car per grid metre, for the cockpit camera (estimated from GPS, heights and G forces).
-  // The road's banking comes from the track survey when there is one (degrees there, radians in the estimate).
+  // The road's banking comes from the track geometry's survey when there is one (degrees there, radians in the estimate).
+  const bank = useMemo(
+    () => geometry?.survey?.bank_deg.map((d) => (d === null ? null : (d * Math.PI) / 180)),
+    [geometry],
+  );
   const attitude = useMemo(
     () => estimateAttitude({
       line: scene.lap, heights, gLat: cmp.lap.g_lat, gLong: cmp.lap.g_long,
-      bank: cmp.track_survey?.bank_deg.map((d) => (d === null ? null : (d * Math.PI) / 180)),
+      bank,
     }),
-    [scene, heights, cmp],
+    [scene, heights, cmp, bank],
   );
 
   // The same for the reference car, for its pane in the split view.
   const refAttitude = useMemo(
     () => estimateAttitude({
       line: scene.ref, heights, gLat: cmp.ref.g_lat, gLong: cmp.ref.g_long,
-      bank: cmp.track_survey?.bank_deg.map((d) => (d === null ? null : (d * Math.PI) / 180)),
+      bank,
     }),
-    [scene, heights, cmp],
+    [scene, heights, cmp, bank],
   );
 
   // The rev limit and first shift light, from the lap's own upshifts (the cockpit dash).

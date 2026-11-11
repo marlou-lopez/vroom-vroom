@@ -147,26 +147,6 @@ describe("mockApi: real Spa laps", () => {
     expect(cmp.delta[n]).toBeCloseTo(recLap(6).t[n] - recLap(4).t[n], 9);
   });
 
-  it("compare returns the Spa track survey on the grid (null without one or off Spa); a failing loader gives null", async () => {
-    const survey = { source: "t", track: null, captures: [], edges: [], kerbs: [], contacts: [[0, 0, "edge"] as [number, number, "edge"]], bank: [] };
-    const mk = async (loadSurvey: () => Promise<typeof survey | null>) => {
-      const api = createMockApi({ coachDelayMs: 0, loadSpa, loadMonza, loadSurvey });
-      const s = (await api.sessions()).find((x) => x.track_id === TRACK && x.started_at.startsWith("2026-11-03"))!;
-      const laps = await api.sessionLaps(s.session_id);
-      const id = (n: number) => laps.find((l) => l.lap_no === n)!.lap_id;
-      return { api, cmp: await api.compare(id(6), id(4)), monza: await api.sessions() };
-    };
-    const { cmp } = await mk(async () => survey);
-    expect(cmp.track_survey!.left_m).toHaveLength(cmp.distance.length);
-    expect(cmp.track_survey!.right_m.every((v) => v === null)).toBe(true);
-    expect(cmp.track_survey!.bank_deg).toHaveLength(cmp.distance.length);
-    expect((await mk(async () => null)).cmp.track_survey).toBeNull();
-    expect((await mk(async () => { throw new Error("x"); })).cmp.track_survey).toBeNull();
-    // default: with a custom loadSpa and no loadSurvey there is none
-    const { api, lap } = await setup();
-    expect((await api.compare(lap(4).lap_id, lap(3).lap_id)).track_survey).toBeNull();
-  });
-
   describe("trackGeometry", () => {
     const survey = {
       source: "t", track: null, captures: [], kerbs: [], bank: [],
@@ -229,6 +209,19 @@ describe("mockApi: real Spa laps", () => {
       const m = await withSpa.trackGeometry("monza-grand-prix");
       expect(m.survey).toBeNull();
       expect(m.elevation_m).toBeNull();
+    });
+
+    it("has null survey when the survey loader returns nothing or fails, and the compare response carries neither elevation nor survey", async () => {
+      for (const loadSurvey of [async () => null, async () => { throw new Error("x"); }]) {
+        const api = createMockApi({ coachDelayMs: 0, loadSpa, loadMonza, loadSurvey });
+        const g = await api.trackGeometry(TRACK);
+        expect(g.survey).toBeNull();
+        expect(g.coverage).toBeNull();
+      }
+      const { api, lap } = await setup();
+      const cmp = await api.compare(lap(4).lap_id, lap(3).lap_id);
+      expect("elevation" in cmp).toBe(false);
+      expect("track_survey" in cmp).toBe(false);
     });
 
     it("returns an independent copy each time", async () => {

@@ -20,7 +20,7 @@ const FX = JSON.parse(gunzipSync(readFileSync(fileURLToPath(new URL("./fixtures/
 const n = FX.east_cm.length;
 const cm = (v: number[]) => Float64Array.from(v, (x) => x / 100);
 const line = lineFromGps({ x: cm(FX.east_cm), y: cm(FX.north_cm) }, 4);
-const heights = roadHeights({ lap: Array.from(cm(FX.height_cm)), ref: Array.from(cm(FX.height_cm)) }, n)!;
+const heights = roadHeights(Array.from(cm(FX.height_cm)), n)!;
 const att = estimateAttitude({ line, heights, gLat: FX.g_lat_mg.map((v) => v / 1000), gLong: FX.g_long_mg.map((v) => v / 1000) });
 
 // The road bank from the committed survey (all four captures, so it includes the session being checked; the independent

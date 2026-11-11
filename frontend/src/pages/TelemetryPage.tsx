@@ -38,7 +38,7 @@ function Telemetry() {
   const [params, setParams] = useSearchParams();
   const lapParam = params.get("lap");
   const refParam = params.get("ref");
-  const { ctx, cmp, candidates, trackMap, error } = useTelemetryData(lapParam, refParam);
+  const { ctx, cmp, candidates, trackMap, geometry, error } = useTelemetryData(lapParam, refParam);
   const store = usePlaybackStore();
   const view = usePlayback((s) => s.view);
   const [expanded, setExpanded] = useState(false);
@@ -132,7 +132,7 @@ function Telemetry() {
           {cmp?.warning && <div className={styles.warning}>{cmp.warning}</div>}
           <div className={styles.grid} data-expanded={expanded || undefined}>
             <TrackPanel
-              model={model} trackMap={trackMap}
+              model={model} trackMap={trackMap} geometry={geometry}
               annotations={annotations} handlers={handlers}
               lapTimes={cmp ? { lap: ctx?.laps.find((l) => l.lap_id === cmp.lap_id)?.lap_time_s ?? null, ref: ctx?.laps.find((l) => l.lap_id === cmp.ref_lap_id)?.lap_time_s ?? null } : undefined}
               expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
@@ -150,7 +150,7 @@ function Telemetry() {
                   ))}
                 </ToggleGroup.Root>
               </div>
-              {view === "detailed" ? <DetailedStrips model={model} annotations={annotations} handlers={handlers} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
+              {view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
             </section>
             )}
           </div>

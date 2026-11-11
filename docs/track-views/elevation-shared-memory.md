@@ -2,14 +2,14 @@
 
 **Question:** LMU's recordings have no elevation, world position or orientation. Does the game's shared memory, read by a small standalone logger, give a usable 3D shape of a track (about 100 m of range at Spa, laps agreeing to about 0.1 m), and can older recordings get it too?
 
-**Status:** spike. The prototype is in the app: an **ELEVATION** strip (marked *exp*) under the other telemetry strips whenever the compared track has a capture. **Decision: pending the user's keep / change / drop.**
+**Status:** spike. The prototype is in the app: an **ELEVATION** strip (marked *exp*) under the other telemetry strips whenever the track geometry has an elevation capture. **Decision: pending the user's keep / change / drop.**
 
 ## What was built
 
 - **Logger** (`tools/lmu-logger/lmu_logger.py`, Windows, Python 3.14, standard library only). It copies the whole shared-memory block on every game update and stores it as a zstd delta against the previous frame in a `.lmucap` file. Frames are whole-block snapshots. By default the logger blanks the other cars' telemetry slots first (offsets from `layout.py`; `--all-cars` keeps them), which keeps the format unchanged. One command to run; the README covers setup.
 - **Layout from the user's own headers** (`layout.py`). LMU's headers describe the block but their licence forbids copying them, so nothing from them is in the repo. `layout.py` is a small C++ declaration parser (packing, enums, unions, arrays, nested structs, base classes, skipping methods) that computes sizes and offsets from the installed headers at runtime.
 - **Decoder** (`decode.py`): `layout` prints the computed sizes, `player` writes a CSV with one row per distinct telemetry time for the player's car (349 columns, all scalars of the car's telemetry and scoring entry, wheels as `w0_..w3_`), and `track` writes the car's path resampled every metre per lap as `[x, z, y]`.
-- **Frontend:** `public/mock/spa-elevation-2026-11-05.json` (the `track` output), `src/lib/elevation.ts` (lat/lon to world x/z with the GPS transform, nearest-segment lookup on a 10 m grid, null beyond 5 m), `CompareResponse.elevation` in the API contract, the mock filling it for Spa laps (null for Monza), and the strip.
+- **Frontend:** `public/mock/spa-elevation-2026-11-05.json` (the `track` output), `src/lib/elevation.ts` (lat/lon to world x/z with the GPS transform, nearest-segment lookup on a 10 m grid, null beyond 5 m), `TrackGeometry.elevation_m` in the API contract (`api.trackGeometry`, once per track: the mock fills it for Spa and answers null for Monza; it used to be `CompareResponse.elevation`, one array per lap, removed in vroom-dw9), and the strip (one line, since the height belongs to the track, not to a lap).
 
 ## Results
 

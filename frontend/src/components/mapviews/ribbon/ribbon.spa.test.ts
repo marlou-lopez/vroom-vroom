@@ -19,14 +19,14 @@ async function spa(lapNo: number, refNo: number) {
   const s = (await api.sessions()).find((x) => x.started_at.startsWith("2026-11-03"))!;
   const laps = await api.sessionLaps(s.session_id);
   const id = (no: number) => laps.find((l) => l.lap_no === no)!.lap_id;
-  return api.compare(id(lapNo), id(refNo));
+  return { cmp: await api.compare(id(lapNo), id(refNo)), geometry: await api.trackGeometry(s.track_id) };
 }
 
 describe("3D ribbon on Spa lap 4 vs 3", async () => {
-  const cmp = await spa(4, 3);
+  const { cmp, geometry } = await spa(4, 3);
   const scene = buildScene(cmp, { source: "lateral", gpsHalf: 4, edges: "telemetry" });
   const n = scene.centre.x.length;
-  const h = roadHeights(cmp.elevation, n)!;
+  const h = roadHeights(geometry.elevation_m, n)!;
 
   it("has road heights for the whole lap", () => {
     expect(h).not.toBeNull();
@@ -81,11 +81,10 @@ describe("3D ribbon on Spa lap 4 vs 3", async () => {
 describe("a track without elevation (Monza-like, no capture)", async () => {
   const api = createMockApi({ coachDelayMs: 0, loadSpa: async () => REC });
   const s = (await api.sessions()).find((x) => x.started_at.startsWith("2026-11-03"))!;
-  const laps = await api.sessionLaps(s.session_id);
-  const cmp = await api.compare(laps.find((l) => l.lap_no === 4)!.lap_id, laps.find((l) => l.lap_no === 3)!.lap_id);
+  const geometry = await api.trackGeometry(s.track_id);
 
   it("has no road heights, so the view draws flat", () => {
-    expect(cmp.elevation).toBeNull();
-    expect(roadHeights(cmp.elevation, cmp.lap.lat.length)).toBeNull();
+    expect(geometry.elevation_m).toBeNull();
+    expect(roadHeights(geometry.elevation_m, geometry.centre.lat.length)).toBeNull();
   });
 });

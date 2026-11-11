@@ -41,7 +41,7 @@ describe("TrackPanel", () => {
     render(
       <PlaybackProvider>
         <Grab />
-        <TrackPanel model={model} trackMap={null} annotations={annotations} handlers={handlers} expanded={false} onToggleExpanded={() => {}} />
+        <TrackPanel model={model} trackMap={null} geometry={null} annotations={annotations} handlers={handlers} expanded={false} onToggleExpanded={() => {}} />
       </PlaybackProvider>,
     );
     const store = grabbed.store!;

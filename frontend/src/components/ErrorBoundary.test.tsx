@@ -65,7 +65,7 @@ describe("TrackPanel", () => {
     render(
       <PlaybackProvider>
         <TrackPanel
-          model={model} trackMap={null} annotations={[]} handlers={{ onSeek: () => {} }}
+          model={model} trackMap={null} geometry={null} annotations={[]} handlers={{ onSeek: () => {} }}
           footer={<span>engineer line</span>} expanded={false} onToggleExpanded={() => {}}
         />
       </PlaybackProvider>,

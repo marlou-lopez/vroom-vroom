@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { sessionLapsOptions, useCompare, useCompareCandidates, useSessions, useTrackMap } from "../api/queries";
+import { sessionLapsOptions, useCompare, useCompareCandidates, useSessions, useTrackGeometry, useTrackMap } from "../api/queries";
 import { errorInfo, type CompareCandidate, type LapWithRef, type SessionMeta } from "../api/types";
 import { bestValidLap } from "../lib/laps";
 
@@ -13,7 +13,7 @@ export interface LapContext {
 const NO_CANDIDATES: CompareCandidate[] = [];
 
 /**
- * Loads what the Telemetry page needs: the lap (and its session's laps), the comparison and the track map.
+ * Loads what the Telemetry page needs: the lap (and its session's laps), the comparison, the track map and the track geometry.
  * With no `lapParam` it opens the newest session's best valid flying lap against its reference.
  * Note: the API has no "get lap by id", so a lap is found by scanning sessions newest first.
  */
@@ -56,6 +56,7 @@ export function useTelemetryData(lapParam: string | null, refParam: string | nul
   const cmpQ = useCompare(lapId, refParam);
   const candidatesQ = useCompareCandidates(lapId);
   const trackMapQ = useTrackMap(ctx?.lap.track_id ?? null); // not fatal if it is missing
+  const geometryQ = useTrackGeometry(ctx?.lap.track_id ?? null); // keyed by track, so a new reference lap does not refetch it; not fatal either
 
   let shown: { code: string; message: string } | null = null;
   if (error) shown = errorInfo(error);
@@ -71,6 +72,7 @@ export function useTelemetryData(lapParam: string | null, refParam: string | nul
     cmp: cmpQ.data ?? null,
     candidates: candidatesQ.data ?? NO_CANDIDATES,
     trackMap: trackMapQ.data ?? null,
+    geometry: geometryQ.data ?? null,
     error: shown,
   };
 }
