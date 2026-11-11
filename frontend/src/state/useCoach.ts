@@ -1,11 +1,14 @@
+import { useMutationState } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useCoachMutation, useCoachResults, useSetFindingReviewed } from "../api/queries";
-import { errorInfo, type CoachResults, type Finding } from "../api/types";
+import { errorInfo, type CoachRequest, type CoachResults, type Finding } from "../api/types";
 
 export interface CoachError {
   code: string;
   message: string;
 }
+
+const RUN_KEY = ["coach-run"] as const;
 
 const NO_RESULTS: CoachResults = {};
 
@@ -19,25 +22,29 @@ export function useCoach(lapId: string | null, refLapId: string | null) {
   const [showNotes, setShowNotes] = useState(true);
   const [dives, setDives] = useState<Record<string, Finding>>({});
   const resultsQ = useCoachResults(lapId, refLapId);
-  const runM = useCoachMutation();
+  // Success is handled on the mutation itself, so it still shows the notes after the user switched comparison mid-run.
+  const runM = useCoachMutation(RUN_KEY, () => setShowNotes(true));
+  // Runs in flight for any pair: switching the comparison must not forget them (a second paid call would start).
+  const pending = useMutationState({ filters: { mutationKey: RUN_KEY, status: "pending" }, select: (m) => m.state.variables as CoachRequest });
+  const inScope = pending.find((v) => v.lap_id === lapId && v.ref_lap_id === refLapId);
   const cornerM = useCoachMutation();
   const reviewM = useSetFindingReviewed(lapId, refLapId);
-  const { reset: resetRun, mutate: startRun } = runM;
+  const { mutate: startRun } = runM;
   const { mutateAsync: askCornerAsync } = cornerM;
   const { reset: resetReview } = reviewM;
 
-  // A new (lap, comparison) pair starts without the previous pair's error.
+  // A new (lap, comparison) pair starts without the previous pair's error. The run mutation is not reset: that
+  // would drop a request still in flight.
   useEffect(() => {
-    resetRun();
     resetReview();
-  }, [scope, resetRun, resetReview]);
+  }, [scope, resetReview]);
 
   const run = useCallback(
     (command: "analyze" | "average") => {
-      if (!lapId) return;
-      startRun({ command, lap_id: lapId, ref_lap_id: refLapId, corner_id: null }, { onSuccess: () => setShowNotes(true) });
+      if (!lapId || inScope) return;
+      startRun({ command, lap_id: lapId, ref_lap_id: refLapId, corner_id: null });
     },
-    [lapId, refLapId, startRun],
+    [lapId, refLapId, inScope, startRun],
   );
 
   /** Ask about one corner. Resolves with the returned finding; rejects with the API error. */
@@ -59,12 +66,13 @@ export function useCoach(lapId: string | null, refLapId: string | null) {
   }, [dives, scope]);
 
   const setReviewed = reviewM.mutate;
-  const failure = runM.error ?? reviewM.error ?? resultsQ.error;
+  const runFailure = runM.error && runM.variables?.lap_id === lapId && runM.variables.ref_lap_id === refLapId ? runM.error : null;
+  const failure = runFailure ?? reviewM.error ?? resultsQ.error;
   const error: CoachError | null = failure ? errorInfo(failure) : null;
 
   return {
     results: resultsQ.data ?? NO_RESULTS,
-    running: runM.isPending ? runM.variables.command : null,
+    running: inScope ? inScope.command : null,
     error,
     showNotes,
     setShowNotes,

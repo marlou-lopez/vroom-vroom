@@ -63,6 +63,36 @@ describe("useCoach", () => {
     expect(result.current.results.analyze).toBeDefined();
   });
 
+  it("keeps running and sends one request when the comparison is switched away and back mid-run", async () => {
+    const [a, b] = await twoPairs();
+    const engine = mock.engine();
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let calls = 0;
+    mock.server.use(http.post("*/api/coach", async ({ request }) => {
+      calls++;
+      const body = (await request.json()) as CoachRequest;
+      await gate;
+      return HttpResponse.json(await engine.coach(body));
+    }));
+    const { result, rerender } = setup({ lap: a.lap, ref: a.ref });
+    act(() => result.current.setShowNotes(false));
+    act(() => result.current.run("analyze"));
+    await waitFor(() => expect(result.current.running).toBe("analyze"));
+
+    rerender(b);
+    expect(result.current.running).toBeNull();
+    rerender(a);
+    expect(result.current.running).toBe("analyze");
+    act(() => result.current.run("analyze"));
+
+    release();
+    await waitFor(() => expect(result.current.running).toBeNull());
+    await waitFor(() => expect(result.current.results.analyze).toBeDefined());
+    expect(calls).toBe(1);
+    expect(result.current.showNotes).toBe(true);
+  });
+
   it("scopes deep dives to the pair they were asked for", async () => {
     const [a, b] = await twoPairs();
     const map = await mock.engine().trackMap(a.trackId);
