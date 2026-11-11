@@ -12,6 +12,7 @@ import { loadTrackView, saveTrackView } from "../state/mapViewPref";
 import type { BadgeHandlers } from "./AnnotationOverlays";
 import { TRACK_VIEWS } from "./mapviews/registry";
 import type { TrackViewId } from "./mapviews/types";
+import { ErrorBoundary } from "./ErrorBoundary";
 import ui from "./ui.module.css";
 import styles from "./TrackPanel.module.css";
 
@@ -42,7 +43,9 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
 
   return (
     <section aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
-      <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} />
+      <ErrorBoundary label="track view" variant="panel" resetKeys={[model, active.id]}>
+        <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} />
+      </ErrorBoundary>
       <Readout model={model} trackMap={trackMap} />
       <div className={styles.toolbar}>
         <ToggleGroup.Root
