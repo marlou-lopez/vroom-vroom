@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { cx } from "../lib/cx";
+import { ErrorBoundary } from "./ErrorBoundary";
 import styles from "./AppShell.module.css";
 
 const SlotCtx = createContext<HTMLElement | null>(null);
@@ -20,6 +21,7 @@ const NAV = [
 
 export function AppShell() {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const { pathname, search } = useLocation();
   return (
     <div className={styles.shell}>
       <header className={styles.header}>
@@ -36,7 +38,9 @@ export function AppShell() {
       </header>
       <SlotCtx.Provider value={slot}>
         <main className={styles.main}>
-          <Outlet />
+          <ErrorBoundary label="page" resetKeys={[pathname, search]}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </SlotCtx.Provider>
     </div>
