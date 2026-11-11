@@ -45,7 +45,7 @@ const EDGES_KEY = "vroom.edges";
 const EDGE_SOURCES: readonly EdgeSource[] = ["stand-in", "telemetry"];
 const loadEdgeSource = (): EdgeSource => loadSetting(EDGES_KEY, EDGE_SOURCES, "stand-in");
 
-export function DetailedMapView({ model, annotations, handlers }: TrackViewProps) {
+export function DetailedMapView({ model, geometry, annotations, handlers }: TrackViewProps) {
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
@@ -53,7 +53,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
   const [sync, setSyncState] = useState<CarSync>("time");
   const [gpsHalf, setGpsHalf] = useState(4);
   const [edgeSource, setEdgeSourceState] = useState<EdgeSource>(loadEdgeSource);
-  const scene = useMemo(() => buildScene(cmp, { source, gpsHalf, edges: edgeSource }), [cmp, source, gpsHalf, edgeSource]);
+  const scene = useMemo(() => buildScene(cmp, { source, gpsHalf, edges: edgeSource, survey: geometry?.survey }), [cmp, geometry, source, gpsHalf, edgeSource]);
 
   const [epoch, setEpoch] = useState(0);
   const [gpu, setGpu] = useState<GpuState>("ok");
@@ -447,7 +447,7 @@ export function DetailedMapView({ model, annotations, handlers }: TrackViewProps
             }}
           >
             <ToggleGroup.Item value="stand-in" className={ui.toggleItem} title="The centreline plus and minus 7 m">Stand-in</ToggleGroup.Item>
-            <ToggleGroup.Item value="telemetry" className={ui.toggleItem} title={cmp.track_survey ? "Edges and kerbs from a survey of the track (shared-memory capture)" : "Edges and kerbs from the laps' telemetry"}>{cmp.track_survey ? "Survey" : "Telemetry"}</ToggleGroup.Item>
+            <ToggleGroup.Item value="telemetry" className={ui.toggleItem} title={geometry?.survey ? "Edges and kerbs from a survey of the track (shared-memory capture)" : "Edges and kerbs from the laps' telemetry"}>{geometry?.survey ? "Survey" : "Telemetry"}</ToggleGroup.Item>
           </ToggleGroup.Root>
           <span className={styles.tag}>experimental</span>
           <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={fit}>Fit</button>

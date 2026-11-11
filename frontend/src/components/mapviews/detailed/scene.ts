@@ -1,4 +1,4 @@
-import type { CarDims, CompareResponse, SurveyKerb } from "../../../api/types";
+import type { CarDims, CompareResponse, SurveyKerb, TrackSurvey } from "../../../api/types";
 import { bounds, headingAt, originOf, pointAt, toLocalMetres, type Pt, type XY } from "../../../lib/geo";
 import { distanceAtTime } from "../../../lib/playback";
 import { KERB_W_M, carDimsOrFallback } from "./renderer";
@@ -44,9 +44,17 @@ export interface Scene {
 
 export type LineSource = "gps" | "lateral";
 export type CarSync = "time" | "distance";
-/** "stand-in": the centreline +/- 7 m; "telemetry": edges and kerbs from the track survey when the compare response has one (#97), else rebuilt from the laps' track_edge and kerb channels (#36, experimental). */
+/** "stand-in": the centreline +/- 7 m; "telemetry": edges and kerbs from the track survey when the track geometry has one (#97), else rebuilt from the laps' track_edge and kerb channels (#36, experimental). */
 export type EdgeSource = "stand-in" | "telemetry";
-export interface SceneOptions { source: LineSource; gpsHalf: number; edges?: EdgeSource }
+export interface SceneOptions {
+  source: LineSource; gpsHalf: number; edges?: EdgeSource;
+  /** The track's survey from `api.trackGeometry`; null or absent when the track has none (or it is still loading). */
+  survey?: TrackSurvey | null;
+}
+
+/** A per-metre array on this scene's grid of `n` metres: cut when longer, padded with null when shorter (the track's grid can differ by a few metres). */
+const onGrid = <T,>(v: ArrayLike<T | null>, n: number): (T | null)[] =>
+  Array.from({ length: n }, (_, i) => (i < v.length ? v[i] : null));
 
 /**
  * Kerbs are centred this far (m) outside the track edge: half the kerb width, so the kerb's inner side lies on the edge line.
@@ -187,7 +195,7 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
   let floorLeft: number | ArrayLike<number> = EDGE_OFFSET_M, floorRight: number | ArrayLike<number> = EDGE_OFFSET_M;
   if (telemetry) {
     let te: ReturnType<typeof edgeHalfWidths>;
-    const survey = cmp.track_survey;
+    const survey = opts.survey ?? null;
     const place = (side: "left" | "right", start: number, end: number, width = KERB_W_M): XY => {
       const half = side === "left" ? te.left : te.right, sign = side === "left" ? 1 : -1;
       const m = end - start + 1;
@@ -203,7 +211,7 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
       // Survey points are [lat, lon]; the same origin makes them local metres of this scene.
       const local = (pts: [number, number][]) => toLocalMetres(pts.map((p) => p[0]), pts.map((p) => p[1]), origin);
       const project = centreProjector(centre);
-      te = { ...surveyHalfWidths(project, local(survey.edge_points ?? []), survey.left_m, survey.right_m, n) };
+      te = { ...surveyHalfWidths(project, local(survey.edge_points ?? []), onGrid(survey.left_m, n), onGrid(survey.right_m, n), n) };
       const outer = local(survey.kerb_outer_points ?? []);
       kerbs = survey.kerbs.filter((k) => k.start_m <= k.end_m && k.start_m >= 0 && k.end_m < n).map((k) => {
         const half = k.side === "left" ? te.left : te.right;

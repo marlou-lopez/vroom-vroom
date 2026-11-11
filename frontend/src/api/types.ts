@@ -99,13 +99,6 @@ export interface CompareResponse {
   warning: string | null;
   lap_steering_range_deg: number | null;
   ref_steering_range_deg: number | null;
-  /**
-   * Metres, the game's world height (+ up) at each grid point, from a shared-memory capture of the track (#94).
-   * Experimental. null when the track has no capture; an entry is null where the capture has no path nearby.
-   */
-  elevation: { lap: (number | null)[]; ref: (number | null)[] } | null;
-  /** Edges and kerbs from a shared-memory survey of the track (#97), on the 1 m grid. null when the track has no survey. Experimental. */
-  track_survey: TrackSurvey | null;
   lap_car_dims: CarDims | null;
   ref_car_dims: CarDims | null;
   /** `car_id` of each lap's car; the 3D view uses it to find an optional local 3D model (`/local-models/<car_id>.glb`, #102). */

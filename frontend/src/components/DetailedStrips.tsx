@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import type { CompareResponse } from "../api/types";
+import type { CompareResponse, TrackGeometry } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
@@ -31,6 +31,8 @@ interface Gesture {
 
 export interface DetailedStripsProps {
   model: PlaybackModel;
+  /** The track's elevation (`api.trackGeometry`); the elevation strip shows when it has one. */
+  geometry: TrackGeometry | null;
   annotations: Annotation[];
   handlers: BadgeHandlers;
 }
@@ -52,7 +54,7 @@ const line = (stroke: string, width: number): uPlot.Series => ({
   stroke, width, points: { show: false }, spanGaps: true,
 });
 
-function buildSpecs(cmp: CompareResponse): Spec[] {
+function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null): Spec[] {
   const r = stripRanges(cmp);
   const refStroke = withAlpha(colors.comparison, 0.8);
   const specs: Spec[] = [
@@ -86,15 +88,17 @@ function buildSpecs(cmp: CompareResponse): Spec[] {
       value: (c, _t, iy) => `${formatDelta(c.delta[iy])} s`,
     },
   ];
-  const e = cmp.elevation;
-  if (e) {
-    // Game world height from a shared-memory capture (#94); both laps at the same distance, in metres.
+  const track = geometry?.elevation_m;
+  if (track) {
+    // Game world height from a shared-memory capture (#94), a property of the track so one line for both laps; in metres.
+    const n = cmp.distance.length;
+    const e = Array.from({ length: n }, (_, i) => track[i] ?? null);
     const m = (v: number | null | undefined) => (v === null || v === undefined ? "–" : v.toFixed(1));
     specs.push({
-      label: "ELEVATION", experimental: true, yRange: elevationRange(e.lap, e.ref),
-      data: [e.ref, e.lap],
-      series: [line(refStroke, 1.2), line(colors.you, 1.6)],
-      value: (c, _t, iy) => `${m(c.elevation?.lap[iy])} / ${m(c.elevation?.ref[iy])} m`,
+      label: "ELEVATION", experimental: true, yRange: elevationRange(e),
+      data: [e],
+      series: [line(colors.textSoft, 1.6)],
+      value: (_c, _t, iy) => `${m(e[iy])} m`,
     });
   }
   return specs;
@@ -192,10 +196,10 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
  * Four uPlot strips (five when the track has an elevation capture). React renders this once per comparison / annotation set. Per frame, an effect subscribed to
  * the playback store moves each chart's x scale synchronously, the chip layer and the value read-outs imperatively.
  */
-export function DetailedStrips({ model, annotations, handlers }: DetailedStripsProps) {
+export function DetailedStrips({ model, geometry, annotations, handlers }: DetailedStripsProps) {
   const store = usePlaybackStore();
   const { cmp } = model;
-  const specList = useMemo(() => buildSpecs(cmp), [cmp]);
+  const specList = useMemo(() => buildSpecs(cmp, geometry), [cmp, geometry]);
   const hosts = useRef<(HTMLDivElement | null)[]>([]);
   const frames = useRef<(HTMLDivElement | null)[]>([]);
   const values = useRef<(HTMLDivElement | null)[]>([]);

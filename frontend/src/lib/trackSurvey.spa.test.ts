@@ -24,7 +24,7 @@ describe("Spa survey on the 3 Nov recording", async () => {
   const laps = await api.sessionLaps(s.session_id);
   const id = (no: number) => laps.find((l) => l.lap_no === no)!.lap_id;
   const cmp = await api.compare(id(4), id(3));
-  const sv = cmp.track_survey!;
+  const sv = (await api.trackGeometry(s.track_id)).survey!;
 
   it("measures each edge on at least 99% of the grid (both at the same metre on 98%)", () => {
     const n = cmp.distance.length;
@@ -55,8 +55,8 @@ describe("contact edges on Spa", async () => {
   const laps = await api.sessionLaps(sess.session_id);
   const id = (no: number) => laps.find((l) => l.lap_no === no)!.lap_id;
   const cmp = await api.compare(id(4), id(3));
-  const sv = cmp.track_survey!;
-  const sc = buildScene(cmp, { source: "lateral", gpsHalf: 4, edges: "telemetry" });
+  const sv = (await api.trackGeometry(sess.track_id)).survey!;
+  const sc = buildScene(cmp, { source: "lateral", gpsHalf: 4, edges: "telemetry", survey: sv });
   const n = sc.centre.x.length;
   const q = (v: number[], p: number) => v.slice().sort((a, b) => a - b)[Math.min(v.length - 1, Math.floor(v.length * p))];
   const half = [lateralOffsets(sc.edges[0], sc.centre).map((x) => -x), lateralOffsets(sc.edges[1], sc.centre)];

@@ -10,7 +10,7 @@ Code in `frontend/src/components/mapviews/ribbon/`, behind the same `TrackViewPr
 
 - **Reused, not copied:** `detailed/scene.ts` (`buildScene` with telemetry edges and kerbs; `carPositions` for time or distance sync), `lib/camera.ts` (`smoothHeading`), `lib/debugFlag.ts`, `detailed/bench.ts` (`runPhase`, report format), the playback-store subscription plus coalesced rAF loop. From `DetailedMapView.tsx` I extracted to `mapviews/shared/`: the badge/hover-card layer (`AnnotationBadges`), the frame-time `Ring`, and the localStorage helpers; the detailed view now imports them. `Kerb` in `scene.ts` gained a `start` index (the centreline index of its first point) so kerbs can take road heights.
 - **Coordinates** (`coords.ts`, one place, tested): three x = east, y = up, z = -north.
-- **Road heights** (`heights.ts`): per centreline index, the mean of the non-null lap and reference heights, gaps linearly interpolated (ends hold), then a +/-2 m moving average. The height is the car's reference point height and is used as the road height (a constant offset would be fine for a spike; none is applied). Without elevation the view is flat and shows "No elevation for this track".
+- **Road heights** (`heights.ts`): per centreline index, the track geometry's `elevation_m` (cut or padded to the centreline), gaps linearly interpolated (ends hold), then a +/-2 m moving average. The height is the car's reference point height and is used as the road height (a constant offset would be fine for a spike; none is applied). Without elevation the view is flat and shows "No elevation for this track".
 - **Ribbon** (`geometry.ts`): a triangle strip between the left and right telemetry edges, one height per index applied to both edges (no banking), closed into a loop when the lap's ends are within 30 m. Kerbs are red/white quads per metre. Edge lines sit 2 cm, kerbs 3 cm, the dim line ahead 5 cm and the driven part of each racing line 7 cm above the surface (before the exaggeration; the surface has a polygon offset).
 - **Racing lines:** lap and reference as fat lines in the 2D colours. The driven part is brighter, the part ahead dimmer and half as thick, like #48 (the reference line is solid, not dashed).
 - **Cars** (`pose.ts`): two boxes (body plus a cabin, 1.2 m tall in total) at the true size from `lap_car_dims` / `ref_car_dims`, falling back to the generic GT3 size. Heading from the line; pitch from the road-height slope along the car's own line over +/-3 m, multiplied by the exaggeration so a car sits flat on the stretched surface.
@@ -58,7 +58,7 @@ To add.
 ## Next
 
 - **Cockpit camera:** a new `CameraRig` that places the camera at the driver's eye, using position and orientation (`mPos` / `mOri`) from shared memory once the backend serves them.
-- **#102:** a real 3D car model instead of the boxes (spike). #40 is the procedural low-poly track model.
+- **#102:** a real 3D car model instead of the boxes (spike).
 - Banking from `mOri` roll; terrain and scenery from public data if the view is kept.
 - Move the renderer-lifecycle code (load, context loss, retry) shared by the detailed and 3D views into one hook as part of #77.
 

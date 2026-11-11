@@ -13,7 +13,7 @@ function cmp(n: number, lap: Partial<Record<GridChannel, number[]>>, ref: Partia
     lap_id: "l", ref_lap_id: "r", lap_kind: "flying", ref_kind: "flying",
     distance: Array.from({ length: n }, (_, i) => i),
     lap: channels(n, lap), ref: channels(n, ref), delta: delta ?? new Array<number>(n).fill(0),
-    warning: null, lap_steering_range_deg: null, ref_steering_range_deg: null, lap_car_dims: null, ref_car_dims: null, lap_car_id: "c", ref_car_id: "c", lap_car_name: "C", ref_car_name: "C", elevation: null, track_survey: null,
+    warning: null, lap_steering_range_deg: null, ref_steering_range_deg: null, lap_car_dims: null, ref_car_dims: null, lap_car_id: "c", ref_car_id: "c", lap_car_name: "C", ref_car_name: "C",
   };
 }
 

@@ -106,7 +106,5 @@ describe("Monza in the mock API", () => {
     expect(cmp.ref_lap_id).toBe(laps[2].lap_id);
     expect(cmp.distance.length).toBeGreaterThan(5700);
     expect(cmp.delta[cmp.delta.length - 1]).toBeCloseTo(113.202 - 112.308, 1);
-    expect(cmp.elevation).toBeNull();
-    expect(cmp.track_survey).toBeNull();
   });
 });

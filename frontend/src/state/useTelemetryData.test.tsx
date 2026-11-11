@@ -2,7 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import { sessionLapsOptions } from "../api/queries";
-import { createQueryWrapper, newestBest, setupMockServer } from "../test/mockServer";
+import { createQueryWrapper, newestBest, setupMockServer, spaPairs } from "../test/mockServer";
 import { useTelemetryData } from "./useTelemetryData";
 
 const mock = setupMockServer();
@@ -111,6 +111,38 @@ describe("useTelemetryData", () => {
       const { result } = renderHook(() => useTelemetryData(null, null), { wrapper });
       await waitFor(() => expect(result.current.error).not.toBeNull());
       expect(result.current.error).toMatchObject({ code: "boom" });
+    });
+  });
+
+  describe("track geometry", () => {
+    it("is fetched once by the lap's track id, and switching the reference lap does not refetch it", async () => {
+      const [a, b] = await spaPairs(mock.engine(), 2);
+      const asked: string[] = [];
+      mock.server.use(
+        http.get("*/api/tracks/:id/geometry", ({ params }) => {
+          asked.push(String(params.id));
+          return undefined; // fall through to the default handler
+        }),
+      );
+      const { wrapper } = createQueryWrapper();
+      const { result, rerender } = renderHook(({ ref }: { ref: string }) => useTelemetryData(a.lap, ref), { wrapper, initialProps: { ref: a.ref } });
+      await waitFor(() => expect(result.current.geometry).not.toBeNull());
+      expect(result.current.geometry?.track_id).toBe(a.trackId);
+      const other = b.ref !== a.ref ? b.ref : b.lap;
+      rerender({ ref: other });
+      await waitFor(() => expect(result.current.cmp?.ref_lap_id).toBe(other));
+      expect(result.current.geometry?.track_id).toBe(a.trackId);
+      expect(asked).toEqual([a.trackId]);
+    });
+
+    it("is null, with no error, for a track the API has no geometry for", async () => {
+      mock.server.use(http.get("*/api/tracks/:id/geometry", () => HttpResponse.json({ code: "unknown_track", message: "none" }, { status: 404 })));
+      const { wrapper } = createQueryWrapper();
+      const { result } = renderHook(() => useTelemetryData(null, null), { wrapper });
+      await waitFor(() => expect(result.current.cmp).not.toBeNull());
+      await new Promise((r) => setTimeout(r, 50));
+      expect(result.current.geometry).toBeNull();
+      expect(result.current.error).toBeNull();
     });
   });
 });

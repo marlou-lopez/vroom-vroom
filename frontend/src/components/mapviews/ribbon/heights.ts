@@ -2,21 +2,18 @@
 export const SMOOTH_HALF_M = 2;
 
 /**
- * Road height per centreline grid index from the contract's elevation (#94): the mean of the lap's and the reference
- * lap's heights where present (each is the car's reference point height, which is treated as the road height),
- * gaps filled by linear interpolation (the ends hold the nearest height), then a light moving average.
+ * Road height per centreline grid index from the track geometry's `elevation_m` (#94; the car's reference point height,
+ * treated as the road height): cut or padded to `n` metres, gaps filled by linear interpolation (the ends hold the
+ * nearest height), then a light moving average.
  * null when there is no elevation at all (a track without a capture, or every entry null).
  */
-export function roadHeights(elevation: { lap: (number | null)[]; ref: (number | null)[] } | null | undefined, n: number): Float64Array | null {
+export function roadHeights(elevation: ArrayLike<number | null> | null | undefined, n: number): Float64Array | null {
   if (!elevation || n <= 0) return null;
   const raw = new Float64Array(n).fill(NaN);
   let valid = 0;
   for (let i = 0; i < n; i++) {
-    const a = elevation.lap[i], b = elevation.ref[i];
-    const aOk = typeof a === "number" && Number.isFinite(a), bOk = typeof b === "number" && Number.isFinite(b);
-    if (aOk && bOk) raw[i] = (a + b) / 2;
-    else if (aOk) raw[i] = a;
-    else if (bOk) raw[i] = b;
+    const a = elevation[i];
+    if (typeof a === "number" && Number.isFinite(a)) raw[i] = a;
     if (!Number.isNaN(raw[i])) valid++;
   }
   if (valid === 0) return null;

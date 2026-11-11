@@ -15,7 +15,7 @@ vi.mock("./scene", async (orig) => ({
 
 const model = { cmp: { lap: { t: [0, 1] }, distance: [0, 1] } } as unknown as PlaybackModel;
 const handlers = { onHover: () => {}, onLeave: () => {}, onSelect: () => {} } as never;
-const view = () => render(<PlaybackProvider><DetailedMapView model={model} trackMap={null} annotations={[]} handlers={handlers} /></PlaybackProvider>);
+const view = () => render(<PlaybackProvider><DetailedMapView model={model} trackMap={null} geometry={null} annotations={[]} handlers={handlers} /></PlaybackProvider>);
 
 describe("DetailedMapView when the renderer cannot start", () => {
   beforeEach(() => { vi.mocked(loadRenderer).mockReset(); vi.spyOn(console, "error").mockImplementation(() => {}); });
