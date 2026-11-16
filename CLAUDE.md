@@ -4,7 +4,8 @@ A personal telemetry coach for **Le Mans Ultimate (LMU)**. It imports LMU's own 
 recordings, aligns laps on a 1 m distance grid, plays a lap against a reference lap, and has
 an LLM coach annotate where time was lost. The data model is meant to work for any sim, not
 just LMU. Stages: **v1** UI on mock data (current), **v2** real backend, **v3** live voice coaching
-through a Windows agent, **v4** conversation, **v5** setup engineer.
+through a Windows agent, **v4** conversation, **v5** setup engineer. A side milestone, **Pedal scaling**, scales the
+brake pedal per car in LMU and other sims (via SimHub).
 
 ## Where things stand
 
@@ -13,14 +14,15 @@ and GitHub Issues is disabled. Before starting, run `bd ready --exclude-type epi
 `bd list --status in_progress,review` for work in flight. Each milestone is a Beads epic (`bd list -t
 epic`). Each issue stands on its own and lists its dependencies. Don't rely on this file for progress.
 
-This section only records facts that change rarely (last checked 2026-11-07):
+This section only records facts that change rarely (last checked 2026-11-14):
 - **Phase:** the frontend runs on a mock API serving real Spa and Monza recordings. The backend
   hasn't been started, and there's no `backend/` directory yet.
 - **Agreed order:** first the **Track views** milestone (detailed 2D, then 3D), then the remaining
   `v1 – UI on mock data` issues, then the `Analysis features` milestone (new analysis split out of v1
   on 2026-11-07), then the backend (milestone `v2 – Real backend`, Tasks 1–13), then switching the
-  frontend to the real API. v1 and Analysis features are both done before the backend starts. Goals,
-  non-goals and milestones are in `docs/spec.md`.
+  frontend to the real API. v1 and Analysis features are both done before the backend starts.
+  **Pedal scaling** (`vroom-ryg`, decided 2026-11-14) doesn't wait for the backend: its core may start
+  after Analysis features, alongside v2. Goals, non-goals and milestones are in `docs/spec.md`.
 - The design spec, the v1 plan and handover notes live outside the repo, in
   `~/.claude/plans/superpowers/ai-sim-racing-engineer/`. The Beads issues and `docs/spec.md`
   already copy the details that matter.
