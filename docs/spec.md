@@ -1,6 +1,6 @@
 # vroom-vroom: product spec
 
-Status: draft, 2026-11-07. Sources: the design agreed on 2026-11-03 (kept outside the repo), `CLAUDE.md`, and the Beads epics.
+Status: draft, 2026-11-07; pedal scaling added 2026-11-14 (`vroom-34u`). Sources: the design agreed on 2026-11-03 (kept outside the repo), `CLAUDE.md`, and the Beads epics.
 Work status lives in Beads (`bd ready --exclude-type epic`), not here. This file says what
 we are building and why, and in what order.
 
@@ -8,7 +8,7 @@ we are building and why, and in what order.
 
 A personal telemetry coach for **Le Mans Ultimate (LMU)**. It helps one driver find lap time by playing a lap against
 a reference lap and having an LLM coach explain where and why time was lost. It is a single-user tool that runs on one
-machine.
+machine. A side tool, pedal scaling, gives each car its own brake force, in LMU and in other sims.
 
 ## Goals
 
@@ -23,15 +23,24 @@ machine.
 3. **Show the track as it really is.** Track views that go from the classic 2D map to a detailed 2D view and a 3D view
    (chase, cockpit, orbit, top cameras), built procedurally from telemetry, LMU shared-memory captures and public
    terrain data.
-4. **Stay sim-agnostic in the data model.** LMU is the only sim supported, but the lap model and the API contract
+4. **Stay sim-agnostic in the data model.** LMU is the only sim supported for telemetry and coaching, but the lap model and the API contract
    don't depend on LMU names or units, so another sim can be added later.
 5. **Grow in stages** from post-session analysis to live voice coaching, conversation and setup advice. Each stage is
    built on the facts from the stage before it.
+6. **Give each car the right brake feel.** Scale the load-cell brake pedal per car, so that 100 % brake in game needs
+   a realistic leg force for that car. It is a port of the driver's earlier tool, the Auto-Brake Calibrator, and it
+   serves sims with many different cars (Assetto Corsa, Automobilista 2), not only LMU. It sits in the brake path, so:
+   - the pedal loop runs in its own process, never with speech, LLM or database work;
+   - a failed or stale pedal read releases the brake and shows a fault, never holds the last value;
+   - its local API accepts only this machine's own frontend (origin and content-type checked);
+   - the scale is always clamped to 0.01–1.00.
 
 ## Non-goals
 
 - **Multi-user, accounts or cloud hosting.** It runs locally, for one driver; the backend serves `127.0.0.1` only.
-- **Other sims, for now.** The model allows them; no importer is planned.
+- **Other sims for telemetry and coaching, for now.** The model allows them; no importer is planned. Pedal scaling is
+  the exception: it identifies the car in other sims through SimHub (LMU uses its own shared memory), and that is all
+  it reads from them.
 - **Extracting or shipping game assets.** LMU track files are encrypted and the EULA forbids extracting them. 3D work
   is procedural. No 3D car model, texture or anything derived from one is ever committed; users bring their own.
 - **Modifying LMU data.** Recordings are copied and the copy is opened read-only. The setup engineer (v5) reads setups
@@ -54,6 +63,7 @@ Each milestone is a Beads epic, and its issues are its children. GitHub mileston
 | v2 – Real backend | `vroom-9ki` | Python package `racecoach` in `backend/` (uv, FastAPI, DuckDB, polars, Pydantic AI) on `127.0.0.1:8765`: LMU reader, distance fusion and 1 m resampling, store and importer, folder watcher, track maps and corner detection, per-corner metrics, the coach with its number guard, an HTTP API matching the contract, then switching the frontend to it. |
 | v3 – Live coaching | `vroom-7cb` | A Windows agent reading LMU shared memory (reusing `tools/lmu-logger`), push-to-talk on a wheel button, local speech-to-text and text-to-speech, short timed cues between corners. |
 | v4 – Conversation | `vroom-9ke` | Free-form follow-up questions to the coach, grounded in the same fact packets. Scope to be defined after v3. |
+| Pedal scaling | `vroom-ryg` | Per-car brake pedal scaling (goal 6), ported to Python as its own process in the Windows agent. Core: HID pedal read on a dedicated thread with device discovery and a fault timeout, vJoy output, car and class from LMU shared memory or SimHub for other sims, per-sim profiles keyed on stable car ids, resolver tests, and the ten fixes from the review (`vroom-7cb.3`). Later: a pedal page in the frontend through the Api contract, the active scale recorded with each session, and a coach-suggested scale from brake traces (needs v2). |
 | v5 – Setup engineer | `vroom-k5s` | Read-only setup advice from telemetry, handling evidence and driver feedback, one or two changes at a time with reasoning. First step already in v1: the setup diff between a lap and its reference. Scope to be defined after v4. |
 
 ## Order of work
@@ -67,7 +77,13 @@ Agreed order:
 4. **v2 – Real backend** (`vroom-9ki`): its Tasks 1–13 in dependency order, from scaffold to the HTTP API.
 5. **Switch the frontend to the real API** (the last v2 task), then v3, v4 and v5 in turn.
 
-v3–v5 are not broken into issues yet. Each epic's acceptance criterion is to break it into issues once the stage
+**Pedal scaling** (decided 2026-11-14) does not wait for the backend. Its core (pedal loop, safety fixes, profiles,
+car from shared memory or SimHub) may start any time after Analysis features, alongside v2. Its pedal page and Api
+contract come with or after v2; the coach-suggested scale and the scale recorded per session need v2's brake and
+corner metrics. The v3 agent later hosts its process. Until the port, the two safety fixes (stuck brake on a failed
+read, the unprotected local API) are made in the old tool, outside this repo.
+
+v3–v5 and Pedal scaling are not broken into issues yet. Each epic's acceptance criterion is to break it into issues once the stage
 before it ships.
 
 ## Open questions
