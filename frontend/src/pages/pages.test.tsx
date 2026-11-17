@@ -145,6 +145,30 @@ describe("pages", () => {
     expect(within(table).getAllByRole("link", { name: /Open/ }).length).toBeGreaterThan(0);
   });
 
+  it("Sessions: one selector (the table rows), lap table opens on a session with traces, cards name their session", async () => {
+    renderApp("/sessions");
+    const list = await screen.findByRole("region", { name: "Session list" });
+    await within(list).findByRole("table");
+    expect(screen.queryByRole("group", { name: "Session for the lap table" })).toBeNull();
+    expect(await screen.findByRole("region", { name: "Laps against the ideal" }, { timeout: 5000 })).toBeTruthy();
+    expect(within(screen.getByRole("region", { name: "Summary" })).getAllByText(/session/i).length).toBeGreaterThan(1);
+  });
+
+  it("Sessions: a stats-only session (no lap has a trace) is tagged and shows its stint, not a lap table", async () => {
+    const sessions = (await mock.engine().sessions());
+    const ids = new Set(sessions.map((x) => x.session_id));
+    mock.server.use(http.get("*/api/sessions/:id/laps", async ({ params }) => {
+      const laps = await mock.engine().sessionLaps(String(params.id));
+      return HttpResponse.json(ids.has(String(params.id)) ? laps.map((l) => ({ ...l, has_trace: false })) : laps);
+    }));
+    renderApp("/sessions");
+    const list = await screen.findByRole("region", { name: "Session list" });
+    const tags = await within(list).findAllByText("stats only");
+    expect(tags.length).toBeGreaterThan(0);
+    expect(await screen.findByText(/stats only \(no lap traces\)/)).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Laps against the ideal" })).toBeNull();
+  });
+
   it("Tracks shows the corners table", async () => {
     renderApp("/tracks");
     const panel = await screen.findByRole("region", { name: "Corners" });

@@ -143,3 +143,77 @@ export function symmetricRange(minHalf: number, ...arrs: ArrayLike<number>[]): R
   const m = Math.max(maxAbs(...arrs) * 1.05, minHalf);
   return [-m, m];
 }
+
+// ---- Window control (vroom-pnw.35) ----
+
+export type WindowMode = "corner" | "700" | "lap";
+export const WINDOW_MODES: ReadonlyArray<{ id: WindowMode; label: string }> = [
+  { id: "corner", label: "Corner" },
+  { id: "700", label: "700 m" },
+  { id: "lap", label: "Lap" },
+];
+export const WINDOW_MODE_KEY = "vroom.stripWindow";
+/** Half of the default 700 m window. */
+export const DEFAULT_HALF_M = 350;
+/** Corner fit: padding as a fraction of the corner's length, at least `CORNER_MIN_PAD_M` either side, and a floor on the half-window. */
+export const CORNER_PAD_FRAC = 0.25;
+export const CORNER_MIN_PAD_M = 40;
+export const CORNER_MIN_HALF_M = 60;
+
+export function parseWindowMode(v: unknown): WindowMode {
+  return v === "corner" || v === "lap" || v === "700" ? v : "700";
+}
+
+export interface CornerSpan { startM: number; endM: number }
+export interface StripView { min: number; max: number; playhead: number }
+
+/** The corner a corner-fit window shows at playhead `d`: the one containing it (also over the start line), else the next one ahead, else the first. */
+export function pickCorner<T extends CornerSpan>(corners: readonly T[], d: number): T | null {
+  if (corners.length === 0) return null;
+  const inside = corners.find((c) => (c.startM <= c.endM ? d >= c.startM && d <= c.endM : d >= c.startM || d <= c.endM));
+  if (inside) return inside;
+  let next: T | null = null;
+  let first = corners[0];
+  for (const c of corners) {
+    if (c.startM < first.startM) first = c;
+    if (c.startM > d && (!next || c.startM < next.startM)) next = c;
+  }
+  return next ?? first;
+}
+
+/** Centre and half-width (m) of a window fitted to a corner with padding; a corner over the start line fits the half that holds `d` (else the first half). */
+export function fitCorner(c: CornerSpan, d: number, lapEnd: number): { centre: number; half: number } {
+  const bands = splitWrapping(c.startM, c.endM, lapEnd);
+  const [a, b] = bands.find(([x, y]) => d >= x && d <= y) ?? bands[0];
+  const pad = Math.max((b - a) * CORNER_PAD_FRAC, CORNER_MIN_PAD_M);
+  return { centre: (a + b) / 2, half: Math.max((b - a) / 2 + pad, CORNER_MIN_HALF_M) };
+}
+
+/**
+ * The x window for a mode. "700": ±350 m around the playhead. "lap": the whole lap. "corner": fitted to `corner` (fixed, so the
+ * playhead moves through it); no corner falls back to 700. `playhead` is where `d` sits in the window and can lie outside 0..1.
+ */
+export function stripView(mode: WindowMode, d: number, minM: number, maxM: number, corner: CornerSpan | null): StripView {
+  if (mode === "lap") {
+    const span = maxM - minM || 1;
+    return { min: minM, max: maxM, playhead: (d - minM) / span };
+  }
+  if (mode === "corner" && corner) {
+    const { centre, half } = fitCorner(corner, d, maxM);
+    const w = stripWindow(centre, Math.min(half, (maxM - minM) / 2), minM, maxM);
+    return { min: w.min, max: w.max, playhead: (d - w.min) / (w.max - w.min || 1) };
+  }
+  return stripWindow(d, DEFAULT_HALF_M, minM, maxM);
+}
+
+/** Tick positions (whole metres, 1/2/5 × 10^k steps) inside `[min, max]`, about `target` of them. */
+export function distanceTicks(min: number, max: number, target = 7): number[] {
+  const span = max - min;
+  if (!(span > 0)) return [];
+  const raw = span / target;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const step = ([1, 2, 5, 10].find((m) => m * pow >= raw) ?? 10) * pow;
+  const out: number[] = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(Math.round(v));
+  return out;
+}

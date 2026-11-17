@@ -16,8 +16,10 @@ import styles from "./SessionsPage.module.css";
 interface Row {
   session: SessionMeta;
   summary: SessionSummary;
-  /** Best valid flying lap of the session, for the "Open" link. */
+  /** Best valid flying lap of the session (else any lap with a trace), for the "Open" link. */
   bestLapId: string | null;
+  /** False for a session recorded as stats only (no lap has a trace): its lap table has nothing to show, its stint does. */
+  hasTraces: boolean;
 }
 
 const TONE: Record<FocusTone, string> = { good: styles["tone-good"], bad: styles["tone-bad"], unclear: styles["tone-unclear"] };
@@ -35,7 +37,7 @@ export function SessionsPage() {
   const sessionsQ = useSessions();
   const sessions = sessionsQ.data ?? null;
   const [selected, setSelected] = useState<string | null>(null);
-  const [lapsSession, setLapsSession] = useState<string | null>(null);
+  const [pickedSession, setPickedSession] = useState<string | null>(null);
 
   const combos = useMemo(() => groupCombos(sessions ?? []), [sessions]);
   const comboKeyNow = selected && combos.some((c) => c.key === selected) ? selected : (combos[0]?.key ?? null);
@@ -49,7 +51,9 @@ export function SessionsPage() {
   const lapsOf = useQueries({ queries: mine.map((s) => sessionLapsOptions(s.session_id)), combine });
   const rows: Row[] | null =
     sessions && comboKeyNow && summaries.data && lapsOf.data
-      ? mine.map((session, i) => ({ session, summary: summaries.data![i], bestLapId: bestValidLap(lapsOf.data![i])?.lap_id ?? null }))
+      ? mine.map((session, i) => ({ session, summary: summaries.data![i], bestLapId: (bestValidLap(lapsOf.data![i]) ?? lapsOf.data![i].find((l) => l.has_trace))?.lap_id ?? null,
+          hasTraces: lapsOf.data![i].some((l) => l.has_trace),
+        }))
       : null;
   const error = (sessionsQ.error ?? summaries.error ?? lapsOf.error)?.message ?? null;
 
@@ -57,6 +61,9 @@ export function SessionsPage() {
   if (!sessions) return <div className={styles.status}>Loading…</div>;
   if (combos.length === 0) return <div className={styles.status}>No sessions yet. Import a recording first.</div>;
 
+  // The selected session: the picked one if it is in this combo, else the newest that has traces, else the newest.
+  const shownRow = (rows ?? []).find((r) => r.session.session_id === pickedSession) ?? [...(rows ?? [])].reverse().find((r) => r.hasTraces) ?? rows?.[rows.length - 1];
+  const shownId = shownRow?.session.session_id ?? null;
   const combo = combos.find((c) => c.key === comboKeyNow)!;
   const bests = (rows ?? []).map((r) => r.summary.best_lap_s).filter((v): v is number => v !== null);
   const pb = bests.length ? Math.min(...bests) : null;
@@ -66,11 +73,15 @@ export function SessionsPage() {
   const gapTheo = last?.summary.best_lap_s != null && last.summary.theoretical_best_s != null ? last.summary.best_lap_s - last.summary.theoretical_best_s : null;
   const totalValid = (rows ?? []).reduce((n, r) => n + r.summary.n_valid, 0);
 
-  const cards: { k: string; v: string; tone?: string }[] = [
-    { k: "SESSIONS", v: String(combo.count) },
-    { k: "VALID LAPS", v: String(totalValid) },
-    { k: "CHANGE SINCE FIRST", v: gained === null ? "—" : `${formatDelta(gained)} s`, tone: gained === null ? undefined : gained < 0 ? styles.gain : styles.loss },
-    { k: "GAP TO THEORETICAL", v: gapTheo === null ? "—" : `${gapTheo.toFixed(2)} s` },
+  const withBest = (rows ?? []).filter((r) => r.summary.best_lap_s !== null);
+  const first = withBest[0];
+  const lastBest = withBest[withBest.length - 1];
+  const dateOf = (r?: Row) => (r ? formatShortDate(r.session.started_at) : "");
+  const cards: { k: string; v: string; from: string; tone?: string }[] = [
+    { k: "SESSIONS", v: String(combo.count), from: "this track and car" },
+    { k: "VALID LAPS", v: String(totalValid), from: `all ${combo.count} sessions` },
+    { k: "CHANGE SINCE FIRST", v: gained === null ? "—" : `${formatDelta(gained)} s`, from: gained === null ? "needs 2 sessions" : `best of ${dateOf(first)} → ${dateOf(lastBest)}`, tone: gained === null ? undefined : gained < 0 ? styles.gain : styles.loss },
+    { k: "GAP TO THEORETICAL", v: gapTheo === null ? "—" : `${gapTheo.toFixed(2)} s`, from: last ? `latest session, ${dateOf(last)}` : "" },
   ];
 
   return (
@@ -112,6 +123,7 @@ export function SessionsPage() {
             <div key={c.k} className={ui.panel}>
               <div className={styles.cardKey}>{c.k}</div>
               <div className={cx(styles.cardValue, c.tone)}>{c.v}</div>
+              <div className={styles.cardFrom}>{c.from}</div>
             </div>
           ))}
         </section>
@@ -136,13 +148,18 @@ export function SessionsPage() {
               </tr>
             </thead>
             <tbody>
-              {[...rows].reverse().map(({ session, summary, bestLapId }) => {
+              {[...rows].reverse().map(({ session, summary, bestLapId, hasTraces }) => {
+                const isSel = session.session_id === shownId;
                 const best = summary.best_lap_s;
                 const out = summary.focus ? focusOutcome(summary.focus.improved) : null;
                 return (
-                  <tr key={session.session_id}>
-                    <td className={styles.date}>{formatShortDate(session.started_at)}</td>
-                    <td>{session.session_type}</td>
+                  <tr key={session.session_id} className={isSel ? styles.selected : undefined} onClick={() => setPickedSession(session.session_id)}>
+                    <td className={styles.date}>
+                      <button type="button" aria-pressed={isSel} className={styles.rowButton} onClick={(e) => { e.stopPropagation(); setPickedSession(session.session_id); }}>
+                        {formatShortDate(session.started_at)}
+                      </button>
+                    </td>
+                    <td>{session.session_type}{!hasTraces && <span className={styles.statsOnly} title="Recorded without lap traces: only the stint stats are available"> stats only</span>}</td>
                     <td className={styles.num}>{summary.n_laps} ({summary.n_valid})</td>
                     <td className={cx(styles.num, best !== null && best === pb && styles.pbCell)}>{formatLapTime(best)}</td>
                     <td className={cx(styles.num, styles.dim)}>{best === null || pb === null ? "—" : best === pb ? "PB" : `+${(best - pb).toFixed(3)}`}</td>
@@ -153,9 +170,9 @@ export function SessionsPage() {
                     </td>
                     <td className={styles.open}>
                       {bestLapId ? (
-                        <Link to={lapLink(search, bestLapId)} className={styles.openLink}>Open →</Link>
+                        <Link to={lapLink(search, bestLapId)} className={styles.openLink} onClick={(e) => e.stopPropagation()}>Open →</Link>
                       ) : (
-                        <span className={styles.dim} title="No valid flying lap with a trace to open">—</span>
+                        <span className={styles.dim} title="No lap with a trace to open">—</span>
                       )}
                     </td>
                   </tr>
@@ -166,25 +183,20 @@ export function SessionsPage() {
         )}
       </section>
 
-      {rows && rows.length > 0 && (() => {
-        const shownId = rows.some((r) => r.session.session_id === lapsSession) ? lapsSession! : rows[rows.length - 1].session.session_id;
-        return (
-          <>
-            <div role="group" aria-label="Session for the lap table" className={styles.chips}>
-              {[...rows].reverse().map((r) => (
-                <button key={r.session.session_id} type="button" aria-pressed={r.session.session_id === shownId} onClick={() => setLapsSession(r.session.session_id)} className={ui.chip}>
-                  {formatShortDate(r.session.started_at)} · {r.session.session_type}
-                </button>
-              ))}
-            </div>
-            <LapGaugeTable sessionId={shownId} />
-          </>
-        );
-      })()}
-
-
-      {/* Per-lap stint stats of each session of the combo that has them (a panel renders nothing without). */}
-      {mine.map((session) => <StintPanel key={session.session_id} session={session} />)}
+      {shownRow && (
+        <>
+          <div className={ui.heading}>
+            SELECTED SESSION · {formatShortDate(shownRow.session.started_at)} · {shownRow.session.session_type}
+          </div>
+          {shownRow.hasTraces ? (
+            <LapGaugeTable key={shownRow.session.session_id} sessionId={shownRow.session.session_id} />
+          ) : (
+            <div className={ui.muted}>This session is stats only (no lap traces), so there is no lap table; its stint follows.</div>
+          )}
+          {/* Per-lap stint stats of the selected session (the panel renders nothing without). */}
+          <StintPanel key={shownRow.session.session_id} session={shownRow.session} />
+        </>
+      )}
     </div>
   );
 }

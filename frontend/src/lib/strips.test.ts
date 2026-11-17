@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipFraction, chipLayerGeometry, clipBand, cornerBands, elevationRange, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, valueToPx, withAlpha } from "./strips";
+import { chipFraction, chipLayerGeometry, clipBand, cornerBands, distanceTicks, elevationRange, fitCorner, parseWindowMode, pickCorner, stripDistanceAt, stripRanges, stripScrubTarget, stripView, stripWindow, valueToPx, withAlpha } from "./strips";
 
 describe("stripRanges", () => {
   const c = {
@@ -130,5 +130,54 @@ describe("cornerBands", () => {
       { d0: 6900, d1: 7000, startEdge: true, endEdge: false },
       { d0: 0, d1: 120, startEdge: false, endEdge: true },
     ]);
+  });
+});
+
+describe("strip window modes (vroom-pnw.35)", () => {
+  const corners = [{ startM: 100, endM: 200 }, { startM: 500, endM: 560 }, { startM: 6900, endM: 40 }];
+  it("parses a stored mode, defaulting to 700", () => {
+    expect(parseWindowMode("lap")).toBe("lap");
+    expect(parseWindowMode("corner")).toBe("corner");
+    expect(parseWindowMode("bogus")).toBe("700");
+    expect(parseWindowMode(null)).toBe("700");
+  });
+  it("picks the corner under the playhead, else the next ahead, wrapping to the first", () => {
+    expect(pickCorner(corners, 150)).toBe(corners[0]);
+    expect(pickCorner(corners, 300)).toBe(corners[1]);
+    expect(pickCorner(corners, 6950)).toBe(corners[2]);
+    expect(pickCorner(corners, 20)).toBe(corners[2]);
+    expect(pickCorner(corners.slice(0, 2), 700)).toBe(corners[0]);
+    expect(pickCorner([], 5)).toBeNull();
+  });
+  it("fits a corner with padding and a floor", () => {
+    expect(fitCorner({ startM: 100, endM: 300 }, 150, 7000)).toEqual({ centre: 200, half: 100 + 50 });
+    expect(fitCorner({ startM: 500, endM: 520 }, 510, 7000)).toEqual({ centre: 510, half: 60 });
+    // Over the start line: the half that holds d.
+    expect(fitCorner({ startM: 6900, endM: 40 }, 6950, 7000).centre).toBe(6950);
+    expect(fitCorner({ startM: 6900, endM: 40 }, 10, 7000).centre).toBe(20);
+  });
+  it("builds the window per mode", () => {
+    expect(stripView("700", 1000, 0, 7000, null)).toEqual({ min: 650, max: 1350, playhead: 0.5 });
+    expect(stripView("lap", 1750, 0, 7000, null)).toEqual({ min: 0, max: 7000, playhead: 0.25 });
+    const w = stripView("corner", 150, 0, 7000, corners[0]);
+    expect(w.min).toBeCloseTo(100 - 40 - 0, 5);
+    expect(w.max).toBeCloseTo(200 + 40, 5);
+    expect(w.min).toBeGreaterThanOrEqual(0);
+    expect(w.playhead).toBeCloseTo((150 - w.min) / (w.max - w.min), 9);
+    // Playhead outside the fitted corner window is reported, not clamped.
+    expect(stripView("corner", 400, 0, 7000, corners[0]).playhead).toBeGreaterThan(1);
+    // No corner: falls back to 700.
+    expect(stripView("corner", 1000, 0, 7000, null)).toEqual(stripView("700", 1000, 0, 7000, null));
+  });
+  it("clamps a corner window to the lap and a tiny lap", () => {
+    const w = stripView("corner", 5, 0, 7000, { startM: 0, endM: 30 });
+    expect(w.min).toBe(0);
+    expect(w.max - w.min).toBe(2 * 60);
+  });
+  it("makes 1/2/5 distance ticks inside the window", () => {
+    expect(distanceTicks(0, 700)).toEqual([0, 100, 200, 300, 400, 500, 600, 700]);
+    expect(distanceTicks(0, 7000, 7)).toEqual([0, 1000, 2000, 3000, 4000, 5000, 6000, 7000]);
+    expect(distanceTicks(95, 245, 5)).toEqual([100, 150, 200]);
+    expect(distanceTicks(5, 5)).toEqual([]);
   });
 });
