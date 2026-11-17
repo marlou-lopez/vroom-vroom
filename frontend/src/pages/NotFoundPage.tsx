@@ -9,7 +9,7 @@ export function NotFoundPage() {
       <p className={styles.path}>
         No page at <code>{pathname}</code>
       </p>
-      <Link to="/">Back to Telemetry</Link>
+      <Link to="/" className={styles.link}>Back to Telemetry</Link>
     </div>
   );
 }
