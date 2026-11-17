@@ -1,11 +1,15 @@
 """Runs every facts packet N times per model and logs each call (vroom-9ki.17). Not a test: it calls real models.
 
   uv run --with openai --with anthropic --with jsonschema python -I run.py \
-      --model ollama:gpt-oss-20b-nommap --model anthropic:claude-sonnet-5-5 --runs 5
+      --model ollama:gpt-oss-20b-nommap --model openai:<model id> --runs 5
 
-ollama:<tag> talks to Ollama's OpenAI-compatible endpoint (OLLAMA_BASE_URL, default http://127.0.0.1:11434/v1;
-from WSL use the Windows NAT gateway, e.g. http://172.24.16.1:11434/v1). anthropic:<id> needs ANTHROPIC_API_KEY
-(or an `ant auth login` profile). Results append to results/runs.jsonl, one line per call.
+Providers (all but anthropic go through the OpenAI SDK's chat completions with a JSON-schema response_format):
+  ollama:<tag>     Ollama's OpenAI-compatible endpoint, OLLAMA_BASE_URL (default http://127.0.0.1:11434/v1; from WSL
+                   use the Windows NAT gateway, e.g. http://172.24.16.1:11434/v1). No key, no cost.
+  openai:<model>   OpenAI, or any OpenAI-compatible host (OpenRouter, Groq ...) with OPENAI_BASE_URL. Needs OPENAI_API_KEY.
+  anthropic:<id>   Anthropic Messages API. Needs ANTHROPIC_API_KEY (or an `ant auth login` profile).
+Cost is logged when the price is known: built in for Claude, else SPIKE_PRICE="<input>,<output>" in $ per 1M tokens.
+Results append to results/runs.jsonl, one line per call.
 """
 
 from __future__ import annotations
@@ -75,10 +79,32 @@ def user_message(packet: dict) -> str:
     return f"Command: {packet['command']}\n\nFacts:\n```json\n{json.dumps(packet, indent=1, ensure_ascii=False)}\n```"
 
 
+def price(model: str) -> tuple[float, float] | None:
+    if model in PRICES:
+        return PRICES[model]
+    env = os.environ.get("SPIKE_PRICE")
+    return tuple(float(x) for x in env.split(",")) if env else None  # type: ignore[return-value]
+
+
 def call_ollama(model: str, messages: list[dict]) -> dict:
+    base = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1")
+    temp = float(os.environ.get("SPIKE_TEMPERATURE", "0.7"))
+    return call_openai_compatible(model, messages, base_url=base, api_key="ollama", temperature=temp, paid=False)
+
+
+def call_openai(model: str, messages: list[dict]) -> dict:
+    # Reasoning models reject a non-default temperature, so send one only when asked for.
+    temp = os.environ.get("SPIKE_TEMPERATURE")
+    return call_openai_compatible(model, messages, base_url=os.environ.get("OPENAI_BASE_URL"),
+                                  api_key=os.environ.get("OPENAI_API_KEY"), temperature=float(temp) if temp else None, paid=True)
+
+
+def call_openai_compatible(model: str, messages: list[dict], *, base_url: str | None, api_key: str | None,
+                           temperature: float | None, paid: bool) -> dict:
     from openai import OpenAI
 
-    client = OpenAI(base_url=os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1"), api_key="ollama")
+    client = OpenAI(base_url=base_url, api_key=api_key)
+    extra = {"temperature": temperature} if temperature is not None else {}
     t0 = time.perf_counter()
     first_any = first_text = None
     text, usage = [], None
@@ -88,7 +114,7 @@ def call_ollama(model: str, messages: list[dict]) -> dict:
         stream=True,
         stream_options={"include_usage": True},
         response_format={"type": "json_schema", "json_schema": {"name": "coach_result", "schema": SCHEMA, "strict": True}},
-        temperature=float(os.environ.get("SPIKE_TEMPERATURE", "0.7")),
+        **extra,
     )
     for chunk in stream:
         if chunk.usage:
@@ -106,8 +132,13 @@ def call_ollama(model: str, messages: list[dict]) -> dict:
     return {
         "text": "".join(text), "ttft_s": first_any, "ttft_text_s": first_text, "total_s": time.perf_counter() - t0,
         "input_tokens": usage.prompt_tokens if usage else None, "output_tokens": usage.completion_tokens if usage else None,
-        "cost_usd": None,
+        "cost_usd": cost(model, usage.prompt_tokens, usage.completion_tokens) if paid and usage else None,
     }
+
+
+def cost(model: str, tokens_in: int, tokens_out: int) -> float | None:
+    p = price(model)
+    return (tokens_in * p[0] + tokens_out * p[1]) / 1e6 if p else None
 
 
 def call_anthropic(model: str, messages: list[dict]) -> dict:
@@ -130,18 +161,16 @@ def call_anthropic(model: str, messages: list[dict]) -> dict:
                 first_text = time.perf_counter() - t0
         msg = stream.get_final_message()
     text = "".join(b.text for b in msg.content if b.type == "text")
-    pin, pout = PRICES.get(model, (None, None))
     u = msg.usage
-    cost = (u.input_tokens * pin + u.output_tokens * pout) / 1e6 if pin is not None else None
     return {
         "text": text, "ttft_s": first_any, "ttft_text_s": first_text, "total_s": time.perf_counter() - t0,
-        "input_tokens": u.input_tokens, "output_tokens": u.output_tokens, "cost_usd": cost, "stop_reason": msg.stop_reason,
+        "input_tokens": u.input_tokens, "output_tokens": u.output_tokens, "cost_usd": cost(model, u.input_tokens, u.output_tokens), "stop_reason": msg.stop_reason,
     }
 
 
 def attempt(spec: str, messages: list[dict], packet: dict) -> dict:
     provider, _, model = spec.partition(":")
-    fn = {"ollama": call_ollama, "anthropic": call_anthropic}[provider]
+    fn = {"ollama": call_ollama, "openai": call_openai, "anthropic": call_anthropic}[provider]
     try:
         out = fn(model, messages)
     except Exception as e:  # noqa: BLE001 - a spike logs every failure and goes on

@@ -4,7 +4,7 @@
 well enough, compared with the hosted default (`claude-sonnet-5-5` / `claude-haiku-5-5`)?
 
 **Status (2026-11-17): partly measured, parked.** One local model (gpt-oss-20b) was run 40 times on 4
-packets with 2 prompt versions. Still to do, by the user: the hosted comparison (needs the Anthropic key), a
+packets with 2 prompt versions. Still to do, by the user: the hosted comparison (OpenAI, with the user's key), a
 second and third local model (multi-GB downloads onto the Windows box), VRAM with LMU open in its menus,
 the blind ratings, and the hosted-fallback question. The recommendation below is provisional until then.
 
@@ -20,7 +20,7 @@ Prototype: `spikes/local-llm/` (see its `README.md`). No code under `backend/` (
 | GPU offload | `ollama ps`: `size_vram` = `size` = **12.74 GB**, i.e. 100 % on the GPU, no CPU spill; context 16 384 |
 | Structured output | `response_format: json_schema` (strict), grammar-enforced by llama.cpp |
 | Sampling | temperature 0.7, reasoning effort left at gpt-oss's default (medium) |
-| Hosted | `run.py` supports `anthropic:<id>` with `output_config.format` (JSON schema) and logs cost ($2 / $10 per M tokens for Sonnet 5.5). **Not run**: no key in the agent's environment |
+| Hosted | **OpenAI** for this spike (the user has OpenAI credit and no Anthropic credit). `openai:<model>` uses the same OpenAI-SDK client as Ollama, with a JSON-schema `response_format`; `OPENAI_BASE_URL` also points it at OpenRouter, Groq and other OpenAI-compatible hosts. `anthropic:<id>` is kept for later. Cost is logged per call (`SPIKE_PRICE` for non-Claude models). **Not run yet**: needs the user's key |
 
 ### Packets (`spikes/local-llm/packets/`)
 
@@ -97,7 +97,7 @@ the first token of the answer itself, which is what a UI could start showing.
 
 | Item | Why not | How |
 |---|---|---|
-| Hosted default (Sonnet 5.5, and Haiku 5.5 for Average) | no Anthropic key in the agent environment | `run.py --model anthropic:claude-sonnet-5-5` with the key set; the cost is logged per call |
+| Hosted comparison (OpenAI) | needs the user's OpenAI key | `OPENAI_API_KEY=… SPIKE_PRICE=<in>,<out> run.py --model openai:<model>`: 20 calls of about 1.3–2.7 k input and 1–3 k output tokens each, well inside a $5 credit for a mid-size model (check its price first) |
 | 2nd and 3rd local model | each is a 10–16 GB download onto the Windows box, and loading it evicts Sure's model | candidates from the handover's 2026-11-10 survey: `gemma4:26b-a4b-it-qat` (Gemma licence, 16 GB, slight CPU spill) and a ~14 B Qwen instruct at Q4 (Apache-2.0; check the exact tag and licence in the Ollama library); `ollama pull <tag>`, then `run.py --model ollama:<tag>` |
 | VRAM with LMU open in its menus, and LMU's own VRAM | needs LMU running | Task Manager → GPU → dedicated memory: LMU alone, then LMU + `ollama ps` after one call. gpt-oss alone holds 12.74 GB of the 16 GB, so it probably won't fit next to LMU without spilling to the CPU |
 | Blind ratings | need the user | after all runs: `python3 -I summarize.py blind --per 2`, rate `blind/sheet.md` 1–5, then open `blind/key.json` |
@@ -122,18 +122,21 @@ decide the default after the hosted run and the blind ratings. Format is no long
 grammar-enforced JSON and number grounding were perfect in 40 runs. The open questions are prose quality
 next to Sonnet, and whether a 12.7 GB model can share the GPU with LMU.
 
-Config change for vroom-9ki.11, if local wins in any form:
+Config change for vroom-9ki.11, which makes the provider configurable whichever model wins:
 
 ```python
 llm_provider: Literal["anthropic", "openai", "gemini", "ollama"] = "anthropic"
-llm_base_url: str | None = None  # "ollama" defaults to http://127.0.0.1:11434/v1 (OpenAI-compatible)
+llm_base_url: str | None = None  # "ollama" defaults to http://127.0.0.1:11434/v1; with "openai" it reaches any
+                                 # OpenAI-compatible host (OpenRouter, Groq ...)
 llm_strong: str = "claude-sonnet-5-5"  # e.g. "gpt-oss-20b-nommap" with ollama
 llm_fast: str = "claude-haiku-5-5"
 ```
 
 Map `"ollama"` to Pydantic AI's OpenAI-compatible model with `base_url`. Use JSON-schema structured output
 (`response_format`) rather than tool calls; the handover saw a malformed nested tool call. `cost_usd` stays
-`None` for local calls.
+`None` for local calls. The spike's `run.py` already has this shape: one OpenAI-compatible client for
+`ollama:` and `openai:`, and Anthropic's own SDK for `anthropic:`. The design's Anthropic default is a
+separate decision and stays as it is until the comparison is in.
 
 Lessons for vroom-9ki.12 (coach packets and guard), whichever model wins:
 - Use plain-English keys in the packet ("minimum speed"), not snake_case; models quote keys back.
