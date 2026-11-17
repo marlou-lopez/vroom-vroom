@@ -5,12 +5,13 @@ import type { CompareResponse, TrackGeometry } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import { aidRuns, type AidRuns, type Run } from "../lib/driverAids";
 import { offTrackRuns } from "../lib/offTrack";
+import { cleanGear, gearName, gearShifts, shiftLabel, type Shift } from "../lib/gearShifts";
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
 import { chipLayerGeometry, cornerBands, clipBand, elevationRange, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, withAlpha, type Range } from "../lib/strips";
 import { usePlaybackStore } from "../state/playback";
-import { colors } from "../theme";
+import { colors, fonts } from "../theme";
 import styles from "./DetailedStrips.module.css";
 import { ChipLayer, type BadgeHandlers } from "./AnnotationOverlays";
 
@@ -55,6 +56,8 @@ interface Spec {
   aids?: { runs: AidRuns; throttle: number[]; brake: number[] };
   /** Where two or more wheels were off the track, as a band over the whole strip (vroom-pnw.24). */
   off: { runs: Run[]; color: string };
+  /** Gear shifts of both laps, marked on the pedals strip (vroom-pnw.12). */
+  shifts?: { lap: Shift[]; ref: Shift[] };
   value: (cmp: CompareResponse, tau: number, iy: number) => string;
 }
 
@@ -62,9 +65,23 @@ const line = (stroke: string, width: number): uPlot.Series => ({
   stroke, width, points: { show: false }, spanGaps: true,
 });
 
+const stepLine = (stroke: string, width: number): uPlot.Series => ({
+  ...line(stroke, width), paths: uPlot.paths.stepped!({ align: 1 }),
+});
+
+/** Gear axis: half a gear of room either side of the gears used by both laps. */
+function gearRange(...gears: number[][]): Range {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const a of gears) for (const v of a) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  return Number.isFinite(lo) ? [lo - 0.5, hi + 0.5] : [0.5, 7.5];
+}
+
 function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapValid: boolean): Spec[] {
   const off = { runs: offTrackRuns(cmp.lap), color: lapValid ? colors.closeCall : colors.offTrack };
   const r = stripRanges(cmp);
+  const gl = cleanGear(cmp.lap.gear);
+  const gr = cleanGear(cmp.ref.gear);
   const refStroke = withAlpha(colors.comparison, 0.8);
   const specs: Spec[] = [
     {
@@ -81,8 +98,15 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
         line(colors.throttle, 1.6), line(colors.brake, 1.6),
       ],
       aids: { runs: aidRuns(cmp.lap), throttle: cmp.lap.throttle, brake: cmp.lap.brake },
+      shifts: { lap: gearShifts(cmp.lap.gear), ref: gearShifts(cmp.ref.gear) },
       value: (c, _t, iy) => `${Math.round(c.lap.throttle[iy] * 100)}% · ${Math.round(c.lap.brake[iy] * 100)}%`
         + (c.lap.abs[iy] ? " · ABS" : "") + (c.lap.tc[iy] ? " · TC" : ""),
+    },
+    {
+      label: "GEAR", off, yRange: gearRange(gl, gr),
+      data: [gr, gl],
+      series: [stepLine(refStroke, 1.2), stepLine(colors.you, 1.6)],
+      value: (c, tau, iy) => `${gearName(gl[iy])} / ${gearName(gr[indexAtTime(c.ref.t, tau)] ?? 0)}`,
     },
     {
       // Plotted on the normalised scale so both cars share one axis; the label uses steeringDisplay units.
@@ -220,6 +244,34 @@ function drawSlipMarks(u: uPlot, runs: Run[], values: number[], color: string) {
   ctx.restore();
 }
 
+const SHIFT_TICK_PX = 6;
+
+/** A tick and a `3→4` label at each shift, at the top of the strip; the comparison lap's are dimmer. */
+function drawShiftMarks(u: uPlot, shifts: Shift[], color: string, row: number) {
+  const { ctx, bbox } = u;
+  const xs = u.data[0];
+  const sx = u.scales.x;
+  const lo = sx.min ?? xs[0], hi = sx.max ?? xs[xs.length - 1];
+  const dpr = uPlot.pxRatio;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
+  ctx.clip();
+  ctx.fillStyle = color;
+  ctx.font = `${10 * dpr}px ${fonts.mono}`;
+  ctx.textBaseline = "top";
+  // The lap's markers sit at the top, the comparison lap's on a second row below, so labels of the two do not overlap.
+  const y0 = bbox.top + row * 12 * dpr;
+  for (const s of shifts) {
+    const m = xs[s.i];
+    if (m < lo - 5 || m > hi + 5) continue;
+    const x = bbox.left + u.valToPos(m, "x", true);
+    ctx.fillRect(x - dpr / 2, y0, dpr, SHIFT_TICK_PX * dpr);
+    ctx.fillText(shiftLabel(s), x + 2 * dpr, y0 + dpr);
+  }
+  ctx.restore();
+}
+
 /** Zero line plus the area between the delta line and zero: issue colour above (losing time), strength below. */
 function drawDelta(u: uPlot, zeroLine: boolean, fill: boolean) {
   const { ctx, bbox } = u;
@@ -290,6 +342,10 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
           if (!spec.aids) return;
           drawSlipMarks(u, spec.aids.runs.lockup, spec.aids.brake, colors.lockup);
           drawSlipMarks(u, spec.aids.runs.wheelspin, spec.aids.throttle, colors.wheelspin);
+          if (spec.shifts) {
+            drawShiftMarks(u, spec.shifts.ref, withAlpha(colors.comparison, 0.5), 1);
+            drawShiftMarks(u, spec.shifts.lap, colors.you, 0);
+          }
         },
       ],
     },
@@ -297,7 +353,7 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
 }
 
 /**
- * Four uPlot strips (five when the track has an elevation capture). React renders this once per comparison / annotation set. Per frame, an effect subscribed to
+ * Five uPlot strips (six when the track has an elevation capture). React renders this once per comparison / annotation set. Per frame, an effect subscribed to
  * the playback store moves each chart's x scale synchronously, the chip layer and the value read-outs imperatively.
  */
 export function DetailedStrips({ model, geometry, annotations, handlers, lapValid = true }: DetailedStripsProps) {

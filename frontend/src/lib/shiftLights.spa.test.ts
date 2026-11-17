@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Recording } from "../api/mock/recording";
 import { createMockApi } from "../api/mock/mockApi";
+import { gearShifts } from "./gearShifts";
 import { deriveRpmLimits, preUpshiftRpm } from "./shiftLights";
 
 const REC = JSON.parse(readFileSync(fileURLToPath(new URL("../../public/mock/spa-2026-11-03.json", import.meta.url)), "utf8")) as Recording;
@@ -26,5 +27,11 @@ describe("rev limit on the Spa laps", async () => {
       expect(l.limit).toBeGreaterThan(6000);
       expect(l.limit).toBeLessThan(10000);
     }
+  });
+
+  it("finds 36 shifts on lap 4: 18 up and 18 down (vroom-pnw.12)", () => {
+    const sh = gearShifts(cmp.lap.gear);
+    expect(sh.filter((x) => x.to > x.from)).toHaveLength(18);
+    expect(sh.filter((x) => x.to < x.from)).toHaveLength(18);
   });
 });

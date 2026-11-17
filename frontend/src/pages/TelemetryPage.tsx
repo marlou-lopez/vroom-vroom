@@ -2,6 +2,7 @@ import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { HeaderSlot } from "../components/AppShell";
+import { BiggestLosses } from "../components/BiggestLosses";
 import { AnalysisBar } from "../components/AnalysisBar";
 import { AnnotationCardProvider, type AnnotationCardActions } from "../components/AnnotationPopup";
 import { ScrubberBadges, ScrubberOffTrack, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
@@ -13,6 +14,9 @@ import { TrackPanel } from "../components/TrackPanel";
 import { Transport } from "../components/Transport";
 import { leadInTime, toAnnotations, type Annotation } from "../lib/annotations";
 import { effectiveValid } from "../api/types";
+import { biggestLosses, type CornerLoss } from "../lib/biggestLosses";
+import { CORNER_LEAD_M } from "../lib/annotations";
+import { timeAtDistance } from "../lib/playback";
 import { buildModel } from "../lib/model";
 import { invalidHint } from "../lib/offTrack";
 import { PlaybackProvider, usePlayback, usePlaybackStore, type PlaybackView } from "../state/playback";
@@ -85,6 +89,16 @@ function Telemetry() {
   const seekTo = useCallback((a: Annotation) => cmp && store.seek(leadInTime(cmp, a)), [cmp, store]);
   // Stable between renders, so the memoised track views only render when something they draw changes.
   const handlers = useMemo<BadgeHandlers>(() => ({ onSeek: seekTo }), [seekTo]);
+  // Free, from the comparison alone: shown before any coach command.
+  const losses = useMemo(() => (cmp && trackMap ? biggestLosses(cmp, trackMap.corners) : null), [cmp, trackMap]);
+  const seekToLoss = useCallback(
+    (l: CornerLoss) => {
+      if (!cmp) return;
+      store.pause();
+      store.seek(timeAtDistance(cmp.lap.t, cmp.distance, l.startM - CORNER_LEAD_M));
+    },
+    [cmp, store],
+  );
   const { deepDives, setReviewed, askCorner } = coach;
   const { setOpen } = popup;
   const onPlay = useCallback(
@@ -139,6 +153,7 @@ function Telemetry() {
           totalDelta={cmp ? (cmp.delta[cmp.delta.length - 1] ?? null) : null}
         />
       )}
+      {ctx && <BiggestLosses result={losses} onSeek={seekToLoss} />}
       {error && !model ? (
         <Message>{error.code}: {error.message}</Message>
       ) : !model ? (
