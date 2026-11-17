@@ -6,7 +6,7 @@ this spike compared against OpenAI's equivalent tier, see Setup.)
 
 **Status (2026-11-17): measured and rated; recommendation below.** One local model (gpt-oss-20b) against
 three OpenAI tiers (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna; the user has OpenAI credit and none on Anthropic),
-over 4 facts packets, 3 prompt versions and 2 packet sets, 5 runs each, about 260 calls in all (about $0.65 of
+over 4 facts packets, 3 prompt versions and 2 packet sets, 5 runs each, 195 logged runs (about $0.64 of
 OpenAI credit). Two blind rating rounds by the user. Not measured: VRAM with LMU open (see the end).
 
 Prototype: `spikes/local-llm/` (see its `README.md`). No code under `backend/` (there is none yet).
