@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Corner } from "../types";
-import { cornerChange, cornerComparison, cornerSide } from "./coachFacts";
+import { cornerChange, cornerComparison, cornerSide, narrate } from "./coachFacts";
 
 const N = 1000;
 const fill = (v: number) => new Array<number>(N).fill(v);
@@ -81,5 +81,26 @@ describe("CornerMetrics from cornerComparison", () => {
     expect(m.delta_s).toBe(0.123);
     expect(m.lap).toMatchObject({ brake_onset_m: 110, peak_brake: 0.8, min_speed_kmh: 80, min_speed_m: 140, throttle_pickup_m: null, exit_speed_kmh: 100 });
     expect(m.ref.brake_onset_m).toBe(120);
+  });
+});
+
+describe("understeer in the coach facts", () => {
+  const delta = Array.from({ length: N }, (_, i) => (i > 100 ? 0.1 : 0));
+  const bal = (peak: number) => { const b = new Array<number | null>(N).fill(0); b[150] = peak; return b; };
+  it("fills the metrics with understeer only", () => {
+    const m = cornerComparison(corner(100, 150, 200), lap(() => {}), lap(() => {}), delta, [], { lap: bal(12), ref: null }).metrics;
+    expect(m.lap.understeer_peak_deg_s).toBe(12);
+    expect(m.lap.understeer_mean_deg_s).toBe(12);
+    expect(m.ref.understeer_peak_deg_s).toBeNull();
+    expect(JSON.stringify(m)).not.toMatch(/oversteer/);
+  });
+  it("quotes understeer in the evidence when the lap understeers clearly more, and never oversteer", () => {
+    const l = lap((a) => range(a.speed_kmh, 140, 150, 80));
+    const c = cornerComparison(corner(100, 150, 200), l, lap(() => {}), delta, [], { lap: bal(12), ref: bal(2) });
+    expect(narrate(c, "issue").evidence.join(" ")).toContain("understeer peak 12 deg/s / 2 deg/s");
+    const nr = cornerComparison(corner(100, 150, 200), l, lap(() => {}), delta, [], { lap: bal(12), ref: null });
+    expect(narrate(nr, "issue").evidence.join(" ")).not.toMatch(/steer peak/);
+    const o = cornerComparison(corner(100, 150, 200), l, lap(() => {}), delta, [], { lap: bal(-40), ref: bal(0) });
+    expect(narrate(o, "issue").evidence.join(" ")).not.toMatch(/steer peak/);
   });
 });

@@ -157,3 +157,12 @@ Follow-ups filed under Analysis features (vroom-bi4):
 - vroom-bi4.5: the balance in the API contract and the mock.
 - vroom-bi4.6: the strip, marks and map tint without the flag. Depends on vroom-bi4.5.
 - vroom-bi4.7: a spike to model the steering lead for oversteer.
+
+## In the API contract (vroom-bi4.5)
+
+`CompareResponse` carries `lap_balance` / `ref_balance` (deg/s per grid metre, + = understeer, null below 15 m/s or without a
+calibration), `lap_understeer_runs` / `ref_understeer_runs` and the experimental `lap_oversteer_runs` / `ref_oversteer_runs`
+(`{start_m, end_m}`). `CornerSideMetrics` has `understeer_peak_deg_s` and `understeer_mean_deg_s` (understeer only, no
+per-corner oversteer figure). The coach's evidence quotes understeer when the lap's peak is ≥ 5 deg/s and ≥ 3 deg/s above the
+reference's, and never oversteer. The mock calibrates on the two compared laps (`compareBalance`); the backend calibrates over
+all of the driver's laps in that car.

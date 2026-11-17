@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balanceEnabled, balanceRuns, balanceTrace, fitBalance, smooth, type BalanceChannels } from "./carBalance";
+import { balanceEnabled, balanceForApi, cornerUndersteer, runsForApi, balanceRuns, balanceTrace, fitBalance, smooth, type BalanceChannels } from "./carBalance";
 
 const RANGE = 540;
 // A car whose steering follows theta = A*kappa + B*kappa*v^2 exactly (deg of wheel, left +).
@@ -71,5 +71,28 @@ describe("balanceEnabled", () => {
     expect(balanceEnabled("?balance=1&debug")).toBe(true);
     expect(balanceEnabled("?balance=0")).toBe(false);
     expect(balanceEnabled("?balance=false")).toBe(false);
+  });
+});
+
+describe("cornerUndersteer", () => {
+  const b = [0, 2, 8, 12, 6, 1, -20, 0];
+  it("takes the peak and the mean past the mark, and ignores oversteer", () => {
+    expect(cornerUndersteer(b, 1, 5)).toEqual({ peak: 12, mean: 8.7 });
+    expect(cornerUndersteer(b, 5, 7)).toEqual({ peak: 1, mean: 0 });
+  });
+  it("floors the peak at 0 and gives null without a balance", () => {
+    expect(cornerUndersteer([-3, -8, null], 0, 2)).toEqual({ peak: 0, mean: 0 });
+    expect(cornerUndersteer([null, null], 0, 1)).toBeNull();
+    expect(cornerUndersteer(null, 0, 1)).toBeNull();
+  });
+  it("measures a corner across the start line", () => {
+    expect(cornerUndersteer(b, 6, 3)?.peak).toBe(12);
+  });
+});
+
+describe("API shapes", () => {
+  it("rounds the trace, nulls NaN and names run bounds in metres", () => {
+    expect(balanceForApi([1.234, NaN])).toEqual([1.2, null]);
+    expect(runsForApi([{ start: 3, end: 9 }])).toEqual([{ start_m: 3, end_m: 9 }]);
   });
 });

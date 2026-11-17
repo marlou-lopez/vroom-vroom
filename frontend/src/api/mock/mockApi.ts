@@ -22,6 +22,7 @@ import { mapSurvey, type SurveyFile } from "../../lib/trackSurvey";
 import { formatLapTime } from "../../lib/format";
 import { fetchSpaElevation, type ElevationLoader } from "./elevation";
 import { fetchSpaSurvey, type SurveyLoader } from "./survey";
+import { balanceForApi, compareBalance, runsForApi } from "../../lib/carBalance";
 import { fetchMonzaStint, splitStints, type StintFile, type StintLoader } from "./stint";
 import { fetchRecording, lapToTrace, scaleTime, type Recording, type RecordingLap, type RecordingLoader, type RecordingTrack, type Trace } from "./recording";
 import { monzaCorners, MONZA_TRACK_ID, MONZA_TRACK_LENGTH_M } from "./monzaTrack";
@@ -586,10 +587,25 @@ export function createMockApi(opts: MockOptions = {}): Api {
       lap_car_name: sessionOf(lap.meta.session_id).car_name,
       ref_car_name: sessionOf(ref.meta.session_id).car_name,
       corners: [],
+      lap_balance: null, ref_balance: null,
+      lap_understeer_runs: [], ref_understeer_runs: [], lap_oversteer_runs: [], ref_oversteer_runs: [],
       ref_joins_m: ref.joins ?? [],
     };
     // Same numbers the mock coach reads: cornerComparison builds them (the landmark list is not needed for the metrics).
-    res.corners = mapOf(lap.meta.track_id).corners.map((c) => cornerComparison(c, lapCh, refCh, res.delta, []).metrics);
+    // Balance (vroom-bi4.5), calibrated on the two compared laps (one fit when they share a car and steering range).
+    const bal = compareBalance(lapCh, refCh, res.lap_steering_range_deg, res.ref_steering_range_deg, lap.meta.car_id === ref.meta.car_id);
+    if (bal.lap) {
+      res.lap_balance = balanceForApi(bal.lap.balance);
+      res.lap_understeer_runs = runsForApi(bal.lap.runs.understeer);
+      res.lap_oversteer_runs = runsForApi(bal.lap.runs.oversteer);
+    }
+    if (bal.ref) {
+      res.ref_balance = balanceForApi(bal.ref.balance);
+      res.ref_understeer_runs = runsForApi(bal.ref.runs.understeer);
+      res.ref_oversteer_runs = runsForApi(bal.ref.runs.oversteer);
+    }
+    const balances = { lap: res.lap_balance, ref: res.ref_balance };
+    res.corners = mapOf(lap.meta.track_id).corners.map((c) => cornerComparison(c, lapCh, refCh, res.delta, [], balances).metrics);
     compareCache.set(key, res);
     return res;
   };
@@ -690,7 +706,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
   // -- coach --
 
   const comparisons = (map: TrackMap, cmp: CompareResponse): CornerComparison[] =>
-    map.corners.map((c) => cornerComparison(c, cmp.lap, cmp.ref, cmp.delta, map.landmarks));
+    map.corners.map((c) => cornerComparison(c, cmp.lap, cmp.ref, cmp.delta, map.landmarks, { lap: cmp.lap_balance, ref: cmp.ref_balance }));
 
   const makeFinding = (resultId: string, idx: number, c: CornerComparison, kind: "issue" | "minor" | "strength"): { finding: Finding; cause: Cause } => {
     const n = narrate(c, kind);

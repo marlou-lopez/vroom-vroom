@@ -5,7 +5,7 @@ import { CornersTable } from "./CornersTable";
 
 const side = (o: Partial<CornerSideMetrics> = {}): CornerSideMetrics => ({
   brake_onset_m: 90, peak_brake: 0.8, min_speed_kmh: 100, min_speed_m: 205, throttle_pickup_m: 230, exit_speed_kmh: 150,
-  coast_s: 0.1, overlap_s: 0, steer_corrections: 2, ...o,
+  coast_s: 0.1, overlap_s: 0, steer_corrections: 2, understeer_peak_deg_s: null, understeer_mean_deg_s: null, ...o,
 });
 const corner = (id: string, name: string, start: number) => ({ id, name, start_m: start, apex_m: start + 100, end_m: start + 200, complex: null, approx: false });
 const map: TrackMap = {
