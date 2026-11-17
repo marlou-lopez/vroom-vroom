@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import type { CompareResponse, TrackGeometry } from "../api/types";
+import type { CompareResponse, Corner, TrackGeometry } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import { aidRuns, type AidRuns, type Run } from "../lib/driverAids";
 import { BALANCE_HINT, balanceEnabled, balanceFromContract, type BalanceRuns } from "../lib/carBalance";
@@ -10,7 +10,7 @@ import { cleanGear, gearName, gearShifts, shiftLabel, type Shift } from "../lib/
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
-import { chipLayerGeometry, cornerBands, clipBand, elevationRange, paddedRange, stripDistanceAt, stripRanges, symmetricRange, stripScrubTarget, stripWindow, withAlpha, type Range } from "../lib/strips";
+import { DEFAULT_HALF_M, chipLayerGeometry, cornerBands, clipBand, distanceTicks, elevationRange, paddedRange, parseWindowMode, pickCorner, stripDistanceAt, stripRanges, symmetricRange, stripScrubTarget, stripView, WINDOW_MODE_KEY, WINDOW_MODES, withAlpha, type Range, type WindowMode } from "../lib/strips";
 import { usePlaybackStore } from "../state/playback";
 import { colors, fonts } from "../theme";
 import styles from "./DetailedStrips.module.css";
@@ -18,13 +18,14 @@ import * as Popover from "@radix-ui/react-popover";
 import { loadStrips, moveStrip, saveStrips, STRIP_OPTIONS, toggleStrip, type StripId } from "../lib/stripChoice";
 import { ChipLayer, type BadgeHandlers } from "./AnnotationOverlays";
 
-export const STRIP_HALF_M = 350;
 const SYNC_KEY = "telemetry-strips";
-const MIN_STRIP_H = 72;
+const MIN_STRIP_H = 56;
 const PAD_Y = 4;
 const DRAG_THRESHOLD_PX = 4;
 const STEP_M = 10;
 const BIG_STEP_M = 100;
+/** A picked corner stays fitted while the playhead is within this fraction of the window outside it (the badge seeks a little before the corner). */
+const PIN_SLACK = 0.5;
 const IGNORE_SELECTOR = "button,[data-annotation-badge]";
 
 interface Gesture {
@@ -43,6 +44,11 @@ export interface DetailedStripsProps {
   handlers: BadgeHandlers;
   /** Whether the lap is valid: wheels-off bands are red on an invalid lap, grey close calls on a valid one. Absent = valid. */
   lapValid?: boolean;
+  /** The track's corners: the window control's "Corner" fit uses them. Without any it falls back to 700 m. */
+  corners?: Corner[];
+  /** Names in the legend and the read-outs' colour key, e.g. "You · L8" and "Comparison · ★L2". */
+  youName?: string;
+  refName?: string;
 }
 
 type Num = (number | null)[];
@@ -68,7 +74,8 @@ interface Spec {
   joins: number[];
   /** Gear shifts of both laps, marked on the pedals strip (vroom-pnw.12). */
   shifts?: { lap: Shift[]; ref: Shift[] };
-  value: (cmp: CompareResponse, tau: number, iy: number) => string;
+  /** Read-out at the playhead: this lap's value and, when the strip draws both laps, the comparison's (coloured like their lines). */
+  value: (cmp: CompareResponse, tau: number, iy: number) => [string, string?];
 }
 
 const line = (stroke: string, width: number): uPlot.Series => ({
@@ -100,7 +107,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       id: "speed", label: "SPEED", off, joins, yRange: r.speed,
       data: [cmp.ref.speed_kmh, cmp.lap.speed_kmh],
       series: [line(refStroke, 1.2), line(colors.you, 1.6)],
-      value: (c, tau, iy) => `${Math.round(c.lap.speed_kmh[iy])} / ${Math.round(c.ref.speed_kmh[indexAtTime(c.ref.t, tau)])}`,
+      value: (c, tau, iy) => [`${Math.round(c.lap.speed_kmh[iy])}`, `${Math.round(c.ref.speed_kmh[indexAtTime(c.ref.t, tau)])}`],
     },
     {
       id: "pedals", label: "THROTTLE · BRAKE", off, joins, yRange: r.pedals,
@@ -111,14 +118,14 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       ],
       aids: { runs: aidRuns(cmp.lap), throttle: cmp.lap.throttle, brake: cmp.lap.brake },
       shifts: { lap: gearShifts(cmp.lap.gear), ref: gearShifts(cmp.ref.gear) },
-      value: (c, _t, iy) => `${Math.round(c.lap.throttle[iy] * 100)}% · ${Math.round(c.lap.brake[iy] * 100)}%`
-        + (c.lap.abs[iy] ? " · ABS" : "") + (c.lap.tc[iy] ? " · TC" : ""),
+      value: (c, _t, iy) => [`${Math.round(c.lap.throttle[iy] * 100)}% · ${Math.round(c.lap.brake[iy] * 100)}%`
+        + (c.lap.abs[iy] ? " · ABS" : "") + (c.lap.tc[iy] ? " · TC" : "")],
     },
     {
       id: "gear", label: "GEAR", off, joins, yRange: gearRange(gl, gr),
       data: [gr, gl],
       series: [stepLine(refStroke, 1.2), stepLine(colors.you, 1.6)],
-      value: (c, tau, iy) => `${gearName(gl[iy])} / ${gearName(gr[indexAtTime(c.ref.t, tau)] ?? 0)}`,
+      value: (c, tau, iy) => [gearName(gl[iy]), gearName(gr[indexAtTime(c.ref.t, tau)] ?? 0)],
     },
     {
       // Plotted on the normalised scale so both cars share one axis; the label uses steeringDisplay units.
@@ -127,14 +134,14 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       // The steering strip carries the understeer marks; with ?balance also the experimental oversteer ones, and says so.
       ...(bal ? { balance: { runs: bal.runs, values: cmp.lap.steering }, hint: BALANCE_HINT, ...(balanceOn ? { experimental: true } : {}) } : {}),
-      value: (c, _t, iy) => formatSteering(c.lap.steering[iy], c.lap_steering_range_deg),
+      value: (c, _t, iy) => [formatSteering(c.lap.steering[iy], c.lap_steering_range_deg)],
     },
     {
       id: "delta", label: "DELTA", off, joins, yRange: r.delta,
       data: [cmp.delta],
       series: [line(colors.textSoft, 1.6)],
       zeroLine: true, deltaFill: true,
-      value: (c, _t, iy) => `${formatDelta(c.delta[iy])} s`,
+      value: (c, _t, iy) => [`${formatDelta(c.delta[iy])} s`],
     },
   ];
   const track = geometry?.elevation_m;
@@ -147,7 +154,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       id: "elevation", label: "ELEVATION", off, joins, experimental: true, yRange: elevationRange(e),
       data: [e],
       series: [line(colors.textSoft, 1.6)],
-      value: (_c, _t, iy) => `${m(e[iy])} m`,
+      value: (_c, _t, iy) => [`${m(e[iy])} m`],
     });
   }
   const { lap, ref } = cmp;
@@ -161,28 +168,28 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
     {
       id: "rpm", label: "RPM", off, joins, yRange: paddedRange(0.05, 1000, lap.rpm, ref.rpm),
       data: [ref.rpm, lap.rpm], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
-      value: (c, tau, iy) => `${Math.round(c.lap.rpm[iy])} / ${Math.round(c.ref.rpm[indexAtTime(c.ref.t, tau)])}`,
+      value: (c, tau, iy) => [`${Math.round(c.lap.rpm[iy])}`, `${Math.round(c.ref.rpm[indexAtTime(c.ref.t, tau)])}`],
     },
     {
       id: "g_lat", label: "LATERAL G", off, joins, yRange: symmetricRange(0.5, lap.g_lat, ref.g_lat), zeroLine: true,
       data: [ref.g_lat, lap.g_lat], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
-      value: (c, tau, iy) => `${c.lap.g_lat[iy].toFixed(2)} / ${c.ref.g_lat[indexAtTime(c.ref.t, tau)].toFixed(2)}`,
+      value: (c, tau, iy) => [c.lap.g_lat[iy].toFixed(2), c.ref.g_lat[indexAtTime(c.ref.t, tau)].toFixed(2)],
     },
     {
       id: "g_long", label: "LONGITUDINAL G", off, joins, yRange: symmetricRange(0.5, lap.g_long, ref.g_long), zeroLine: true,
       data: [ref.g_long, lap.g_long], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
-      value: (c, tau, iy) => `${c.lap.g_long[iy].toFixed(2)} / ${c.ref.g_long[indexAtTime(c.ref.t, tau)].toFixed(2)}`,
+      value: (c, tau, iy) => [c.lap.g_long[iy].toFixed(2), c.ref.g_long[indexAtTime(c.ref.t, tau)].toFixed(2)],
     },
     {
       // This lap only: four wheels already fill the strip.
       id: "suspension", label: "SUSPENSION", off, joins, yRange: paddedRange(0.05, 0.01, ...susp),
       data: susp, series: wheelColors.map((c) => line(dimmer(c), 1.4)),
-      value: (_c, _t, iy) => wheelValues(susp, iy, 3),
+      value: (_c, _t, iy) => [wheelValues(susp, iy, 3)],
     },
     {
       id: "slip", label: "TYRE SLIP", off, joins, yRange: paddedRange(0.05, 0.4, ...slip, [1]),
       data: slip, series: wheelColors.map((c) => line(dimmer(c), 1.4)),
-      value: (_c, _t, iy) => wheelValues(slip, iy, 2),
+      value: (_c, _t, iy) => [wheelValues(slip, iy, 2)],
     },
   );
   if (bal) {
@@ -197,7 +204,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       yRange: ((m) => [-m, m] as Range)(Math.min(BALANCE_MAX_DEG_S, symmetricRange(2, finite(lapB), finite(refB))[1])),
       data: [refB, lapB], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       balance: { runs: bal.runs, values: lapB },
-      value: (c, tau, iy) => `${word(lapB[iy])} / ${word(refB[indexAtTime(c.ref.t, tau)])}`,
+      value: (c, tau, iy) => [word(lapB[iy]), word(refB[indexAtTime(c.ref.t, tau)])],
     });
   }
   return specs;
@@ -402,6 +409,27 @@ function drawDelta(u: uPlot, zeroLine: boolean, fill: boolean) {
   ctx.restore();
 }
 
+function loadWindowMode(): WindowMode {
+  try { return parseWindowMode(localStorage.getItem(WINDOW_MODE_KEY)); } catch { return "700"; }
+}
+
+/** Distance ticks under the last strip, pooled spans moved on each window change. Tick x matches the plot, which spans the axis's full width. */
+function drawAxis(el: HTMLDivElement | null, min: number, max: number) {
+  if (!el) return;
+  const ticks = distanceTicks(min, max);
+  while (el.children.length > ticks.length + 1) el.lastElementChild!.remove();
+  while (el.children.length < ticks.length + 1) el.append(document.createElement("span"));
+  const unit = el.firstElementChild as HTMLElement;
+  unit.textContent = "m";
+  unit.className = styles.axisUnit;
+  ticks.forEach((m, i) => {
+    const t = el.children[i + 1] as HTMLElement;
+    t.className = styles.tick;
+    t.textContent = String(m);
+    t.style.left = `${(((m - min) / (max - min || 1)) * 100).toFixed(3)}%`;
+  });
+}
+
 function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annotation[] }): uPlot.Options {
   return {
     width: w, height: h,
@@ -492,7 +520,7 @@ function StripPicker({ choice: stored, available, onChange }: { choice: StripId[
  * Five uPlot strips (six when the track has an elevation capture). React renders this once per comparison / annotation set. Per frame, an effect subscribed to
  * the playback store moves each chart's x scale synchronously, the chip layer and the value read-outs imperatively.
  */
-export function DetailedStrips({ model, geometry, annotations, handlers, lapValid = true }: DetailedStripsProps) {
+export function DetailedStrips({ model, geometry, annotations, handlers, lapValid = true, corners, youName = "You", refName = "Comparison" }: DetailedStripsProps) {
   const store = usePlaybackStore();
   const { cmp } = model;
   const [choice, setChoice] = useState<StripId[]>(() => loadStrips());
@@ -504,12 +532,41 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
     return picked.length > 0 ? picked : allSpecs.slice(0, 1);
   }, [choice, allSpecs]);
   const changeChoice = (next: StripId[]) => { setChoice(next); saveStrips(next); };
+  const [mode, setMode] = useState<WindowMode>(loadWindowMode);
+  // The window the effect reads each frame; changing it re-applies at once through `reapply`.
+  const modeRef = useRef(mode);
+  const cornersRef = useRef<Corner[]>(corners ?? []);
+  /** A corner picked by clicking its badge: the corner fit stays on it until the playhead leaves its window. */
+  const pinned = useRef<Corner | null>(null);
+  const reapply = useRef<() => void>(() => {});
+  const axis = useRef<HTMLDivElement | null>(null);
+  const changeMode = (next: WindowMode) => {
+    pinned.current = null;
+    modeRef.current = next;
+    setMode(next);
+    try { localStorage.setItem(WINDOW_MODE_KEY, next); } catch { /* storage unavailable */ }
+    reapply.current();
+  };
+  useLayoutEffect(() => { cornersRef.current = corners ?? []; reapply.current(); }, [corners]);
+  const onSeek = (a: Annotation) => {
+    // Clicking a corner's badge fits the strips to that corner.
+    const c = cornersRef.current.find((k) => k.id === a.cornerId);
+    if (c) {
+      pinned.current = c;
+      modeRef.current = "corner";
+      setMode("corner");
+      try { localStorage.setItem(WINDOW_MODE_KEY, "corner"); } catch { /* storage unavailable */ }
+    }
+    handlers.onSeek(a);
+    reapply.current();
+  };
+  const strippedHandlers = { ...handlers, onSeek };
   const hosts = useRef<(HTMLDivElement | null)[]>([]);
   const frames = useRef<(HTMLDivElement | null)[]>([]);
   const values = useRef<(HTMLDivElement | null)[]>([]);
   const playheads = useRef<(HTMLDivElement | null)[]>([]);
   /** The x window currently shown (metres); clicks map through it. */
-  const shown = useRef({ min: 0, max: 2 * STRIP_HALF_M });
+  const shown = useRef({ min: 0, max: 2 * DEFAULT_HALF_M });
   const chipLayer = useRef<HTMLDivElement | null>(null);
   const charts = useRef<uPlot[]>([]);
   const annRef = useRef(annotations);
@@ -550,25 +607,46 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
 
     // Runs synchronously from the store listener. The store ticks inside the app's rAF, so this lands in the same
     // frame as the map and scrubber. Skipped when the playhead has not moved (cmp is fixed for this effect).
-    const apply = () => {
+    const currentWindow = (d: number) => {
+      const mode = modeRef.current;
+      const list = cornersRef.current.map((c) => ({ c, startM: c.start_m, endM: c.end_m }));
+      let corner = mode === "corner" ? list.find((x) => x.c === pinned.current) ?? null : null;
+      if (corner) {
+        // A picked corner stays until the playhead leaves its window.
+        const w = stripView(mode, d, dMin, dMax, corner);
+        if (w.playhead < -PIN_SLACK || w.playhead > 1 + PIN_SLACK) { pinned.current = null; corner = null; }
+      }
+      if (mode === "corner" && !corner) corner = pickCorner(list, d);
+      return stripView(mode, d, dMin, dMax, corner);
+    };
+
+    const apply = (force = false) => {
       const tau = store.get().tau;
-      if (tau === lastTau) return;
+      if (tau === lastTau && !force) return;
       // oxlint-disable-next-line react/immutability -- local of this effect's own closure, not render state
       lastTau = tau;
       const d = distanceAtTime(cmp.lap.t, xs, tau);
       // Clamped to the lap: near the start or end the window stops and the playhead line moves off centre instead.
-      const win = stripWindow(d, STRIP_HALF_M, dMin, dMax);
+      const win = currentWindow(d);
       lastMin = win.min;
       lastMax = win.max;
       shown.current = { min: win.min, max: win.max };
       for (const u of us) u.setScale("x", { min: lastMin, max: lastMax });
       const left = `${(win.playhead * 100).toFixed(3)}%`;
-      for (const el of playheads.current) if (el) el.style.left = left;
+      for (const el of playheads.current) if (el) { el.style.left = left; el.style.visibility = win.playhead < 0 || win.playhead > 1 ? "hidden" : "visible"; }
       placeChips();
+      drawAxis(axis.current, lastMin, lastMax);
       const iy = indexAtTime(cmp.lap.t, tau);
       specs.forEach((s, i) => {
         const el = values.current[i];
-        if (el) el.textContent = s.value(cmp, tau, iy);
+        if (!el) return;
+        const [lap, ref] = s.value(cmp, tau, iy);
+        const [a, b, c] = Array.from(el.children);
+        if (!a) return;
+        a.textContent = lap;
+        b.textContent = ref === undefined ? "" : " / ";
+        c.textContent = ref ?? "";
+        el.toggleAttribute("data-pair", ref !== undefined);
       });
     };
 
@@ -581,11 +659,13 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
     });
     frames.current.forEach((f) => f && ro.observe(f));
 
-    const unsub = store.subscribe(apply);
+    const unsub = store.subscribe(() => apply());
     apply();
+    reapply.current = () => apply(true);
 
     return () => {
       unsub();
+      reapply.current = () => {};
       ro.disconnect();
       us.forEach((u) => u.destroy());
       charts.current = [];
@@ -622,11 +702,25 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
     if (!g.dragging) {
       if (Math.abs(dx) < DRAG_THRESHOLD_PX) return;
       g.dragging = true;
+      // The corner window must not hop to another corner mid-drag: hold the one under the playhead.
+      if (modeRef.current === "corner" && !pinned.current) {
+        const list = cornersRef.current.map((c) => ({ c, startM: c.start_m, endM: c.end_m }));
+        pinned.current = pickCorner(list, g.startD)?.c ?? null;
+      }
       e.currentTarget.setAttribute("data-dragging", "");
       store.pause();
     }
     const [lo, hi] = lapRange();
-    store.seek(timeAtDistance(cmp.lap.t, cmp.distance, stripScrubTarget(g.startD, dx, plotWidth(), STRIP_HALF_M, lo, hi)));
+    if (modeRef.current === "700") {
+      // The window follows the playhead: the trace follows the pointer, so dragging left goes forward.
+      store.seek(timeAtDistance(cmp.lap.t, cmp.distance, stripScrubTarget(g.startD, dx, plotWidth(), (shown.current.max - shown.current.min) / 2, lo, hi)));
+    } else {
+      // A fixed window (lap, corner): the playhead goes to the distance under the pointer.
+      const over = charts.current[0]?.over;
+      if (!over) return;
+      const { min, max } = shown.current;
+      seekToDistance(stripDistanceAt(e.clientX - over.getBoundingClientRect().left, over.clientWidth, (min + max) / 2, (max - min) / 2));
+    }
   };
 
   const endGesture = (e: PointerEvent<HTMLDivElement>) => {
@@ -682,23 +776,41 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
       onClick={onClick}
       onKeyDown={onKeyDown}
     >
-      <StripPicker choice={choice} available={allSpecs.map((x) => x.id)} onChange={changeChoice} />
+      <div className={styles.bar}>
+        <div className={styles.legend} aria-label="Legend">
+          <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.you }} />{youName}</span>
+          <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.comparison }} />{refName}</span>
+        </div>
+        <div className={styles.windowGroup} role="group" aria-label="Strip window">
+          {WINDOW_MODES.map((m) => (
+            <button key={m.id} type="button" className={styles.windowButton} aria-pressed={mode === m.id} onClick={() => changeMode(m.id)}>{m.label}</button>
+          ))}
+        </div>
+        <StripPicker choice={choice} available={allSpecs.map((x) => x.id)} onChange={changeChoice} />
+      </div>
       {specList.map(({ id, label: name, experimental, hint }, i) => (
-        <div key={id} ref={(el) => void (frames.current[i] = el)} className={styles.strip}>
-          <div ref={(el) => void (hosts.current[i] = el)} className={styles.host} />
-          <div aria-hidden="true" ref={(el) => void (playheads.current[i] = el)} className={styles.playhead} />
-          {i === 0 && (
-            <div className={styles.chips}>
-              <ChipLayer annotations={annotations} distance={cmp.distance} h={handlers} layerRef={chipLayer} />
+        <div key={id} className={styles.strip}>
+          <div className={styles.header}>
+            <div className={styles.label} title={hint}>
+              {name}
+              {experimental && <span className={styles.exp} title="Experimental">exp</span>}
             </div>
-          )}
-          <div className={styles.label} title={hint}>
-            {name}
-            {experimental && <span className={styles.exp} title="Experimental">exp</span>}
+            <div ref={(el) => void (values.current[i] = el)} className={styles.value}>
+              <span className={styles.vLap} /><span /><span className={styles.vRef} />
+            </div>
           </div>
-          <div ref={(el) => void (values.current[i] = el)} className={styles.value} />
+          <div ref={(el) => void (frames.current[i] = el)} className={styles.plot}>
+            <div ref={(el) => void (hosts.current[i] = el)} className={styles.host} />
+            <div aria-hidden="true" ref={(el) => void (playheads.current[i] = el)} className={styles.playhead} />
+            {i === 0 && (
+              <div className={styles.chips}>
+                <ChipLayer annotations={annotations} distance={cmp.distance} h={strippedHandlers} layerRef={chipLayer} />
+              </div>
+            )}
+          </div>
         </div>
       ))}
+      <div ref={axis} className={styles.axis} aria-hidden="true"><span /></div>
     </div>
   );
 }

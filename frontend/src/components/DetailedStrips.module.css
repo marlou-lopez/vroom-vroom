@@ -7,10 +7,16 @@
   position: relative;
   flex: 1;
   min-height: 72px;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   overflow: hidden;
 }
+
+/* A header band above the plot: the label and read-out never sit on a trace. */
+.header { flex: none; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 2px 6px 1px; line-height: 14px; border-bottom: 1px solid var(--color-border); }
+.plot { position: relative; flex: 1; min-height: 0; }
 
 /* uPlot telemetry strips: transparent, a thin solid hover line instead of the default dashed one. */
 .strip :global(.uplot), .strip :global(.u-wrap) { background: transparent; }
@@ -25,19 +31,40 @@
 .chips { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 
 .label {
-  position: absolute;
-  left: 6px;
-  top: 3px;
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--color-muted);
   pointer-events: none;
+  white-space: nowrap;
 }
-.value { position: absolute; right: 6px; top: 3px; font-family: var(--font-mono); font-size: 11px; pointer-events: none; }
+.value { font-family: var(--font-mono); font-size: 11px; pointer-events: none; white-space: nowrap; }
+/* Where a strip draws both laps, each number takes its line's colour. */
+.value[data-pair] .vLap { color: var(--color-you); }
+.value[data-pair] .vRef { color: var(--color-comparison); }
+
+.bar { flex: none; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
+.legend { display: flex; gap: 12px; font-size: 11px; color: var(--color-text); min-width: 0; }
+.legendItem { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.swatch { display: inline-block; width: 14px; height: 3px; border-radius: 1px; }
+.windowGroup { display: inline-flex; margin-left: auto; }
+.windowButton {
+  font: inherit; font-size: 11px; color: var(--color-muted); background: transparent;
+  border: 1px solid var(--color-border); padding: 1px 8px; cursor: pointer; margin-left: -1px;
+}
+.windowButton:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
+.windowButton:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.windowButton:hover { background: var(--color-hover); }
+.windowButton[aria-pressed="true"] { color: var(--color-text); background: var(--color-hover); border-color: var(--color-border-strong); position: relative; }
+
+/* Distance axis under the last strip; ticks are placed from JS over the plot's full width (inside the strips' 1px border). */
+.axis { flex: none; position: relative; height: 14px; margin: 0 1px; overflow: hidden; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); pointer-events: none; }
+.tick { position: absolute; top: 0; transform: translateX(-50%); padding-top: 3px; white-space: nowrap; }
+.tick::before { content: ""; position: absolute; top: 0; left: 50%; height: 3px; border-left: 1px solid var(--color-border-strong); }
+.axisUnit { position: absolute; right: 2px; top: 3px; opacity: 0.7; }
 .exp { margin-left: 4px; font-size: 9px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; }
 
-.pickerBar { display: flex; justify-content: flex-end; flex: none; }
+.pickerBar { display: flex; flex: none; }
 .pickerButton, .pickerRow button {
   font: inherit; font-size: 11px; color: var(--color-text); background: transparent;
   border: 1px solid var(--color-border); border-radius: var(--radius); padding: 1px 6px; cursor: pointer;
