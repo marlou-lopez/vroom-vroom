@@ -2,8 +2,9 @@
 // Run from the repo root after `npm ci` in frontend/:
 //   node spikes/local-llm/build-packets.mjs [--track spa|monza] [--laps auto|2:4,3:4]
 // --laps auto (default): the slowest and second-slowest valid laps, each against the best valid lap; the Corner packet is
-// the first pair's biggest loss. Spa writes packets/ (set v1) and packets-v2/; another track writes packets-<track>/ and
-// packets-v2-<track>/. Every number is pre-formatted as a string, so the guard can match it exactly.
+// the first pair's biggest loss. Spa writes packets/ (set v1), packets-v2/ and packets-v3/ (v3: plain-English keys,
+// 'a against b' pairs, per-finding allowed numbers; vroom-aks); another track writes packets-<track>/, packets-v2-<track>/
+// and packets-v3-<track>/. Every number is pre-formatted as a string, so the guard can match it exactly.
 // A new recording: add it to TRACKS below (its JSON in frontend/public/mock/, made by tools/extract-laps.mjs).
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -319,6 +320,68 @@ async function averagePacketV2() {
   return { ...p, notes: { ...NOTES_V2, cause: "cause compares the slowest lap with the fastest; state a high or medium cause as fact" }, corners };
 }
 
+// ---- packet set v3 (vroom-aks): plain-English keys, "a against b" pairs, per-finding allowed numbers ----
+// Built from the v2 packets, which stay as they are. The model never subtracts (a pair shows both values), and every
+// corner lists the numbers its finding may use, so the guard checks a finding against its own corner only.
+
+/** v2 side key -> [plain-English key, unit]. */
+const KEYS_V3 = {
+  min_speed_kmh: ["minimum speed", " km/h"], min_speed_where: ["where the minimum speed is", ""],
+  exit_speed_kmh: ["exit speed", " km/h"], brake_onset: ["braking starts", ""], peak_brake: ["peak brake pressure", ""],
+  throttle_pickup: ["throttle pickup", ""], coast_s: ["time coasting", " s"], pedal_overlap_s: ["brake and throttle together", " s"],
+  steering_extrema: ["steering turning points", ""], abs_active_s: ["ABS working", " s"], tc_active_s: ["traction control working", " s"],
+  lockup: ["wheel lock-up", ""], wheelspin: ["wheelspin", ""], on_rev_limiter_s: ["on the rev limiter", " s"],
+  peak_rpm: ["peak rpm", ""], gear_at_min_speed: ["gear at the slowest point", ""], on_kerb_s: ["on a kerb", " s"],
+};
+const against = (a, b, unit) => `${a ?? "n/a"}${a === null || a === undefined ? "" : unit} against ${b ?? "n/a"}`;
+/** Two v2 sides (this lap, the other lap) as one object of "a against b" strings under plain keys. */
+function pairSides(a, b) {
+  const out = {};
+  for (const [k, [name, unit]] of Object.entries(KEYS_V3)) if (k in a) out[name] = against(a[k], b[k], unit);
+  return out;
+}
+const NUM_V3 = /(?<![\w.])[-+]?\d+(?:[:.,]\d+)*(?![\w])/g;
+/** Every number a corner's facts show (names left out), as written: the finding's own scope. */
+const allowedOf = (c) => [...new Set(JSON.stringify({ ...c, corner: "", corner_id: "" }).match(NUM_V3)?.map((t) => t.replace(/^[-+]/, "").replace(/[.,]$/, "")) ?? [])];
+const withAllowed = (c) => ({ ...c, allowed_numbers: allowedOf(c) });
+const CAUSE_V3 = (c) => ({ "likely cause": c.cause, "how sure the cause is": c.cause_confidence, "why that cause": c.cause_basis });
+const NOTES_V3 = {
+  pairs: "a value written 'x against y' is this lap against the reference (Average: the slowest lap against the fastest); quote it as it is, never subtract",
+  aids: "ABS working / traction control working: seconds the system was working in the corner. wheel lock-up / wheelspin: where it happened, or none",
+  engine: NOTES_V2.engine.replace("on_rev_limiter_s", "on the rev limiter").replace("gear_at_min_speed", "gear at the slowest point"),
+  cause: "the likely cause and how sure it is are computed in code; state a high or medium cause as fact",
+  numbers: "each corner's allowed_numbers lists the only numbers its finding may use",
+};
+function cornerV3(c) {
+  return withAllowed({
+    corner_id: c.corner_id, corner: c.corner, kind: c.kind, time_s: c.time_s, ...CAUSE_V3(c),
+    "this lap against the reference": pairSides(c.lap, c.reference), landmarks: c.landmarks,
+  });
+}
+const PLAIN_TRACE = ["metres from the apex", "speed (km/h)", "throttle", "brake", "steering (% of lock)", "gear", "rpm", "ABS", "traction control", "on a kerb"];
+function packetV3(p) {
+  const out = { ...p, notes: NOTES_V3 };
+  if (p.command === "analyze") {
+    out.lap_delta = out.lap_delta_s; delete out.lap_delta_s;
+    out.corners = p.corners.map(cornerV3);
+  } else if (p.command === "corner") {
+    out.corner = cornerV3(p.corner);
+    out.trace = { ...p.trace, columns: PLAIN_TRACE, note: p.trace.note };
+    // one finding: the trace's numbers belong to it too
+    out.corner.allowed_numbers = allowedOf({ c: out.corner, t: out.trace });
+  } else {
+    out.stats = { laps: p.stats.laps, "mean lap": p.stats.mean, "lap spread (sd)": `${p.stats.lap_sd_s} s`, "best against worst": `${p.stats.best} against ${p.stats.worst}` };
+    out.corners = p.corners.map((c) => withAllowed({
+      corner_id: c.corner_id, corner: c.corner, kind: c.kind, time_s: c.time_s,
+      "spread of the corner time (sd)": `${c.sd_s} s`, "fastest against slowest corner time": `${c.fastest_s} against ${c.slowest_s}`, laps: c.laps,
+      ...CAUSE_V3(c), "slowest lap against the fastest": { laps: `${c.slowest_lap.lap} against ${c.fastest_lap.lap}`,
+        "corner time": against(c.slowest_lap.corner_time_s, c.fastest_lap.corner_time_s, " s"), ...pairSides(c.slowest_lap, c.fastest_lap) },
+      landmarks: c.landmarks,
+    }));
+  }
+  return out;
+}
+
 function lapPairs() {
   const spec = arg("laps", "auto");
   if (spec !== "auto") return spec.split(",").map((p) => p.split(":").map(Number));
@@ -344,7 +407,8 @@ v1["average-session"] = averagePacket();
 v2["average-session"] = await averagePacketV2();
 v1[cornerName] = cornerPacket(cfs[0], cornerId);
 v2[cornerName] = cornerPacketV2(cfs[0], cornerId);
-const sets = { [`packets${TRACK.suffix}`]: v1, [`packets-v2${TRACK.suffix}`]: v2 };
+const v3 = Object.fromEntries(Object.entries(v2).map(([k, p]) => [k, packetV3(p)]));
+const sets = { [`packets${TRACK.suffix}`]: v1, [`packets-v2${TRACK.suffix}`]: v2, [`packets-v3${TRACK.suffix}`]: v3 };
 for (const [dir, packets] of Object.entries(sets)) {
   mkdirSync(join(here, dir), { recursive: true });
   for (const [name, p] of Object.entries(packets)) writeFileSync(join(here, dir, `${name}.json`), JSON.stringify(p, null, 2) + "\n");
