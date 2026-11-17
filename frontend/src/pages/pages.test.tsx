@@ -12,6 +12,7 @@ import { formatLapTime } from "../lib/format";
 vi.mock("uplot", () => ({
   default: class {
     static pxRatio = 1;
+    static paths = { stepped: () => () => null };
     root = document.createElement("div");
     over = document.createElement("div");
     bbox = { left: 0, top: 0, width: 0, height: 0 };
