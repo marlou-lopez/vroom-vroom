@@ -1,5 +1,4 @@
-import type { ChannelArrays } from "../api/types";
-import type { BalanceRun } from "../api/types";
+import type { BalanceRun, ChannelArrays, CompareResponse } from "../api/types";
 import { runsOf, type Run } from "./driverAids";
 
 // Experimental (vroom-pnw.15): under- and oversteer estimated from a recording, which has no yaw rate or slip angle.
@@ -158,7 +157,7 @@ export function compareBalance(
   };
 }
 
-/** `?balance` (or `?balance=1`) turns the experimental balance strip and map tint on; anything else leaves them off. */
+/** `?balance` (or `?balance=1`) turns the experimental oversteer marks on (strips and map); understeer is always shown. Anything else leaves them off. */
 export function balanceEnabled(search: string): boolean {
   const v = new URLSearchParams(search).get("balance");
   return v !== null && v !== "0" && v !== "false";
@@ -195,3 +194,22 @@ export function cornerUndersteer(
   else { for (let i = s; i <= last; i++) visit(i); for (let i = 0; i <= e; i++) visit(i); }
   return seen ? { peak: r1(Math.max(0, peak)), mean: count ? r1(sum / count) : 0 } : null;
 }
+
+/** What the balance strip, the steering marks and the map tint need, read from the API contract (no client estimate). */
+export interface ContractBalance { balance: (number | null)[]; ref: (number | null)[] | null; runs: BalanceRuns }
+
+const runsFromApi = (rs: readonly BalanceRun[]): Run[] => rs.map((r) => ({ start: r.start_m, end: r.end_m }));
+
+/** The lap's balance from a comparison, or null when the lap has none. Oversteer runs are included only with `oversteer` (experimental preview). */
+export function balanceFromContract(
+  cmp: Pick<CompareResponse, "lap_balance" | "ref_balance" | "lap_understeer_runs" | "lap_oversteer_runs">, oversteer: boolean,
+): ContractBalance | null {
+  if (!cmp.lap_balance) return null;
+  return {
+    balance: cmp.lap_balance, ref: cmp.ref_balance,
+    runs: { understeer: runsFromApi(cmp.lap_understeer_runs), oversteer: oversteer ? runsFromApi(cmp.lap_oversteer_runs) : [] },
+  };
+}
+
+/** Shown in the balance strip's tooltip and the map legend. */
+export const BALANCE_HINT = "Understeer: more steering than the rotation the car gave. Relative to your usual balance in this car, not a neutral car.";
