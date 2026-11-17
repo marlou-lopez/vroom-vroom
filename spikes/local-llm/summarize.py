@@ -86,10 +86,12 @@ def table(rs: list[dict]) -> str:
     return "\n".join(out)
 
 
-def blind(rs: list[dict], per: int, seed: int) -> None:
+def blind(rs: list[dict], per: int, seed: int, only: str | None = None, name: str = "sheet") -> None:
     rng = random.Random(seed)
     by = collections.defaultdict(list)
     for r in rs:
+        if only and only not in label(r):
+            continue
         best = r["retry"] if r["retry"] and r["retry"].get("schema_ok") else r["first"]
         if best.get("schema_ok"):
             by[(r["packet"], label(r))].append(best["result"])
@@ -101,7 +103,7 @@ def blind(rs: list[dict], per: int, seed: int) -> None:
     items.sort(key=lambda x: x["packet"])  # rate packet by packet; order inside a packet stays shuffled
     key, lines = {}, ["# Blind rating sheet (vroom-9ki.17)", "",
                        "Rate each `what` / `fix` 1–5: does it read like a race engineer? (5 = yes, I'd act on it).",
-                       "Write the score after **Score:**. Don't open `key.json` until every score is in.", ""]
+                       f"Write the score after **Score:**. Don't open the answer key (`{'key.json' if name == 'sheet' else name + '-key.json'}`) until every score is in.", ""]
     for i, it in enumerate(items, 1):
         code = f"S{i:02d}"
         key[code] = {"model": it["model"], "packet": it["packet"]}
@@ -116,9 +118,9 @@ def blind(rs: list[dict], per: int, seed: int) -> None:
         lines += ["", "**Score:** ", ""]
     d = HERE / "blind"
     d.mkdir(exist_ok=True)
-    (d / "sheet.md").write_text("\n".join(lines))
-    (d / "key.json").write_text(json.dumps(key, indent=1) + "\n")
-    print(f"{len(items)} samples -> blind/sheet.md")
+    (d / f"{name}.md").write_text("\n".join(lines))
+    (d / f"{name}-key.json" if name != "sheet" else d / "key.json").write_text(json.dumps(key, indent=1) + "\n")
+    print(f"{len(items)} samples -> blind/{name}.md")
 
 
 def main() -> None:
@@ -127,12 +129,14 @@ def main() -> None:
     ap.add_argument("--runs", default=str(HERE / "results" / "runs.jsonl"))
     ap.add_argument("--per", type=int, default=2, help="samples per model and packet in the blind sheet")
     ap.add_argument("--seed", type=int, default=917)
+    ap.add_argument("--only", help="blind: only runs whose label contains this (e.g. prompt-v3.md)")
+    ap.add_argument("--name", default="sheet", help="blind: sheet file name (round 2: sheet-round2)")
     a = ap.parse_args()
     rs = rows(Path(a.runs))
     if a.what == "table":
         print(table(rs))
     else:
-        blind(rs, a.per, a.seed)
+        blind(rs, a.per, a.seed, a.only, a.name)
 
 
 if __name__ == "__main__":

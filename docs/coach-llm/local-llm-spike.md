@@ -161,6 +161,36 @@ The user rated 24 samples (one per model, prompt and packet; model names hidden 
   to read (that format came from the v2 prompt's example).
 - This led to packet set v2 and prompt v3 (below).
 
+### Round 2: packet set v2 and prompt v3
+
+**Packet set v2** (`packets-v2/`, built by the same script) adds, per corner and for both laps: seconds with
+ABS and traction control working, where a wheel locked or a rear wheel spun, seconds on the rev limiter (from
+the setup's 8,000 rpm), peak rpm, gear at the slowest point and seconds on a kerb; a code-computed `cause` with
+`cause_confidence` (high / medium / low, from how clearly `causeOf`'s top score wins) and the reason it rests
+on; landmarks with their role ("100 board (braking reference, before the apex)"). Average gets each variable
+corner's fastest and slowest lap side by side. The Corner trace gains rpm, ABS, TC and kerb columns. On these
+laps nobody touched the rev limiter or locked a wheel, and the packets say so, so no model can invent it.
+
+**Prompt v3** states a high or medium cause as fact, bans disclaimers ("does not establish"), says how to
+coach from the aid and engine facts (more ABS time: ease the pedal after the initial hit; more TC time: a more
+progressive throttle; limiter time: a late upshift), bans field names by name and has no example finding.
+
+| Model (v3, packets v2) | Guard 1st try / after retry | Prose clean | Hedge-free | "a / b" values | Uses aid or engine facts | Total s | Cost (20 runs) |
+|---|---|---|---|---|---|---|---|
+| gpt-6.1-terra | 20/20 / 20/20 | **20/20** | **20/20** (v2: 4/20) | 0/20 | 15/20 | 5.5–17 | ≈ $0.15 |
+| gpt-6-luna | 20/20 / 20/20 | **20/20** | **20/20** | 0/20 | 10/20 | 5.8–29 | $0.026 |
+| gpt-oss-20b (local) | 19/20 / 20/20 | 4/20 | 20/20 | 0/20 | 6/20 | 11.7–26.5 | 0 |
+
+- **Hedging is gone** for every model, with no loss of number grounding.
+- **The retry earned its keep once:** gpt-oss wrote "11 km/h" (169 − 158, a calculation); the guard caught it
+  and the retry fixed it.
+- **gpt-oss still writes field names** (`steering_extrema`, `abs_active_s`) despite the explicit ban, and its
+  fixes stay generic ("Smooth steering at the exit kerb").
+- Example, terra on Average: "You're losing consistency on the steering at Fagnes 2, with more corrections on
+  your slowest lap. Traction control also worked longer on that lap." Fix: "Match the calmer steering of lap 2
+  and feed the throttle in more progressively on exit."
+- A second blind round on the v3 outputs only (12 samples: `blind/sheet-round2.md`) settles the final pick.
+
 ### Not yet measured
 
 | Item | Why not | How |
