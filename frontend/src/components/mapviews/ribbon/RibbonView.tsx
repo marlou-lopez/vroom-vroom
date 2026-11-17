@@ -20,6 +20,7 @@ import { runRibbonBench, type RibbonBenchControl } from "./bench";
 import { deltaLabel, paneReadout, paneTitle } from "./split";
 import { VIEW_MODES, type ViewMode } from "./viewModes";
 import { heightAt, roadHeights } from "./heights";
+import { ribbonMarks } from "./marks";
 import { aheadPoint, carPose } from "./pose";
 import { loadRibbonRenderer, type ScreenPoint } from "./types";
 import styles from "./RibbonView.module.css";
@@ -63,11 +64,12 @@ function loadSplit(): boolean {
 }
 
 /** Experimental 3D view (#39): the track as a ribbon with elevation, both cars, and chase / cockpit (#100) / orbit / top-down cameras. */
-export function RibbonView({ model, geometry, annotations, handlers, lapTimes }: TrackViewProps) {
+export function RibbonView({ model, geometry, annotations, handlers, lapTimes, lapValid }: TrackViewProps) {
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
   const scene = useMemo(() => buildScene(cmp, { source: "lateral", gpsHalf: 4, edges: "telemetry", survey: geometry?.survey }), [cmp, geometry]);
+  const marks = useMemo(() => ribbonMarks(cmp.lap, scene.centre.x.length, lapValid), [cmp, scene, lapValid]);
   const { heights, hasElevation } = useMemo(() => {
     const h = roadHeights(geometry?.elevation_m, scene.centre.x.length);
     return { heights: h ?? new Float64Array(scene.centre.x.length), hasElevation: h !== null };
@@ -114,6 +116,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
 
   const rootRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef(scene);
+  const marksRef = useRef(marks);
   const heightsRef = useRef(heights);
   const attitudeRef = useRef(attitude);
   const refAttitudeRef = useRef(refAttitude);
@@ -138,7 +141,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
   const { hostRef, rendererRef, lostRef, vp, requestDrawRef, gpu, retry } = useGpuRenderer({
     load: loadRibbonRenderer,
     onReady: (r) => {
-      r.setScene({ scene: sceneRef.current, heights: heightsRef.current });
+      r.setScene({ scene: sceneRef.current, heights: heightsRef.current, marks: marksRef.current });
       r.setMode(modeRef.current);
     },
     failLabel: "3D renderer failed",
@@ -248,15 +251,16 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
 
   useEffect(() => {
     sceneRef.current = scene;
+    marksRef.current = marks;
     heightsRef.current = heights;
     attitudeRef.current = attitude;
     refAttitudeRef.current = refAttitude;
     limitsRef.current = limits;
     refLimitsRef.current = refLimits;
     refDeltaRef.current = refDelta;
-    rendererRef.current?.setScene({ scene, heights });
+    rendererRef.current?.setScene({ scene, heights, marks });
     requestDraw();
-  }, [scene, heights, attitude, refAttitude, limits, refLimits, refDelta, rendererRef, requestDraw]);
+  }, [scene, heights, marks, attitude, refAttitude, limits, refLimits, refDelta, rendererRef, requestDraw]);
 
   // While playing, tau changes once per frame inside the playback loop's own rAF: draw right then (no one-frame lag).
   useEffect(() => store.subscribe(() => {

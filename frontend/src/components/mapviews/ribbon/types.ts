@@ -2,13 +2,14 @@ import type { Scene } from "../detailed/scene";
 import type { Viewport } from "../../../lib/camera";
 import type { AttitudeAt } from "../../../lib/carAttitude";
 import type { RpmLimits } from "../../../lib/shiftLights";
+import type { RibbonMarks } from "./marks";
 import type { DashValues } from "./dashValues";
 import type { CarPose } from "./pose";
 import type { RefPaneFrame } from "./split";
 import type { ViewMode } from "./viewModes";
 
 /** What the 3D renderer draws besides the 2D scene: the road height per centreline grid index. */
-export interface RibbonScene { scene: Scene; heights: Float64Array }
+export interface RibbonScene { scene: Scene; heights: Float64Array; /** Wheels-off, lockup and wheelspin stretches of the lap line (vroom-q4f). */ marks: RibbonMarks }
 
 export interface RibbonFrame {
   lap: CarPose; ref: CarPose;

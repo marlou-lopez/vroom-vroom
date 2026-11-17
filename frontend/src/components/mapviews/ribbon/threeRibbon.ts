@@ -21,6 +21,7 @@ import { invalidateCarModel, loadCarModel, placeModel, type PlacedModel } from "
 import { carModelStore } from "./carModelStore";
 import { visualForwardM } from "../detailed/renderer";
 import { toThree } from "./coords";
+import { buildMarkPositions, type MarkSpan } from "./marks";
 import { buildKerbMesh, buildLinePositions, buildRibbonMesh, buildVergeMesh } from "./geometry";
 import type { CarPose } from "./pose";
 import { carEuler } from "./pose";
@@ -28,6 +29,7 @@ import { paneRects } from "./split";
 import type { RibbonEvents, RibbonFrame, RibbonRenderer, ScreenPoint } from "./types";
 
 /** Lifts (m, before the vertical exaggeration) that keep each layer clear of the one below it. */
+const MARK_LIFT = 0.08; // wheels-off, lockup and wheelspin marks, over the lap line
 const EDGE_LIFT = 0.02, KERB_LIFT = 0.03, AHEAD_LIFT = 0.05, DRIVEN_LIFT = 0.07;
 const CAR_BODY_H = 0.6, CAR_BODY_Y = 0.15, CAB_H = 0.45;
 const MAX_DPR = 2;
@@ -289,7 +291,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   const toRgb = (hex: string) => new Color(hex).toArray().slice(0, 3) as [number, number, number];
 
   return {
-    setScene({ scene: sc, heights }) {
+    setScene({ scene: sc, heights, marks }) {
       clearScene();
       const add = (m: Mesh | Line2) => { sceneMeshes.push(m); if (!m.parent) world.add(m); };
       // Track surface.
@@ -354,6 +356,14 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
         return { driven, ahead, segments: xy.x.length - 1 };
       };
       racing = [mk(sc.ref, colors.comparison, REF_PX), mk(sc.lap, colors.you, LAP_PX)];
+      // Wheels-off stretches, then lockup and wheelspin, over the lap line (whole lap, like the 2D maps; vroom-q4f).
+      const mark = (spans: MarkSpan[], color: string, px: number, lift: number) => {
+        const mat = makeLineMat(color, px);
+        for (const sp of spans) sceneMeshes.push(addLine(buildMarkPositions(sc.lap, heights, sp, lift), mat));
+      };
+      mark(marks.offTrack, marks.invalid ? colors.offTrack : colors.closeCall, LAP_PX + 5, MARK_LIFT);
+      mark(marks.wheelspin, colors.wheelspin, LAP_PX + 1.5, MARK_LIFT + 0.01);
+      mark(marks.lockup, colors.lockup, LAP_PX + 1.5, MARK_LIFT + 0.02);
       lapForward = visualForwardM(sc.lapDims);
       refForward = visualForwardM(sc.refDims);
       lapCar = makeCar(sc.lapDims, colors.you);
