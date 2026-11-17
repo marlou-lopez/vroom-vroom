@@ -4,7 +4,7 @@
 export const OFF_TRACK_SURFACES = new Set([2, 4]);
 
 /** Number of wheels (0..4) on grass or gravel in one SurfaceTypes sample (four wheel values). */
-export const countOffTrack = (wheels) => wheels.filter((w) => OFF_TRACK_SURFACES.has(Number(w))).length;
+export const countOffTrack = (wheels) => Array.from(wheels).filter((w) => OFF_TRACK_SURFACES.has(Number(w))).length;
 
 /**
  * Stepwise (sample-and-hold) lookup: the value of the latest sample at or before x, never an interpolation.
