@@ -1,7 +1,6 @@
 /* EXPERIMENTAL (vroom-pnw.26): the Stint view. */
 .panel { display: flex; flex-direction: column; gap: var(--gap); }
 .head { display: flex; align-items: center; gap: var(--gap); }
-.badge { font-size: 10px; letter-spacing: 0.08em; color: var(--color-minor); border: 1px solid var(--color-minor); border-radius: var(--radius); padding: 0 4px; }
 .meta { color: var(--color-muted); }
 .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--gap); }
 .card { border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--pad); }

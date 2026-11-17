@@ -70,7 +70,11 @@ export interface LapMeta {
   driver: string;
   track_id: string;
   car_id: string;
-  conditions: Record<string, number>;
+  /**
+   * Whether the lap has a 1 m trace (`/laps/{id}/trace`, compare, the Telemetry page). false for a session known by its lap
+   * metadata and stint stats only: its laps are listed and have a Stint panel, but cannot be played or compared.
+   */
+  has_trace: boolean;
 }
 
 /** GET /api/sessions/{id}/laps rows: LapMeta plus whether this lap is the reference for its track and car. */
@@ -442,14 +446,15 @@ export function errorInfo(e: unknown): { code: string; message: string } {
   return { code: x.code ?? "error", message: x.message ?? String(e) };
 }
 
-// ---- Stint (EXPERIMENTAL, vroom-pnw.26) ----
-// Spike prototype: not part of the agreed contract yet. See docs/stint/stint-view.md for the contract options.
+// ---- Stint (GET /sessions/{id}/stints, vroom-bi4.4; spike write-up in docs/stint/stint-view.md) ----
 
 /** One value per wheel. */
 export interface Wheels { fl: number; fr: number; rl: number; rr: number }
 
 /** Per-lap stint stats, computed from the recording's fuel, virtual energy, tyre and brake channels. */
 export interface StintLap {
+  /** The lap's `LapMeta.lap_id`. */
+  lap_id: string;
   lap_no: number;
   kind: LapKind;
   /** Official time; 0 = invalid, null = none (a lap that ends in the pits or with the recording). */
@@ -474,14 +479,12 @@ export interface StintLap {
   air_temp_c: number;
 }
 
-/** A run of laps from one recording (here: a whole session, pit stop included). */
+/**
+ * A run of laps between pit stops. The backend splits the session's laps after each in lap (the next lap, an out lap,
+ * starts the next stint), so every stint but the first begins with an out lap and a stint ending with an in lap ended in the pits.
+ */
 export interface Stint {
-  stint_id: string;
-  track_id: string;
-  car_id: string;
-  car_class: string;
-  session_type: string;
-  started_at: string;
-  source: string;
+  /** 1-based, in session order. */
+  stint_no: number;
   laps: StintLap[];
 }

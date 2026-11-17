@@ -19,7 +19,7 @@ node extract-laps.mjs <recording.duckdb> <out.json>
 
 ## extract-stint.py
 
-Per-lap stint stats from an LMU `.duckdb` recording, for the experimental Stint view (vroom-pnw.26): lap time and kind, fuel and
+Per-lap stint stats from an LMU `.duckdb` recording, for the Stint view (vroom-pnw.26, vroom-bi4.4): lap time and kind, fuel and
 virtual energy at the start and end of each lap, tyre temperatures (three zones, carcass), pressures, wear and brake temperatures.
 
 ```bash

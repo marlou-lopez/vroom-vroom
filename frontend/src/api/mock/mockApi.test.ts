@@ -619,16 +619,56 @@ describe("validity override reset", () => {
   });
 });
 
-describe("stints (experimental, vroom-pnw.26)", () => {
+describe("the Monza race session and its stints (vroom-bi4.4)", () => {
   const STINT = JSON.parse(readFileSync(fileURLToPath(new URL("../../../public/mock/monza-stint-2026-11-09.json", import.meta.url)), "utf8")) as StintFile;
-  it("serves the Monza race stint for the Monza 720S", async () => {
-    const api = createMockApi({ loadSpa, loadStint: async () => STINT });
-    const [s] = await api.stints();
-    expect(s.track_id).toBe(MONZA_TRACK_ID);
-    expect(s.car_id).toBe("mclaren_720s_gt3_evo");
-    expect(s.laps).toHaveLength(26);
+  const make = () => createMockApi({ coachDelayMs: 0, loadSpa, loadMonza, loadStint: async () => STINT });
+  const race = async (api: Api) => (await api.sessions()).find((s) => s.started_at.startsWith("2026-11-09"))!;
+
+  it("lists the race as a Monza 720S Race session, newest first", async () => {
+    const api = make();
+    const sessions = await api.sessions();
+    const r = await race(api);
+    expect(sessions[0].session_id).toBe(r.session_id);
+    expect(r).toMatchObject({ track_id: MONZA_TRACK_ID, car_id: "mclaren_720s_gt3_evo", session_type: "Race" });
   });
-  it("has none when a custom recording loader is given and no stint loader", async () => {
-    expect(await createMockApi({ loadSpa }).stints()).toEqual([]);
+  it("has lap metadata and a summary, but no traces", async () => {
+    const api = make();
+    const r = await race(api);
+    const laps = await api.sessionLaps(r.session_id);
+    expect(laps).toHaveLength(26);
+    expect(laps.every((l) => !l.has_trace && !l.is_reference)).toBe(true);
+    expect(await api.lap(laps[3].lap_id)).toEqual(laps[3]);
+    const sum = await api.sessionSummary(r.session_id);
+    expect(sum).toMatchObject({ n_laps: 26, n_valid: 22, best_lap_s: 112.447, theoretical_best_s: null });
+    expect((await rejection(api.lapTrace(laps[3].lap_id))).code).toBe("no_trace");
+    expect((await rejection(api.compare(laps[3].lap_id))).code).toBe("no_trace");
+  });
+  it("keeps the race out of references, candidates and the other sessions' laps", async () => {
+    const api = make();
+    const r = await race(api);
+    const mon = (await api.sessions()).find((s) => s.track_id === MONZA_TRACK_ID && s.session_id !== r.session_id)!;
+    const laps = await api.sessionLaps(mon.session_id);
+    expect(laps.every((l) => l.has_trace)).toBe(true);
+    const candidates = await api.compareCandidates(laps.find((l) => l.kind === "flying")!.lap_id);
+    expect(candidates.some((c) => c.label.startsWith("9 Nov"))).toBe(false);
+  });
+  it("splits the race into stints at the pit stop, each lap with its lap_id", async () => {
+    const api = make();
+    const r = await race(api);
+    const ids = new Set((await api.sessionLaps(r.session_id)).map((l) => l.lap_id));
+    const stints = await api.sessionStints(r.session_id);
+    expect(stints.map((s) => [s.stint_no, s.laps.length])).toEqual([[1, 25], [2, 1]]);
+    expect(stints[0].laps[24].kind).toBe("in");
+    expect(stints[1].laps[0].kind).toBe("out");
+    expect(stints.flatMap((s) => s.laps).every((l) => ids.has(l.lap_id))).toBe(true);
+  });
+  it("gives no stints for a session without stint stats, and unknown_session for a bad id", async () => {
+    const api = make();
+    const spa = (await api.sessions()).find((s) => s.track_id === TRACK)!;
+    expect(await api.sessionStints(spa.session_id)).toEqual([]);
+    expect((await rejection(api.sessionStints("nope"))).code).toBe("unknown_session");
+  });
+  it("has no race session when a custom recording loader is given and no stint loader", async () => {
+    expect((await createMockApi({ loadSpa, loadMonza }).sessions()).some((s) => s.session_type === "Race" && s.started_at.startsWith("2026-11-09"))).toBe(false);
   });
 });

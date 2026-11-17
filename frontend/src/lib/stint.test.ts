@@ -9,7 +9,7 @@ function lap(lap_no: number, over: Partial<StintLap> = {}): StintLap {
   const fuel = 90 - lap_no * 3;
   const energy = 100 - lap_no * 4;
   return {
-    lap_no, kind: "flying", lap_time_s: 100 + lap_no * 0.1, valid: true,
+    lap_id: `lap-${lap_no}`, lap_no, kind: "flying", lap_time_s: 100 + lap_no * 0.1, valid: true,
     fuel_start_l: fuel, fuel_end_l: fuel - 3, energy_start_pct: energy, energy_end_pct: energy - 4,
     tyre_surface_c: w(80), tyre_zones_c: { left: w(78), centre: w(80), right: w(82) }, tyre_carcass_c: w(82),
     tyre_pressure_kpa: w(170), tyre_wear_end_pct: w(100 - (lap_no + 1) * 0.5), brake_c: w(450), track_temp_c: 30, air_temp_c: 20,
@@ -76,7 +76,8 @@ describe("falloffPlot", () => {
 
 describe("the real Monza race stint (9 Nov 2026)", () => {
   const file = JSON.parse(readFileSync(new URL("../../public/mock/monza-stint-2026-11-09.json", import.meta.url), "utf8")) as StintFile;
-  const rows = stintRows(file.laps);
+  const fileLaps = file.laps.map((l) => ({ ...l, lap_id: `lap-${l.lap_no}` }));
+  const rows = stintRows(fileLaps);
   const s = stintSummary(rows);
   it("has 26 laps: start lap, 23 flying, an in lap and the out lap after the stop", () => {
     expect(file.laps).toHaveLength(26);

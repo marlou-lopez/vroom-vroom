@@ -34,7 +34,7 @@ This section only records facts that change rarely (last checked 2026-11-17):
 |---|---|
 | `frontend/` | React 18 + TypeScript (~5.9) + Vite app |
 | `frontend/src/api/types.ts`, `client.ts` | **The API contract.** The future backend must match it |
-| `frontend/src/api/mock/` | MSW mock API built on real laps: Spa (`public/mock/spa-2026-11-03.json`) and Monza (`monza-2026-11-05.json`). Spa also has the edge survey and elevation; Monza has only the centreline |
+| `frontend/src/api/mock/` | MSW mock API built on real laps: Spa (`public/mock/spa-2026-11-03.json`) and Monza (`monza-2026-11-05.json`). Spa also has the edge survey and elevation; Monza has only the centreline. The Monza race of 9 Nov 2026 (`monza-stint-2026-11-09.json`, stint stats only) is a Race session with lap metadata and no traces (`LapMeta.has_trace` false), served with its stints by `GET /sessions/{id}/stints` (vroom-bi4.4) |
 | `frontend/src/pages/` | Telemetry (home, `/`), Sessions, Tracks |
 | `frontend/src/lib/` | Pure logic: playback, track map projection, strips, formatting, car attitude estimate for the cockpit camera (unit-tested) |
 | `frontend/src/state/` | Zustand playback store, data and coach hooks |
@@ -43,7 +43,7 @@ This section only records facts that change rarely (last checked 2026-11-17):
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone (e.g. `edge-survey.md`, `elevation-shared-memory.md`) |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON: `node extract-laps.mjs <copy.duckdb> <out.json> "<source label>" [laps]` (needs `npm i @duckdb/node-api`) |
-| `tools/extract-stint.py` | Per-lap stint stats (fuel, virtual energy, tyres, brakes) from an LMU `.duckdb` copy, for the experimental Stint view: `uv run --with duckdb python -I extract-stint.py <copy.duckdb> <out.json> "<label>"` (vroom-pnw.26) |
+| `tools/extract-stint.py` | Per-lap stint stats (fuel, virtual energy, tyres, brakes) from an LMU `.duckdb` copy, for the Stint view: `uv run --with duckdb python -I extract-stint.py <copy.duckdb> <out.json> "<label>"` (vroom-pnw.26) |
 | `docs/stint/` | Stint view spike write-up (`stint-view.md`) |
 | `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`, `survey`) (#94, #97). Captures stay out of git |
 | `tools/lmu-recorder-channels.py` | Lists the channel names LMU's built-in recorder knows (read from the game exe) and diffs them with `config.json`: `python3 -I tools/lmu-recorder-channels.py [--check "<name>" ...]`. Re-run after an LMU update (vroom-pnw.16, `docs/lmu-channels.md`) |

@@ -5,7 +5,7 @@ and how lap times fall off? And what would that do to the API contract?
 
 **Answer:** yes, for fuel, virtual energy, tyre temperatures (three zones, carcass, rim), pressures, wear, brake temperatures and
 track temperature. All of them are in **every** recording, at 1–100 Hz, GT3 included. A prototype Stint panel on the Sessions page
-(labelled EXPERIMENTAL) shows a real 26-lap Monza race from them.
+(labelled EXPERIMENTAL at the time) shows a real 26-lap Monza race from them.
 
 ## Channels found
 
@@ -107,3 +107,22 @@ experimental `Api.stints()` is replaced in the build issue. Decided 2026-11-17 b
 
 No Hypercar recording issue: virtual energy is already shown on GT3, and SoC and regen are confirmed present. Fuel-corrected fall-off
 is parked as an idea.
+
+## Built (vroom-bi4.4)
+
+Contract option 2 is in `frontend/src/api/types.ts`, `client.ts` and the mock; the EXPERIMENTAL label and `Api.stints()` are gone.
+
+- `Api.sessionStints(sessionId): Promise<Stint[]>`, `GET /sessions/{id}/stints`. A `Stint` is `{ stint_no, laps: StintLap[] }`; each
+  `StintLap` now has its `lap_id`. The session's laps are split **after each in lap**, so the next lap (an out lap) starts the next
+  stint. A session without stint stats returns `[]`; an unknown session is `unknown_session`. Session type, date and car come from
+  `SessionMeta`, not from the stint.
+- `LapMeta.conditions` is **removed** (its mock values were invented). `LapMeta.has_trace: boolean` is **new**: false for a session
+  known by lap metadata and stint stats only. Such laps are listed (`/sessions/{id}/laps`, `/laps/{id}`, the session summary) but have
+  no 1 m trace: `lapTrace` and `compare` fail with `no_trace`, and they are never a reference, a compare candidate or the lap the
+  Telemetry page, the Sessions "Open" link or the Tracks geometry open (`bestValidLap` skips them). A real backend returns `true`
+  for every imported lap.
+- The mock has the Monza race of 9 Nov 2026 as a Race session (McLaren 720S GT3 Evo, 26 laps, no sectors, no setup, no theoretical best).
+  It splits into stint 1 (25 laps, ending with the in lap) and stint 2 (the out lap the recording ends with); the panel hides a
+  stint without a flying lap.
+- The Stint panel is shown on the Sessions page for each session of the selected track and car that has stints.
+- The contract change is also written into vroom-9ki.13 (HTTP API) and vroom-9ki.18 (stats and endpoint).

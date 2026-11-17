@@ -6,7 +6,7 @@ function lap(id: string, over: Partial<LapMeta> = {}): LapMeta {
   return {
     lap_id: id, session_id: "s", lap_no: 1, kind: "flying", lap_time_s: 100, sectors_s: [],
     valid: true, valid_override: null, pinned_reference: false, source: "own_recording", driver: "d",
-    track_id: "t", car_id: "c", conditions: {}, ...over,
+    track_id: "t", car_id: "c", has_trace: true, ...over,
   } as LapMeta;
 }
 
