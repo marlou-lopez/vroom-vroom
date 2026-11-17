@@ -1,0 +1,181 @@
+{
+  "command": "analyze",
+  "track": "Spa-Francorchamps",
+  "car": "McLaren 720S GT3 Evo",
+  "session": "practice, 3 Nov 2026",
+  "lap": "lap 2, 2:22.139",
+  "reference": "lap 4, 2:21.525",
+  "profile": {
+    "driver": "casual sim racer, Simagic P1000 load-cell pedals, metric units",
+    "focus_areas": [
+      "minimum corner speeds",
+      "exits onto long straights (Kemmel, the run to the Bus Stop)",
+      "consistency"
+    ]
+  },
+  "lap_delta_s": "+0.629",
+  "rules": "Write one finding per corner below, keeping its kind and time_s. focus is the first issue's corner.",
+  "corners": [
+    {
+      "corner_id": "stavelot",
+      "corner": "Stavelot",
+      "kind": "issue",
+      "time_s": "0.141",
+      "likely_cause": "steering",
+      "lap": {
+        "min_speed_kmh": "110",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "147",
+        "brake_onset": "well before the apex",
+        "peak_brake": "87%",
+        "throttle_pickup": "at the apex",
+        "coast_s": "0.3",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "5"
+      },
+      "reference": {
+        "min_speed_kmh": "112",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "151",
+        "brake_onset": "well before the apex",
+        "peak_brake": "86%",
+        "throttle_pickup": "at the apex",
+        "coast_s": "0.5",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "3"
+      },
+      "landmarks": [
+        "exit kerb"
+      ]
+    },
+    {
+      "corner_id": "pouhon2",
+      "corner": "Pouhon 2",
+      "kind": "issue",
+      "time_s": "0.103",
+      "likely_cause": "steering",
+      "lap": {
+        "min_speed_kmh": "185",
+        "min_speed_where": null,
+        "exit_speed_kmh": "226",
+        "brake_onset": null,
+        "peak_brake": "0%",
+        "throttle_pickup": "well before the apex",
+        "coast_s": "0.0",
+        "pedal_overlap_s": "0.0",
+        "steering_extrema": "5"
+      },
+      "reference": {
+        "min_speed_kmh": "191",
+        "min_speed_where": null,
+        "exit_speed_kmh": "228",
+        "brake_onset": null,
+        "peak_brake": "0%",
+        "throttle_pickup": "well before the apex",
+        "coast_s": "0.0",
+        "pedal_overlap_s": "0.0",
+        "steering_extrema": "0"
+      },
+      "landmarks": [
+        "exit kerb"
+      ]
+    },
+    {
+      "corner_id": "busstop",
+      "corner": "Bus Stop",
+      "kind": "issue",
+      "time_s": "0.079",
+      "likely_cause": "steering",
+      "lap": {
+        "min_speed_kmh": "65",
+        "min_speed_where": "just after the apex",
+        "exit_speed_kmh": "149",
+        "brake_onset": "at the 100 board",
+        "peak_brake": "100%",
+        "throttle_pickup": "just after the apex kerb",
+        "coast_s": "1.9",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "4"
+      },
+      "reference": {
+        "min_speed_kmh": "68",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "149",
+        "brake_onset": "at the 100 board",
+        "peak_brake": "100%",
+        "throttle_pickup": "just after the apex kerb",
+        "coast_s": "1.0",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "2"
+      },
+      "landmarks": [
+        "apex kerb",
+        "exit kerb",
+        "100 board"
+      ]
+    },
+    {
+      "corner_id": "lescombes1",
+      "corner": "Les Combes 1",
+      "kind": "minor",
+      "time_s": "0.065",
+      "likely_cause": "steering",
+      "lap": {
+        "min_speed_kmh": "119",
+        "min_speed_where": "just before the apex",
+        "exit_speed_kmh": "126",
+        "brake_onset": "well before the entry kerb",
+        "peak_brake": "100%",
+        "throttle_pickup": "just after the apex kerb",
+        "coast_s": "0.1",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "3"
+      },
+      "reference": {
+        "min_speed_kmh": "114",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "124",
+        "brake_onset": "well before the entry kerb",
+        "peak_brake": "100%",
+        "throttle_pickup": "just after the apex kerb",
+        "coast_s": "0.6",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "1"
+      },
+      "landmarks": [
+        "entry kerb",
+        "apex kerb"
+      ]
+    },
+    {
+      "corner_id": "bruxelles",
+      "corner": "Bruxelles",
+      "kind": "strength",
+      "time_s": "-0.025",
+      "likely_cause": "speed",
+      "lap": {
+        "min_speed_kmh": "88",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "147",
+        "brake_onset": "well before the apex",
+        "peak_brake": "99%",
+        "throttle_pickup": "just after the apex",
+        "coast_s": "0.6",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "1"
+      },
+      "reference": {
+        "min_speed_kmh": "85",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "145",
+        "brake_onset": "well before the apex",
+        "peak_brake": "92%",
+        "throttle_pickup": "just after the apex",
+        "coast_s": "0.6",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "1"
+      },
+      "landmarks": []
+    }
+  ]
+}

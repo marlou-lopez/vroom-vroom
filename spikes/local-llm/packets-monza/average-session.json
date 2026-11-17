@@ -1,0 +1,64 @@
+{
+  "command": "average",
+  "track": "Monza",
+  "car": "McLaren 720S GT3 Evo",
+  "session": "practice, 5 Nov 2026",
+  "lap": "6 valid laps: lap 1 1:53.202, lap 2 1:52.308, lap 5 1:55.643, lap 6 1:52.722, lap 7 1:52.842, lap 8 1:52.348",
+  "reference": null,
+  "profile": {
+    "driver": "casual sim racer, Simagic P1000 load-cell pedals, metric units",
+    "focus_areas": [
+      "minimum corner speeds",
+      "exits onto long straights (after the chicanes, Ascari and Parabolica)",
+      "consistency"
+    ]
+  },
+  "stats": {
+    "laps": "6",
+    "mean": "1:53.177",
+    "lap_sd_s": "1.252",
+    "best": "1:52.308",
+    "worst": "1:55.643"
+  },
+  "rules": "Write one inconsistent finding per corner below, with time_s = sd_s. No focus.",
+  "corners": [
+    {
+      "corner_id": "curvagrande",
+      "corner": "Curva Grande",
+      "kind": "inconsistent",
+      "time_s": "0.696",
+      "sd_s": "0.696",
+      "fastest_s": "6.207",
+      "slowest_s": "7.926",
+      "laps": "6",
+      "landmarks": []
+    },
+    {
+      "corner_id": "rettifilo1",
+      "corner": "Rettifilo 1",
+      "kind": "inconsistent",
+      "time_s": "0.357",
+      "sd_s": "0.357",
+      "fastest_s": "5.384",
+      "slowest_s": "6.486",
+      "laps": "6",
+      "landmarks": [
+        "apex kerb"
+      ]
+    },
+    {
+      "corner_id": "rettifilo2",
+      "corner": "Rettifilo 2",
+      "kind": "inconsistent",
+      "time_s": "0.183",
+      "sd_s": "0.183",
+      "fastest_s": "5.941",
+      "slowest_s": "6.433",
+      "laps": "6",
+      "landmarks": [
+        "entry kerb",
+        "exit kerb"
+      ]
+    }
+  ]
+}

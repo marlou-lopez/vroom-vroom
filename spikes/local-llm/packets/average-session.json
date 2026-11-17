@@ -1,0 +1,67 @@
+{
+  "command": "average",
+  "track": "Spa-Francorchamps",
+  "car": "McLaren 720S GT3 Evo",
+  "session": "practice, 3 Nov 2026",
+  "lap": "4 valid laps: lap 1 2:21.937, lap 2 2:22.139, lap 3 2:21.947, lap 4 2:21.525",
+  "reference": null,
+  "profile": {
+    "driver": "casual sim racer, Simagic P1000 load-cell pedals, metric units",
+    "focus_areas": [
+      "minimum corner speeds",
+      "exits onto long straights (Kemmel, the run to the Bus Stop)",
+      "consistency"
+    ]
+  },
+  "stats": {
+    "laps": "4",
+    "mean": "2:21.887",
+    "lap_sd_s": "0.259",
+    "best": "2:21.525",
+    "worst": "2:22.139"
+  },
+  "rules": "Write one inconsistent finding per corner below, with time_s = sd_s. No focus.",
+  "corners": [
+    {
+      "corner_id": "fagnes2",
+      "corner": "Fagnes 2",
+      "kind": "inconsistent",
+      "time_s": "0.102",
+      "sd_s": "0.102",
+      "fastest_s": "5.271",
+      "slowest_s": "5.485",
+      "laps": "4",
+      "landmarks": [
+        "exit kerb"
+      ]
+    },
+    {
+      "corner_id": "stavelot",
+      "corner": "Stavelot",
+      "kind": "inconsistent",
+      "time_s": "0.068",
+      "sd_s": "0.068",
+      "fastest_s": "6.254",
+      "slowest_s": "6.395",
+      "laps": "4",
+      "landmarks": [
+        "exit kerb"
+      ]
+    },
+    {
+      "corner_id": "busstop",
+      "corner": "Bus Stop",
+      "kind": "inconsistent",
+      "time_s": "0.066",
+      "sd_s": "0.066",
+      "fastest_s": "12.348",
+      "slowest_s": "12.510",
+      "laps": "4",
+      "landmarks": [
+        "apex kerb",
+        "exit kerb",
+        "100 board"
+      ]
+    }
+  ]
+}
