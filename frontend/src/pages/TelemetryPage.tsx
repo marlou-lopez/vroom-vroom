@@ -1,6 +1,6 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { HeaderSlot } from "../components/AppShell";
 import { BiggestLosses } from "../components/BiggestLosses";
 import { AnalysisBar } from "../components/AnalysisBar";
@@ -163,6 +163,7 @@ function Telemetry() {
   // Whether the lap counts as valid (the manual override wins); decides whether its wheels-off marks are red or grey.
   const lapValid = ctx ? effectiveValid(ctx.lap) : true;
   const offTrackHint = useMemo(() => (cmp && !lapValid ? invalidHint(cmp.lap, trackMap) : null), [cmp, trackMap, lapValid]);
+  const ideal = candidates.find((c) => c.is_ideal) ?? null;
   const refCand = candidates.find((c) => c.lap_id === cmp?.ref_lap_id) ?? null;
   const youName = ctx ? `You · L${ctx.lap.lap_no}` : "You";
   const refName = refCand ? `Comparison · ${refCand.is_reference ? "★" : ""}${refCand.label}` : "Comparison";
@@ -197,12 +198,30 @@ function Telemetry() {
       )}
       {ctx && !workspace && <BiggestLosses result={losses} onSeek={seekToLoss} />}
       {error && !model ? (
-        <Message>{error.code}: {error.message}</Message>
+        error.code === "unknown_lap" ? (
+          <Message>
+            <div className={styles.missing}>
+              <p>That lap no longer exists</p>
+              <div className={styles.actions}>
+                <Link to="/" className={ui.btn}>Open latest lap</Link>
+                <Link to="/sessions" className={ui.btn}>Sessions</Link>
+              </div>
+            </div>
+          </Message>
+        ) : (
+          <Message>{error.code}: {error.message}</Message>
+        )
       ) : !model ? (
         <Message>Loading…</Message>
       ) : (
         <>
           {cmp?.warning && <div className={styles.warning}>{cmp.warning}</div>}
+          {cmp && cmp.lap_id === cmp.ref_lap_id && (
+            <div className={styles.warning} role="note">
+              This lap is the comparison lap, so every delta is zero.
+              {ideal && <> <button type="button" className={ui.btn} onClick={() => selectRef(ideal.lap_id)}>Compare with the ideal lap</button></>}
+            </div>
+          )}
           {(() => {
           const grid = (
           <div className={styles.grid} data-expanded={expanded || undefined}>
