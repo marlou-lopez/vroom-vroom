@@ -1,9 +1,32 @@
+import { rmSync } from 'node:fs'
+import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type Plugin } from 'vitest/config'
+
+/**
+ * Vite copies all of public/ into dist/. Two folders there are for development only: the mock API's recordings with
+ * its service worker (mock/, mockServiceWorker.js) and the git-ignored car-model fallback (local-models/, which may hold
+ * a user's licensed model). Remove them from the production output; `npm run dev` still serves them from public/.
+ */
+const DEV_ONLY_PUBLIC = ['mock', 'mockServiceWorker.js', 'local-models'] as const
+
+function stripDevOnlyPublicFiles(): Plugin {
+  let outDir = ''
+  return {
+    name: 'strip-dev-only-public-files',
+    apply: 'build',
+    configResolved(config) {
+      outDir = resolve(config.root, config.build.outDir)
+    },
+    closeBundle() {
+      for (const name of DEV_ONLY_PUBLIC) rmSync(resolve(outDir, name), { recursive: true, force: true })
+    },
+  }
+}
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), stripDevOnlyPublicFiles()],
   // The model converter is a module worker that imports its heavy parts lazily, which needs the ES worker format.
   worker: { format: 'es' },
   server: {
