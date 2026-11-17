@@ -2,7 +2,7 @@
 // Paths start with `*/api` so they match with or without an origin (browser worker and node tests alike).
 import { http, HttpResponse, type HttpHandler } from "msw";
 import type { Api } from "../client";
-import { ApiError, type CoachRequest, type GridChannel, type LandmarkPatch, type NewLandmark, type LapPatch } from "../types";
+import { ApiError, type CoachRequest, type GridChannel, type IdealScope, type LandmarkPatch, type NewLandmark, type LapPatch } from "../types";
 import { createMockApi } from "./mockApi";
 
 /** 404 for unknown_*, 502 for upstream (LLM) failures, 422 for everything else. */
@@ -29,6 +29,13 @@ export function createHandlers(engine: Api): HttpHandler[] {
     http.get("*/api/sessions", () => reply(() => engine.sessions())),
     http.get("*/api/sessions/:id/laps", ({ params }) => reply(() => engine.sessionLaps(str(params.id)))),
     http.get("*/api/sessions/:id/summary", ({ params }) => reply(() => engine.sessionSummary(str(params.id)))),
+    http.get("*/api/sessions/:id/ideal", ({ params, request }) => {
+      const scope = param(request.url, "scope");
+      if (scope !== undefined && scope !== "session" && scope !== "all") {
+        return HttpResponse.json({ code: "invalid_scope", message: "scope must be session or all" }, { status: 422 });
+      }
+      return reply(() => engine.idealLap(str(params.id), scope as IdealScope | undefined));
+    }),
     http.get("*/api/laps/:id", ({ params }) => reply(() => engine.lap(str(params.id)))),
     http.patch("*/api/laps/:id", async ({ params, request }) => {
       const patch = (await request.json()) as LapPatch;

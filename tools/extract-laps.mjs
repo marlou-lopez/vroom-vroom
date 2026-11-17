@@ -28,6 +28,9 @@ const interp = (xs, ys, x) => { // xs ascending
 const step = (xs, ys, x) => { let lo = 0, hi = xs.length - 1; if (x < xs[0]) return ys[0]; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] <= x) lo = m; else hi = m; } return xs[hi] <= x ? ys[hi] : ys[lo]; };
 
 const laps = await ev('Lap'), lapTimes = await ev('Lap Time');
+// Last Sector1 is sector 1's time; Last Sector2 is the CUMULATIVE time to the end of sector 2 (S1 + S2). Both arrive at the same ts as the
+// Lap Time of the lap they belong to (the next lap's start), and both are 0 on an invalid lap (docs/lmu-duckdb-schema.md).
+const sec1 = await ev('Last Sector1'), sec2 = await ev('Last Sector2');
 const ch = {
   dist: await series('Lap Dist'), speed: await series('Ground Speed'), thr: await series('Throttle Pos Unfiltered'), brk: await series('Brake Pos'),
   steer: await series('Steering Pos'), rpm: await series('Engine RPM'), glat: await series('G Force Lat'), glong: await series('G Force Long'),
@@ -92,8 +95,12 @@ for (let k = 0; k < laps.length; k++) {
     g.track_edge[d] = +interp(ch.te.t, ch.te.v, t).toFixed(2);
     g.kerb[d] = step(kerb.t, kerb.v, t);
   }
+  const s1 = sec1.find(x => Math.abs(x.t - b) < 0.05), s2 = sec2.find(x => Math.abs(x.t - b) < 0.05);
+  // [sector 1, sector 2, sector 3] durations, only for a timed lap with both events present; otherwise null (no sectors served).
+  const sectors = lt && lt.v > 0 && s1 && s2 && s1.v > 0 && s2.v > s1.v && s2.v < lt.v
+    ? [s1.v, s2.v - s1.v, lt.v - s2.v].map(x => +x.toFixed(3)) : null;
   if (keep && !keep.has(k)) continue;
-  out_laps.push({ lap_no: k, start_ts: a, end_ts: b, lap_time_s: lt ? (lt.v > 0 ? +lt.v.toFixed(3) : 0) : null, length_m: L, ...g });
+  out_laps.push({ lap_no: k, start_ts: a, end_ts: b, lap_time_s: lt ? (lt.v > 0 ? +lt.v.toFixed(3) : 0) : null, sectors_s: sectors, length_m: L, ...g });
   console.log('lap', k, 'start', a.toFixed(2), 'dur', (b - a).toFixed(2), 'time', lt ? lt.v.toFixed(3) : '-', 'firstDist', ds[0].toFixed(1), 'L', L, 'gridT', g.t[L]);
 }
 fs.writeFileSync(out, JSON.stringify({ source: label, steering_range_deg: 524, laps: out_laps }));

@@ -31,7 +31,7 @@ These findings answer plan Task 1 Step 8. **Where they contradict the plan, the 
 ## Laps, validity, pits
 - **`Lap` event:** `value` = lap number. `ts` = the moment the line is crossed and that lap starts. Lap 0 is the out-lap, starting in the pits.
 - **`Lap Time` event:** at each lap start, `value` = the previous lap's time. **0 means invalid** (lap 5 here), and the out-lap gets no entry.
-- **Last Sector1 and Last Sector2** are sent at the same `ts`, and are 0 for an invalid lap.
+- **Last Sector1 and Last Sector2** are sent at the same `ts` as the `Lap Time` of the lap they belong to (the next lap's start), and are 0 for an invalid lap. **Last Sector1 is sector 1's time; Last Sector2 is cumulative** (S1 + S2, as in rF2), so sector 2 = Sector2 − Sector1 and sector 3 = Lap Time − Sector2 (verified 2026-11-17: Spa lap 4 gives 38.267 + 63.529 + 39.728 = 141.525 = its Lap Time). On Monza an in-lap boundary can carry a Sector1 with no Sector2; take sectors only when Lap Time > 0 and 0 < Sector1 < Sector2 < Lap Time. `tools/extract-laps.mjs` writes `sectors_s` [S1, S2, S3] per lap (null otherwise).
 - **`In Pits` event:** 1 = in the pits. Here it is 1 at the session start, 0 at pit exit (49.36 s), and 1 at pit entry (1069.66 s).
 - **`Gear` event:** it briefly passes through 0 during each shift (about 0.04 s). Drop a 0 that is followed by another gear within 0.2 s.
 - `Current Sector` gives 1 → 2 → 0 (0 = sector 3).
