@@ -1,0 +1,15 @@
+.row { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: flex-start; }
+.laps { flex: 2 1 480px; min-width: 0; overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.table th { font-weight: 500; padding: 4px 6px; color: var(--color-muted); text-align: left; }
+.table td { padding: 4px 6px; }
+.table tbody tr { border-top: 1px solid var(--color-border); }
+.table tbody tr:hover { background: var(--color-hover); }
+.num { text-align: right; font-family: var(--font-mono); }
+th.num { font-family: inherit; }
+.mono { font-family: var(--font-mono); }
+.best { color: var(--color-you); }
+.open { text-align: right; white-space: nowrap; }
+.openLink { color: var(--color-you); text-decoration: none; }
+.openLink:hover { text-decoration: underline; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

@@ -396,6 +396,23 @@ export interface IdealLap {
   segments: IdealSegment[];
 }
 
+/** One valid flying lap's time in every segment of the session's ideal lap. */
+export interface LapSegmentTimes {
+  lap_id: string;
+  lap_no: number;
+  /** Seconds per segment, in the order of `IdealLap.segments` (scope=session) and adding up to the lap time. */
+  segment_s: number[];
+}
+
+/**
+ * GET /api/sessions/{session_id}/segment-times (vroom-bi4.2). Every valid flying lap of the session, so the UI can gauge each lap
+ * against `idealLap(session, "session")`. Both come from the same track map, so `segment_s[k]` belongs to `IdealLap.segments[k]`;
+ * fetch them together and refetch both when a lap's validity changes. Throws `no_valid_laps` like the ideal lap does.
+ */
+export interface SegmentTimes {
+  laps: LapSegmentTimes[];
+}
+
 export interface ImportResult {
   session_id: string;
   n_laps: number;

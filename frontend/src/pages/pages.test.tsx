@@ -57,6 +57,23 @@ describe("pages", () => {
     expect(screen.queryByText(/unknown_lap|no_laps|Loading…/)).toBeNull();
   });
 
+  it("Telemetry opens a lap at ?at=<metres> (from the ideal lap's breakdown)", async () => {
+    const { best } = await newestBest(mock.engine());
+    renderApp(`/?lap=${best.lap_id}&at=3000`);
+    const thumb = await screen.findByRole("slider", { name: "Lap position" });
+    await waitFor(() => expect(thumb.getAttribute("aria-valuetext")).not.toBe("0:00.0"));
+    const m = /^(\d+):(\d+\.\d)$/.exec(thumb.getAttribute("aria-valuetext")!)!;
+    const t = Number(m[1]) * 60 + Number(m[2]);
+    expect(t).toBeGreaterThan(30); // 3 km into a Spa lap, minus the lead-in
+    expect(t).toBeLessThan(best.lap_time_s!);
+  });
+
+  it("Sessions lists each valid lap against the ideal lap", async () => {
+    renderApp("/sessions");
+    expect(await screen.findByRole("region", { name: "Laps against the ideal" }, { timeout: 5000 })).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "Ideal lap breakdown" })).toBeTruthy();
+  });
+
   it("Telemetry keeps the Analysis bar counts when notes are hidden", async () => {
     // The default lap is its own reference (no findings), so open a lap that has a different reference.
     const [pair] = await spaPairs(mock.engine(), 1);

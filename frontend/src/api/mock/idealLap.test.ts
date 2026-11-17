@@ -204,3 +204,27 @@ describe("GET /api/sessions/{id}/ideal over MSW", () => {
     expect((await res.json()).code).toBe("invalid_scope");
   });
 });
+
+describe("segment times (vroom-bi4.2)", () => {
+  it("lines up with the ideal lap's segments, adds up to each lap's time, and the ideal holds the minima", async () => {
+    for (const day of ["2026-11-03", "2026-11-05"]) {
+      const s = await sessionOf(day);
+      const ideal = await engine.idealLap(s.session_id);
+      const { laps } = await engine.segmentTimes(s.session_id);
+      const meta = await engine.sessionLaps(s.session_id);
+      expect(laps.length).toBeGreaterThan(1);
+      for (const l of laps) {
+        expect(l.segment_s).toHaveLength(ideal.segments.length);
+        expect(Math.abs(sum(l.segment_s) - meta.find((m) => m.lap_id === l.lap_id)!.lap_time_s!)).toBeLessThan(0.02);
+        l.segment_s.forEach((t, k) => expect(t).toBeGreaterThanOrEqual(ideal.segments[k].best_s - 0.0011));
+      }
+      ideal.segments.forEach((seg, k) => expect(laps.find((l) => l.lap_id === seg.lap_id)!.segment_s[k]).toBeCloseTo(seg.best_s, 3));
+    }
+  });
+
+  it("is served over HTTP, and an unknown session is an ApiError", async () => {
+    const s = await sessionOf("2026-11-03");
+    expect(await http.segmentTimes(s.session_id)).toEqual(await engine.segmentTimes(s.session_id));
+    expect((await rejection(http.segmentTimes("nope"))).code).toBe("unknown_session");
+  });
+});
