@@ -277,3 +277,43 @@ the coach's facts. The autopilot judge made this call on 2026-11-17.
 Done in this change: `OVERSTEER_MARK_DEG_S` = 7 in `carBalance.ts` and the `lap_oversteer_runs` comment in `types.ts`.
 Follow-up: re-check the threshold on another car or track before oversteer marks lose the experimental label. It was
 tuned on the same 27 laps of one car at Spa that it was scored on.
+
+## Re-check of the 7 deg/s threshold on another car and track (vroom-bi4.8)
+
+**Answer:** 7 deg/s holds. `OVERSTEER_MARK_DEG_S` stays at 7.
+
+**Data:** one new capture paired with its recording: Monza, Porsche 911 GTR, dry, 2026-11-17 (capture
+`lmu-20261118-014019`, recording `Autodromo Nazionale Monza_P_2026-11-17T17_41_16Z`). Laps 0 to 4 are scored (lap 0 is the out lap; laps 1 to 4 are the
+4 timed fast laps, 114.1 to 116.1 s; 5,689 to 5,779 metres with truth each). Grid against capture: speed 0.016 to 0.017 m/s rms,
+steering 0.0004 to 0.0005. The fit is calibrated on these laps alone (a = 2366 deg m, b/a = +0.29 per km/s², R² 0.86).
+
+Command (the script's `--min-lap-m` option is new: its default 6900 m is Spa's lap length, so Monza needs 5700):
+
+```
+node tools/extract-laps.mjs <copy of the recording>.duckdb monza.json "Monza Porsche 911 GTR"
+python3.14 -I tools/lmu-logger/balance_check.py --min-lap-m 5700 --fixture-lap 2 --pair <capture>.lmucap monza.json
+```
+
+Section `STEERING LEAD`, row "none (as shipped)", oversteer precision / recall per metre (truth: T_dev below its 10th
+percentile, −0.53° here, −0.86° at Spa):
+
+| Threshold (deg/s) | Monza, Porsche, 5 laps (out lap + 4 fast) | Spa, McLaren, 27 laps (above) |
+|---|---|---|
+| 5 | 0.81 / 0.72 | 0.57 / 0.86 |
+| 7 | **0.90 / 0.50** | **0.88 / 0.45** |
+| 10 | 0.93 / 0.32 | 0.93 / 0.16 |
+
+Marks as the app draws them, and the clean-corner p1, use the 4 fast laps only; marks as drawn: 53 real / 0 false at 5, 36 real / 0 false at 7, 20 real / 0 false at 10.
+Understeer at 7: 0.81 / 0.79. B against T_dev on corner metres: +0.84 (Spa +0.93). Clean-corner B p1 is −6.2 (Spa −6.9).
+
+**Decision: keep 7.** Precision and recall at 7 deg/s match Spa (0.90 / 0.50 against 0.88 / 0.45), and the clean-corner
+noise floor sits at the same place (p1 −6.2 against −6.9), so 7 is still just past the noise on a different car and
+track. Monza would tolerate 5 deg/s (0.81 / 0.72, no false marks) but Spa would not (0.57 precision), so one value for
+both stays at 7. Lowering it needs more data. Raising it loses recall on both.
+
+**Limits:** one session, 4 laps, one other car. Monza is mostly right-handers (5,000 m of right turns against 1,425 m of
+left with |yaw| > 10 deg/s), so left-hand balance is thin. B correlates less with the truth here (+0.84 against +0.93), so
+the estimate is a little noisier on this car. The grid's `steering_range_deg` is the McLaren's 524 for every car; it is
+absorbed by the fit's `a` and `b`, so B doesn't change with it, but the number itself isn't the Porsche's. The
+corner names in the script's `SEGMENTS` and top-stretch lists are Spa's and mean nothing for Monza. Oversteer should keep its experimental label
+until a third car or a longer session agrees.

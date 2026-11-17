@@ -2,7 +2,7 @@
 
     python3.14 -I balance_check.py --lmu-dir DIR --pair CAPTURE.lmucap GRID.json [--pair ...] [--calib GRID.json ...]
                                    [--fixture-lap N] [--fixture OUT.json.gz] [--plot OUT_DIR]
-                                   [--lead delay:0.1]
+                                   [--lead delay:0.1] [--min-lap-m 6900]
 
 Each GRID.json is what tools/extract-laps.mjs writes from the SAME session's .duckdb recording as CAPTURE (copy the
 recording first and never modify it). Recording and capture share the game's clock, so grid metre d of a lap has the time
@@ -309,6 +309,7 @@ def main(argv=None):
     ap.add_argument("--pair", nargs=2, action="append", required=True, metavar=("CAPTURE", "GRID"))
     ap.add_argument("--calib", action="append", default=[], help="extra grid for the calibration only (repeatable)")
     ap.add_argument("--lmu-dir")
+    ap.add_argument("--min-lap-m", type=int, default=6900, help="grid metres a lap needs to be scored (default 6900 suits Spa; Monza is about 5778, use 5700)")
     ap.add_argument("--fixture-lap", type=int, default=1)
     ap.add_argument("--fixture", help="gzipped JSON of the flying lap's inputs and truth, for a TypeScript test")
     ap.add_argument("--plot", help="directory for the PNG plots (needs matplotlib)")
@@ -337,7 +338,7 @@ def main(argv=None):
         for l in g["laps"]:
             lp = Lap(src, l, g["steering_range_deg"], sm)
             m = [d for d in range(lp.n) if lp.has_truth(d) and lp.v[d] > V_MIN]
-            if lp.n < 6900:
+            if lp.n < args.min_lap_m:
                 calib_only.append(lp)  # partial laps (pit entry) calibrate but are not scored
                 continue
             dv = [lp.v[d] - lp.cap_v[d] for d in m]
@@ -427,7 +428,7 @@ def main(argv=None):
     print(f"\nNOISE on straights (|g_lat| < {STRAIGHT_G}): |B| p50 {pct(st, .5):.2f} p90 {pct(st, .9):.2f} deg/s ({len(st)} m); "
           f"|T| p50 {pct(stT, .5):.2f} p90 {pct(stT, .9):.2f} deg")
     best = min(l.time for l in all_laps if l.time)
-    fast = [l for l in all_laps if l.time and l.time < best * 1.03 and l.n >= 6900]
+    fast = [l for l in all_laps if l.time and l.time < best * 1.03 and l.n >= args.min_lap_m]
     print(f"Across-lap spread at the same metre, {len(fast)} laps within 3 % of {best:.2f} s "
           f"({', '.join(f'{l.src[:16]} L{l.no} {l.time}' for l in fast)}):")
     n = min(l.n for l in fast)
