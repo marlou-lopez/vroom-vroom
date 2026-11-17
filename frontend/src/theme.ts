@@ -17,6 +17,9 @@ export const colors = {
   /** Wheel lockup marks (brake trace, map line) and wheelspin marks (throttle trace, map line). */
   lockup: "#FF3B3B",
   wheelspin: "#FFB020",
+  /** Wheels off the track (vroom-pnw.24): red on an invalid lap (map, strips, scrubber), grey "close call" on a valid one. */
+  offTrack: "#FF2D55",
+  closeCall: "#868E99",
   /** Map base line, scrubber baseline. */
   line: "#23272E",
   /** Outlines of controls inside panels (wheels, bars, popups). */
