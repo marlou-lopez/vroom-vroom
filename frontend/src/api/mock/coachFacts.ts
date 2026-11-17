@@ -1,6 +1,9 @@
 // Pure per-corner facts and the data-driven finding templates of the mock coach.
 // Every number quoted comes from the two laps. Positions are described against landmarks, never as metre distances.
 import { causeOf, type Cause } from "../../lib/cornerCause";
+import { describeAgainst, offsetPhrase } from "../../lib/landmarkPhrase";
+
+export { describeAgainst, offsetPhrase };
 import type { ChannelArrays, Corner, CornerMetrics, CornerSideMetrics, CueType, Landmark } from "../types";
 
 type Signals = Pick<ChannelArrays, "t" | "speed_kmh" | "throttle" | "brake" | "steering">;
@@ -182,22 +185,6 @@ export function cornerComparison(
 }
 
 // ---- wording ----
-
-/** "at", "just after", "a little before", "well after": a qualitative offset, never a distance. */
-export function offsetPhrase(d: number): string {
-  const a = Math.abs(d);
-  if (a <= 8) return "at";
-  const dir = d > 0 ? "after" : "before";
-  return a <= 25 ? `just ${dir}` : a <= 60 ? `a little ${dir}` : `well ${dir}`;
-}
-
-/** "just after the 100 board" against the nearest anchor within `maxM`, or null when no usable landmark is that close. */
-export function describeAgainst(pos: number, anchors: Landmark[], maxM = 120): string | null {
-  let best: Landmark | null = null;
-  for (const a of anchors) if (!best || Math.abs(pos - a.distance_m) < Math.abs(pos - best.distance_m)) best = a;
-  if (!best || Math.abs(pos - best.distance_m) > maxM) return null;
-  return `${offsetPhrase(pos - best.distance_m)} the ${best.label}`;
-}
 
 const n0 = (x: number) => x.toFixed(0);
 /** "112 / 118", or with one decimal when whole km/h would print the same number twice. */

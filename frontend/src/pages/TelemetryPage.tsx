@@ -1,11 +1,12 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { HeaderSlot } from "../components/AppShell";
 import { BiggestLosses } from "../components/BiggestLosses";
 import { AnalysisBar } from "../components/AnalysisBar";
 import { AnnotationCardProvider, type AnnotationCardActions } from "../components/AnnotationPopup";
 import { ScrubberBadges, ScrubberOffTrack, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
+import { CornersTable } from "../components/CornersTable";
 import { DetailedStrips } from "../components/DetailedStrips";
 import { EngineerLine } from "../components/EngineerLine";
 import { LapPicker } from "../components/LapPicker";
@@ -13,7 +14,7 @@ import { SimplifiedWheels } from "../components/SimplifiedWheels";
 import { TrackPanel } from "../components/TrackPanel";
 import { Transport } from "../components/Transport";
 import { leadInTime, toAnnotations, type Annotation } from "../lib/annotations";
-import { effectiveValid } from "../api/types";
+import { effectiveValid, type Corner } from "../api/types";
 import { biggestLosses, type CornerLoss } from "../lib/biggestLosses";
 import { CORNER_LEAD_M } from "../lib/annotations";
 import { timeAtDistance } from "../lib/playback";
@@ -48,6 +49,7 @@ function Telemetry() {
   const store = usePlaybackStore();
   const view = usePlayback((s) => s.view);
   const [expanded, setExpanded] = useState(false);
+  const [tab, setTab] = useState<"strips" | "corners">("strips");
 
   // Escape collapses the expanded map, unless something else (an open popup) already handled it.
   useEffect(() => {
@@ -71,6 +73,19 @@ function Telemetry() {
     store.setDuration(model.duration);
     store.setLaps(model.cmp.lap_id, model.cmp.ref_lap_id);
   }, [model, store]);
+
+  // ?at=<metres> (from the ideal lap's breakdown and segment strips): open the lap at that distance, once per lap and distance.
+  const atParam = params.get("at");
+  const seekedAt = useRef<string | null>(null);
+  useEffect(() => {
+    const m = atParam === null || atParam.trim() === "" ? NaN : Number(atParam);
+    if (!model || !Number.isFinite(m) || model.cmp.lap_id !== lapParam) return;
+    const key = `${model.cmp.lap_id}|${atParam}`;
+    if (seekedAt.current === key) return;
+    seekedAt.current = key;
+    store.pause();
+    store.seek(timeAtDistance(model.cmp.lap.t, model.cmp.distance, m - CORNER_LEAD_M));
+  }, [model, atParam, lapParam, store]);
 
   // Coach results for this lap and comparison; Analyze and Average together form one annotation set.
   const coach = useCoach(ctx?.lap.lap_id ?? null, cmp?.ref_lap_id ?? null);
@@ -96,6 +111,14 @@ function Telemetry() {
       if (!cmp) return;
       store.pause();
       store.seek(timeAtDistance(cmp.lap.t, cmp.distance, l.startM - CORNER_LEAD_M));
+    },
+    [cmp, store],
+  );
+  const seekToCorner = useCallback(
+    (c: Corner) => {
+      if (!cmp) return;
+      store.pause();
+      store.seek(leadInTime(cmp, { startM: c.start_m }));
     },
     [cmp, store],
   );
@@ -173,15 +196,26 @@ function Telemetry() {
             <section aria-label="Inputs" className={styles.inputs}>
               <div className={styles.viewBar}>
                 <ToggleGroup.Root
-                  type="single" aria-label="Input view" className={styles.viewToggle}
-                  value={view} onValueChange={(v) => v && store.setView(v as PlaybackView)}
+                  type="single" aria-label="Inputs tab" className={styles.viewToggle}
+                  value={tab} onValueChange={(v) => v && setTab(v as "strips" | "corners")}
                 >
-                  {views.map((v) => (
-                    <ToggleGroup.Item key={v.id} value={v.id} className={ui.toggleItem}>{v.label}</ToggleGroup.Item>
-                  ))}
+                  <ToggleGroup.Item value="strips" className={ui.toggleItem}>Strips</ToggleGroup.Item>
+                  <ToggleGroup.Item value="corners" className={ui.toggleItem}>Corners</ToggleGroup.Item>
                 </ToggleGroup.Root>
+                {tab === "strips" && (
+                  <ToggleGroup.Root
+                    type="single" aria-label="Input view" className={styles.viewToggle}
+                    value={view} onValueChange={(v) => v && store.setView(v as PlaybackView)}
+                  >
+                    {views.map((v) => (
+                      <ToggleGroup.Item key={v.id} value={v.id} className={ui.toggleItem}>{v.label}</ToggleGroup.Item>
+                    ))}
+                  </ToggleGroup.Root>
+                )}
               </div>
-              {view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} lapValid={lapValid} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
+              {tab === "corners" ? (
+                <CornersTable corners={model.cmp.corners} trackMap={trackMap} onSeek={seekToCorner} />
+              ) : view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} lapValid={lapValid} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
             </section>
             )}
           </div>

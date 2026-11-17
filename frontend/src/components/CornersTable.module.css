@@ -1,0 +1,22 @@
+.wrap { overflow: auto; min-height: 0; flex: 1; }
+.empty { color: var(--color-muted); padding: 16px; text-align: center; }
+.table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.caption { text-align: left; color: var(--color-muted); padding-bottom: 4px; }
+.table th, .table td { padding: 3px 6px; border-bottom: 1px solid var(--color-border); text-align: right; white-space: nowrap; font-weight: 400; }
+.table thead th { position: sticky; top: 0; background: var(--color-bg, inherit); color: var(--color-muted); }
+.left { text-align: left !important; }
+.row { cursor: pointer; }
+.row:hover { background: rgba(255, 255, 255, 0.04); }
+.name, .sortBtn {
+  background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0;
+}
+.name { font-weight: 600; }
+.sortBtn[aria-pressed="true"] { color: var(--color-you); text-decoration: underline; }
+.name:focus-visible, .sortBtn:focus-visible { outline: 2px solid var(--color-you); outline-offset: 1px; }
+.num { font-family: var(--font-mono); }
+.metric { vertical-align: top; }
+.metric > span { display: block; }
+.ref { color: var(--color-muted); }
+.diff { font-family: var(--font-mono); }
+.loss { color: var(--color-issue); }
+.gain { color: var(--color-strength); }

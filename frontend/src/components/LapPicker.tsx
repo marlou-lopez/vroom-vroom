@@ -4,6 +4,9 @@ import { usePatchLap } from "../api/queries";
 import { effectiveValid, type CompareCandidate, type LapWithRef, type SessionMeta } from "../api/types";
 import { formatLapTime, formatShortDate } from "../lib/format";
 import { SetupChip } from "./SetupChip";
+import { SegmentStrip } from "./SegmentStrip";
+import { formatGap } from "../lib/idealGauge";
+import { useSessionGauges } from "../state/useSessionGauges";
 import { cx } from "../lib/cx";
 import { colors } from "../theme";
 import styles from "./LapPicker.module.css";
@@ -39,6 +42,7 @@ function Badge({ children, color, title }: { children: ReactNode; color: string;
 export function LapPicker({ session, laps, lap, refLapId, warning, candidates, invalidHint, onSelectLap, onSelectRef }: LapPickerProps) {
   const [validOnly, setValidOnly] = useState(false);
   const lapId = lap.lap_id;
+  const { gauges } = useSessionGauges(session.session_id, laps);
 
   const shown = laps.filter((l) => !validOnly || (l.kind === "flying" && effectiveValid(l)));
   const refCand = candidates.find((c) => c.lap_id === refLapId) ?? null;
@@ -78,6 +82,13 @@ export function LapPicker({ session, laps, lap, refLapId, warning, candidates, i
                 <DropdownMenu.Item key={l.lap_id} className={ui.menuItem} data-selected={l.lap_id === lapId} onSelect={() => onSelectLap(l.lap_id)}>
                   <span className={cx(styles.lapText, l.lap_id === lapId && styles.lapSelected)}>{lapText(l)}</span>
                   {l.is_reference && <span title="Reference for this track and car" className={styles.star}>★</span>}
+                  {gauges.get(l.lap_id) && (
+                    <span className={styles.gauge}>
+                      <span title="Gap to the ideal lap">{formatGap(gauges.get(l.lap_id)!.gapToIdealS)} ideal</span>
+                      <span title="Gap to the best lap">{gauges.get(l.lap_id)!.gapToBestS === 0 ? "best" : `${formatGap(gauges.get(l.lap_id)!.gapToBestS)} best`}</span>
+                      <SegmentStrip cells={gauges.get(l.lap_id)!.cells} label={`L${l.lap_no} segments`} />
+                    </span>
+                  )}
                   {l.kind !== "flying" && <Badge color={colors.muted}>{l.kind === "incomplete" ? "INC" : l.kind.toUpperCase()}</Badge>}
                   {!effectiveValid(l) && <Badge color={colors.issue}>INVALID</Badge>}
                   {l.valid_override !== null && <Badge color={colors.muted} title="Validity set by hand">MANUAL</Badge>}

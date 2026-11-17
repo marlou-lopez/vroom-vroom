@@ -16,6 +16,8 @@ export const qk = {
   coachResults: (lap: string, ref: string | null) => ["coachResults", lap, ref] as const,
   summary: (sessionId: string) => ["summary", sessionId] as const,
   stints: (sessionId: string) => ["stints", sessionId] as const,
+  ideal: (sessionId: string) => ["ideal", sessionId] as const,
+  segmentTimes: (sessionId: string) => ["segmentTimes", sessionId] as const,
   setup: (sessionId: string) => ["setup", sessionId] as const,
   trace: (lapId: string, channels: GridChannel[] | undefined) => ["trace", lapId, channels?.join(",") ?? null] as const,
 };
@@ -31,6 +33,9 @@ export const sessionSummaryOptions = (sessionId: string) =>
 
 export const sessionStintsOptions = (sessionId: string) =>
   queryOptions({ queryKey: qk.stints(sessionId), queryFn: () => api.sessionStints(sessionId), staleTime: Infinity });
+export const idealOptions = (sessionId: string) => queryOptions({ queryKey: qk.ideal(sessionId), queryFn: () => api.idealLap(sessionId, "session") });
+export const segmentTimesOptions = (sessionId: string) =>
+  queryOptions({ queryKey: qk.segmentTimes(sessionId), queryFn: () => api.segmentTimes(sessionId) });
 
 // ---- Queries ----
 
@@ -101,6 +106,9 @@ export function usePatchLap() {
         qc.invalidateQueries({ queryKey: ["lap"] }),
         qc.invalidateQueries({ queryKey: ["compare"] }),
         qc.invalidateQueries({ queryKey: ["candidates"] }),
+        qc.invalidateQueries({ queryKey: ["ideal"] }),
+        qc.invalidateQueries({ queryKey: ["segmentTimes"] }),
+        qc.invalidateQueries({ queryKey: ["summary"] }),
       ]),
   });
 }

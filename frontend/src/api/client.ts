@@ -1,7 +1,7 @@
 import {
   ApiError,
   type CalibrationResult, type CoachRequest, type CoachResult, type CoachResults, type CompareCandidate,
-  type CarSetup, type CompareResponse, type Finding, type GridChannel, type IdealLap, type IdealScope, type ImportResult, type LandmarkPatch, type NewLandmark,
+  type CarSetup, type CompareResponse, type Finding, type GridChannel, type IdealLap, type IdealScope, type ImportResult, type LandmarkPatch, type SegmentTimes, type NewLandmark,
   type LapMeta, type LapPatch, type LapWithRef, type LlmUsage, type SessionMeta, type SessionSummary,
   type Stint, type TraceResponse, type TrackGeometry, type TrackMap,
 } from "./types";
@@ -31,6 +31,8 @@ export interface Api {
   sessionSetup(sessionId: string): Promise<CarSetup>;
   /** The driver's best segments as one lap. Throws `no_valid_laps` when no valid flying lap is in scope. `scope` defaults to "session". */
   idealLap(sessionId: string, scope?: IdealScope): Promise<IdealLap>;
+  /** Every valid flying lap's time in each segment of the session's ideal lap (same order as `idealLap(id).segments`). Throws `no_valid_laps`. */
+  segmentTimes(sessionId: string): Promise<SegmentTimes>;
   calibrate(trackId: string): Promise<CalibrationResult>;
   importFile(path: string): Promise<ImportResult>;
   llmUsage(): Promise<LlmUsage>;
@@ -106,6 +108,7 @@ export function createRealApi(baseUrl = ""): Api {
     sessionSummary: (id) => request(`/sessions/${enc(id)}/summary`),
     sessionSetup: (id) => request(`/sessions/${enc(id)}/setup`),
     idealLap: (id, scope) => request(`/sessions/${enc(id)}/ideal${query({ scope })}`),
+    segmentTimes: (id) => request(`/sessions/${enc(id)}/segment-times`),
     calibrate: (trackId) => request(`/tracks/${enc(trackId)}/calibrate`, { method: "POST" }),
     importFile: (path) => request("/import", { method: "POST", body: { path } }),
     llmUsage: () => request("/llm/usage"),

@@ -11,6 +11,8 @@ export const colors = {
   issue: "#FF7A59",
   minor: "#E3B341",
   strength: "#34B88A",
+  /** Timing-screen purple: the lap holds the ideal lap's segment (vroom-bi4.2). */
+  ideal: "#B26BFF",
   reviewed: "#868E99",
   brake: "#F0504F",
   throttle: "#3FB950",

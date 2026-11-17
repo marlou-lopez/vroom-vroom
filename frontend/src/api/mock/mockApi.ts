@@ -8,7 +8,7 @@ import {
   GRID_CHANNELS,
   type CalibrationResult, type ChannelArrays, type CoachRequest, type CoachResult, type CoachResults,
   type Command, type CompareCandidate, type CompareResponse, type Corner, type Finding,
-  type CarDims, type CarSetup, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SessionMeta, type SessionSummary, type Stint, type StintLap, type TraceResponse,
+  type CarDims, type CarSetup, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SegmentTimes, type SessionMeta, type SessionSummary, type Stint, type StintLap, type TraceResponse,
   type TrackMap, type LapMeta, type LapWithRef, type TrackGeometry,
 } from "../types";
 import {
@@ -875,6 +875,13 @@ export function createMockApi(opts: MockOptions = {}): Api {
     },
     async idealLap(sessionId, scope = "session") {
       return clone(ideal(sessionId, scope));
+    },
+    async segmentTimes(sessionId): Promise<SegmentTimes> {
+      const session = sessionOf(sessionId);
+      const pool = sortedSessionLaps(sessionId).filter(isTimed);
+      if (!pool.length) throw new ApiError("no_valid_laps", "There is no valid flying lap in this session.");
+      const segs = mapSegments(mapOf(session.track_id));
+      return { laps: pool.map((l) => ({ lap_id: l.meta.lap_id, lap_no: l.meta.lap_no, segment_s: segmentDurations(l.trace.ch.t, segs, lapTime(l)).map(round3) })) };
     },
     async calibrate(trackId): Promise<CalibrationResult> {
       const m = mapOf(trackId);
