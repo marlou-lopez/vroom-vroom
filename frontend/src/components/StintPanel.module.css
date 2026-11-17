@@ -34,6 +34,5 @@
 .wheels { display: inline-grid; grid-template-columns: repeat(2, auto); column-gap: 8px; font-family: var(--font-mono); font-size: 11px; line-height: 1.2; }
 .legendDot.dotOut { background: transparent; }
 
-/* EXPERIMENTAL (vroom-d4g): fuel-corrected fall-off, with its assumed constant visible. */
+/* Fuel-corrected fall-off, with its assumed constant visible. */
 .corrected { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--gap); border: 1px dashed var(--color-border); border-radius: var(--radius); padding: var(--pad); }
-.tag { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-minor); border: 1px solid currentColor; border-radius: var(--radius); padding: 0 4px; }

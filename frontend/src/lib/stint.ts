@@ -73,7 +73,7 @@ function fitLine(pts: (readonly [number, number])[]): Falloff | null {
   return { slope, intercept: my - slope * mx, n };
 }
 
-// ---- Fuel-corrected fall-off (EXPERIMENTAL, spike vroom-d4g; write-up in docs/stint/fuel-corrected-falloff.md) ----
+// ---- Fuel-corrected fall-off (spike vroom-d4g, contract in vroom-bi4.9; write-up in docs/stint/fuel-corrected-falloff.md) ----
 
 /** The fuel-weight effect the correction assumes. Not measured from the stint: within one stint fuel load and lap number move together. */
 export interface FuelEffect {
