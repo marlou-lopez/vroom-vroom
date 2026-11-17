@@ -2,14 +2,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { AppShell } from "../components/AppShell";
+import { AppRoutes } from "../AppRoutes";
 import { createTestClient, newestBest, setupMockServer, spaPairs } from "../test/mockServer";
 import { formatLapTime } from "../lib/format";
-import { SessionsPage } from "./SessionsPage";
-import { TelemetryPage } from "./TelemetryPage";
-import { TracksPage } from "./TracksPage";
 
 // uPlot draws on a canvas 2D context, which jsdom doesn't have. Stub just the chart class.
 vi.mock("uplot", () => ({
@@ -29,24 +26,26 @@ vi.mock("uplot", () => ({
 
 const mock = setupMockServer();
 
-/** The same tree as `App`, but with a MemoryRouter and a test QueryClient. */
+/** The real route table, with a MemoryRouter and a test QueryClient. */
 function renderApp(path: string) {
   return render(
     <QueryClientProvider client={createTestClient()}>
       <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={<TelemetryPage />} />
-            <Route path="sessions" element={<SessionsPage />} />
-            <Route path="tracks" element={<TracksPage />} />
-          </Route>
-        </Routes>
+        <AppRoutes />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
 describe("pages", () => {
+  it("an unknown path renders Page not found inside the shell", () => {
+    renderApp("/no-such-page");
+    expect(screen.getByRole("heading", { name: "Page not found" })).toBeTruthy();
+    expect(screen.getByText("/no-such-page")).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "Main" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Back to Telemetry" }).getAttribute("href")).toBe("/");
+  });
+
   it("Telemetry loads the default lap, with no error", async () => {
     const { best } = await newestBest(mock.engine());
     renderApp("/");
