@@ -83,6 +83,7 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   `analytics`, `beacon`, `pixel`). Ad blockers block those module URLs in `npm run dev`, which
   leaves a white page.
 - **Never commit a 3D car model**, its textures, a converted copy or anything derived from one. The repo is public and most downloadable models are game rips that cannot be redistributed (#102). Users bring their own through the 3D view's Car popover (kept in their browser only), or as a developer into the git-ignored `frontend/public/local-models/`; check `git status` before committing.
+- **Dev-only files stay out of the build.** `frontend/public/` is copied into `dist/` by Vite, so `npm run build` removes `mock/`, `mockServiceWorker.js` and `local-models/` (the `stripDevOnlyPublicFiles` plugin in `vite.config.ts`). `npm run dev` still serves all three. Add any new mock-only or licence-restricted file to that list.
 - **Never modify an LMU recording.** Copy it first, then open the copy read-only. LMU lives at
   `/mnt/d/Steam/steamapps/common/Le Mans Ultimate` (this is WSL).
 - **LMU data facts** (details in `docs/lmu-duckdb-schema.md`):

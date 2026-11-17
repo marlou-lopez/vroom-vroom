@@ -2,7 +2,7 @@
 // Paths start with `*/api` so they match with or without an origin (browser worker and node tests alike).
 import { http, HttpResponse, type HttpHandler } from "msw";
 import type { Api } from "../client";
-import { ApiError, type CoachRequest, type GridChannel, type Landmark, type LandmarkPatch, type LapPatch } from "../types";
+import { ApiError, type CoachRequest, type GridChannel, type LandmarkPatch, type NewLandmark, type LapPatch } from "../types";
 import { createMockApi } from "./mockApi";
 
 /** 404 for unknown_*, 502 for upstream (LLM) failures, 422 for everything else. */
@@ -47,7 +47,7 @@ export function createHandlers(engine: Api): HttpHandler[] {
     http.get("*/api/tracks/:id/map", ({ params }) => reply(() => engine.trackMap(str(params.id)))),
     http.get("*/api/tracks/:id/geometry", ({ params }) => reply(() => engine.trackGeometry(str(params.id)))),
     http.post("*/api/tracks/:id/landmarks", async ({ params, request }) => {
-      const landmark = (await request.json()) as Landmark;
+      const landmark = (await request.json()) as NewLandmark;
       return reply(() => engine.addLandmark(str(params.id), landmark));
     }),
     http.patch("*/api/tracks/:id/landmarks/:lid", async ({ params, request }) => {
