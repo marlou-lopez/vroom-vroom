@@ -32,6 +32,8 @@ export interface RecordingLap {
   slip_fr?: number[];
   slip_rl?: number[];
   slip_rr?: number[];
+  /** Wheels on grass or gravel, 0..4 (vroom-pnw.24); absent in older recordings. */
+  wheels_off?: number[];
 }
 
 export interface Recording {
@@ -79,7 +81,7 @@ export function fetchRecording(track: RecordingTrack): Promise<Recording> {
   return hit;
 }
 
-/** All 25 grid channels for one recorded lap. yaw_rate is derived from lateral g and speed; suspension is not recorded (zeros). A recording without aid channels gets no aids and slip 1. */
+/** All 26 grid channels for one recorded lap. yaw_rate is derived from lateral g and speed; suspension is not recorded (zeros). A recording without aid channels gets no aids and slip 1. */
 export function lapToTrace(lap: RecordingLap): Trace {
   const n = lap.t.length;
   const zeros = new Array<number>(n).fill(0);
@@ -94,6 +96,7 @@ export function lapToTrace(lap: RecordingLap): Trace {
       susp_fl: zeros, susp_fr: zeros, susp_rl: zeros, susp_rr: zeros,
       abs: lap.abs ?? zeros, tc: lap.tc ?? zeros,
       slip_fl: lap.slip_fl ?? ones, slip_fr: lap.slip_fr ?? ones, slip_rl: lap.slip_rl ?? ones, slip_rr: lap.slip_rr ?? ones,
+      wheels_off: lap.wheels_off ?? zeros,
     },
   };
 }

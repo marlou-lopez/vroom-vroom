@@ -138,6 +138,9 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   // Lockup / wheelspin marks over the lap line (vroom-pnw.14), a little wider than it.
   const lockupMat = makeMat(colors.lockup, LAP_PX + 1.5);
   const wheelspinMat = makeMat(colors.wheelspin, LAP_PX + 1.5);
+  // Wheels-off marks (vroom-pnw.24): a halo wider than the lap line, under it.
+  const offTrackMat = makeMat(colors.offTrack, LAP_PX + 5);
+  const closeCallMat = makeMat(colors.closeCall, LAP_PX + 5);
   let lines: Line2[] = [];
   let aheadLines: Line2[] = [];
   let showAhead = true;
@@ -328,6 +331,7 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
       add(s.surface[0], surfaceEdgeMat, 1);
       add(s.surface[1], surfaceEdgeMat, 1);
       aheadLines = [add(s.ref, refAheadMat, 2), add(s.lap, lapAheadMat, 3)];
+      for (const xy of s.offTrack.runs) add(xy, s.offTrack.invalid ? offTrackMat : closeCallMat, 5.5);
       refDriven = makeDriven(s.ref, [[casingMat, 4], [refMat, 5]]);
       lapDriven = makeDriven(s.lap, [[lapMat, 6]]);
       for (const xy of s.slip.wheelspin) add(xy, wheelspinMat, 7);

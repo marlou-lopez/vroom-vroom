@@ -5,7 +5,7 @@ import { HeaderSlot } from "../components/AppShell";
 import { BiggestLosses } from "../components/BiggestLosses";
 import { AnalysisBar } from "../components/AnalysisBar";
 import { AnnotationCardProvider, type AnnotationCardActions } from "../components/AnnotationPopup";
-import { ScrubberBadges, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
+import { ScrubberBadges, ScrubberOffTrack, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
 import { DetailedStrips } from "../components/DetailedStrips";
 import { EngineerLine } from "../components/EngineerLine";
 import { LapPicker } from "../components/LapPicker";
@@ -13,10 +13,12 @@ import { SimplifiedWheels } from "../components/SimplifiedWheels";
 import { TrackPanel } from "../components/TrackPanel";
 import { Transport } from "../components/Transport";
 import { leadInTime, toAnnotations, type Annotation } from "../lib/annotations";
+import { effectiveValid } from "../api/types";
 import { biggestLosses, type CornerLoss } from "../lib/biggestLosses";
 import { CORNER_LEAD_M } from "../lib/annotations";
 import { timeAtDistance } from "../lib/playback";
 import { buildModel } from "../lib/model";
+import { invalidHint } from "../lib/offTrack";
 import { PlaybackProvider, usePlayback, usePlaybackStore, type PlaybackView } from "../state/playback";
 import { useAnnotationPopup } from "../state/useAnnotationPopup";
 import { useCoach } from "../state/useCoach";
@@ -122,6 +124,9 @@ function Telemetry() {
   const selectLap = (id: string) => setParams({ lap: id });
   const selectRef = (id: string | null) => setParams(id ? { lap: ctx!.lap.lap_id, ref: id } : { lap: ctx!.lap.lap_id });
 
+  // Whether the lap counts as valid (the manual override wins); decides whether its wheels-off marks are red or grey.
+  const lapValid = ctx ? effectiveValid(ctx.lap) : true;
+  const offTrackHint = useMemo(() => (cmp && !lapValid ? invalidHint(cmp.lap, trackMap) : null), [cmp, trackMap, lapValid]);
   const refCand = candidates.find((c) => c.lap_id === cmp?.ref_lap_id) ?? null;
   const youName = ctx ? `You · L${ctx.lap.lap_no}` : "You";
   const refName = refCand ? `Comparison · ${refCand.is_reference ? "★" : ""}${refCand.label}` : "Comparison";
@@ -138,7 +143,7 @@ function Telemetry() {
           <LapPicker
             session={ctx.session} laps={ctx.laps} lap={ctx.lap} refLapId={cmp?.ref_lap_id ?? null}
             warning={cmp?.warning ?? null} candidates={candidates}
-            onSelectLap={selectLap} onSelectRef={selectRef}
+            onSelectLap={selectLap} onSelectRef={selectRef} invalidHint={offTrackHint}
           />
         </HeaderSlot>
       )}
@@ -160,7 +165,7 @@ function Telemetry() {
             <TrackPanel
               model={model} trackMap={trackMap} geometry={geometry}
               annotations={annotations} handlers={handlers}
-              lapTimes={lapTimes}
+              lapTimes={lapTimes} lapValid={lapValid}
               expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
               footer={<EngineerLine annotations={annotations} trackMap={trackMap} model={model} />}
             />
@@ -176,13 +181,13 @@ function Telemetry() {
                   ))}
                 </ToggleGroup.Root>
               </div>
-              {view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
+              {view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} lapValid={lapValid} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
             </section>
             )}
           </div>
           <Transport
             model={model} trackMap={trackMap}
-            scrubberLayer={<ScrubberSections annotations={annotations} duration={model.duration} />}
+            scrubberLayer={<><ScrubberOffTrack model={model} valid={lapValid} /><ScrubberSections annotations={annotations} duration={model.duration} /></>}
             scrubberBadges={<ScrubberBadges annotations={annotations} duration={model.duration} h={handlers} />}
           />
         </>

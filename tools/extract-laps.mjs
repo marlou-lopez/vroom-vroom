@@ -1,11 +1,12 @@
 // One-off extractor: LMU .duckdb -> 1 m grid JSON for the mock API. Run from a dir with @duckdb/node-api installed:
 //   node extract-laps.mjs <recording.duckdb> <out.json> "<source label>" [lap,numbers,to,keep]
-// Adds abs, tc (0/1 per metre) and slip_fl..slip_rr (wheel speed / ground speed, 1 below 5 m/s).
+// Adds abs, tc (0/1 per metre), slip_fl..slip_rr (wheel speed / ground speed, 1 below 5 m/s) and wheels_off (0-4 wheels on grass or gravel).
 // NOTE LMU swaps its G channels: 'G Force Lat' is longitudinal, 'G Force Long' is lateral (mapped below).
 // The garage setup (metadata.CarSetup) goes into `car_setup` as { VM_KEY: display string } and nothing else (vroom-pnw.25).
 // Throttle comes from 'Throttle Pos Unfiltered' (the pedal); 'Throttle Pos' includes the ignition cut at every upshift (#49).
 import { DuckDBInstance } from '@duckdb/node-api';
 import fs from 'node:fs';
+import { countOffTrack, step } from './surface-resample.mjs';
 const [,, file, out, label, keepArg] = process.argv;
 const keep = keepArg ? new Set(keepArg.split(',').map(Number)) : null; // lap numbers to write; the default is every lap
 if (!file || !out || !label) throw new Error('usage: node extract-laps.mjs <recording.duckdb> <out.json> "<source label>" [lap,numbers]');
@@ -26,7 +27,6 @@ const interp = (xs, ys, x) => { // xs ascending
   while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] <= x) lo = m; else hi = m; }
   const f = (x - xs[lo]) / (xs[hi] - xs[lo]); return ys[lo] + f * (ys[hi] - ys[lo]);
 };
-const step = (xs, ys, x) => { let lo = 0, hi = xs.length - 1; if (x < xs[0]) return ys[0]; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (xs[m] <= x) lo = m; else hi = m; } return xs[hi] <= x ? ys[hi] : ys[lo]; };
 
 const laps = await ev('Lap'), lapTimes = await ev('Lap Time');
 // Last Sector1 is sector 1's time; Last Sector2 is the CUMULATIVE time to the end of sector 2 (S1 + S2). Both arrive at the same ts as the
@@ -38,6 +38,9 @@ const ch = {
   lat: await series('GPS Latitude'), lon: await series('GPS Longitude'), pl: await series('Path Lateral'), te: await series('Track Edge'),
 };
 const surf = await q('select value1,value2,value3,value4 from SurfaceTypes');
+// wheels_off (vroom-pnw.24): how many wheels are on grass (2) or gravel (4), stepwise at the 5 Hz sample rate. Inferred from the rF2 enum;
+// kerbs (5, 6) count as on track. LMU records no track-limit or invalidation event (docs/lmu-duckdb-schema.md).
+const offWheels = { t: surf.map((_, i) => t0 + i / freq['SurfaceTypes']), v: surf.map(r => countOffTrack([r.value1, r.value2, r.value3, r.value4])) };
 const kerb = { t: surf.map((_, i) => t0 + i / freq['SurfaceTypes']), v: surf.map(r => [r.value1, r.value2, r.value3, r.value4].some(x => Number(x) === 5 || Number(x) === 6) ? 1 : 0) };
 // Driver aids and tyre slip (#14 of the analysis epic, vroom-pnw.14). ABS and TC are on/off events or channels; ABS pulses ~15 ms, so a
 // metre counts as active when ANY on-sample falls inside it. Slip ratio = wheel surface speed / ground speed, wheel order FL FR RL RR.
@@ -82,7 +85,7 @@ for (let k = 0; k < laps.length; k++) {
   }
   const L = Math.floor(ds.at(-1));
   const g = {};
-  const keys = ['abs', 'tc', 'slip_fl', 'slip_fr', 'slip_rl', 'slip_rr', 't', 'speed_kmh', 'throttle', 'brake', 'steering', 'gear', 'rpm', 'g_lat', 'g_long', 'lat', 'lon', 'path_lateral', 'track_edge', 'kerb'];
+  const keys = ['wheels_off', 'abs', 'tc', 'slip_fl', 'slip_fr', 'slip_rl', 'slip_rr', 't', 'speed_kmh', 'throttle', 'brake', 'steering', 'gear', 'rpm', 'g_lat', 'g_long', 'lat', 'lon', 'path_lateral', 'track_edge', 'kerb'];
   for (const k2 of keys) g[k2] = new Array(L + 1);
   for (let d = 0; d <= L; d++) {
     const t = interp(ds, ts, d);
@@ -105,6 +108,7 @@ for (let k = 0; k < laps.length; k++) {
     g.path_lateral[d] = +interp(ch.pl.t, ch.pl.v, t).toFixed(2);
     g.track_edge[d] = +interp(ch.te.t, ch.te.v, t).toFixed(2);
     g.kerb[d] = step(kerb.t, kerb.v, t);
+    g.wheels_off[d] = step(offWheels.t, offWheels.v, t);
   }
   const s1 = sec1.find(x => Math.abs(x.t - b) < 0.05), s2 = sec2.find(x => Math.abs(x.t - b) < 0.05);
   // [sector 1, sector 2, sector 3] durations, only for a timed lap with both events present; otherwise null (no sectors served).

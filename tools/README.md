@@ -10,6 +10,7 @@ node extract-laps.mjs <recording.duckdb> <out.json>
 
 - It needs `@duckdb/node-api`, installed in the directory you run it from
   (`npm i @duckdb/node-api`). No `package.json` pins it.
+- It imports `surface-resample.mjs` from the same folder (the stepwise resampler and the wheels-off count, unit-tested from `frontend/`), so run it from there or keep both files together.
 - Run it on a copy of the recording. The script opens its input read-only but does not copy
   it, and recordings must never be modified.
 - LMU quirks handled in the script: the G channels are swapped (`G Force Lat` is longitudinal,

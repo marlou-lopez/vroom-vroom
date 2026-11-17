@@ -1,6 +1,9 @@
 import { useMemo, type CSSProperties, type Ref } from "react";
 import { MAP_W, type PlaybackModel } from "../lib/model";
 import type { Annotation } from "../lib/annotations";
+import { mapSpan } from "../lib/driverAids";
+import { offTrackRuns } from "../lib/offTrack";
+import { timeAtDistance } from "../lib/playback";
 import { chipFraction } from "../lib/strips";
 import { cornerSegmentPath, pointAtDistance, splitWrapping } from "../lib/trackmap";
 import styles from "./AnnotationOverlays.module.css";
@@ -140,6 +143,32 @@ export function ScrubberBadges({ annotations, duration, h }: { annotations: Anno
           </button>
         </AnnotationHoverCard>
       ))}
+    </>
+  );
+}
+
+/** Ticks in the scrubber where two or more wheels were off the track (vroom-pnw.24): red on an invalid lap, grey on a valid one. */
+export function ScrubberOffTrack({ model, valid }: { model: PlaybackModel; valid: boolean }) {
+  const { cmp, duration } = model;
+  const runs = useMemo(() => offTrackRuns(cmp.lap), [cmp.lap]);
+  if (duration <= 0) return null;
+  const last = cmp.distance.length - 1;
+  return (
+    <>
+      {runs.map((r) => {
+        const [a, b] = mapSpan(r, last);
+        const t0 = timeAtDistance(cmp.lap.t, cmp.distance, cmp.distance[a]);
+        const t1 = timeAtDistance(cmp.lap.t, cmp.distance, cmp.distance[b]);
+        return (
+          <div
+            key={r.start}
+            data-testid="scrubber-off-track"
+            data-valid={valid}
+            className={styles.offTrack}
+            style={{ left: `${(t0 / duration) * 100}%`, width: `${((t1 - t0) / duration) * 100}%` }}
+          />
+        );
+      })}
     </>
   );
 }
