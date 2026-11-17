@@ -1,7 +1,10 @@
-"""Results table and blind rating sheet from results/runs.jsonl (vroom-9ki.17).
+"""Results table, blind rating sheet and unblinded scores from results/runs.jsonl (vroom-9ki.17).
 
-  python3 -I summarize.py table            # markdown table per model and packet
-  python3 -I summarize.py blind [--per 2]  # blind/sheet.md (no model names) and blind/key.json (do not open before rating)
+  python3 -I summarize.py table [--round R] [--only S]                 # markdown table per model and packet
+  python3 -I summarize.py blind --name NAME [--round R] [--only S] [--per 1]
+                                         # blind/NAME.md (no model names) + blind/NAME-key.json (don't open before rating)
+  python3 -I summarize.py scores --name NAME   # after rating: results/blind-scores-NAME.json and the mean per model
+--round keeps the runs whose round tag contains R; --only the runs whose label (model / prompt / packet set) contains S.
 """
 
 from __future__ import annotations
@@ -123,20 +126,54 @@ def blind(rs: list[dict], per: int, seed: int, only: str | None = None, name: st
     print(f"{len(items)} samples -> blind/{name}.md")
 
 
+def scores(name: str) -> None:
+    """Reads the scores written after **Score:** (a number, or a range such as 3-4, then any note) and unblinds them."""
+    import re
+
+    d = HERE / "blind"
+    sheet = (d / f"{name}.md").read_text()
+    key = json.loads((d / ("key.json" if name == "sheet" else f"{name}-key.json")).read_text())
+    out, by = {}, collections.defaultdict(lambda: collections.defaultdict(list))
+    for code, body in re.findall(r"^## (S\d\d) · \S+\n(.*?)(?=^## S|\Z)", sheet, flags=re.M | re.S):
+        raw = re.search(r"\*\*Score:\*\*\s*(.*)", body).group(1).strip()
+        m = re.match(r"(\d+(?:\.\d+)?)(?:\s*-\s*(\d+(?:\.\d+)?))?", raw)
+        value = None if not m else (float(m.group(1)) + float(m.group(2) or m.group(1))) / 2
+        out[code] = {**key[code], "score": value, "note": raw}
+        if value is not None:
+            by[key[code]["model"]][key[code]["packet"].split("-")[0]].append(value)
+    (HERE / "results" / f"blind-scores-{name}.json").write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n")
+    unscored = [c for c, v in out.items() if v["score"] is None]
+    print("| Model / prompt / packets | Mean | " + " | ".join(("analyze", "average", "corner")) + " |\n|---|---|---|---|---|")
+    for model, per in sorted(by.items(), key=lambda kv: -statistics.mean(v for xs in kv[1].values() for v in xs)):
+        allv = [v for xs in per.values() for v in xs]
+        cells = [", ".join(f"{v:g}" for v in per.get(k, [])) or "–" for k in ("analyze", "average", "corner")]
+        print(f"| {model} | {statistics.mean(allv):.2f} | " + " | ".join(cells) + " |")
+    if unscored:
+        print(f"\nNot scored yet: {', '.join(unscored)}")
+
+
+def keep(rs: list[dict], rnd: str | None, only: str | None) -> list[dict]:
+    return [r for r in rs if (not rnd or rnd in r.get("round", "")) and (not only or only in label(r))]
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("what", choices=["table", "blind"])
+    ap.add_argument("what", choices=["table", "blind", "scores"])
+    ap.add_argument("--round", help="only runs whose round tag contains this")
     ap.add_argument("--runs", default=str(HERE / "results" / "runs.jsonl"))
     ap.add_argument("--per", type=int, default=2, help="samples per model and packet in the blind sheet")
     ap.add_argument("--seed", type=int, default=917)
-    ap.add_argument("--only", help="blind: only runs whose label contains this (e.g. prompt-v3.md)")
+    ap.add_argument("--only", help="only runs whose label contains this (e.g. prompt-v3.md, packets-v2-monza)")
     ap.add_argument("--name", default="sheet", help="blind: sheet file name (round 2: sheet-round2)")
     a = ap.parse_args()
-    rs = rows(Path(a.runs))
+    if a.what == "scores":
+        scores(a.name)
+        return
+    rs = keep(rows(Path(a.runs)), a.round, a.only)
     if a.what == "table":
         print(table(rs))
     else:
-        blind(rs, a.per, a.seed, a.only, a.name)
+        blind(rs, a.per, a.seed, None, a.name)
 
 
 if __name__ == "__main__":

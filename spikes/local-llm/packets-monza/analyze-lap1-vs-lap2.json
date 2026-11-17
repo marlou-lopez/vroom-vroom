@@ -1,0 +1,181 @@
+{
+  "command": "analyze",
+  "track": "Monza",
+  "car": "McLaren 720S GT3 Evo",
+  "session": "practice, 5 Nov 2026",
+  "lap": "lap 1, 1:53.202",
+  "reference": "lap 2, 1:52.308",
+  "profile": {
+    "driver": "casual sim racer, Simagic P1000 load-cell pedals, metric units",
+    "focus_areas": [
+      "minimum corner speeds",
+      "exits onto long straights (after the chicanes, Ascari and Parabolica)",
+      "consistency"
+    ]
+  },
+  "lap_delta_s": "+0.893",
+  "rules": "Write one finding per corner below, keeping its kind and time_s. focus is the first issue's corner.",
+  "corners": [
+    {
+      "corner_id": "rettifilo1",
+      "corner": "Rettifilo 1",
+      "kind": "issue",
+      "time_s": "0.386",
+      "likely_cause": "brake",
+      "lap": {
+        "min_speed_kmh": "65",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "72",
+        "brake_onset": "well before the apex",
+        "peak_brake": "100%",
+        "throttle_pickup": "just after the apex kerb",
+        "coast_s": "1.2",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "1"
+      },
+      "reference": {
+        "min_speed_kmh": "65",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "71",
+        "brake_onset": "well before the apex",
+        "peak_brake": "100%",
+        "throttle_pickup": "at the apex kerb",
+        "coast_s": "1.2",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "1"
+      },
+      "landmarks": [
+        "apex kerb"
+      ]
+    },
+    {
+      "corner_id": "roggia2",
+      "corner": "Roggia 2",
+      "kind": "issue",
+      "time_s": "0.111",
+      "likely_cause": "speed",
+      "lap": {
+        "min_speed_kmh": "90",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "158",
+        "brake_onset": null,
+        "peak_brake": "0%",
+        "throttle_pickup": "at the apex kerb",
+        "coast_s": "0.0",
+        "pedal_overlap_s": "0.0",
+        "steering_extrema": "1"
+      },
+      "reference": {
+        "min_speed_kmh": "92",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "161",
+        "brake_onset": null,
+        "peak_brake": "0%",
+        "throttle_pickup": "at the apex kerb",
+        "coast_s": "0.3",
+        "pedal_overlap_s": "0.0",
+        "steering_extrema": "2"
+      },
+      "landmarks": [
+        "apex kerb",
+        "exit kerb"
+      ]
+    },
+    {
+      "corner_id": "ascari3",
+      "corner": "Ascari 3",
+      "kind": "issue",
+      "time_s": "0.108",
+      "likely_cause": "steering",
+      "lap": {
+        "min_speed_kmh": "148",
+        "min_speed_where": "a little before the apex",
+        "exit_speed_kmh": "191",
+        "brake_onset": null,
+        "peak_brake": "0%",
+        "throttle_pickup": "a little before the apex kerb",
+        "coast_s": "0.0",
+        "pedal_overlap_s": "0.0",
+        "steering_extrema": "7"
+      },
+      "reference": {
+        "min_speed_kmh": "155",
+        "min_speed_where": "a little before the apex",
+        "exit_speed_kmh": "195",
+        "brake_onset": null,
+        "peak_brake": "0%",
+        "throttle_pickup": "a little before the apex kerb",
+        "coast_s": "0.0",
+        "pedal_overlap_s": "0.0",
+        "steering_extrema": "1"
+      },
+      "landmarks": [
+        "apex kerb",
+        "exit kerb"
+      ]
+    },
+    {
+      "corner_id": "parabolica",
+      "corner": "Parabolica",
+      "kind": "minor",
+      "time_s": "0.051",
+      "likely_cause": "speed",
+      "lap": {
+        "min_speed_kmh": "125",
+        "min_speed_where": "just before the apex",
+        "exit_speed_kmh": "169",
+        "brake_onset": "well before the apex",
+        "peak_brake": "100%",
+        "throttle_pickup": "just before the apex",
+        "coast_s": "0.6",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "5"
+      },
+      "reference": {
+        "min_speed_kmh": "127",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "169",
+        "brake_onset": "well before the apex",
+        "peak_brake": "98%",
+        "throttle_pickup": "at the apex",
+        "coast_s": "1.0",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "4"
+      },
+      "landmarks": []
+    },
+    {
+      "corner_id": "lesmo2",
+      "corner": "Lesmo 2",
+      "kind": "strength",
+      "time_s": "-0.096",
+      "likely_cause": "speed",
+      "lap": {
+        "min_speed_kmh": "123",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "172",
+        "brake_onset": "well before the apex kerb",
+        "peak_brake": "85%",
+        "throttle_pickup": "just after the apex kerb",
+        "coast_s": "0.3",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "2"
+      },
+      "reference": {
+        "min_speed_kmh": "122",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "169",
+        "brake_onset": "well before the apex kerb",
+        "peak_brake": "100%",
+        "throttle_pickup": "just after the apex kerb",
+        "coast_s": "0.4",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "4"
+      },
+      "landmarks": [
+        "apex kerb",
+        "exit kerb"
+      ]
+    }
+  ]
+}

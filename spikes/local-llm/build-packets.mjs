@@ -1,6 +1,10 @@
-// Builds the spike's facts packets (design §8) from the real Spa mock, using the mock API's own corner facts.
-// Run from the repo root after `npm ci` in frontend/:  node spikes/local-llm/build-packets.mjs
-// Writes spikes/local-llm/packets/*.json. Every number is pre-formatted as a string, so the guard can match it exactly.
+// Builds the spike's facts packets (design §8) from a real mock recording, using the mock API's own corner facts.
+// Run from the repo root after `npm ci` in frontend/:
+//   node spikes/local-llm/build-packets.mjs [--track spa|monza] [--laps auto|2:4,3:4]
+// --laps auto (default): the slowest and second-slowest valid laps, each against the best valid lap; the Corner packet is
+// the first pair's biggest loss. Spa writes packets/ (set v1) and packets-v2/; another track writes packets-<track>/ and
+// packets-v2-<track>/. Every number is pre-formatted as a string, so the guard can match it exactly.
+// A new recording: add it to TRACKS below (its JSON in frontend/public/mock/, made by tools/extract-laps.mjs).
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,12 +20,27 @@ const { createMockApi } = await load("/src/api/mock/mockApi.ts");
 const facts = await load("/src/api/mock/coachFacts.ts");
 const { causeOf } = await load("/src/lib/cornerCause.ts");
 
-const SPA = JSON.parse(readFileSync(join(front, "public/mock/spa-2026-11-03.json"), "utf8"));
-const api = createMockApi({ coachDelayMs: 0, loadSpa: async () => SPA });
+const TRACKS = {
+  spa: { file: "spa-2026-11-03.json", loader: "loadSpa", name: "Spa-Francorchamps", session: "practice, 3 Nov 2026",
+    straights: "exits onto long straights (Kemmel, the run to the Bus Stop)", suffix: "" },
+  monza: { file: "monza-2026-11-05.json", loader: "loadMonza", name: "Monza", session: "practice, 5 Nov 2026",
+    straights: "exits onto long straights (after the chicanes, Ascari and Parabolica)", suffix: "-monza" },
+};
+const arg = (name, dflt) => {
+  const i = process.argv.indexOf(`--${name}`);
+  return i > 0 ? process.argv[i + 1] : dflt;
+};
+const TRACK = TRACKS[arg("track", "spa")];
+if (!TRACK) throw new Error(`--track must be one of ${Object.keys(TRACKS).join(", ")}`);
+const REC = JSON.parse(readFileSync(join(front, "public/mock", TRACK.file), "utf8"));
+const api = createMockApi({ coachDelayMs: 0, [TRACK.loader]: async () => REC });
 const session = (await api.sessions())[0];
 const laps = await api.sessionLaps(session.session_id);
 const map = await api.trackMap(session.track_id);
 const byNo = (n) => laps.find((l) => l.lap_no === n);
+/** Each lap's time channel on the 1 m grid, from the mock API (the app's lap numbers, not the raw file's). */
+const lapT = new Map();
+for (const l of laps) if (l.lap_time_s) lapT.set(l.lap_id, (await api.lapTrace(l.lap_id, ["t"])).ch.t);
 
 const f0 = (x) => (Math.round(x) || 0).toFixed(0);
 const f1 = (x) => x.toFixed(1);
@@ -32,7 +51,7 @@ const signed = (x) => `${x >= 0 ? "+" : "-"}${Math.abs(x).toFixed(3)}`;
 
 const PROFILE = {
   driver: "casual sim racer, Simagic P1000 load-cell pedals, metric units",
-  focus_areas: ["minimum corner speeds", "exits onto long straights (Kemmel, the run to the Bus Stop)", "consistency"],
+  focus_areas: ["minimum corner speeds", TRACK.straights, "consistency"],
 };
 
 function sideFacts(side, c, anchors) {
@@ -72,7 +91,7 @@ function cornerFacts(cc, kind) {
 
 const header = (command, lap, ref) => ({
   command,
-  track: "Spa-Francorchamps", car: session.car_name, session: "practice, 3 Nov 2026",
+  track: TRACK.name, car: session.car_name, session: TRACK.session,
   lap: `lap ${lap.lap_no}, ${lapTime(lap.lap_time_s)}`,
   reference: ref ? `lap ${ref.lap_no}, ${lapTime(ref.lap_time_s)}` : null,
   profile: PROFILE,
@@ -107,7 +126,7 @@ function averagePacket() {
   const st = facts.spread(times);
   const mean = times.reduce((a, b) => a + b, 0) / times.length;
   const cornerTime = (l, c) => {
-    const t = SPA.laps.find((x) => x.lap_no === l.lap_no).t;
+    const t = lapT.get(l.lap_id);
     return t[Math.min(c.end_m, t.length - 1)] - t[c.start_m];
   };
   const spreads = map.corners
@@ -154,7 +173,7 @@ function cornerPacket({ lap, ref, cmp, list }, cornerId) {
 
 const { aidRuns } = await load("/src/lib/driverAids.ts");
 const { deriveRpmLimits } = await load("/src/lib/shiftLights.ts");
-const REV_LIMITER = Number(String(SPA.car_setup?.VM_REV_LIMITER ?? "").replace(/[^\d]/g, "")) || null;
+const REV_LIMITER = Number(String(REC.car_setup?.VM_REV_LIMITER ?? "").replace(/[^\d]/g, "")) || null;
 /** "On the limiter": within 1.5 % of the rev limiter from the car setup (else of the shift point derived from the lap). */
 const LIMITER_FRACTION = 0.985;
 
@@ -278,7 +297,7 @@ async function averagePacketV2() {
   const p = averagePacket();
   const valid = laps.filter((l) => l.kind === "flying" && (l.valid_override ?? l.valid) && l.lap_time_s);
   const cornerTime = (l, c) => {
-    const t = SPA.laps.find((x) => x.lap_no === l.lap_no).t;
+    const t = lapT.get(l.lap_id);
     return t[Math.min(c.end_m, t.length - 1)] - t[c.start_m];
   };
   const corners = [];
@@ -300,24 +319,32 @@ async function averagePacketV2() {
   return { ...p, notes: { ...NOTES_V2, cause: "cause compares the slowest lap with the fastest; state a high or medium cause as fact" }, corners };
 }
 
-const c2 = await comparisonFacts(2, 4);
-const c3 = await comparisonFacts(3, 4);
-const a2 = analyzePacket(c2);
-const cornerName = `corner-lap2-${a2.corners[0].corner_id}`;
-const sets = {
-  packets: {
-    "analyze-lap2-vs-lap4": a2,
-    "analyze-lap3-vs-lap4": analyzePacket(c3),
-    "average-session": averagePacket(),
-    [cornerName]: cornerPacket(c2, a2.corners[0].corner_id),
-  },
-  "packets-v2": {
-    "analyze-lap2-vs-lap4": analyzePacketV2(c2),
-    "analyze-lap3-vs-lap4": analyzePacketV2(c3),
-    "average-session": await averagePacketV2(),
-    [cornerName]: cornerPacketV2(c2, a2.corners[0].corner_id),
-  },
-};
+function lapPairs() {
+  const spec = arg("laps", "auto");
+  if (spec !== "auto") return spec.split(",").map((p) => p.split(":").map(Number));
+  const valid = laps.filter((l) => l.kind === "flying" && (l.valid_override ?? l.valid) && l.lap_time_s)
+    .sort((a, b) => b.lap_time_s - a.lap_time_s);
+  if (valid.length < 3) throw new Error("--laps auto needs at least 3 valid laps");
+  const best = valid[valid.length - 1].lap_no;
+  return [[valid[0].lap_no, best], [valid[1].lap_no, best]];
+}
+
+const pairs = lapPairs();
+const cfs = [];
+for (const [lap, ref] of pairs) cfs.push(await comparisonFacts(lap, ref));
+const firstAnalyze = analyzePacket(cfs[0]);
+const cornerId = firstAnalyze.corners[0].corner_id;
+const cornerName = `corner-lap${pairs[0][0]}-${cornerId}`;
+const v1 = {}, v2 = {};
+pairs.forEach(([lap, ref], k) => {
+  v1[`analyze-lap${lap}-vs-lap${ref}`] = analyzePacket(cfs[k]);
+  v2[`analyze-lap${lap}-vs-lap${ref}`] = analyzePacketV2(cfs[k]);
+});
+v1["average-session"] = averagePacket();
+v2["average-session"] = await averagePacketV2();
+v1[cornerName] = cornerPacket(cfs[0], cornerId);
+v2[cornerName] = cornerPacketV2(cfs[0], cornerId);
+const sets = { [`packets${TRACK.suffix}`]: v1, [`packets-v2${TRACK.suffix}`]: v2 };
 for (const [dir, packets] of Object.entries(sets)) {
   mkdirSync(join(here, dir), { recursive: true });
   for (const [name, p] of Object.entries(packets)) writeFileSync(join(here, dir, `${name}.json`), JSON.stringify(p, null, 2) + "\n");

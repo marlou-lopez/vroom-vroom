@@ -1,0 +1,26 @@
+{
+  "_doc": "Models for run.py --matrix. provider: ollama | openai (any OpenAI-compatible host, via base_url + key_env) | anthropic. price: $ per 1M [input, output] tokens, null when free or unknown (cost is then not logged). Entries whose key_env is unset are skipped. enabled: false entries run only with --select <id>. tested: the date a run of it worked; untested entries need their model id checked against the host's model list first.",
+  "models": [
+    {"id": "ollama:gpt-oss-20b-nommap", "provider": "ollama", "model": "gpt-oss-20b-nommap", "price": null, "enabled": true, "tested": "2026-11-17",
+     "note": "Local, RX 7800 XT. gpt-oss:20b with use_mmap false (see the local-LLM handover). Apache-2.0."},
+
+    {"id": "openai:gpt-6.1-terra", "provider": "openai", "model": "gpt-6.1-terra", "key_env": "OPENAI_API_KEY", "price": [1.0, 5.0], "enabled": true, "tested": "2026-11-17",
+     "note": "Recommended strong tier (Analyze, Corner). Rated 4.0 in blind round 2."},
+    {"id": "openai:gpt-6-luna", "provider": "openai", "model": "gpt-6-luna", "key_env": "OPENAI_API_KEY", "price": [0.10, 0.50], "enabled": true, "tested": "2026-11-17",
+     "note": "Recommended fast tier (Average). Rated 3.0 in blind round 2."},
+    {"id": "openai:gpt-6.1-sol", "provider": "openai", "model": "gpt-6.1-sol", "key_env": "OPENAI_API_KEY", "price": [2.0, 10.0], "enabled": false, "tested": "2026-11-17",
+     "note": "Hedged heavily with prompt v1 (rated 2.0); not re-run with prompt v3."},
+
+    {"id": "anthropic:claude-sonnet-5-5", "provider": "anthropic", "model": "claude-sonnet-5-5", "key_env": "ANTHROPIC_API_KEY", "price": [2.0, 10.0], "enabled": true, "tested": null,
+     "note": "The design's strong default; not measured yet (no Anthropic credit)."},
+    {"id": "anthropic:claude-haiku-5-5", "provider": "anthropic", "model": "claude-haiku-5-5", "key_env": "ANTHROPIC_API_KEY", "price": [0.10, 0.50], "enabled": true, "tested": null,
+     "note": "The design's fast default; not measured yet."},
+
+    {"id": "groq:gpt-oss-120b", "provider": "openai", "base_url": "https://api.groq.com/openai/v1", "model": "openai/gpt-oss-120b", "key_env": "GROQ_API_KEY", "price": null, "enabled": false, "tested": null,
+     "note": "Untested. The bigger sibling of the local model: shows whether size, not hosting, is the local model's limit. Check the model id and price on Groq."},
+    {"id": "openrouter:example", "provider": "openai", "base_url": "https://openrouter.ai/api/v1", "model": "<provider/model slug from openrouter.ai/models>", "key_env": "OPENROUTER_API_KEY", "price": null, "enabled": false, "tested": null,
+     "note": "Untested template: one key for many providers' models. Copy the entry once per model, with its slug, id and price."},
+    {"id": "gemini:example", "provider": "openai", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/", "model": "<Gemini model id>", "key_env": "GEMINI_API_KEY", "price": null, "enabled": false, "tested": null,
+     "note": "Untested template: Google's OpenAI-compatible endpoint. Check that it accepts response_format json_schema."}
+  ]
+}

@@ -2,61 +2,73 @@
  "S01": {
   "model": "ollama:gpt-oss-20b-nommap / prompt-v3.md / packets-v2",
   "packet": "analyze-lap2-vs-lap4",
-  "score": "3"
+  "score": 3.0,
+  "note": "3"
  },
  "S02": {
   "model": "openai:gpt-6-luna / prompt-v3.md / packets-v2",
   "packet": "analyze-lap2-vs-lap4",
-  "score": "3"
+  "score": 3.0,
+  "note": "3"
  },
  "S03": {
   "model": "openai:gpt-6.1-terra / prompt-v3.md / packets-v2",
   "packet": "analyze-lap2-vs-lap4",
-  "score": "4"
+  "score": 4.0,
+  "note": "4"
  },
  "S04": {
   "model": "ollama:gpt-oss-20b-nommap / prompt-v3.md / packets-v2",
   "packet": "analyze-lap3-vs-lap4",
-  "score": "2, almost good, just need to flesh out the steering_extrema usage"
+  "score": 2.0,
+  "note": "2, almost good, just need to flesh out the steering_extrema usage"
  },
  "S05": {
   "model": "openai:gpt-6.1-terra / prompt-v3.md / packets-v2",
   "packet": "analyze-lap3-vs-lap4",
-  "score": "4"
+  "score": 4.0,
+  "note": "4"
  },
  "S06": {
   "model": "openai:gpt-6-luna / prompt-v3.md / packets-v2",
   "packet": "analyze-lap3-vs-lap4",
-  "score": "3"
+  "score": 3.0,
+  "note": "3"
  },
  "S07": {
   "model": "openai:gpt-6-luna / prompt-v3.md / packets-v2",
   "packet": "average-session",
-  "score": "3"
+  "score": 3.0,
+  "note": "3"
  },
  "S08": {
   "model": "ollama:gpt-oss-20b-nommap / prompt-v3.md / packets-v2",
   "packet": "average-session",
-  "score": "0, no response?"
+  "score": 0.0,
+  "note": "0, no response?"
  },
  "S09": {
   "model": "openai:gpt-6.1-terra / prompt-v3.md / packets-v2",
   "packet": "average-session",
-  "score": "4"
+  "score": 4.0,
+  "note": "4"
  },
  "S10": {
   "model": "ollama:gpt-oss-20b-nommap / prompt-v3.md / packets-v2",
   "packet": "corner-lap2-stavelot",
-  "score": "0, no response?"
+  "score": 0.0,
+  "note": "0, no response?"
  },
  "S11": {
   "model": "openai:gpt-6-luna / prompt-v3.md / packets-v2",
   "packet": "corner-lap2-stavelot",
-  "score": "3"
+  "score": 3.0,
+  "note": "3"
  },
  "S12": {
   "model": "openai:gpt-6.1-terra / prompt-v3.md / packets-v2",
   "packet": "corner-lap2-stavelot",
-  "score": "4"
+  "score": 4.0,
+  "note": "4"
  }
 }

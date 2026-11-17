@@ -141,7 +141,7 @@ $0.13 for 20. All OpenAI runs together cost about $0.45.
 ### Blind ratings (round 1)
 
 The user rated 24 samples (one per model, prompt and packet; model names hidden until all were scored) 1–5 on
-"does it read like a race engineer?". Scores are in `spikes/local-llm/results/blind-scores-round1.json`.
+"does it read like a race engineer?". Scores are in `spikes/local-llm/results/blind-scores-sheet.json`.
 
 | Model / prompt | Mean | Analyze ×2 | Average | Corner |
 |---|---|---|---|---|
@@ -192,7 +192,7 @@ progressive throttle; limiter time: a late upshift), bans field names by name an
 
 ### Blind ratings (round 2: v3 prompt, v2 packets)
 
-12 samples, one per model and packet, names hidden (`results/blind-scores-round2.json`):
+12 samples, one per model and packet, names hidden (`results/blind-scores-sheet-round2.json`):
 
 | Model | Mean | Analyze ×2 | Average | Corner |
 |---|---|---|---|---|
@@ -213,6 +213,21 @@ the steering_extrema usage". terra went from 3.6 (round 1) to 4.0, luna from 3.2
 | Blind ratings | need the user | `python3 -I summarize.py blind --per 2`, rate `blind/sheet.md` 1–5, then open `blind/key.json` |
 | llama.cpp Vulkan rerun | not needed: ROCm already gives 91 tok/s, and the handover measured Vulkan at 68 | – |
 | Anthropic (the design's default) | no Anthropic credit | `run.py --model anthropic:claude-sonnet-5-5`; same price as gpt-6.1-sol |
+
+## Repeating the exercise
+
+The bench is built to be re-run as telemetry, prompts and providers change; `spikes/local-llm/README.md` has
+the steps. In short: packets from any mock recording and lap pairs (`build-packets.mjs --track`; Spa and Monza
+so far), models from `models.json` (any OpenAI-compatible host is a config entry: OpenRouter, Groq and Gemini
+templates are there, untested), runs tagged by round, and `summarize.py` for the table, the blind sheet and
+the unblinded scores. Monza packets (both sets) are built but haven't been through the paid models yet.
+
+Room for improvement, for the next rounds:
+- Run the Monza packets, and a Spa session where the car does hit the limiter or lock a wheel (none in these laps).
+- Try the design's Anthropic default and a larger open model (gpt-oss-120b on Groq) when there's a key for them.
+- A packet set v3 with plain-English keys, "110 km/h against 112" values and per-finding number scopes
+  (see the lessons below), against prompt v3.
+- More samples per cell in the blind rounds (one per model and packet is thin).
 
 ## Options
 
