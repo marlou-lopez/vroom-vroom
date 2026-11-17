@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
@@ -8,11 +8,14 @@ import { createHandlers } from "../api/mock/handlers";
 import { createMockApi } from "../api/mock/mockApi";
 import type { Recording } from "../api/mock/recording";
 import type { StintFile } from "../api/mock/stint";
+import { MONZA_TRACK_ID } from "../api/mock/monzaTrack";
+import type { SessionMeta } from "../api/types";
 import { createQueryWrapper } from "../test/mockServer";
 import { StintPanel } from "./StintPanel";
 
 const read = <T,>(f: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, "../../public/mock", f), "utf8")) as T;
 const MONZA = read<Recording>("monza-2026-11-05.json");
+const SPA = read<Recording>("spa-2026-11-03.json");
 const STINT = read<StintFile>("monza-stint-2026-11-09.json");
 
 const server = setupServer();
@@ -20,35 +23,38 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 const serve = (stint: StintFile | null) =>
-  server.resetHandlers(...createHandlers(createMockApi({ coachDelayMs: 0, loadMonza: async () => MONZA, loadStint: async () => stint })));
+  server.resetHandlers(...createHandlers(createMockApi({ coachDelayMs: 0, loadSpa: async () => SPA, loadMonza: async () => MONZA, loadStint: async () => stint })));
+const sessionOf = async (pick: (s: SessionMeta) => boolean) => (await createMockApi({ coachDelayMs: 0, loadSpa: async () => SPA, loadMonza: async () => MONZA, loadStint: async () => STINT }).sessions()).find(pick)!;
 
-describe("StintPanel (experimental)", () => {
-  it("shows the Monza race stint for the Monza 720S, labelled experimental, with a row per lap", async () => {
+describe("StintPanel", () => {
+  it("loads the Monza race by session id, with a row per lap of the first stint and no experimental label", async () => {
     serve(STINT);
+    const race = await sessionOf((s) => s.session_type === "Race");
     const { wrapper } = createQueryWrapper();
-    render(<StintPanel trackId="monza-grand-prix" carId="mclaren_720s_gt3_evo" />, { wrapper });
+    render(<StintPanel session={race} />, { wrapper });
     const panel = await screen.findByRole("region", { name: "Stint" });
-    expect(within(panel).getByText("EXPERIMENTAL")).toBeTruthy();
-    expect(within(panel).getAllByRole("row")).toHaveLength(1 + 26);
+    expect(within(panel).queryByText(/experimental/i)).toBeNull();
+    expect(within(panel).getAllByRole("row")).toHaveLength(1 + 25); // the one-lap stint after the stop has no flying lap and is left out
     expect(within(panel).getByText("virtual energy")).toBeTruthy(); // the limit card
     expect(within(panel).getByText(/s\/lap$/)).toBeTruthy();
   });
 
-  it("renders nothing for a combo without a stint", async () => {
+  it("renders nothing for a session without stint stats", async () => {
     serve(STINT);
+    const spa = await sessionOf((s) => s.track_id !== MONZA_TRACK_ID);
     const { wrapper, client } = createQueryWrapper();
-    const { container } = render(<StintPanel trackId="spa" carId="mclaren_720s_gt3_evo" />, { wrapper });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(client.getQueryData(["experimental", "stints"])).toHaveLength(1);
+    const { container } = render(<StintPanel session={spa} />, { wrapper });
+    await waitFor(() => expect(client.getQueryState(["stints", spa.session_id])?.status).toBe("success"));
     expect(container.innerHTML).toBe("");
   });
 
-  it("stays hidden when the experimental endpoint fails (the real backend has no such route yet)", async () => {
-    server.resetHandlers(http.get("*/api/experimental/stints", () => HttpResponse.json({ code: "http_404", message: "Not Found" }, { status: 404 })));
+  it("stays hidden when the stints request fails", async () => {
+    serve(STINT);
+    const race = await sessionOf((s) => s.session_type === "Race");
+    server.resetHandlers(http.get("*/api/sessions/:id/stints", () => HttpResponse.json({ code: "http_404", message: "Not Found" }, { status: 404 })));
     const { wrapper, client } = createQueryWrapper();
-    const { container } = render(<StintPanel trackId="monza-grand-prix" carId="mclaren_720s_gt3_evo" />, { wrapper });
-    await new Promise((r) => setTimeout(r, 50));
-    expect(client.getQueryState(["experimental", "stints"])?.status).toBe("error");
+    const { container } = render(<StintPanel session={race} />, { wrapper });
+    await waitFor(() => expect(client.getQueryState(["stints", race.session_id])?.status).toBe("error"));
     expect(container.innerHTML).toBe("");
   });
 });

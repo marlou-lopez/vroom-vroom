@@ -15,6 +15,7 @@ export const qk = {
   trackGeometry: (trackId: string) => ["trackGeometry", trackId] as const,
   coachResults: (lap: string, ref: string | null) => ["coachResults", lap, ref] as const,
   summary: (sessionId: string) => ["summary", sessionId] as const,
+  stints: (sessionId: string) => ["stints", sessionId] as const,
   ideal: (sessionId: string) => ["ideal", sessionId] as const,
   segmentTimes: (sessionId: string) => ["segmentTimes", sessionId] as const,
   setup: (sessionId: string) => ["setup", sessionId] as const,
@@ -30,6 +31,8 @@ export const lapOptions = (lapId: string) => queryOptions({ queryKey: qk.lap(lap
 export const sessionSummaryOptions = (sessionId: string) =>
   queryOptions({ queryKey: qk.summary(sessionId), queryFn: () => api.sessionSummary(sessionId) });
 
+export const sessionStintsOptions = (sessionId: string) =>
+  queryOptions({ queryKey: qk.stints(sessionId), queryFn: () => api.sessionStints(sessionId), staleTime: Infinity });
 export const idealOptions = (sessionId: string) => queryOptions({ queryKey: qk.ideal(sessionId), queryFn: () => api.idealLap(sessionId, "session") });
 export const segmentTimesOptions = (sessionId: string) =>
   queryOptions({ queryKey: qk.segmentTimes(sessionId), queryFn: () => api.segmentTimes(sessionId) });

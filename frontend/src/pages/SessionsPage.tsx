@@ -153,7 +153,7 @@ export function SessionsPage() {
                       {bestLapId ? (
                         <Link to={`/?lap=${encodeURIComponent(bestLapId)}`} className={styles.openLink}>Open →</Link>
                       ) : (
-                        <span className={styles.dim} title="No valid flying lap">—</span>
+                        <span className={styles.dim} title="No valid flying lap with a trace to open">—</span>
                       )}
                     </td>
                   </tr>
@@ -180,8 +180,9 @@ export function SessionsPage() {
         );
       })()}
 
-      {/* EXPERIMENTAL (vroom-pnw.26): per-lap stint stats, for the combos a stint was recorded with. */}
-      {mine[0] && <StintPanel trackId={mine[0].track_id} carId={mine[0].car_id} />}
+
+      {/* Per-lap stint stats of each session of the combo that has them (a panel renders nothing without). */}
+      {mine.map((session) => <StintPanel key={session.session_id} session={session} />)}
     </div>
   );
 }

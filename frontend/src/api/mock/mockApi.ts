@@ -8,7 +8,7 @@ import {
   GRID_CHANNELS,
   type CalibrationResult, type ChannelArrays, type CoachRequest, type CoachResult, type CoachResults,
   type Command, type CompareCandidate, type CompareResponse, type Corner, type Finding,
-  type CarDims, type CarSetup, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SegmentTimes, type SessionMeta, type SessionSummary, type Stint, type TraceResponse,
+  type CarDims, type CarSetup, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SegmentTimes, type SessionMeta, type SessionSummary, type Stint, type StintLap, type TraceResponse,
   type TrackMap, type LapMeta, type LapWithRef, type TrackGeometry,
 } from "../types";
 import {
@@ -19,7 +19,7 @@ import { mapSurvey, type SurveyFile } from "../../lib/trackSurvey";
 import { formatLapTime } from "../../lib/format";
 import { fetchSpaElevation, type ElevationLoader } from "./elevation";
 import { fetchSpaSurvey, type SurveyLoader } from "./survey";
-import { fetchMonzaStint, type StintLoader } from "./stint";
+import { fetchMonzaStint, splitStints, type StintFile, type StintLoader } from "./stint";
 import { fetchRecording, lapToTrace, scaleTime, type Recording, type RecordingLap, type RecordingLoader, type RecordingTrack, type Trace } from "./recording";
 import { monzaCorners, MONZA_TRACK_ID, MONZA_TRACK_LENGTH_M } from "./monzaTrack";
 import { setupLabel } from "./setupLabels";
@@ -46,8 +46,9 @@ export interface MockOptions {
    */
   loadSurvey?: SurveyLoader;
   /**
-   * EXPERIMENTAL (vroom-pnw.26). Supplies the Monza race stint. Default: fetch /mock/monza-stint-2026-11-09.json, or none when a
-   * custom `loadSpa` or `loadMonza` is given. Loaded on the first stints() call only; a failure rejects that call.
+   * Supplies the Monza race of 9 Nov 2026, a session with lap metadata and stint stats only (no 1 m traces). Default: fetch
+   * /mock/monza-stint-2026-11-09.json, or no such session when a custom `loadSpa` or `loadMonza` is given. A failure to load it
+   * leaves the session out.
    */
   loadStint?: StintLoader;
 }
@@ -295,6 +296,9 @@ export function createMockApi(opts: MockOptions = {}): Api {
 
   const sessions: SessionMeta[] = [];
   const laps = new Map<string, LapRec>();
+  /** Sessions known by lap metadata and stint stats only (no traces): their laps, and the stint stats per session. */
+  const metaLaps = new Map<string, LapMeta[]>();
+  const stintStats = new Map<string, StintLap[]>();
   const setups = new Map<string, CarSetup>();
   const extras = new Map<string, { trackTempC: number; focus: SessionSummary["focus"] }>();
   const dateLabel = new Map<string, string>();
@@ -306,7 +310,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
   let counter = 0;
 
   /** Builds every session, trace, map and per-lap structure once, after the recordings have loaded. */
-  function build(recs: Partial<Record<RecordingTrack, Recording>>) {
+  function build(recs: Partial<Record<RecordingTrack, Recording>>, stintFile: StintFile | null) {
     const trackInfo: Record<RecordingTrack, { id: string; name: string; length: number; map: (ref: RecordingLap) => TrackMap }> = {
       spa: {
         id: SPA_TRACK_ID, name: "Spa-Francorchamps", length: SPA_TRACK_LENGTH_M,
@@ -396,12 +400,39 @@ export function createMockApi(opts: MockOptions = {}): Api {
             lap_id, session_id, lap_no, kind: l.kind, lap_time_s: l.lap_time_s, sectors_s: sectors,
             valid: l.valid ?? true, valid_override: null, pinned_reference: false, source: "own_recording",
             driver: "Driver", track_id, car_id: sp.car.car_id,
-            conditions: { track_temp_c: sp.trackTempC, air_temp_c: sp.airTempC, fuel_l: 90 - lap_no * 3, tyre_wear: 0.01 * lap_no },
+            has_trace: true,
           },
         });
       });
     }
+    if (stintFile && recs.monza) addStintSession(stintFile);
     sessions.sort((a, b) => b.started_at.localeCompare(a.started_at));
+  }
+
+  /**
+   * The real Monza race of 9 Nov 2026 (McLaren 720S GT3 Evo): a session with lap metadata and stint stats from the recording
+   * and no traces, because its 1 m traces would add about 15 MB. Its laps have `has_trace: false`.
+   */
+  function addStintSession(file: StintFile) {
+    const session_id = fakeSha("monza-2026-11-09-race");
+    const started_at = "2026-11-09T11:57:00";
+    sessions.push({
+      session_id, track_name: "Monza", track_layout: "Grand Prix", track_id: MONZA_TRACK_ID, track_length_m: MONZA_TRACK_LENGTH_M,
+      car_name: CAR_720S.car_name, car_id: CAR_720S.car_id, car_class: file.car_class, session_type: file.session_type,
+      game_build: "1.2.0.3", started_at, driver: "Driver", steering_range_deg: null, car_dims: DIMS_720S,
+    });
+    const d = new Date(started_at);
+    dateLabel.set(session_id, `${d.getDate()} ${DATE_FMT[d.getMonth()]}`);
+    extras.set(session_id, { trackTempC: file.laps[0]?.track_temp_c ?? 0, focus: null });
+    setups.set(session_id, { entries: [] });
+    const stats = file.laps.map((l) => ({ ...l, lap_id: `${session_id.slice(0, 12)}-${pad3(l.lap_no)}` }));
+    stintStats.set(session_id, stats);
+    metaLaps.set(session_id, stats.map((l) => ({
+      lap_id: l.lap_id, session_id, lap_no: l.lap_no, kind: l.kind,
+      lap_time_s: l.lap_time_s !== null && l.lap_time_s > 0 ? l.lap_time_s : null, sectors_s: [],
+      valid: l.valid, valid_override: null, pinned_reference: false, source: "own_recording",
+      driver: "Driver", track_id: MONZA_TRACK_ID, car_id: CAR_720S.car_id, has_trace: false,
+    })));
   }
 
   // The recordings are fetched on the first call of any method, never at import time.
@@ -412,10 +443,11 @@ export function createMockApi(opts: MockOptions = {}): Api {
       Promise.all(tracks.map((t) => loaders[t]!())),
       loadElevation().catch(() => null),
       loadSurvey().catch(() => null),
-    ]).then(([loaded, elev, survey]) => {
+      loadStint().catch(() => null),
+    ]).then(([loaded, elev, survey, stint]) => {
       elevationIndex = elev ? buildElevationIndex(elev) : null;
       surveyFile = survey;
-      build(Object.fromEntries(tracks.map((t, i) => [t, loaded[i]])));
+      build(Object.fromEntries(tracks.map((t, i) => [t, loaded[i]])), stint);
     }).catch((e) => {
       ready = null;
       throw e instanceof ApiError ? e : new ApiError("network", e instanceof Error ? e.message : "could not load the recordings");
@@ -432,6 +464,9 @@ export function createMockApi(opts: MockOptions = {}): Api {
   };
   const lapOf = (id: string): LapRec => {
     const l = laps.get(id);
+    if (!l && [...metaLaps.values()].some((ms) => ms.some((m) => m.lap_id === id))) {
+      throw new ApiError("no_trace", `Lap ${id} has no 1 m trace: its session is known by lap metadata and stint stats only.`);
+    }
     if (!l) throw new ApiError("unknown_lap", `No lap ${id}`);
     return l;
   };
@@ -719,9 +754,15 @@ export function createMockApi(opts: MockOptions = {}): Api {
     },
     async sessionLaps(sessionId) {
       sessionOf(sessionId);
+      const metaOnly = metaLaps.get(sessionId);
+      if (metaOnly) return metaOnly.map((m) => ({ ...clone(m), is_reference: false }));
       return sortedSessionLaps(sessionId).map(withRef);
     },
     async lap(lapId) {
+      for (const ms of metaLaps.values()) {
+        const m = ms.find((x) => x.lap_id === lapId);
+        if (m) return { ...clone(m), is_reference: false };
+      }
       return withRef(lapOf(lapId));
     },
     async patchLap(lapId, patch) {
@@ -815,13 +856,14 @@ export function createMockApi(opts: MockOptions = {}): Api {
     },
     async sessionSummary(sessionId): Promise<SessionSummary> {
       sessionOf(sessionId);
-      const recs = sortedSessionLaps(sessionId);
-      const valid = recs.filter(isTimed);
+      const metaOnly = metaLaps.get(sessionId);
+      const recs = metaOnly ? metaOnly.map((meta) => ({ meta })) : sortedSessionLaps(sessionId);
+      const valid = recs.filter((r) => r.meta.kind === "flying" && effectiveValid(r.meta) && (r.meta.lap_time_s ?? 0) > 0);
       const x = extras.get(sessionId)!;
       return {
         n_laps: recs.length,
         n_valid: valid.length,
-        best_lap_s: valid.length ? Math.min(...valid.map(lapTime)) : null,
+        best_lap_s: valid.length ? Math.min(...valid.map((r) => r.meta.lap_time_s ?? 0)) : null,
         theoretical_best_s: theoreticalBest(sessionId),
         track_temp_c: x.trackTempC,
         focus: clone(x.focus),
@@ -862,14 +904,9 @@ export function createMockApi(opts: MockOptions = {}): Api {
     async llmUsage() {
       return { calls: clone(calls), total_usd: calls.reduce((s, c) => s + (c.cost_usd ?? 0), 0) };
     },
-    // EXPERIMENTAL (vroom-pnw.26): the one real stint, the Monza race of 9 Nov 2026 (a McLaren 720S GT3 Evo like the mock's 720S).
-    async stints(): Promise<Stint[]> {
-      const file = await loadStint();
-      if (!file) return [];
-      return [{
-        stint_id: fakeSha("monza-2026-11-09-race"), track_id: MONZA_TRACK_ID, car_id: CAR_720S.car_id, car_class: file.car_class,
-        session_type: file.session_type, started_at: "2026-11-09T11:57:00", source: file.source, laps: clone(file.laps),
-      }];
+    async sessionStints(sessionId): Promise<Stint[]> {
+      sessionOf(sessionId);
+      return splitStints(clone(stintStats.get(sessionId) ?? []));
     },
   };
 

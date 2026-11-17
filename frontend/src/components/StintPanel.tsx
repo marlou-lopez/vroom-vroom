@@ -1,9 +1,9 @@
-// EXPERIMENTAL (vroom-pnw.26, spike): the Stint view. Per lap: time, fuel and virtual energy used, tyre surface temperature and
-// wear per corner; plus the lap-time fall-off line (out, in, invalid and slow laps excluded). Data: api.stints() (experimental).
+// The Stint view (spike vroom-pnw.26, built in vroom-bi4.4). Per lap: time, fuel and virtual energy used, tyre surface temperature
+// and wear per corner; plus the lap-time fall-off line (out, in, invalid and slow laps excluded). Data: api.sessionStints(sessionId).
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../api/client";
-import type { Stint, Wheels } from "../api/types";
+import { sessionStintsOptions } from "../api/queries";
+import type { SessionMeta, Stint, Wheels } from "../api/types";
 import { formatLapTime, formatShortDate } from "../lib/format";
 import { falloffPlot, stintRows, stintSummary, type FitExclusion } from "../lib/stint";
 import { cx } from "../lib/cx";
@@ -25,7 +25,7 @@ function WheelGrid({ v, digits = 0, label }: { v: Wheels | null; digits?: number
   );
 }
 
-function StintBody({ stint }: { stint: Stint }) {
+function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMeta; multi: boolean }) {
   const rows = useMemo(() => stintRows(stint.laps), [stint]);
   const sum = useMemo(() => stintSummary(rows), [rows]);
   const plot = useMemo(() => falloffPlot(rows, sum.falloff, 1000, 160), [rows, sum.falloff]);
@@ -44,7 +44,7 @@ function StintBody({ stint }: { stint: Stint }) {
   return (
     <>
       <div className={styles.meta}>
-        {stint.session_type} · {formatShortDate(stint.started_at)} · {stint.laps.length} laps · {stint.source}
+        {multi ? `Stint ${stint.stint_no} · ` : ""}{session.session_type} · {formatShortDate(session.started_at)} · {stint.laps.length} laps
       </div>
       <div className={styles.cards}>
         {cards.map((c) => (
@@ -122,19 +122,18 @@ function StintBody({ stint }: { stint: Stint }) {
   );
 }
 
-/** The stints recorded with this track and car. Renders nothing when there are none. */
-export function StintPanel({ trackId, carId }: { trackId: string; carId: string }) {
-  const q = useQuery({ queryKey: ["experimental", "stints"], queryFn: () => api.stints(), staleTime: Infinity });
-  const mine = (q.data ?? []).filter((s) => s.track_id === trackId && s.car_id === carId);
-  // The endpoint is experimental: when it fails (the real backend has no such route yet), the panel stays hidden.
-  if (q.error || mine.length === 0) return null;
+/** The session's stints, split at pit stops. Renders nothing when the session has none or the request fails. */
+export function StintPanel({ session }: { session: SessionMeta }) {
+  const q = useQuery(sessionStintsOptions(session.session_id));
+  // A stint without a flying lap (the out lap that ends a recording after a stop) has nothing to show.
+  const stints = (q.data ?? []).filter((st) => st.laps.some((l) => l.kind === "flying"));
+  if (q.error || stints.length === 0) return null;
   return (
     <section aria-label="Stint" className={cx(ui.panel, styles.panel)}>
       <div className={styles.head}>
         <span className={ui.heading}>STINT</span>
-        <span className={styles.badge}>EXPERIMENTAL</span>
       </div>
-      {mine.map((s) => <StintBody key={s.stint_id} stint={s} />)}
+      {stints.map((s) => <StintBody key={s.stint_no} stint={s} session={session} multi={stints.length > 1} />)}
     </section>
   );
 }

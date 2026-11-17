@@ -67,7 +67,7 @@ describe("bestValidLap", () => {
   const mk = (no: number, time: number, over: Partial<LapMeta> = {}): LapMeta => ({
     lap_id: `l${no}`, session_id: "s", lap_no: no, kind: "flying", lap_time_s: time, sectors_s: [], valid: true,
     valid_override: null, pinned_reference: false, source: "own_recording", driver: "", track_id: "t", car_id: "c",
-    conditions: {}, ...over,
+    has_trace: true, ...over,
   });
   it("skips invalid and non-flying laps and honours valid_override", () => {
     const laps = [mk(1, 90, { kind: "out" }), mk(2, 80, { valid: false }), mk(3, 85), mk(4, 82, { valid: false, valid_override: true })];

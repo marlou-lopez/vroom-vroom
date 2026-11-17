@@ -36,8 +36,11 @@ export interface Api {
   calibrate(trackId: string): Promise<CalibrationResult>;
   importFile(path: string): Promise<ImportResult>;
   llmUsage(): Promise<LlmUsage>;
-  /** EXPERIMENTAL (vroom-pnw.26, spike): per-lap stint stats of every recording that has them. Not part of the agreed contract. */
-  stints(): Promise<Stint[]>;
+  /**
+   * The session's laps split into stints at each pit stop (GET /sessions/{id}/stints), each lap with its `lap_id` and its
+   * fuel, virtual energy, tyre and brake stats. Empty when the recording has no stint stats. Unknown session: `unknown_session`.
+   */
+  sessionStints(sessionId: string): Promise<Stint[]>;
 }
 
 function query(params: Record<string, string | undefined>): string {
@@ -109,7 +112,7 @@ export function createRealApi(baseUrl = ""): Api {
     calibrate: (trackId) => request(`/tracks/${enc(trackId)}/calibrate`, { method: "POST" }),
     importFile: (path) => request("/import", { method: "POST", body: { path } }),
     llmUsage: () => request("/llm/usage"),
-    stints: () => request("/experimental/stints"),
+    sessionStints: (id) => request(`/sessions/${enc(id)}/stints`),
   };
 }
 

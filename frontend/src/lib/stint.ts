@@ -1,4 +1,4 @@
-// EXPERIMENTAL (vroom-pnw.26): pure logic for the Stint view. Per-lap consumption, the lap-time fall-off line and the tank range.
+// Pure logic (spike vroom-pnw.26, kept in vroom-bi4.4) for the Stint view. Per-lap consumption, the lap-time fall-off line and the tank range.
 import type { StintLap, Wheels } from "../api/types";
 
 /** Why a lap is left out of the fall-off fit. */

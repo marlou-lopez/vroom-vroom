@@ -78,7 +78,8 @@ export function TracksPage() {
   const geoLapId = useMemo(() => {
     for (const laps of lapsQ.laps) {
       if (!laps) return null; // still loading: keep newest-first order
-      const lap = bestValidLap(laps) ?? laps.find((l) => l.kind === "flying") ?? laps[0];
+      const withTrace = laps.filter((l) => l.has_trace);
+      const lap = bestValidLap(laps) ?? withTrace.find((l) => l.kind === "flying") ?? withTrace[0];
       if (lap) return lap.lap_id;
     }
     return null;
