@@ -49,3 +49,10 @@
 
 .openLink { color: var(--color-you); text-decoration: none; }
 .openLink:hover { text-decoration: underline; }
+
+.cardFrom { font-size: 10px; color: var(--color-muted); }
+.selected { background: var(--color-hover); box-shadow: inset 2px 0 0 var(--color-you); }
+.table tbody tr { cursor: pointer; }
+.rowButton { all: unset; cursor: pointer; font-family: var(--font-mono); }
+.rowButton:focus-visible { outline: 1px solid var(--color-you); }
+.statsOnly { color: var(--color-muted); font-size: 10px; border: 1px solid var(--color-border); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
