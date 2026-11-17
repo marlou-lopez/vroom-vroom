@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, type QueryObserverResult } from "@tanstack/react-query";
 import { sessionLapsOptions, useCompare, useCompareCandidates, useSessions, useTrackGeometry, useTrackMap } from "../api/queries";
 import { errorInfo, type CompareCandidate, type LapWithRef, type SessionMeta } from "../api/types";
 import { bestValidLap } from "../lib/laps";
@@ -8,6 +8,11 @@ export interface LapContext {
   session: SessionMeta;
   laps: LapWithRef[];
   lap: LapWithRef;
+}
+
+// Module-level so useQueries only re-runs it when the query results change.
+function combineLaps(rs: QueryObserverResult<LapWithRef[], Error>[]) {
+  return { laps: rs.map((r) => r.data), errors: rs.map((r) => r.error) };
 }
 
 const NO_CANDIDATES: CompareCandidate[] = [];
@@ -26,7 +31,7 @@ export function useTelemetryData(lapParam: string | null, refParam: string | nul
   // Laps of every session, in parallel and cached (the Sessions page shares them); the scan below still goes newest first.
   const lapsQ = useQueries({
     queries: sorted.map((s) => sessionLapsOptions(s.session_id)),
-    combine: (rs) => ({ laps: rs.map((r) => r.data), errors: rs.map((r) => r.error) }),
+    combine: combineLaps,
   });
 
   // Scan newest first; stop at the first session that is still loading. A session whose own /laps failed is skipped
