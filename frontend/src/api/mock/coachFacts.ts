@@ -1,9 +1,8 @@
 // Pure per-corner facts and the data-driven finding templates of the mock coach.
 // Every number quoted comes from the two laps. Positions are described against landmarks, never as metre distances.
-import type { ChannelArrays, Corner, CueType, Landmark } from "../types";
-import { brakeOnset } from "./spaTrack";
+import type { ChannelArrays, Corner, CornerMetrics, CornerSideMetrics, CueType, Landmark } from "../types";
 
-type Signals = Pick<ChannelArrays, "speed_kmh" | "throttle" | "brake" | "steering">;
+type Signals = Pick<ChannelArrays, "t" | "speed_kmh" | "throttle" | "brake" | "steering">;
 
 export interface CornerSide {
   minSpeed: number;
@@ -12,6 +11,10 @@ export interface CornerSide {
   brakeOnset: number | null;
   peakBrake: number;
   throttlePickup: number | null;
+  /** Seconds with neither pedal pressed (throttle and brake < 0.05) above 50 km/h. */
+  coastS: number;
+  /** Seconds with both pedals pressed (throttle and brake > 0.1). */
+  overlapS: number;
   /** Steering extrema in the corner (see steeringExtrema); compare against the reference's count. */
   steerExtrema: number;
 }
@@ -23,6 +26,8 @@ export interface CornerComparison {
   ref: CornerSide;
   /** Landmarks with confidence detected or confirmed that belong to this corner. */
   anchors: Landmark[];
+  /** The same numbers in the API's shape (`CompareResponse.corners`); the coach reads its cause scoring from here. */
+  metrics: CornerMetrics;
 }
 
 export type Cause = "brake" | "throttle" | "steering" | "speed";
@@ -39,21 +44,45 @@ const STEER_PROMINENCE = 0.1;
 const STEER_SMOOTH_M = 5;
 const THROTTLE_PICKUP = 0.5;
 
-/** Centred moving average of +-5 samples (1 m grid), shrinking at the array ends. */
-function smooth(a: ArrayLike<number>, i0: number, i1: number): number[] {
-  const out: number[] = [];
-  for (let i = i0; i <= i1; i++) {
-    let sum = 0;
-    let n = 0;
-    for (let j = Math.max(0, i - STEER_SMOOTH_M); j <= Math.min(a.length - 1, i + STEER_SMOOTH_M); j++) { sum += a[j]; n++; }
-    out.push(sum / n);
+/**
+ * The grid indices of a corner in driving order, each with its unwrapped position `u` (metres along the corner's own run).
+ * A corner that wraps over the start line (start > end, #5) runs to the last index and continues at 0; `u` keeps growing across it.
+ */
+function cornerWalk(corner: Corner, last: number): { i: number; u: number }[] {
+  const s = Math.min(Math.round(corner.start_m), last);
+  const e = Math.min(Math.round(corner.end_m), last);
+  const out: { i: number; u: number }[] = [];
+  if (s <= e) {
+    for (let i = s; i <= e; i++) out.push({ i, u: i });
+    return out;
   }
+  for (let i = s; i <= last; i++) out.push({ i, u: i });
+  for (let i = 0; i <= e; i++) out.push({ i, u: i + last });
   return out;
 }
 
-/** Local extrema of the smoothed steering inside [start, end] whose prominence is >= 10 % of the corner's max |smoothed steering|. */
+/** Centred moving average of +-5 samples (1 m grid) at the given indices: shrinks at the array ends, or wraps over them when `wrap`. */
+function smooth(a: ArrayLike<number>, idx: number[], wrap: boolean): number[] {
+  const n = a.length;
+  return idx.map((i) => {
+    let sum = 0;
+    let cnt = 0;
+    for (let d = -STEER_SMOOTH_M; d <= STEER_SMOOTH_M; d++) {
+      let j = i + d;
+      if (wrap) j = ((j % n) + n) % n;
+      else if (j < 0 || j >= n) continue;
+      sum += a[j];
+      cnt++;
+    }
+    return sum / cnt;
+  });
+}
+
+/** Local extrema of the smoothed steering inside [start, end] (start > end: over the start line) whose prominence is >= 10 % of the corner's max |smoothed steering|. */
 export function steeringExtrema(steering: ArrayLike<number>, start: number, end: number): number {
-  const v = smooth(steering, start, end);
+  const last = steering.length - 1;
+  const corner = { start_m: start, end_m: end } as Corner;
+  const v = smooth(steering, cornerWalk(corner, last).map((w) => w.i), start > end);
   const thr = STEER_PROMINENCE * Math.max(...v.map(Math.abs));
   if (!(thr > 0)) return 0;
   let dir = 0;
@@ -78,24 +107,61 @@ export function steeringCorrections(lap: ArrayLike<number>, ref: ArrayLike<numbe
   return Math.max(0, steeringExtrema(lap, start, end) - steeringExtrema(ref, start, end));
 }
 
+const BRAKE_ONSET = 0.1;
+const COAST_PEDAL = 0.05;
+const COAST_MIN_KMH = 50;
+const OVERLAP_PEDAL = 0.1;
+
 export function cornerSide(ch: Signals, corner: Corner): CornerSide {
   const last = ch.speed_kmh.length - 1;
+  const walk = cornerWalk(corner, last);
+  const wraps = corner.start_m > corner.end_m;
+  const apexU = wraps && corner.apex_m <= corner.end_m ? corner.apex_m + last : corner.apex_m;
+  let minK = 0;
+  let peakBrake = 0;
+  let onset: number | null = null;
+  walk.forEach(({ i, u }, k) => {
+    if (ch.speed_kmh[i] < ch.speed_kmh[walk[minK].i]) minK = k;
+    peakBrake = Math.max(peakBrake, ch.brake[i]);
+    if (onset === null && u <= apexU && ch.brake[i] >= BRAKE_ONSET) onset = i;
+  });
+  let pickup: number | null = null;
+  for (let k = minK; k < walk.length; k++) {
+    if (ch.throttle[walk[k].i] >= THROTTLE_PICKUP) { pickup = walk[k].i; break; }
+  }
+  // Time spent per grid step; the step off the last sample (over the start line) reuses the one before it.
+  const dt = (i: number) => (i < last ? ch.t[i + 1] - ch.t[i] : last > 0 ? ch.t[last] - ch.t[last - 1] : 0);
+  let coastS = 0;
+  let overlapS = 0;
+  for (let k = 0; k < walk.length - 1; k++) {
+    const i = walk[k].i;
+    const [thr, brk] = [ch.throttle[i], ch.brake[i]];
+    if (thr < COAST_PEDAL && brk < COAST_PEDAL && ch.speed_kmh[i] > COAST_MIN_KMH) coastS += dt(i);
+    if (thr > OVERLAP_PEDAL && brk > OVERLAP_PEDAL) overlapS += dt(i);
+  }
+  const minIdx = walk[minK].i;
+  return {
+    minSpeed: ch.speed_kmh[minIdx], minIdx, exitSpeed: ch.speed_kmh[walk[walk.length - 1].i], brakeOnset: onset, peakBrake,
+    throttlePickup: pickup, coastS, overlapS,
+    steerExtrema: steeringExtrema(ch.steering, walk[0].i, walk[walk.length - 1].i),
+  };
+}
+
+const r1 = (x: number) => Math.round(x * 10) / 10;
+const r3 = (x: number) => Math.round(x * 1000) / 1000;
+
+const sideMetrics = (s: CornerSide): CornerSideMetrics => ({
+  brake_onset_m: s.brakeOnset, peak_brake: r3(s.peakBrake), min_speed_kmh: r1(s.minSpeed), min_speed_m: s.minIdx,
+  throttle_pickup_m: s.throttlePickup, exit_speed_kmh: r1(s.exitSpeed), coast_s: r3(s.coastS), overlap_s: r3(s.overlapS),
+  steer_corrections: s.steerExtrema,
+});
+
+/** Change of a grid series between a corner's start and end; over the start line for a wrapping corner. */
+export function cornerChange(series: ArrayLike<number>, corner: Corner): number {
+  const last = series.length - 1;
   const s = Math.min(Math.round(corner.start_m), last);
   const e = Math.min(Math.round(corner.end_m), last);
-  let minIdx = s;
-  let peakBrake = 0;
-  for (let i = s; i <= e; i++) {
-    if (ch.speed_kmh[i] < ch.speed_kmh[minIdx]) minIdx = i;
-    peakBrake = Math.max(peakBrake, ch.brake[i]);
-  }
-  let pickup: number | null = null;
-  for (let i = minIdx; i <= e; i++) {
-    if (ch.throttle[i] >= THROTTLE_PICKUP) { pickup = i; break; }
-  }
-  return {
-    minSpeed: ch.speed_kmh[minIdx], minIdx, exitSpeed: ch.speed_kmh[e], brakeOnset: brakeOnset(ch.brake, s, corner.apex_m),
-    peakBrake, throttlePickup: pickup, steerExtrema: steeringExtrema(ch.steering, s, e),
-  };
+  return s <= e ? series[e] - series[s] : series[last] - series[s] + series[e] - series[0];
 }
 
 export const isUsable = (l: Landmark) => l.confidence !== "low";
@@ -103,12 +169,12 @@ export const isUsable = (l: Landmark) => l.confidence !== "low";
 export function cornerComparison(
   corner: Corner, lap: Signals, ref: Signals, delta: ArrayLike<number>, landmarks: Landmark[],
 ): CornerComparison {
-  const last = delta.length - 1;
-  const s = Math.min(Math.round(corner.start_m), last);
-  const e = Math.min(Math.round(corner.end_m), last);
+  const d = cornerChange(delta, corner);
+  const [lapSide, refSide] = [cornerSide(lap, corner), cornerSide(ref, corner)];
   return {
-    corner, delta: delta[e] - delta[s], lap: cornerSide(lap, corner), ref: cornerSide(ref, corner),
+    corner, delta: d, lap: lapSide, ref: refSide,
     anchors: landmarks.filter((l) => l.corner_id === corner.id && isUsable(l)),
+    metrics: { corner_id: corner.id, delta_s: r3(d), lap: sideMetrics(lapSide), ref: sideMetrics(refSide) },
   };
 }
 
@@ -138,13 +204,14 @@ function apexDesc(pos: number, apex: number): string {
   return `${offsetPhrase(pos - apex)} the apex`;
 }
 
-function causeOf(c: CornerComparison): Cause {
-  const { lap, ref } = c;
+/** The dominant cause of a corner's loss, scored from the same `CornerMetrics` the API serves. */
+export function causeOf(m: CornerMetrics): Cause {
+  const { lap, ref } = m;
   const score: [Cause, number][] = [
-    ["brake", lap.brakeOnset !== null && ref.brakeOnset !== null ? Math.abs(lap.brakeOnset - ref.brakeOnset) / 15 : 0],
-    ["throttle", lap.throttlePickup !== null && ref.throttlePickup !== null ? (lap.throttlePickup - ref.throttlePickup) / 15 : 0],
-    ["steering", (lap.steerExtrema - ref.steerExtrema) / 2],
-    ["speed", (ref.minSpeed - lap.minSpeed) / 3],
+    ["brake", lap.brake_onset_m !== null && ref.brake_onset_m !== null ? Math.abs(lap.brake_onset_m - ref.brake_onset_m) / 15 : 0],
+    ["throttle", lap.throttle_pickup_m !== null && ref.throttle_pickup_m !== null ? (lap.throttle_pickup_m - ref.throttle_pickup_m) / 15 : 0],
+    ["steering", (lap.steer_corrections - ref.steer_corrections) / 2],
+    ["speed", (ref.min_speed_kmh - lap.min_speed_kmh) / 3],
   ];
   let best: [Cause, number] = ["speed", 0];
   for (const s of score) if (s[1] >= 1 && s[1] > best[1]) best = s;
@@ -201,7 +268,7 @@ export function narrate(c: CornerComparison, kind: "issue" | "minor" | "strength
     };
   }
 
-  const cause = causeOf(c);
+  const cause = causeOf(c.metrics);
   const slower = ref.minSpeed - lap.minSpeed >= 1;
   const speedClause = slower ? `, and the minimum speed is ${speeds}` : "";
   const exitClause = lap.exitSpeed < ref.exitSpeed - 1 ? `, and you leave at ${n0(lap.exitSpeed)} km/h against ${n0(ref.exitSpeed)}` : "";

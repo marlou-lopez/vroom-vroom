@@ -474,7 +474,10 @@ export function createMockApi(opts: MockOptions = {}): Api {
       ref_car_id: ref.meta.car_id,
       lap_car_name: sessionOf(lap.meta.session_id).car_name,
       ref_car_name: sessionOf(ref.meta.session_id).car_name,
+      corners: [],
     };
+    // Same numbers the mock coach reads: cornerComparison builds them (the landmark list is not needed for the metrics).
+    res.corners = mapOf(lap.meta.track_id).corners.map((c) => cornerComparison(c, lapCh, refCh, res.delta, []).metrics);
     compareCache.set(key, res);
     return res;
   };
