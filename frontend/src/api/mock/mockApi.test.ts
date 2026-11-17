@@ -32,6 +32,15 @@ async function setup() {
   return { api, sessions, spaNov3, laps, lap };
 }
 
+describe("lap by id", () => {
+  it("returns a known lap with its reference flag, and unknown_lap otherwise", async () => {
+    const { api, laps } = await setup();
+    const ref = laps.find((l) => l.is_reference)!;
+    expect(await api.lap(ref.lap_id)).toEqual(ref);
+    expect((await rejection(api.lap("nope"))).code).toBe("unknown_lap");
+  });
+});
+
 async function rejection(p: Promise<unknown>): Promise<ApiError> {
   try {
     await p;

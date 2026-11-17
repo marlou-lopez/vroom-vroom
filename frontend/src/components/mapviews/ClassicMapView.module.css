@@ -5,6 +5,8 @@
 
 .base { fill: none; stroke: var(--color-line); stroke-width: 6; stroke-linejoin: round; stroke-linecap: round; }
 .cornerNow { fill: none; stroke: var(--color-you); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-opacity: 0.25; }
+.lockup { fill: none; stroke: var(--color-lockup); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.wheelspin { fill: none; stroke: var(--color-wheelspin); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
 .refDot { fill: var(--color-bg); stroke: var(--color-comparison); stroke-width: 1.4; }
 .youDot { fill: var(--color-you); stroke: var(--color-bg); stroke-width: 1; }
 .map[data-near="true"] .youDot, .map[data-dragging="true"] .youDot { stroke: var(--color-text); }

@@ -2,14 +2,11 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
-import { AppShell } from "../components/AppShell";
+import { AppRoutes } from "../AppRoutes";
 import { createTestClient, newestBest, setupMockServer, spaPairs } from "../test/mockServer";
 import { formatLapTime } from "../lib/format";
-import { SessionsPage } from "./SessionsPage";
-import { TelemetryPage } from "./TelemetryPage";
-import { TracksPage } from "./TracksPage";
 
 // uPlot draws on a canvas 2D context, which jsdom doesn't have. Stub just the chart class.
 vi.mock("uplot", () => ({
@@ -29,24 +26,26 @@ vi.mock("uplot", () => ({
 
 const mock = setupMockServer();
 
-/** The same tree as `App`, but with a MemoryRouter and a test QueryClient. */
+/** The real route table, with a MemoryRouter and a test QueryClient. */
 function renderApp(path: string) {
   return render(
     <QueryClientProvider client={createTestClient()}>
       <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={<TelemetryPage />} />
-            <Route path="sessions" element={<SessionsPage />} />
-            <Route path="tracks" element={<TracksPage />} />
-          </Route>
-        </Routes>
+        <AppRoutes />
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
 describe("pages", () => {
+  it("an unknown path renders Page not found inside the shell", () => {
+    renderApp("/no-such-page");
+    expect(screen.getByRole("heading", { name: "Page not found" })).toBeTruthy();
+    expect(screen.getByText("/no-such-page")).toBeTruthy();
+    expect(screen.getByRole("navigation", { name: "Main" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Back to Telemetry" }).getAttribute("href")).toBe("/");
+  });
+
   it("Telemetry loads the default lap, with no error", async () => {
     const { best } = await newestBest(mock.engine());
     renderApp("/");
@@ -148,5 +147,32 @@ describe("pages", () => {
     await waitFor(() => expect(inList()).toHaveLength(1));
     fireEvent.click(svg.querySelector(`path[aria-label="${first.textContent}"]`)!);
     await waitFor(() => expect(inList()).toHaveLength(0));
+  });
+  it("Tracks adds a landmark by keyboard path: button, prefilled apex distance, editable distance", async () => {
+    renderApp("/tracks");
+    const svg = await screen.findByRole("img", { name: "Track map" });
+    const names = Array.from(svg.querySelectorAll("text"));
+    const target = names[1];
+    // Select a corner via its table button (keyboard reachable).
+    const table = within(await screen.findByRole("region", { name: "Corners" }));
+    const nameBtn = table.getAllByRole("button").find((b) => b.textContent?.replace(" ~", "") === target.textContent)!;
+    const apex = Number(nameBtn.closest("tr")!.querySelectorAll("td")[3].textContent?.replace(" m", ""));
+    fireEvent.click(nameBtn);
+
+    const panel = within(screen.getByRole("region", { name: "Landmarks" }));
+    fireEvent.click(panel.getByRole("button", { name: "Add landmark" }));
+    const form = within(await screen.findByRole("form", { name: "Add landmark" }));
+    const dist = form.getByRole("spinbutton", { name: "Distance (m)" }) as HTMLInputElement;
+    expect(Number(dist.value)).toBe(apex);
+    expect((form.getByRole("combobox", { name: "Corner" }) as HTMLSelectElement).selectedOptions[0].textContent).toBe(target.textContent);
+
+    fireEvent.change(dist, { target: { value: "" } });
+    expect((form.getByRole("button", { name: "Add" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(dist, { target: { value: String(apex + 5) } });
+    fireEvent.change(form.getByRole("textbox", { name: "Label" }), { target: { value: "kbd board" } });
+    fireEvent.click(form.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(screen.queryByRole("form", { name: "Add landmark" })).toBeNull());
+    await waitFor(() => expect(panel.getByText("kbd board")).toBeTruthy());
+    expect(panel.getByText(new RegExp(`${apex + 5} m`))).toBeTruthy();
   });
 });

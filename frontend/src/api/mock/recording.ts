@@ -23,6 +23,13 @@ export interface RecordingLap {
   path_lateral: number[];
   track_edge: number[];
   kerb: number[];
+  /** Driver aids and tyre slip (vroom-pnw.14); absent in recordings made before the extractor wrote them. */
+  abs?: number[];
+  tc?: number[];
+  slip_fl?: number[];
+  slip_fr?: number[];
+  slip_rl?: number[];
+  slip_rr?: number[];
 }
 
 export interface Recording {
@@ -68,10 +75,11 @@ export function fetchRecording(track: RecordingTrack): Promise<Recording> {
   return hit;
 }
 
-/** All 19 grid channels for one recorded lap. yaw_rate is derived from lateral g and speed; suspension is not recorded (zeros). */
+/** All 25 grid channels for one recorded lap. yaw_rate is derived from lateral g and speed; suspension is not recorded (zeros). A recording without aid channels gets no aids and slip 1. */
 export function lapToTrace(lap: RecordingLap): Trace {
   const n = lap.t.length;
   const zeros = new Array<number>(n).fill(0);
+  const ones = new Array<number>(n).fill(1);
   const yaw = lap.g_lat.map((g, i) => (g * 9.81) / Math.max(lap.speed_kmh[i] / 3.6, 5));
   return {
     distance: Array.from({ length: n }, (_, i) => i),
@@ -80,6 +88,8 @@ export function lapToTrace(lap: RecordingLap): Trace {
       gear: lap.gear, rpm: lap.rpm, g_lat: lap.g_lat, g_long: lap.g_long, yaw_rate: yaw,
       lat: lap.lat, lon: lap.lon, path_lateral: lap.path_lateral, track_edge: lap.track_edge, kerb: lap.kerb,
       susp_fl: zeros, susp_fr: zeros, susp_rl: zeros, susp_rr: zeros,
+      abs: lap.abs ?? zeros, tc: lap.tc ?? zeros,
+      slip_fl: lap.slip_fl ?? ones, slip_fr: lap.slip_fr ?? ones, slip_rl: lap.slip_rl ?? ones, slip_rr: lap.slip_rr ?? ones,
     },
   };
 }

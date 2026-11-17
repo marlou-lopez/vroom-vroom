@@ -21,7 +21,8 @@ function channels(n: number, lat: number[], lon: number[], t: number[]) {
   const zeros = () => new Array<number>(n).fill(0);
   return { t, lat, lon, speed_kmh: zeros(), throttle: zeros(), brake: zeros(), steering: zeros(), gear: zeros(), rpm: zeros(),
     g_lat: zeros(), g_long: zeros(), yaw_rate: zeros(), path_lateral: zeros(), track_edge: zeros(), kerb: zeros(),
-    susp_fl: zeros(), susp_fr: zeros(), susp_rl: zeros(), susp_rr: zeros() };
+    susp_fl: zeros(), susp_fr: zeros(), susp_rl: zeros(), susp_rr: zeros(),
+    abs: zeros(), tc: zeros(), slip_fl: new Array<number>(n).fill(1), slip_fr: new Array<number>(n).fill(1), slip_rl: new Array<number>(n).fill(1), slip_rr: new Array<number>(n).fill(1) };
 }
 
 function makeCmp(nLap = 1000, nRef = 999) {
@@ -37,6 +38,24 @@ function makeCmp(nLap = 1000, nRef = 999) {
     lap: channels(nLap, a.lat, a.lon, tLap), ref: channels(nRef, b.lat, b.lon, tRef),
   } as unknown as CompareResponse;
 }
+
+describe("buildScene slip marks", () => {
+  it("has none for a lap without lockup or wheelspin", () => {
+    const s = buildScene(makeCmp());
+    expect(s.slip).toEqual({ lockup: [], wheelspin: [] });
+  });
+  it("slices the lap line over each lockup and wheelspin run, one metre longer than the run", () => {
+    const cmp = makeCmp();
+    for (let i = 100; i <= 104; i++) { cmp.lap.brake[i] = 1; cmp.lap.slip_fl[i] = 0.8; }
+    for (let i = 300; i <= 301; i++) { cmp.lap.throttle[i] = 1; cmp.lap.slip_rl[i] = 1.2; }
+    const s = buildScene(cmp);
+    expect(s.slip.lockup).toHaveLength(1);
+    expect(s.slip.lockup[0].x).toHaveLength(6);
+    expect(s.slip.lockup[0].x[0]).toBe(s.lap.x[100]);
+    expect(s.slip.wheelspin).toHaveLength(1);
+    expect(s.slip.wheelspin[0].y[0]).toBe(s.lap.y[300]);
+  });
+});
 
 describe("buildScene", () => {
   const cmp = makeCmp();

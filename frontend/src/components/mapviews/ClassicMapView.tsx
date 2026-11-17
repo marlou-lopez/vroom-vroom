@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState, type PointerEvent } from "react";
+import { aidRuns, mapSpan } from "../../lib/driverAids";
 import { MAP_H, MAP_PAD, MAP_W } from "../../lib/model";
 import { distanceAtTime, timeAtDistance } from "../../lib/playback";
-import { cornerAt, MAP_HIT_PX, pointAtDistance, SCRUB_WINDOW_M, scrubTarget, cornerSegmentPath } from "../../lib/trackmap";
+import { cornerAt, MAP_HIT_PX, pointAtDistance, SCRUB_WINDOW_M, scrubTarget, cornerSegmentPath, segmentPath } from "../../lib/trackmap";
 import { usePlayback, usePlaybackStore } from "../../state/playback";
 import { MapBadges, MapSegments } from "../AnnotationOverlays";
 import type { TrackViewProps } from "./types";
@@ -48,6 +49,14 @@ export function ClassicMapView({ model, trackMap, annotations, handlers }: Track
     if (!c) return "";
     return cornerSegmentPath(proj, cmp.distance, c.start_m, c.end_m);
   }, [trackMap, cornerId, proj, cmp.distance]);
+
+  // Where a wheel locked under braking or spun on throttle (vroom-pnw.14): the same marks as on the strips, tinting the line.
+  const slipPaths = useMemo(() => {
+    const runs = aidRuns(cmp.lap);
+    const last = cmp.distance.length - 1;
+    const path = (rs: typeof runs.lockup) => rs.map((r) => segmentPath(proj, cmp.distance, ...mapSpan(r, last))).join("");
+    return { lockup: path(runs.lockup), wheelspin: path(runs.wheelspin) };
+  }, [cmp.lap, cmp.distance, proj]);
 
   const toMap = (e: PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
@@ -139,6 +148,8 @@ export function ClassicMapView({ model, trackMap, annotations, handlers }: Track
     >
       <path d={model.mapPath} className={styles.base} />
       {cornerPath && <path d={cornerPath} className={styles.cornerNow} />}
+      {slipPaths.wheelspin && <path d={slipPaths.wheelspin} className={styles.wheelspin} />}
+      {slipPaths.lockup && <path d={slipPaths.lockup} className={styles.lockup} />}
       <MapSegments annotations={annotations} model={model} />
       {ghost && !dragging && (
         <>
