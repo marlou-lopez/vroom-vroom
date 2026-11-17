@@ -2,7 +2,7 @@
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
-  CoachRequest, CoachResult, CoachResults, GridChannel, Landmark, LandmarkPatch, LapPatch, TrackMap,
+  CoachRequest, CoachResult, CoachResults, GridChannel, LandmarkPatch, NewLandmark, LapPatch, TrackMap,
 } from "./types";
 
 export const qk = {
@@ -128,7 +128,7 @@ export function useSetFindingReviewed(lap: string | null, ref: string | null) {
 }
 
 export type LandmarkOp =
-  | { op: "add"; landmark: Landmark }
+  | { op: "add"; landmark: NewLandmark }
   | { op: "patch"; landmarkId: string; patch: LandmarkPatch }
   | { op: "delete"; landmarkId: string };
 

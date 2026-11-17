@@ -217,6 +217,9 @@ export interface Landmark {
   confidence: LandmarkConfidence;
 }
 
+/** A hand-added landmark. The server assigns the id and marks it confirmed. */
+export type NewLandmark = Omit<Landmark, "id" | "confidence">;
+
 export interface LandmarkPatch {
   confirm?: boolean;
   distance_m?: number;

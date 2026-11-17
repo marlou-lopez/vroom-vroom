@@ -691,8 +691,12 @@ export function createMockApi(opts: MockOptions = {}): Api {
     },
     async addLandmark(trackId, landmark) {
       const m = mapOf(trackId);
-      const id = m.landmarks.some((l) => l.id === landmark.id) ? `lm-${++counter}` : landmark.id;
-      m.landmarks.push({ ...clone(landmark), id, confidence: "confirmed" });
+      let id: string;
+      do id = `lm-${++counter}`; while (m.landmarks.some((l) => l.id === id));
+      m.landmarks.push({
+        label: landmark.label, kind: landmark.kind, distance_m: landmark.distance_m, corner_id: landmark.corner_id,
+        id, confidence: "confirmed",
+      });
       return clone(m);
     },
     async patchLandmark(trackId, landmarkId, patch) {
