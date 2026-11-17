@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { balanceEnabled, balanceForApi, cornerUndersteer, runsForApi, balanceRuns, balanceTrace, fitBalance, smooth, type BalanceChannels } from "./carBalance";
+import { balanceFromContract, balanceEnabled, balanceForApi, cornerUndersteer, runsForApi, balanceRuns, balanceTrace, fitBalance, smooth, type BalanceChannels } from "./carBalance";
 
 const RANGE = 540;
 // A car whose steering follows theta = A*kappa + B*kappa*v^2 exactly (deg of wheel, left +).
@@ -94,5 +94,21 @@ describe("API shapes", () => {
   it("rounds the trace, nulls NaN and names run bounds in metres", () => {
     expect(balanceForApi([1.234, NaN])).toEqual([1.2, null]);
     expect(runsForApi([{ start: 3, end: 9 }])).toEqual([{ start_m: 3, end_m: 9 }]);
+  });
+});
+
+describe("balanceFromContract", () => {
+  const cmp = {
+    lap_balance: [null, 6, 7], ref_balance: null,
+    lap_understeer_runs: [{ start_m: 1, end_m: 2 }], lap_oversteer_runs: [{ start_m: 0, end_m: 1 }],
+  };
+  it("reads the trace and understeer runs from the contract, oversteer only for the preview", () => {
+    const off = balanceFromContract(cmp, false)!;
+    expect(off.balance).toEqual([null, 6, 7]);
+    expect(off.runs).toEqual({ understeer: [{ start: 1, end: 2 }], oversteer: [] });
+    expect(balanceFromContract(cmp, true)!.runs.oversteer).toEqual([{ start: 0, end: 1 }]);
+  });
+  it("is null when the lap has no balance", () => {
+    expect(balanceFromContract({ ...cmp, lap_balance: null }, true)).toBeNull();
   });
 });

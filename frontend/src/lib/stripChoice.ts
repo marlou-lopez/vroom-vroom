@@ -12,8 +12,8 @@ export const STRIP_OPTIONS = [
   { id: "g_long", label: "Longitudinal g" },
   { id: "suspension", label: "Suspension" },
   { id: "slip", label: "Tyre slip" },
-  /** Only offered with `?balance` (experimental, vroom-pnw.15). */
-  { id: "balance", label: "Balance (experimental)" },
+  /** Offered when the lap has a balance (API `lap_balance`, vroom-bi4.6). */
+  { id: "balance", label: "Balance (understeer, exp)" },
 ] as const;
 
 export type StripId = (typeof STRIP_OPTIONS)[number]["id"];

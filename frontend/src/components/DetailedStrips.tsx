@@ -4,7 +4,7 @@ import "uplot/dist/uPlot.min.css";
 import type { CompareResponse, TrackGeometry } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import { aidRuns, type AidRuns, type Run } from "../lib/driverAids";
-import { balanceEnabled, compareBalance, type BalanceRuns } from "../lib/carBalance";
+import { BALANCE_HINT, balanceEnabled, balanceFromContract, type BalanceRuns } from "../lib/carBalance";
 import { offTrackRuns } from "../lib/offTrack";
 import { cleanGear, gearName, gearShifts, shiftLabel, type Shift } from "../lib/gearShifts";
 import { formatDelta } from "../lib/format";
@@ -51,6 +51,8 @@ interface Spec {
   label: string;
   /** Marked "exp" next to the label. */
   experimental?: boolean;
+  /** Tooltip on the label. */
+  hint?: string;
   yRange: Range;
   data: Num[];
   series: uPlot.Series[];
@@ -60,7 +62,7 @@ interface Spec {
   aids?: { runs: AidRuns; throttle: number[]; brake: number[] };
   /** Where two or more wheels were off the track, as a band over the whole strip (vroom-pnw.24). */
   off: { runs: Run[]; color: string };
-  /** Experimental under/oversteer marks of this lap on a trace (vroom-pnw.15), only with `?balance`. */
+  /** Experimental under/oversteer marks of this lap on a trace (vroom-pnw.15), understeer always, oversteer only with `?balance` (from the API's runs). */
   balance?: { runs: BalanceRuns; values: Num };
   /** Where the comparison lap is stitched from another lap (the ideal lap's segment joins, vroom-bi4.3); a dashed line over the whole strip. Empty for a real lap. */
   joins: number[];
@@ -86,9 +88,7 @@ function gearRange(...gears: number[][]): Range {
 }
 
 function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapValid: boolean, balanceOn: boolean): Spec[] {
-  const bal = balanceOn
-    ? compareBalance(cmp.lap, cmp.ref, cmp.lap_steering_range_deg, cmp.ref_steering_range_deg, cmp.lap_car_id === cmp.ref_car_id)
-    : null;
+  const bal = balanceFromContract(cmp, balanceOn);
   const off = { runs: offTrackRuns(cmp.lap), color: lapValid ? colors.closeCall : colors.offTrack };
   const joins = cmp.ref_joins_m;
   const r = stripRanges(cmp);
@@ -125,8 +125,8 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       id: "steering", label: "STEERING", off, joins, yRange: r.steering,
       data: [cmp.ref.steering, cmp.lap.steering],
       series: [line(refStroke, 1.2), line(colors.you, 1.6)],
-      // With ?balance the steering strip carries the experimental under/oversteer marks, and says so.
-      ...(bal?.lap ? { experimental: true, balance: { runs: bal.lap.runs, values: cmp.lap.steering } } : {}),
+      // The steering strip carries the understeer marks; with ?balance also the experimental oversteer ones, and says so.
+      ...(bal ? { balance: { runs: bal.runs, values: cmp.lap.steering }, hint: BALANCE_HINT, ...(balanceOn ? { experimental: true } : {}) } : {}),
       value: (c, _t, iy) => formatSteering(c.lap.steering[iy], c.lap_steering_range_deg),
     },
     {
@@ -185,19 +185,18 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       value: (_c, _t, iy) => wheelValues(slip, iy, 2),
     },
   );
-  if (bal?.lap) {
-    // Experimental (vroom-pnw.15): yaw rate the steering asks for minus the path's, deg/s; > 0 understeer, < 0 oversteer.
-    const nul = (v: number[]) => v.map((x) => (Number.isFinite(x) ? x : null));
-    const lapB = nul(bal.lap.balance);
-    const refB = bal.ref ? nul(bal.ref.balance) : lapB.map(() => null);
+  if (bal) {
+    // Yaw rate the steering asks for minus the path's, deg/s; > 0 understeer, < 0 oversteer (experimental), from the API.
+    const lapB = bal.balance;
+    const refB = bal.ref ?? lapB.map(() => null);
     const finite = (v: Num) => v.filter((x): x is number => x !== null);
     const word = (b: number | null) => (b === null ? "–" : `${b > 0 ? "US" : "OS"} ${Math.abs(b).toFixed(1)}`);
     specs.push({
-      id: "balance", label: "BALANCE (US + / OS −, °/s)", off, joins, experimental: true, zeroLine: true,
+      id: "balance", label: "BALANCE (US + / OS −, °/s)", off, joins, experimental: true, hint: BALANCE_HINT, zeroLine: true,
       // Capped: a spin or a kerb strike reads 40+ deg/s and would flatten the rest.
       yRange: ((m) => [-m, m] as Range)(Math.min(BALANCE_MAX_DEG_S, symmetricRange(2, finite(lapB), finite(refB))[1])),
       data: [refB, lapB], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
-      balance: { runs: bal.lap.runs, values: lapB },
+      balance: { runs: bal.runs, values: lapB },
       value: (c, tau, iy) => `${word(lapB[iy])} / ${word(refB[indexAtTime(c.ref.t, tau)])}`,
     });
   }
@@ -684,7 +683,7 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
       onKeyDown={onKeyDown}
     >
       <StripPicker choice={choice} available={allSpecs.map((x) => x.id)} onChange={changeChoice} />
-      {specList.map(({ id, label: name, experimental }, i) => (
+      {specList.map(({ id, label: name, experimental, hint }, i) => (
         <div key={id} ref={(el) => void (frames.current[i] = el)} className={styles.strip}>
           <div ref={(el) => void (hosts.current[i] = el)} className={styles.host} />
           <div aria-hidden="true" ref={(el) => void (playheads.current[i] = el)} className={styles.playhead} />
@@ -693,7 +692,7 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
               <ChipLayer annotations={annotations} distance={cmp.distance} h={handlers} layerRef={chipLayer} />
             </div>
           )}
-          <div className={styles.label}>
+          <div className={styles.label} title={hint}>
             {name}
             {experimental && <span className={styles.exp} title="Experimental">exp</span>}
           </div>
