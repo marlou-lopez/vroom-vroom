@@ -22,7 +22,7 @@ function channels(n: number, lat: number[], lon: number[], t: number[]) {
   return { t, lat, lon, speed_kmh: zeros(), throttle: zeros(), brake: zeros(), steering: zeros(), gear: zeros(), rpm: zeros(),
     g_lat: zeros(), g_long: zeros(), yaw_rate: zeros(), path_lateral: zeros(), track_edge: zeros(), kerb: zeros(),
     susp_fl: zeros(), susp_fr: zeros(), susp_rl: zeros(), susp_rr: zeros(),
-    abs: zeros(), tc: zeros(), slip_fl: new Array<number>(n).fill(1), slip_fr: new Array<number>(n).fill(1), slip_rl: new Array<number>(n).fill(1), slip_rr: new Array<number>(n).fill(1) };
+    abs: zeros(), tc: zeros(), slip_fl: new Array<number>(n).fill(1), slip_fr: new Array<number>(n).fill(1), slip_rl: new Array<number>(n).fill(1), slip_rr: new Array<number>(n).fill(1), wheels_off: zeros() };
 }
 
 function makeCmp(nLap = 1000, nRef = 999) {
@@ -54,6 +54,24 @@ describe("buildScene slip marks", () => {
     expect(s.slip.lockup[0].x[0]).toBe(s.lap.x[100]);
     expect(s.slip.wheelspin).toHaveLength(1);
     expect(s.slip.wheelspin[0].y[0]).toBe(s.lap.y[300]);
+  });
+});
+
+describe("buildScene wheels-off marks (vroom-pnw.24)", () => {
+  it("has none for a lap that stays on the track, and ignores a single wheel", () => {
+    const cmp = makeCmp();
+    for (let i = 50; i < 80; i++) cmp.lap.wheels_off[i] = 1;
+    expect(buildScene(cmp).offTrack).toEqual({ runs: [], invalid: false });
+  });
+  it("slices the lap line over each stretch with two or more wheels off, grey on a valid lap and red on an invalid one", () => {
+    const cmp = makeCmp();
+    for (let i = 200; i <= 209; i++) cmp.lap.wheels_off[i] = 2;
+    const valid = buildScene(cmp, { source: "lateral", gpsHalf: 4, lapValid: true });
+    expect(valid.offTrack.invalid).toBe(false);
+    expect(valid.offTrack.runs).toHaveLength(1);
+    expect(valid.offTrack.runs[0].x).toHaveLength(11);
+    expect(valid.offTrack.runs[0].x[0]).toBe(valid.lap.x[200]);
+    expect(buildScene(cmp, { source: "lateral", gpsHalf: 4, lapValid: false }).offTrack.invalid).toBe(true);
   });
 });
 

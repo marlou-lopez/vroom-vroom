@@ -7,6 +7,8 @@
 .cornerNow { fill: none; stroke: var(--color-you); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; stroke-opacity: 0.25; }
 .lockup { fill: none; stroke: var(--color-lockup); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
 .wheelspin { fill: none; stroke: var(--color-wheelspin); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.offTrack { fill: none; stroke: var(--color-off-track); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; }
+.closeCall { fill: none; stroke: var(--color-close-call); stroke-width: 10; stroke-linecap: round; stroke-linejoin: round; stroke-opacity: 0.7; }
 .refDot { fill: var(--color-bg); stroke: var(--color-comparison); stroke-width: 1.4; }
 .youDot { fill: var(--color-you); stroke: var(--color-bg); stroke-width: 1; }
 .map[data-near="true"] .youDot, .map[data-dragging="true"] .youDot { stroke: var(--color-text); }

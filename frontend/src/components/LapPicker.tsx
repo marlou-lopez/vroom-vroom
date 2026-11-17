@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { usePatchLap } from "../api/queries";
 import { effectiveValid, type CompareCandidate, type LapWithRef, type SessionMeta } from "../api/types";
 import { formatLapTime, formatShortDate } from "../lib/format";
+import { SetupChip } from "./SetupChip";
 import { cx } from "../lib/cx";
 import { colors } from "../theme";
 import styles from "./LapPicker.module.css";
@@ -18,6 +19,8 @@ export interface LapPickerProps {
   warning: string | null;
   /** `compare-candidates` for `lap` (loaded by the page so it can also name the comparison lap). */
   candidates: CompareCandidate[];
+  /** For an invalid lap: where its wheels likely left the track, e.g. "invalid: Raidillon exit?" (a guess: LMU records no invalidation event). */
+  invalidHint?: string | null;
   onSelectLap(lapId: string): void;
   /** `null` selects the track/car reference. */
   onSelectRef(lapId: string | null): void;
@@ -33,7 +36,7 @@ function Badge({ children, color, title }: { children: ReactNode; color: string;
   );
 }
 
-export function LapPicker({ session, laps, lap, refLapId, warning, candidates, onSelectLap, onSelectRef }: LapPickerProps) {
+export function LapPicker({ session, laps, lap, refLapId, warning, candidates, invalidHint, onSelectLap, onSelectRef }: LapPickerProps) {
   const [validOnly, setValidOnly] = useState(false);
   const lapId = lap.lap_id;
 
@@ -55,7 +58,9 @@ export function LapPicker({ session, laps, lap, refLapId, warning, candidates, o
           <DropdownMenu.Trigger className={styles.trigger}>
             <span className={styles.you}>
               ● {lapText(lap)}
-              {!effectiveValid(lap) && <span className={styles.invalid}> invalid</span>} ▾
+              {!effectiveValid(lap) && (
+                <span className={styles.invalid} title={invalidHint ? "A guess: the first place two wheels were on grass or gravel" : undefined}> {invalidHint ?? "invalid"}</span>
+              )} ▾
             </span>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
@@ -138,6 +143,7 @@ export function LapPicker({ session, laps, lap, refLapId, warning, candidates, o
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
         {warning && <Badge color={colors.minor} title={warning}>DIFFERENT CAR</Badge>}
+        {!warning && <SetupChip lapSessionId={session.session_id} laps={laps} refLapId={refLapId} />}
       </div>
     </>
   );

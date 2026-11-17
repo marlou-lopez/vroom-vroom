@@ -50,3 +50,25 @@ describe("LapPicker manual validity", () => {
     expect(screen.queryByRole("menuitem", { name: "Reset to automatic" })).toBeNull();
   });
 });
+
+describe("LapPicker invalid hint (vroom-pnw.24)", () => {
+  const session = { track_name: "T", car_name: "C", started_at: "2026-11-03T10:00:00Z" } as never;
+  const lap = (valid: boolean) => ({ lap_id: "l1", lap_no: 5, lap_time_s: 0, kind: "flying", valid, valid_override: null, is_reference: false, pinned_reference: false }) as never;
+  const picker = (valid: boolean, hint?: string | null) => (
+    <LapPicker session={session} laps={[lap(valid)]} lap={lap(valid)} refLapId={null} warning={null} candidates={[]} invalidHint={hint} onSelectLap={() => {}} onSelectRef={() => {}} />
+  );
+
+  it("shows where an invalid lap likely went wrong, as a guess", () => {
+    const { wrapper } = createQueryWrapper();
+    render(picker(false, "invalid: Raidillon exit?"), { wrapper });
+    expect(screen.getByText("invalid: Raidillon exit?")).toBeTruthy();
+  });
+  it("falls back to plain 'invalid' without a hint, and shows nothing on a valid lap", () => {
+    const { wrapper } = createQueryWrapper();
+    const { unmount } = render(picker(false, null), { wrapper });
+    expect(screen.getByText("invalid")).toBeTruthy();
+    unmount();
+    render(picker(true, "invalid: Raidillon exit?"), { wrapper });
+    expect(screen.queryByText(/invalid/)).toBeNull();
+  });
+});

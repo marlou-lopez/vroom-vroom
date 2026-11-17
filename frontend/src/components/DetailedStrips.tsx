@@ -1,17 +1,20 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import type { CompareResponse, TrackGeometry } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import { aidRuns, type AidRuns, type Run } from "../lib/driverAids";
+import { offTrackRuns } from "../lib/offTrack";
 import { cleanGear, gearName, gearShifts, shiftLabel, type Shift } from "../lib/gearShifts";
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
-import { chipLayerGeometry, cornerBands, clipBand, elevationRange, stripDistanceAt, stripRanges, stripScrubTarget, stripWindow, withAlpha, type Range } from "../lib/strips";
+import { chipLayerGeometry, cornerBands, clipBand, elevationRange, paddedRange, stripDistanceAt, stripRanges, symmetricRange, stripScrubTarget, stripWindow, withAlpha, type Range } from "../lib/strips";
 import { usePlaybackStore } from "../state/playback";
 import { colors, fonts } from "../theme";
 import styles from "./DetailedStrips.module.css";
+import * as Popover from "@radix-ui/react-popover";
+import { loadStrips, moveStrip, saveStrips, STRIP_OPTIONS, toggleStrip, type StripId } from "../lib/stripChoice";
 import { ChipLayer, type BadgeHandlers } from "./AnnotationOverlays";
 
 export const STRIP_HALF_M = 350;
@@ -37,10 +40,13 @@ export interface DetailedStripsProps {
   geometry: TrackGeometry | null;
   annotations: Annotation[];
   handlers: BadgeHandlers;
+  /** Whether the lap is valid: wheels-off bands are red on an invalid lap, grey close calls on a valid one. Absent = valid. */
+  lapValid?: boolean;
 }
 
 type Num = (number | null)[];
 interface Spec {
+  id: StripId;
   label: string;
   /** Marked "exp" next to the label. */
   experimental?: boolean;
@@ -51,6 +57,8 @@ interface Spec {
   deltaFill?: boolean;
   /** Driver aids and slip marks of this lap, drawn on the pedals strip (vroom-pnw.14). */
   aids?: { runs: AidRuns; throttle: number[]; brake: number[] };
+  /** Where two or more wheels were off the track, as a band over the whole strip (vroom-pnw.24). */
+  off: { runs: Run[]; color: string };
   /** Gear shifts of both laps, marked on the pedals strip (vroom-pnw.12). */
   shifts?: { lap: Shift[]; ref: Shift[] };
   value: (cmp: CompareResponse, tau: number, iy: number) => string;
@@ -72,20 +80,21 @@ function gearRange(...gears: number[][]): Range {
   return Number.isFinite(lo) ? [lo - 0.5, hi + 0.5] : [0.5, 7.5];
 }
 
-function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null): Spec[] {
+function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapValid: boolean): Spec[] {
+  const off = { runs: offTrackRuns(cmp.lap), color: lapValid ? colors.closeCall : colors.offTrack };
   const r = stripRanges(cmp);
   const gl = cleanGear(cmp.lap.gear);
   const gr = cleanGear(cmp.ref.gear);
   const refStroke = withAlpha(colors.comparison, 0.8);
   const specs: Spec[] = [
     {
-      label: "SPEED", yRange: r.speed,
+      id: "speed", label: "SPEED", off, yRange: r.speed,
       data: [cmp.ref.speed_kmh, cmp.lap.speed_kmh],
       series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       value: (c, tau, iy) => `${Math.round(c.lap.speed_kmh[iy])} / ${Math.round(c.ref.speed_kmh[indexAtTime(c.ref.t, tau)])}`,
     },
     {
-      label: "THROTTLE · BRAKE", yRange: r.pedals,
+      id: "pedals", label: "THROTTLE · BRAKE", off, yRange: r.pedals,
       data: [cmp.ref.throttle, cmp.ref.brake, cmp.lap.throttle, cmp.lap.brake],
       series: [
         line(withAlpha(colors.throttle, 0.45), 1.2), line(withAlpha(colors.brake, 0.45), 1.2),
@@ -97,20 +106,20 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null): Spec[
         + (c.lap.abs[iy] ? " · ABS" : "") + (c.lap.tc[iy] ? " · TC" : ""),
     },
     {
-      label: "GEAR", yRange: gearRange(gl, gr),
+      id: "gear", label: "GEAR", off, yRange: gearRange(gl, gr),
       data: [gr, gl],
       series: [stepLine(refStroke, 1.2), stepLine(colors.you, 1.6)],
       value: (c, tau, iy) => `${gearName(gl[iy])} / ${gearName(gr[indexAtTime(c.ref.t, tau)] ?? 0)}`,
     },
     {
       // Plotted on the normalised scale so both cars share one axis; the label uses steeringDisplay units.
-      label: "STEERING", yRange: r.steering,
+      id: "steering", label: "STEERING", off, yRange: r.steering,
       data: [cmp.ref.steering, cmp.lap.steering],
       series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       value: (c, _t, iy) => formatSteering(c.lap.steering[iy], c.lap_steering_range_deg),
     },
     {
-      label: "DELTA", yRange: r.delta,
+      id: "delta", label: "DELTA", off, yRange: r.delta,
       data: [cmp.delta],
       series: [line(colors.textSoft, 1.6)],
       zeroLine: true, deltaFill: true,
@@ -124,12 +133,47 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null): Spec[
     const e = Array.from({ length: n }, (_, i) => track[i] ?? null);
     const m = (v: number | null | undefined) => (v === null || v === undefined ? "–" : v.toFixed(1));
     specs.push({
-      label: "ELEVATION", experimental: true, yRange: elevationRange(e),
+      id: "elevation", label: "ELEVATION", off, experimental: true, yRange: elevationRange(e),
       data: [e],
       series: [line(colors.textSoft, 1.6)],
       value: (_c, _t, iy) => `${m(e[iy])} m`,
     });
   }
+  const { lap, ref } = cmp;
+  const dimmer = (c: string) => withAlpha(c, 0.45);
+  const wheels = ["FL", "FR", "RL", "RR"] as const;
+  const wheelColors = [colors.you, colors.strength, colors.minor, colors.issue];
+  const wheelValues = (a: number[][], iy: number, digits: number) => a.map((w, k) => `${wheels[k]} ${w[iy].toFixed(digits)}`).join(" ");
+  const susp = [lap.susp_fl, lap.susp_fr, lap.susp_rl, lap.susp_rr];
+  const slip = [lap.slip_fl, lap.slip_fr, lap.slip_rl, lap.slip_rr];
+  specs.push(
+    {
+      id: "rpm", label: "RPM", off, yRange: paddedRange(0.05, 1000, lap.rpm, ref.rpm),
+      data: [ref.rpm, lap.rpm], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
+      value: (c, tau, iy) => `${Math.round(c.lap.rpm[iy])} / ${Math.round(c.ref.rpm[indexAtTime(c.ref.t, tau)])}`,
+    },
+    {
+      id: "g_lat", label: "LATERAL G", off, yRange: symmetricRange(0.5, lap.g_lat, ref.g_lat), zeroLine: true,
+      data: [ref.g_lat, lap.g_lat], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
+      value: (c, tau, iy) => `${c.lap.g_lat[iy].toFixed(2)} / ${c.ref.g_lat[indexAtTime(c.ref.t, tau)].toFixed(2)}`,
+    },
+    {
+      id: "g_long", label: "LONGITUDINAL G", off, yRange: symmetricRange(0.5, lap.g_long, ref.g_long), zeroLine: true,
+      data: [ref.g_long, lap.g_long], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
+      value: (c, tau, iy) => `${c.lap.g_long[iy].toFixed(2)} / ${c.ref.g_long[indexAtTime(c.ref.t, tau)].toFixed(2)}`,
+    },
+    {
+      // This lap only: four wheels already fill the strip.
+      id: "suspension", label: "SUSPENSION", off, yRange: paddedRange(0.05, 0.01, ...susp),
+      data: susp, series: wheelColors.map((c) => line(dimmer(c), 1.4)),
+      value: (_c, _t, iy) => wheelValues(susp, iy, 3),
+    },
+    {
+      id: "slip", label: "TYRE SLIP", off, yRange: paddedRange(0.05, 0.4, ...slip, [1]),
+      data: slip, series: wheelColors.map((c) => line(dimmer(c), 1.4)),
+      value: (_c, _t, iy) => wheelValues(slip, iy, 2),
+    },
+  );
   return specs;
 }
 
@@ -157,7 +201,30 @@ function drawBands(u: uPlot, anns: Annotation[]) {
   }
 }
 
+/** A faint band over the full height of a strip where wheels were off the track, with a solid edge line at its start so a short one still shows. */
+function drawOffTrack(u: uPlot, runs: Run[], color: string) {
+  const { ctx, bbox } = u;
+  const xs = u.data[0];
+  const sx = u.scales.x;
+  const lo = sx.min ?? xs[0], hi = sx.max ?? xs[xs.length - 1];
+  const px = (i: number) => bbox.left + u.valToPos(xs[i], "x", true);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
+  ctx.clip();
+  for (const r of runs) {
+    if (xs[r.end] < lo || xs[r.start] > hi) continue;
+    const x0 = px(r.start), x1 = Math.max(px(Math.min(r.end + 1, xs.length - 1)), x0 + uPlot.pxRatio);
+    ctx.fillStyle = withAlpha(color, OFF_BAND_ALPHA);
+    ctx.fillRect(x0, bbox.top, x1 - x0, bbox.height);
+    ctx.fillStyle = withAlpha(color, 0.9);
+    ctx.fillRect(x0, bbox.top, uPlot.pxRatio * 2, bbox.height);
+  }
+  ctx.restore();
+}
+
 const AID_BAND_ALPHA = 0.22;
+const OFF_BAND_ALPHA = 0.18;
 const MARK_PX = 3;
 
 /** Light bands under a trace where an aid was active: from the baseline up to the trace, only over the runs. */
@@ -300,6 +367,7 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
       drawClear: [
         (u) => {
           drawBands(u, annRef.current);
+          drawOffTrack(u, spec.off.runs, spec.off.color);
           if (spec.zeroLine || spec.deltaFill) drawDelta(u, !!spec.zeroLine, !!spec.deltaFill);
           if (spec.aids) {
             drawAidBands(u, spec.aids.runs.abs, spec.aids.brake, colors.brake);
@@ -322,14 +390,61 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
   };
 }
 
+function StripPicker({ choice: stored, available, onChange }: { choice: StripId[]; available: StripId[]; onChange: (next: StripId[]) => void }) {
+  // A stored strip the data cannot draw (elevation on a flat track) stays stored but is not listed; edits keep it at the end.
+  const choice = stored.filter((id) => available.includes(id));
+  const hidden = stored.filter((id) => !available.includes(id));
+  const change = (next: StripId[]) => onChange([...next, ...hidden]);
+  const rest = STRIP_OPTIONS.filter((o) => available.includes(o.id) && !choice.includes(o.id));
+  const label = (id: StripId) => STRIP_OPTIONS.find((o) => o.id === id)!.label;
+  return (
+    <div className={styles.pickerBar}>
+      <Popover.Root>
+        <Popover.Trigger className={styles.pickerButton} aria-label="Choose strips">Strips</Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content className={styles.picker} align="end" sideOffset={4} aria-label="Strips">
+            <ul className={styles.pickerList} aria-label="Shown strips">
+              {choice.map((id, i) => (
+                <li key={id} className={styles.pickerRow}>
+                  <span className={styles.pickerName}>{label(id)}</span>
+                  <button type="button" aria-label={`Move ${label(id)} up`} disabled={i === 0} onClick={() => change(moveStrip(choice, id, -1))}>↑</button>
+                  <button type="button" aria-label={`Move ${label(id)} down`} disabled={i === choice.length - 1} onClick={() => change(moveStrip(choice, id, 1))}>↓</button>
+                  <button type="button" aria-label={`Remove ${label(id)}`} disabled={choice.length === 1} onClick={() => change(toggleStrip(choice, id))}>×</button>
+                </li>
+              ))}
+            </ul>
+            {rest.length > 0 && (
+              <ul className={styles.pickerList} aria-label="Available strips">
+                {rest.map((o) => (
+                  <li key={o.id} className={styles.pickerRow}>
+                    <span className={styles.pickerName}>{o.label}</span>
+                    <button type="button" aria-label={`Add ${o.label}`} onClick={() => change(toggleStrip(choice, o.id))}>+</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    </div>
+  );
+}
+
 /**
  * Five uPlot strips (six when the track has an elevation capture). React renders this once per comparison / annotation set. Per frame, an effect subscribed to
  * the playback store moves each chart's x scale synchronously, the chip layer and the value read-outs imperatively.
  */
-export function DetailedStrips({ model, geometry, annotations, handlers }: DetailedStripsProps) {
+export function DetailedStrips({ model, geometry, annotations, handlers, lapValid = true }: DetailedStripsProps) {
   const store = usePlaybackStore();
   const { cmp } = model;
-  const specList = useMemo(() => buildSpecs(cmp, geometry), [cmp, geometry]);
+  const [choice, setChoice] = useState<StripId[]>(() => loadStrips());
+  const allSpecs = useMemo(() => buildSpecs(cmp, geometry, lapValid), [cmp, geometry, lapValid]);
+  // The chosen strips in the chosen order; one the data cannot draw (elevation on a flat track) is skipped.
+  const specList = useMemo(() => {
+    const picked = choice.flatMap((id) => allSpecs.filter((s) => s.id === id));
+    return picked.length > 0 ? picked : allSpecs.slice(0, 1);
+  }, [choice, allSpecs]);
+  const changeChoice = (next: StripId[]) => { setChoice(next); saveStrips(next); };
   const hosts = useRef<(HTMLDivElement | null)[]>([]);
   const frames = useRef<(HTMLDivElement | null)[]>([]);
   const values = useRef<(HTMLDivElement | null)[]>([]);
@@ -508,8 +623,9 @@ export function DetailedStrips({ model, geometry, annotations, handlers }: Detai
       onClick={onClick}
       onKeyDown={onKeyDown}
     >
-      {specList.map(({ label: name, experimental }, i) => (
-        <div key={name} ref={(el) => void (frames.current[i] = el)} className={styles.strip}>
+      <StripPicker choice={choice} available={allSpecs.map((x) => x.id)} onChange={changeChoice} />
+      {specList.map(({ id, label: name, experimental }, i) => (
+        <div key={id} ref={(el) => void (frames.current[i] = el)} className={styles.strip}>
           <div ref={(el) => void (hosts.current[i] = el)} className={styles.host} />
           <div aria-hidden="true" ref={(el) => void (playheads.current[i] = el)} className={styles.playhead} />
           {i === 0 && (

@@ -91,8 +91,9 @@ before it ships.
 These are already spikes or decision issues in Beads; their outcome may change this spec.
 
 - Settled: real-recording mock JSON stays in git (`vroom-pnw.11`, 2026-11-09), and the procedural 3D track is
-  kept (`vroom-ueg.2`, 2026-11-07; write-ups in `docs/track-views/`).
-- Whether oversteer and understeer can be estimated well enough to coach on (`vroom-pnw.15`), and whether LMU's
-  recorder can log more channels (`vroom-pnw.16`).
+  kept (`vroom-ueg.2`, 2026-11-07; write-ups in `docs/track-views/`). LMU's recorder can't log yaw rate, slip or
+  tyre load; those come from shared memory, with suspension force as the load proxy (`vroom-pnw.16`, 2026-11-17,
+  `docs/lmu-channels.md`).
+- Whether oversteer and understeer can be estimated well enough to coach on (`vroom-pnw.15`).
 - Which fuel, virtual energy and tyre channels LMU records, for a stint view (`vroom-pnw.26`).
 - Whether a local LLM is good enough for the post-session coach, or stays hosted (`vroom-9ki.17`).

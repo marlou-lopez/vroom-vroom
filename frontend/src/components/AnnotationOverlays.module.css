@@ -47,6 +47,9 @@
 .chipLayer { position: absolute; top: 0; bottom: 0; left: 0; pointer-events: none; will-change: transform; }
 
 .section { position: absolute; top: 0; bottom: 0; }
+/* Wheels-off ticks: a thin full-height bar, never narrower than 2 px; red on an invalid lap, grey close call on a valid one. */
+.offTrack { position: absolute; top: 0; bottom: 0; min-width: 2px; background: var(--color-off-track); opacity: 0.85; }
+.offTrack[data-valid="true"] { background: var(--color-close-call); opacity: 0.6; }
 
 .scrubBadge {
   position: absolute;

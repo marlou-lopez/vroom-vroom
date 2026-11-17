@@ -36,3 +36,20 @@
 }
 .value { position: absolute; right: 6px; top: 3px; font-family: var(--font-mono); font-size: 11px; pointer-events: none; }
 .exp { margin-left: 4px; font-size: 9px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; }
+
+.pickerBar { display: flex; justify-content: flex-end; flex: none; }
+.pickerButton, .pickerRow button {
+  font: inherit; font-size: 11px; color: var(--color-text); background: transparent;
+  border: 1px solid var(--color-border); border-radius: var(--radius); padding: 1px 6px; cursor: pointer;
+}
+.pickerButton:hover, .pickerRow button:hover:not(:disabled) { background: var(--color-hover); }
+.pickerRow button:disabled { opacity: 0.35; cursor: default; }
+.picker {
+  z-index: 30; min-width: 240px; max-height: min(420px, 70vh); overflow-y: auto;
+  background: var(--color-popup); border: 1px solid var(--color-border-strong); border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5); padding: 6px; color: var(--color-text); font-family: var(--font-sans);
+}
+.pickerList { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.pickerList:last-child { margin-bottom: 0; }
+.pickerRow { display: flex; gap: 4px; align-items: center; }
+.pickerName { flex: 1; }

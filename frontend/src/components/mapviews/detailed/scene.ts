@@ -2,7 +2,8 @@ import type { CarDims, CompareResponse, SurveyKerb, TrackSurvey } from "../../..
 import { bounds, headingAt, originOf, pointAt, toLocalMetres, type Pt, type XY } from "../../../lib/geo";
 import { distanceAtTime } from "../../../lib/playback";
 import { KERB_W_M, carDimsOrFallback } from "./renderer";
-import { aidRuns, mapSpan } from "../../../lib/driverAids";
+import { aidRuns, mapSpan, type Run } from "../../../lib/driverAids";
+import { offTrackRuns } from "../../../lib/offTrack";
 import { gainRate } from "../../../lib/gainLoss";
 import { edgeHalfWidths, edgeLines, kerbRuns, type EdgeLap } from "../../../lib/trackEdges";
 import { centreProjector, kerbWidth, surveyHalfWidths } from "../../../lib/trackSurvey";
@@ -37,6 +38,8 @@ export interface Scene {
   gain: GainLine;
   /** The lap line where a wheel locked under braking or spun on throttle (vroom-pnw.14), one slice of `lap` per run, to draw over it. */
   slip: { lockup: XY[]; wheelspin: XY[] };
+  /** The lap line where two or more wheels were on grass or gravel (vroom-pnw.24), one slice per run; red when the lap is invalid, else grey. */
+  offTrack: { runs: XY[]; invalid: boolean };
   surface: [XY, XY]; bounds: ReturnType<typeof bounds>;
   /** Car footprints in metres, already resolved (generic GT3 size when the contract says null). */
   lapDims: CarDims; refDims: CarDims;
@@ -54,6 +57,8 @@ export interface SceneOptions {
   source: LineSource; gpsHalf: number; edges?: EdgeSource;
   /** The track's survey from `api.trackGeometry`; null or absent when the track has none (or it is still loading). */
   survey?: TrackSurvey | null;
+  /** Whether the lap is valid: its wheels-off marks are then grey close calls, else red (vroom-pnw.24). Default valid. */
+  lapValid?: boolean;
 }
 
 /** A per-metre array on this scene's grid of `n` metres: cut when longer, padded with null when shorter (the track's grid can differ by a few metres). */
@@ -240,12 +245,13 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
     clearM: gainClearance(centre, [lap, ref], "left", 0, floorLeft),
     rate: gainRate(cmp.delta.slice(0, n)),
   };
-  const slice = (rs: ReturnType<typeof aidRuns>["lockup"]): XY[] => rs.map((r) => {
+  const slice = (rs: Run[]): XY[] => rs.map((r) => {
     const [a, b] = mapSpan(r, n - 1);
     return { x: lap.x.slice(a, b + 1), y: lap.y.slice(a, b + 1) };
   });
   const aids = aidRuns(cmp.lap);
   const slip = { lockup: slice(aids.lockup), wheelspin: slice(aids.wheelspin) };
+  const offTrack = { runs: slice(offTrackRuns(cmp.lap)), invalid: opts.lapValid === false };
   const along = (clear: Float64Array, sign: number): XY => {
     const x = new Float64Array(n), y = new Float64Array(n);
     for (let i = 0; i < n; i++) {
@@ -257,7 +263,7 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
   const border = (side: "left" | "right", floor: number | ArrayLike<number>) =>
     telemetry ? surfaceClearance(centre, [lap, ref], side, floor as ArrayLike<number>) : gainClearance(centre, [lap, ref], side, SURFACE_MARGIN_M, floor);
   const surface: [XY, XY] = [along(border("left", floorLeft), 1), along(border("right", floorRight), -1)];
-  return { lap, ref, centre, edges, edgeMeasured, kerbs, gain, slip, surface, bounds: bounds([edges[0], edges[1], lap, ref]),
+  return { lap, ref, centre, edges, edgeMeasured, kerbs, gain, slip, offTrack, surface, bounds: bounds([edges[0], edges[1], lap, ref]),
     lapDims: carDimsOrFallback(cmp.lap_car_dims), refDims: carDimsOrFallback(cmp.ref_car_dims),
     lapCarId: cmp.lap_car_id, refCarId: cmp.ref_car_id,
     edgeSource: telemetry ? (usedSurvey ? "survey" : "laps") : null };

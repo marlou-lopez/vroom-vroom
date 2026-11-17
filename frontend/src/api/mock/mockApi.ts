@@ -8,7 +8,7 @@ import {
   GRID_CHANNELS,
   type CalibrationResult, type ChannelArrays, type CoachRequest, type CoachResult, type CoachResults,
   type Command, type CompareCandidate, type CompareResponse, type Corner, type Finding,
-  type CarDims, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SessionMeta, type SessionSummary, type Stint, type TraceResponse,
+  type CarDims, type CarSetup, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SessionMeta, type SessionSummary, type Stint, type TraceResponse,
   type TrackMap, type LapMeta, type LapWithRef, type TrackGeometry,
 } from "../types";
 import {
@@ -22,6 +22,7 @@ import { fetchSpaSurvey, type SurveyLoader } from "./survey";
 import { fetchMonzaStint, type StintLoader } from "./stint";
 import { fetchRecording, lapToTrace, scaleTime, type Recording, type RecordingLap, type RecordingLoader, type RecordingTrack, type Trace } from "./recording";
 import { monzaCorners, MONZA_TRACK_ID, MONZA_TRACK_LENGTH_M } from "./monzaTrack";
+import { setupLabel } from "./setupLabels";
 import { deriveLandmarks, spaCorners, SPA_TRACK_ID, SPA_TRACK_LENGTH_M } from "./spaTrack";
 
 export interface MockOptions {
@@ -88,6 +89,10 @@ interface SessionSpec {
   trackTempC: number;
   airTempC: number;
   focus: { instruction: string; improved: boolean | null } | null;
+  /** null = the session has no setup (empty list). Otherwise the recording's real setup, with `setupOverrides` laid over it. */
+  setup: "recorded" | null;
+  /** SYNTHETIC (vroom-pnw.25): display strings replacing the real recording's, so a session differs from the real one. Not recorded data. */
+  setupOverrides?: Record<string, string>;
   laps: LapSpec[];
 }
 
@@ -96,7 +101,7 @@ const SEED: SessionSpec[] = [
     // The real session, laps 0-6 exactly as recorded. Lap 5 is the over-the-limits lap (time 0 = invalid).
     seed: "spa-2026-11-03", track: "spa", started_at: "2026-11-03T19:42:00", car: CAR_720S, type: "Practice",
     dims: DIMS_720S,
-    steering: "recorded", trackTempC: 31, airTempC: 22,
+    steering: "recorded", trackTempC: 31, airTempC: 22, setup: "recorded",
     focus: { instruction: "Bus Stop: brake at the 100 board", improved: true },
     laps: [
       { kind: "out", src: 0 },
@@ -111,7 +116,9 @@ const SEED: SessionSpec[] = [
   {
     seed: "spa-2026-11-01", track: "spa", started_at: "2026-11-01T18:05:00", car: CAR_720S, type: "Practice",
     dims: DIMS_720S,
-    steering: "recorded", trackTempC: 27, airTempC: 19,
+    steering: "recorded", trackTempC: 27, airTempC: 19, setup: "recorded",
+    // SYNTHETIC: this session's recording is the 3 Nov one, so give it a few different settings to exercise the setup diff.
+    setupOverrides: { VM_REAR_WING: "8.0 deg", VM_FRONT_ANTISWAY: "P2 20x2mm", VM_BRAKE_BALANCE: "53.5:46.5" },
     focus: { instruction: "Pouhon: one steering input through both apexes", improved: true },
     laps: [
       { kind: "out", src: 0 },
@@ -124,7 +131,7 @@ const SEED: SessionSpec[] = [
   {
     seed: "spa-2026-10-29-practice", track: "spa", started_at: "2026-10-29T14:30:00", car: CAR_720S, type: "Practice",
     dims: DIMS_720S,
-    steering: "recorded", trackTempC: 24, airTempC: 17,
+    steering: "recorded", trackTempC: 24, airTempC: 17, setup: "recorded",
     focus: { instruction: "La Source: brake where you did on lap 3", improved: null },
     laps: [
       { kind: "out", src: 0 },
@@ -137,7 +144,7 @@ const SEED: SessionSpec[] = [
     // A different car, and no steering range in the recording or config/cars.yaml (exercises the % fallback).
     seed: "spa-2026-10-29-race", track: "spa", started_at: "2026-10-29T20:10:00", car: CAR_PORSCHE, type: "Race",
     dims: null,
-    steering: null, trackTempC: 24, airTempC: 16,
+    steering: null, trackTempC: 24, airTempC: 16, setup: null,
     focus: null,
     laps: [
       { kind: "out", src: 0 },
@@ -151,7 +158,7 @@ const SEED: SessionSpec[] = [
     // the elapsed time.
     seed: "monza-2026-11-05", track: "monza", started_at: "2026-11-05T08:10:00", car: CAR_720S, type: "Practice",
     dims: DIMS_720S,
-    steering: "recorded", trackTempC: 33, airTempC: 24,
+    steering: "recorded", trackTempC: 33, airTempC: 24, setup: "recorded",
     focus: { instruction: "Ascari: stay tight through the first apex", improved: null },
     laps: [
       { kind: "out", src: 0 },
@@ -171,7 +178,7 @@ const SEED: SessionSpec[] = [
     // The laps are the 720S recording's, as with the Spa race session.
     seed: "monza-2026-10-26", track: "monza", started_at: "2026-10-26T16:20:00", car: CAR_PORSCHE, type: "Practice",
     dims: null,
-    steering: null, trackTempC: 29, airTempC: 21,
+    steering: null, trackTempC: 29, airTempC: 21, setup: null,
     focus: null,
     laps: [
       { kind: "out", src: 0 },
@@ -288,6 +295,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
 
   const sessions: SessionMeta[] = [];
   const laps = new Map<string, LapRec>();
+  const setups = new Map<string, CarSetup>();
   const extras = new Map<string, { trackTempC: number; focus: SessionSummary["focus"] }>();
   const dateLabel = new Map<string, string>();
   const maps = new Map<string, TrackMap>();
@@ -359,6 +367,10 @@ export function createMockApi(opts: MockOptions = {}): Api {
       const d = new Date(sp.started_at);
       dateLabel.set(session_id, `${d.getDate()} ${DATE_FMT[d.getMonth()]}`);
       extras.set(session_id, { trackTempC: sp.trackTempC, focus: sp.focus });
+      const display = { ...rec.car_setup, ...(sp.setupOverrides ?? {}) };
+      setups.set(session_id, {
+        entries: sp.setup === "recorded" ? Object.entries(display).map(([key, value]) => ({ key, label: setupLabel(key), value })) : [],
+      });
 
       const specs: { kind: LapMeta["kind"]; valid?: boolean; trace: Trace; lap_time_s: number | null; src_sectors: number[] | null }[] = sp.laps.map((l) => {
         const recLap = rec.laps.find((x) => x.lap_no === l.src)!;
@@ -814,6 +826,10 @@ export function createMockApi(opts: MockOptions = {}): Api {
         track_temp_c: x.trackTempC,
         focus: clone(x.focus),
       };
+    },
+    async sessionSetup(sessionId): Promise<CarSetup> {
+      sessionOf(sessionId);
+      return clone(setups.get(sessionId)!);
     },
     async idealLap(sessionId, scope = "session") {
       return clone(ideal(sessionId, scope));

@@ -23,13 +23,14 @@ export interface TrackPanelProps {
   annotations: Annotation[];
   handlers: BadgeHandlers;
   lapTimes?: { lap: number | null; ref: number | null };
+  lapValid?: boolean;
   /** Bottom strip of the panel (EngineerLine). */
   footer?: ReactNode;
   expanded: boolean;
   onToggleExpanded(): void;
 }
 
-export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, footer, expanded, onToggleExpanded }: TrackPanelProps) {
+export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, lapValid, footer, expanded, onToggleExpanded }: TrackPanelProps) {
   const [viewId, setViewId] = useState<TrackViewId>(loadTrackView);
 
   const active = TRACK_VIEWS.find((v) => v.id === viewId) ?? TRACK_VIEWS[0];
@@ -44,7 +45,7 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
   return (
     <section aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
       <ErrorBoundary label="track view" variant="panel" resetKeys={[model, active.id]}>
-        <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} />
+        <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} />
       </ErrorBoundary>
       <Readout model={model} trackMap={trackMap} />
       <div className={styles.toolbar}>
