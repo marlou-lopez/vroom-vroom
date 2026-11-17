@@ -40,6 +40,8 @@ export interface Recording {
   source: string;
   note?: string;
   steering_range_deg: number | null;
+  /** The recording's garage setup: LMU key -> display string. Absent in files made before vroom-pnw.25. */
+  car_setup?: Record<string, string>;
   laps: RecordingLap[];
 }
 

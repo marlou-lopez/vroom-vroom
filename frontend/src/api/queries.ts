@@ -15,6 +15,7 @@ export const qk = {
   trackGeometry: (trackId: string) => ["trackGeometry", trackId] as const,
   coachResults: (lap: string, ref: string | null) => ["coachResults", lap, ref] as const,
   summary: (sessionId: string) => ["summary", sessionId] as const,
+  setup: (sessionId: string) => ["setup", sessionId] as const,
   trace: (lapId: string, channels: GridChannel[] | undefined) => ["trace", lapId, channels?.join(",") ?? null] as const,
 };
 
@@ -28,6 +29,8 @@ export const sessionSummaryOptions = (sessionId: string) =>
   queryOptions({ queryKey: qk.summary(sessionId), queryFn: () => api.sessionSummary(sessionId) });
 
 // ---- Queries ----
+
+export const useLap = (lapId: string | null) => useQuery({ ...lapOptions(lapId ?? ""), enabled: lapId !== null });
 
 export const useSessions = () => useQuery(sessionsOptions());
 
@@ -64,6 +67,15 @@ export const useCoachResults = (lap: string | null, ref: string | null) =>
     queryKey: qk.coachResults(lap ?? "", ref),
     queryFn: () => api.coachResults(lap!, ref!),
     enabled: lap !== null && ref !== null,
+  });
+
+/** A session's setup never changes once recorded. */
+export const useSessionSetup = (sessionId: string | null) =>
+  useQuery({
+    queryKey: qk.setup(sessionId ?? ""),
+    queryFn: () => api.sessionSetup(sessionId!),
+    enabled: sessionId !== null,
+    staleTime: Infinity,
   });
 
 export const useSessionSummary = (sessionId: string | null) =>

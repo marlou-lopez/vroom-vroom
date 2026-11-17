@@ -29,6 +29,7 @@ export function createHandlers(engine: Api): HttpHandler[] {
     http.get("*/api/sessions", () => reply(() => engine.sessions())),
     http.get("*/api/sessions/:id/laps", ({ params }) => reply(() => engine.sessionLaps(str(params.id)))),
     http.get("*/api/sessions/:id/summary", ({ params }) => reply(() => engine.sessionSummary(str(params.id)))),
+    http.get("*/api/sessions/:id/setup", ({ params }) => reply(() => engine.sessionSetup(str(params.id)))),
     http.get("*/api/sessions/:id/ideal", ({ params, request }) => {
       const scope = param(request.url, "scope");
       if (scope !== undefined && scope !== "session" && scope !== "all") {
