@@ -69,7 +69,7 @@ Tests named `*.test.ts` run in node and `*.test.tsx` run in jsdom (setup in `src
 
 CI (`.github/workflows/ci.yml`) runs lint, test and build on every PR and push to `main`.
 
-The detailed 2D and 3D track views show their frame-rate HUD, benchmark and GPU context-loss test (and the 2D one its line-source selector) only in `npm run dev` or with `?debug` in the URL; `?debug=0` hides them in dev to preview the production view. `?balance` turns on the experimental under/oversteer estimate (a Balance strip, marks on the steering strip, a tint on the classic map; vroom-pnw.15). `?mirror=0` turns off the 3D cockpit's live rear-view mirror (a second render pass; the glass then shows a still picture), to measure its cost.
+The detailed 2D and 3D track views show their frame-rate HUD, benchmark and GPU context-loss test (and the 2D one its line-source selector) only in `npm run dev` or with `?debug` in the URL; `?debug=0` hides them in dev to preview the production view. The Balance strip (Strips menu), understeer marks on the steering strip and the understeer tint on the classic map are on by default and read the API's `lap_balance` and runs (vroom-bi4.6; the client no longer estimates). `?balance` adds the experimental oversteer marks (the contract's `lap_oversteer_runs`, high precision but low recall). `?mirror=0` turns off the 3D cockpit's live rear-view mirror (a second render pass; the glass then shows a still picture), to measure its cost.
 
 Run test, lint and build before calling frontend work done. Vite proxies `/api` to
 `127.0.0.1:8765` for when the real backend exists.
