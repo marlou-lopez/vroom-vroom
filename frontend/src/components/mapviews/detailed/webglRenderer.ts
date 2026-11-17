@@ -135,6 +135,9 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
   for (const m of dashedMats) m.dashed = true;
   // Gain/loss line (#59): per-vertex colours on a white material, one tone the whole lap (no split at the car).
   const gainMat = makeMat("#ffffff", GAIN_PX, true);
+  // Lockup / wheelspin marks over the lap line (vroom-pnw.14), a little wider than it.
+  const lockupMat = makeMat(colors.lockup, LAP_PX + 1.5);
+  const wheelspinMat = makeMat(colors.wheelspin, LAP_PX + 1.5);
   let lines: Line2[] = [];
   let aheadLines: Line2[] = [];
   let showAhead = true;
@@ -327,6 +330,8 @@ export function createWebglRenderer(host: HTMLElement, events: RendererEvents): 
       aheadLines = [add(s.ref, refAheadMat, 2), add(s.lap, lapAheadMat, 3)];
       refDriven = makeDriven(s.ref, [[casingMat, 4], [refMat, 5]]);
       lapDriven = makeDriven(s.lap, [[lapMat, 6]]);
+      for (const xy of s.slip.wheelspin) add(xy, wheelspinMat, 7);
+      for (const xy of s.slip.lockup) add(xy, lockupMat, 7);
       // Gain line: placeholder points until the first draw knows the zoom (gainExtra is NaN).
       if (s.centre.x.length >= 2) {
         gainSrc = { centre: s.centre, line: s.gain, pos: new Float32Array(s.centre.x.length * 3) };

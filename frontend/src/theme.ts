@@ -14,6 +14,9 @@ export const colors = {
   reviewed: "#868E99",
   brake: "#F0504F",
   throttle: "#3FB950",
+  /** Wheel lockup marks (brake trace, map line) and wheelspin marks (throttle trace, map line). */
+  lockup: "#FF3B3B",
+  wheelspin: "#FFB020",
   /** Map base line, scrubber baseline. */
   line: "#23272E",
   /** Outlines of controls inside panels (wheels, bars, popups). */

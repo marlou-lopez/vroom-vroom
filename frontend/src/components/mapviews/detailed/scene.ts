@@ -2,6 +2,7 @@ import type { CarDims, CompareResponse, SurveyKerb, TrackSurvey } from "../../..
 import { bounds, headingAt, originOf, pointAt, toLocalMetres, type Pt, type XY } from "../../../lib/geo";
 import { distanceAtTime } from "../../../lib/playback";
 import { KERB_W_M, carDimsOrFallback } from "./renderer";
+import { aidRuns, mapSpan } from "../../../lib/driverAids";
 import { gainRate } from "../../../lib/gainLoss";
 import { edgeHalfWidths, edgeLines, kerbRuns, type EdgeLap } from "../../../lib/trackEdges";
 import { centreProjector, kerbWidth, surveyHalfWidths } from "../../../lib/trackSurvey";
@@ -33,7 +34,10 @@ export interface Kerb {
  */
 export interface Scene {
   lap: XY; ref: XY; centre: XY; edges: [XY, XY]; edgeMeasured: [Uint8Array, Uint8Array] | null; kerbs: Kerb[];
-  gain: GainLine; surface: [XY, XY]; bounds: ReturnType<typeof bounds>;
+  gain: GainLine;
+  /** The lap line where a wheel locked under braking or spun on throttle (vroom-pnw.14), one slice of `lap` per run, to draw over it. */
+  slip: { lockup: XY[]; wheelspin: XY[] };
+  surface: [XY, XY]; bounds: ReturnType<typeof bounds>;
   /** Car footprints in metres, already resolved (generic GT3 size when the contract says null). */
   lapDims: CarDims; refDims: CarDims;
   /** `car_id` of each car, to look up an optional 3D model (#102). */
@@ -236,6 +240,12 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
     clearM: gainClearance(centre, [lap, ref], "left", 0, floorLeft),
     rate: gainRate(cmp.delta.slice(0, n)),
   };
+  const slice = (rs: ReturnType<typeof aidRuns>["lockup"]): XY[] => rs.map((r) => {
+    const [a, b] = mapSpan(r, n - 1);
+    return { x: lap.x.slice(a, b + 1), y: lap.y.slice(a, b + 1) };
+  });
+  const aids = aidRuns(cmp.lap);
+  const slip = { lockup: slice(aids.lockup), wheelspin: slice(aids.wheelspin) };
   const along = (clear: Float64Array, sign: number): XY => {
     const x = new Float64Array(n), y = new Float64Array(n);
     for (let i = 0; i < n; i++) {
@@ -247,7 +257,7 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
   const border = (side: "left" | "right", floor: number | ArrayLike<number>) =>
     telemetry ? surfaceClearance(centre, [lap, ref], side, floor as ArrayLike<number>) : gainClearance(centre, [lap, ref], side, SURFACE_MARGIN_M, floor);
   const surface: [XY, XY] = [along(border("left", floorLeft), 1), along(border("right", floorRight), -1)];
-  return { lap, ref, centre, edges, edgeMeasured, kerbs, gain, surface, bounds: bounds([edges[0], edges[1], lap, ref]),
+  return { lap, ref, centre, edges, edgeMeasured, kerbs, gain, slip, surface, bounds: bounds([edges[0], edges[1], lap, ref]),
     lapDims: carDimsOrFallback(cmp.lap_car_dims), refDims: carDimsOrFallback(cmp.ref_car_dims),
     lapCarId: cmp.lap_car_id, refCarId: cmp.ref_car_id,
     edgeSource: telemetry ? (usedSurvey ? "survey" : "laps") : null };
