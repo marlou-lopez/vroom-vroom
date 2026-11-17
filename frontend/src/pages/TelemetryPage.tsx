@@ -14,6 +14,9 @@ import { LapPicker } from "../components/LapPicker";
 import { SimplifiedWheels } from "../components/SimplifiedWheels";
 import { TrackPanel } from "../components/TrackPanel";
 import { Transport } from "../components/Transport";
+import { CornerRail } from "../components/workspace/CornerRail";
+import { LapRail } from "../components/workspace/LapRail";
+import wsStyles from "../components/workspace/Workspace.module.css";
 import { leadInTime, toAnnotations, type Annotation } from "../lib/annotations";
 import { effectiveValid, type Corner } from "../api/types";
 import { biggestLosses, type CornerLoss } from "../lib/biggestLosses";
@@ -62,7 +65,7 @@ function Telemetry() {
     return () => window.removeEventListener("keydown", onKey);
   }, [expanded]);
 
-  // No ?lap: reflect the resolved default in the URL.
+  // No ?lap: reflect the resolved default in the URL, keeping every other param.
   useEffect(() => {
     if (!lapParam && ctx) setParams((p) => withParams(p, { lap: ctx.lap.lap_id }), { replace: true });
   }, [lapParam, ctx, setParams]);
@@ -146,8 +149,15 @@ function Telemetry() {
   // Stable, so the memoised track views don't render for unrelated page state.
   const lapTimes = useMemo(() => (cmp ? { lap: lapTime, ref: refTime } : undefined), [cmp, lapTime, refTime]);
 
+  // EXPERIMENTAL (vroom-pnw.30): `?ui=workspace` shows the workspace layout prototype. Without the flag nothing below changes.
+  const workspace = params.get("ui") === "workspace";
   const selectLap = (id: string) => setParams((p) => withParams(p, { lap: id, ref: null, at: null }));
   const selectRef = (id: string | null) => setParams((p) => withParams(p, { lap: ctx!.lap.lap_id, ref: id, at: null }));
+  const seekToM = (m: number) => {
+    if (!cmp) return;
+    store.pause();
+    store.seek(timeAtDistance(cmp.lap.t, cmp.distance, m - CORNER_LEAD_M));
+  };
 
   // Whether the lap counts as valid (the manual override wins); decides whether its wheels-off marks are red or grey.
   const lapValid = ctx ? effectiveValid(ctx.lap) : true;
@@ -172,13 +182,19 @@ function Telemetry() {
           />
         </HeaderSlot>
       )}
+      {workspace && (
+        <div className={wsStyles.banner}>
+          <span className={wsStyles.expTag}>Experimental</span>
+          Workspace layout prototype (vroom-pnw.30). <a href="/">Back to the current layout</a>
+        </div>
+      )}
       {ctx && (
         <AnalysisBar
           coach={coach} annotations={allAnnotations} disabled={coach.running !== null}
           totalDelta={cmp ? (cmp.delta[cmp.delta.length - 1] ?? null) : null}
         />
       )}
-      {ctx && <BiggestLosses result={losses} onSeek={seekToLoss} />}
+      {ctx && !workspace && <BiggestLosses result={losses} onSeek={seekToLoss} />}
       {error && !model ? (
         <Message>{error.code}: {error.message}</Message>
       ) : !model ? (
@@ -186,6 +202,8 @@ function Telemetry() {
       ) : (
         <>
           {cmp?.warning && <div className={styles.warning}>{cmp.warning}</div>}
+          {(() => {
+          const grid = (
           <div className={styles.grid} data-expanded={expanded || undefined}>
             <TrackPanel
               model={model} trackMap={trackMap} geometry={geometry}
@@ -221,6 +239,19 @@ function Telemetry() {
             </section>
             )}
           </div>
+          );
+          if (!workspace || !ctx || !cmp) return grid;
+          return (
+            <div className={wsStyles.layout}>
+              <LapRail
+                laps={ctx.laps} lapId={ctx.lap.lap_id} refLapId={cmp.ref_lap_id} candidates={candidates}
+                onSelectLap={selectLap} onSelectRef={selectRef}
+              />
+              <div className={wsStyles.center}>{grid}</div>
+              <CornerRail cmp={cmp} trackMap={trackMap} annotations={allAnnotations} coach={coach} onSeek={seekToM} />
+            </div>
+          );
+          })()}
           <Transport
             model={model} trackMap={trackMap}
             scrubberLayer={<><ScrubberOffTrack model={model} valid={lapValid} /><ScrubberSections annotations={annotations} duration={model.duration} /></>}
