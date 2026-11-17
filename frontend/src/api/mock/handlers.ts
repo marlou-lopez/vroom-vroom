@@ -36,6 +36,7 @@ export function createHandlers(engine: Api): HttpHandler[] {
       }
       return reply(() => engine.idealLap(str(params.id), scope as IdealScope | undefined));
     }),
+    http.get("*/api/laps/:id", ({ params }) => reply(() => engine.lap(str(params.id)))),
     http.patch("*/api/laps/:id", async ({ params, request }) => {
       const patch = (await request.json()) as LapPatch;
       return reply(() => engine.patchLap(str(params.id), patch));

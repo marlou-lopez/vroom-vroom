@@ -4,10 +4,15 @@
 export const GRID_CHANNELS = [
   "t", "speed_kmh", "throttle", "brake", "steering", "gear", "rpm", "g_lat", "g_long", "yaw_rate",
   "lat", "lon", "path_lateral", "track_edge", "kerb", "susp_fl", "susp_fr", "susp_rl", "susp_rr",
+  "abs", "tc", "slip_fl", "slip_fr", "slip_rl", "slip_rr",
 ] as const;
 export type GridChannel = (typeof GRID_CHANNELS)[number];
 
-/** Every grid channel, one value per metre. `steering` is normalised (-1..1); degrees = steering * range / 2. */
+/**
+ * Every grid channel, one value per metre. `steering` is normalised (-1..1); degrees = steering * range / 2.
+ * `abs` and `tc` are 0/1: 1 when the aid was active at any moment inside that metre (ABS pulses ~15 ms, so a metre is "on" if any pulse falls in it).
+ * `slip_*` are tyre surface speed / ground speed per wheel (FL, FR, RL, RR; < 1 = slower than the road, lockup; > 1 = faster, spin), and 1 below 5 m/s.
+ */
 export type ChannelArrays = Record<GridChannel, number[]>;
 
 // ---- Sessions and laps (model.py) ----
@@ -108,6 +113,43 @@ export interface CompareResponse {
   /** Display names of those cars (the 3D view's car popover). */
   lap_car_name: string;
   ref_car_name: string;
+  /**
+   * One entry per track-map corner, in map order (#86): the numbers a race engineer checks first, for the table, the coach
+   * and the backend alike. A track with no corners in its map gives an empty list.
+   */
+  corners: CornerMetrics[];
+}
+
+/**
+ * One corner, lap against reference. Positions are grid metres (0 = start line); a corner that wraps over the start line
+ * (start_m > end_m) is measured across it.
+ */
+export interface CornerMetrics {
+  corner_id: string;
+  /** Time between the corner's start and end, lap minus reference: positive = time lost, negative = gained. */
+  delta_s: number;
+  lap: CornerSideMetrics;
+  ref: CornerSideMetrics;
+}
+
+export interface CornerSideMetrics {
+  /** First point from the corner start to the apex where the brake reaches 0.1; null when the corner has no braking before the apex. */
+  brake_onset_m: number | null;
+  /** Highest brake pressure in the corner, 0..1. */
+  peak_brake: number;
+  /** Lowest speed in the corner, and where it happens. */
+  min_speed_kmh: number;
+  min_speed_m: number;
+  /** First point from the minimum speed on where the throttle reaches 0.5; null when it never does. */
+  throttle_pickup_m: number | null;
+  /** Speed at the corner's end. */
+  exit_speed_kmh: number;
+  /** Seconds with neither pedal pressed (throttle and brake < 0.05) above 50 km/h. First guess, tuned in #25. */
+  coast_s: number;
+  /** Seconds with both pedals pressed (throttle and brake > 0.1). First guess, tuned in #25. */
+  overlap_s: number;
+  /** Direction reversals of the smoothed steering (+-5 m, 10 % prominence). Compare with the reference's count: the difference is the extra corrections. */
+  steer_corrections: number;
 }
 
 /**
