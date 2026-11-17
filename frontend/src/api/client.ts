@@ -10,6 +10,8 @@ import {
 export interface Api {
   sessions(): Promise<SessionMeta[]>;
   sessionLaps(sessionId: string): Promise<LapWithRef[]>;
+  /** One lap by id (its `session_id` says where it belongs). Unknown id: ApiError `unknown_lap`. */
+  lap(lapId: string): Promise<LapWithRef>;
   patchLap(lapId: string, patch: LapPatch): Promise<LapMeta>;
   lapTrace(lapId: string, channels?: GridChannel[]): Promise<TraceResponse>;
   /** `ref` omitted: the reference for the lap's track and car is used. */
@@ -76,6 +78,7 @@ export function createRealApi(baseUrl = ""): Api {
   return {
     sessions: () => request("/sessions"),
     sessionLaps: (id) => request(`/sessions/${enc(id)}/laps`),
+    lap: (id) => request(`/laps/${enc(id)}`),
     patchLap: (id, patch) => request(`/laps/${enc(id)}`, { method: "PATCH", body: patch }),
     lapTrace: (id, channels) =>
       request(`/laps/${enc(id)}/trace${query({ channels: channels?.length ? channels.join(",") : undefined })}`),

@@ -29,6 +29,7 @@ export function createHandlers(engine: Api): HttpHandler[] {
     http.get("*/api/sessions", () => reply(() => engine.sessions())),
     http.get("*/api/sessions/:id/laps", ({ params }) => reply(() => engine.sessionLaps(str(params.id)))),
     http.get("*/api/sessions/:id/summary", ({ params }) => reply(() => engine.sessionSummary(str(params.id)))),
+    http.get("*/api/laps/:id", ({ params }) => reply(() => engine.lap(str(params.id)))),
     http.patch("*/api/laps/:id", async ({ params, request }) => {
       const patch = (await request.json()) as LapPatch;
       return reply(() => engine.patchLap(str(params.id), patch));

@@ -641,6 +641,9 @@ export function createMockApi(opts: MockOptions = {}): Api {
       sessionOf(sessionId);
       return sortedSessionLaps(sessionId).map(withRef);
     },
+    async lap(lapId) {
+      return withRef(lapOf(lapId));
+    },
     async patchLap(lapId, patch) {
       const lap = lapOf(lapId);
       if (patch.valid_override !== undefined) lap.meta.valid_override = patch.valid_override;

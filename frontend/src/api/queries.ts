@@ -8,6 +8,7 @@ import type {
 export const qk = {
   sessions: () => ["sessions"] as const,
   sessionLaps: (sessionId: string) => ["laps", sessionId] as const,
+  lap: (lapId: string) => ["lap", lapId] as const,
   compare: (lap: string, ref: string | null) => ["compare", lap, ref] as const,
   candidates: (lap: string) => ["candidates", lap] as const,
   trackMap: (trackId: string) => ["trackMap", trackId] as const,
@@ -22,6 +23,7 @@ export const qk = {
 export const sessionsOptions = () => queryOptions({ queryKey: qk.sessions(), queryFn: () => api.sessions() });
 export const sessionLapsOptions = (sessionId: string) =>
   queryOptions({ queryKey: qk.sessionLaps(sessionId), queryFn: () => api.sessionLaps(sessionId) });
+export const lapOptions = (lapId: string) => queryOptions({ queryKey: qk.lap(lapId), queryFn: () => api.lap(lapId) });
 export const sessionSummaryOptions = (sessionId: string) =>
   queryOptions({ queryKey: qk.summary(sessionId), queryFn: () => api.sessionSummary(sessionId) });
 
@@ -80,6 +82,7 @@ export function usePatchLap() {
     onSuccess: () =>
       Promise.all([
         qc.invalidateQueries({ queryKey: ["laps"] }),
+        qc.invalidateQueries({ queryKey: ["lap"] }),
         qc.invalidateQueries({ queryKey: ["compare"] }),
         qc.invalidateQueries({ queryKey: ["candidates"] }),
       ]),
