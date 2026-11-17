@@ -22,9 +22,9 @@ export const colors = {
   /** Experimental balance marks (vroom-pnw.15): understeer (steering strip, map line) and oversteer. */
   understeer: "#4C8DFF",
   oversteer: "#FF4FD8",
-  /** Wheels off the track (vroom-pnw.24): red on an invalid lap (map, strips, scrubber), grey "close call" on a valid one. */
+  /** Wheels off the track (vroom-pnw.24): red on an invalid lap (map, strips, scrubber), tan "close call" on a valid one. */
   offTrack: "#FF2D55",
-  closeCall: "#868E99",
+  closeCall: "#B08968",
   /** Map base line, scrubber baseline. */
   line: "#23272E",
   /** Outlines of controls inside panels (wheels, bars, popups). */
