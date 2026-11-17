@@ -60,7 +60,7 @@ describe("pages", () => {
     });
     expect(studied.textContent).toContain(`L${best.lap_no}`);
     expect(studied.textContent).toContain(formatLapTime(best.lap_time_s));
-    expect(screen.queryByText(/unknown_lap|no_laps|Loading…/)).toBeNull();
+    await waitFor(() => expect(screen.queryByText(/unknown_lap|no_laps|Loading…/)).toBeNull());
   });
 
   it("Telemetry opens a lap at ?at=<metres> (from the ideal lap's breakdown)", async () => {
