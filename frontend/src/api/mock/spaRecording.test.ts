@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Recording } from "./recording";
 import { MIN_SLIP_SPEED_MS, aidRuns, type AidChannels } from "../../lib/driverAids";
+import { likelyInvalidRun, offTrackRuns } from "../../lib/offTrack";
 import { phaseStart } from "./spaTrack";
 
 const REC = JSON.parse(
@@ -59,5 +60,30 @@ describe("Spa recording mock data", () => {
     }
     const lap5 = REC.laps.find((l) => l.lap_no === 5)!;
     expect(aidRuns(lap5 as unknown as AidChannels).lockup.length).toBeGreaterThan(0);
+  });
+});
+
+describe("wheels_off in the Spa recording (vroom-pnw.24)", () => {
+  const wheels = (n: number) => REC.laps.find((l) => l.lap_no === n)!.wheels_off!;
+  const runsOf = (n: number) => offTrackRuns({ wheels_off: wheels(n) });
+
+  it("is 0..4 whole wheels on every metre of every lap", () => {
+    for (const lap of REC.laps) {
+      expect(lap.wheels_off!.length).toBe(lap.t.length);
+      for (const v of lap.wheels_off!) expect([0, 1, 2, 3, 4]).toContain(v);
+    }
+  });
+  it("lap 5 (invalid) has marks, with a likely cause", () => {
+    expect(runsOf(5).length).toBeGreaterThan(0);
+    expect(likelyInvalidRun(runsOf(5))).not.toBeNull();
+  });
+  it("valid laps 1-4 only have short close-call marks", () => {
+    for (const n of [1, 2, 3, 4]) {
+      for (const r of runsOf(n)) expect(r.end - r.start + 1).toBeLessThan(100);
+    }
+    expect(runsOf(2)).toEqual([]);
+    // Lap 5 is off the track far more than any valid lap.
+    const total = (n: number) => runsOf(n).reduce((s, r) => s + r.end - r.start + 1, 0);
+    expect(total(5)).toBeGreaterThan(total(1) + total(3) + total(4));
   });
 });

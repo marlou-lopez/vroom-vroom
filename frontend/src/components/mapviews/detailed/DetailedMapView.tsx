@@ -42,7 +42,7 @@ const EDGES_KEY = "vroom.edges";
 const EDGE_SOURCES: readonly EdgeSource[] = ["stand-in", "telemetry"];
 const loadEdgeSource = (): EdgeSource => loadSetting(EDGES_KEY, EDGE_SOURCES, "stand-in");
 
-export function DetailedMapView({ model, geometry, annotations, handlers }: TrackViewProps) {
+export function DetailedMapView({ model, geometry, annotations, handlers, lapValid }: TrackViewProps) {
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
@@ -50,7 +50,7 @@ export function DetailedMapView({ model, geometry, annotations, handlers }: Trac
   const [sync, setSyncState] = useState<CarSync>("time");
   const [gpsHalf, setGpsHalf] = useState(4);
   const [edgeSource, setEdgeSourceState] = useState<EdgeSource>(loadEdgeSource);
-  const scene = useMemo(() => buildScene(cmp, { source, gpsHalf, edges: edgeSource, survey: geometry?.survey }), [cmp, geometry, source, gpsHalf, edgeSource]);
+  const scene = useMemo(() => buildScene(cmp, { source, gpsHalf, edges: edgeSource, survey: geometry?.survey, lapValid }), [cmp, geometry, source, gpsHalf, edgeSource, lapValid]);
 
   const [mode, setModeState] = useState<CameraMode>("follow");
   const [headingUp, setHeadingUpState] = useState(false);

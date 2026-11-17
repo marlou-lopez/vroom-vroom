@@ -4,6 +4,7 @@ import "uplot/dist/uPlot.min.css";
 import type { CompareResponse, TrackGeometry } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import { aidRuns, type AidRuns, type Run } from "../lib/driverAids";
+import { offTrackRuns } from "../lib/offTrack";
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
@@ -36,6 +37,8 @@ export interface DetailedStripsProps {
   geometry: TrackGeometry | null;
   annotations: Annotation[];
   handlers: BadgeHandlers;
+  /** Whether the lap is valid: wheels-off bands are red on an invalid lap, grey close calls on a valid one. Absent = valid. */
+  lapValid?: boolean;
 }
 
 type Num = (number | null)[];
@@ -50,6 +53,8 @@ interface Spec {
   deltaFill?: boolean;
   /** Driver aids and slip marks of this lap, drawn on the pedals strip (vroom-pnw.14). */
   aids?: { runs: AidRuns; throttle: number[]; brake: number[] };
+  /** Where two or more wheels were off the track, as a band over the whole strip (vroom-pnw.24). */
+  off: { runs: Run[]; color: string };
   value: (cmp: CompareResponse, tau: number, iy: number) => string;
 }
 
@@ -57,18 +62,19 @@ const line = (stroke: string, width: number): uPlot.Series => ({
   stroke, width, points: { show: false }, spanGaps: true,
 });
 
-function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null): Spec[] {
+function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapValid: boolean): Spec[] {
+  const off = { runs: offTrackRuns(cmp.lap), color: lapValid ? colors.closeCall : colors.offTrack };
   const r = stripRanges(cmp);
   const refStroke = withAlpha(colors.comparison, 0.8);
   const specs: Spec[] = [
     {
-      label: "SPEED", yRange: r.speed,
+      label: "SPEED", off, yRange: r.speed,
       data: [cmp.ref.speed_kmh, cmp.lap.speed_kmh],
       series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       value: (c, tau, iy) => `${Math.round(c.lap.speed_kmh[iy])} / ${Math.round(c.ref.speed_kmh[indexAtTime(c.ref.t, tau)])}`,
     },
     {
-      label: "THROTTLE · BRAKE", yRange: r.pedals,
+      label: "THROTTLE · BRAKE", off, yRange: r.pedals,
       data: [cmp.ref.throttle, cmp.ref.brake, cmp.lap.throttle, cmp.lap.brake],
       series: [
         line(withAlpha(colors.throttle, 0.45), 1.2), line(withAlpha(colors.brake, 0.45), 1.2),
@@ -80,13 +86,13 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null): Spec[
     },
     {
       // Plotted on the normalised scale so both cars share one axis; the label uses steeringDisplay units.
-      label: "STEERING", yRange: r.steering,
+      label: "STEERING", off, yRange: r.steering,
       data: [cmp.ref.steering, cmp.lap.steering],
       series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       value: (c, _t, iy) => formatSteering(c.lap.steering[iy], c.lap_steering_range_deg),
     },
     {
-      label: "DELTA", yRange: r.delta,
+      label: "DELTA", off, yRange: r.delta,
       data: [cmp.delta],
       series: [line(colors.textSoft, 1.6)],
       zeroLine: true, deltaFill: true,
@@ -100,7 +106,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null): Spec[
     const e = Array.from({ length: n }, (_, i) => track[i] ?? null);
     const m = (v: number | null | undefined) => (v === null || v === undefined ? "–" : v.toFixed(1));
     specs.push({
-      label: "ELEVATION", experimental: true, yRange: elevationRange(e),
+      label: "ELEVATION", off, experimental: true, yRange: elevationRange(e),
       data: [e],
       series: [line(colors.textSoft, 1.6)],
       value: (_c, _t, iy) => `${m(e[iy])} m`,
@@ -133,7 +139,30 @@ function drawBands(u: uPlot, anns: Annotation[]) {
   }
 }
 
+/** A faint band over the full height of a strip where wheels were off the track, with a solid edge line at its start so a short one still shows. */
+function drawOffTrack(u: uPlot, runs: Run[], color: string) {
+  const { ctx, bbox } = u;
+  const xs = u.data[0];
+  const sx = u.scales.x;
+  const lo = sx.min ?? xs[0], hi = sx.max ?? xs[xs.length - 1];
+  const px = (i: number) => bbox.left + u.valToPos(xs[i], "x", true);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
+  ctx.clip();
+  for (const r of runs) {
+    if (xs[r.end] < lo || xs[r.start] > hi) continue;
+    const x0 = px(r.start), x1 = Math.max(px(Math.min(r.end + 1, xs.length - 1)), x0 + uPlot.pxRatio);
+    ctx.fillStyle = withAlpha(color, OFF_BAND_ALPHA);
+    ctx.fillRect(x0, bbox.top, x1 - x0, bbox.height);
+    ctx.fillStyle = withAlpha(color, 0.9);
+    ctx.fillRect(x0, bbox.top, uPlot.pxRatio * 2, bbox.height);
+  }
+  ctx.restore();
+}
+
 const AID_BAND_ALPHA = 0.22;
+const OFF_BAND_ALPHA = 0.18;
 const MARK_PX = 3;
 
 /** Light bands under a trace where an aid was active: from the baseline up to the trace, only over the runs. */
@@ -248,6 +277,7 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
       drawClear: [
         (u) => {
           drawBands(u, annRef.current);
+          drawOffTrack(u, spec.off.runs, spec.off.color);
           if (spec.zeroLine || spec.deltaFill) drawDelta(u, !!spec.zeroLine, !!spec.deltaFill);
           if (spec.aids) {
             drawAidBands(u, spec.aids.runs.abs, spec.aids.brake, colors.brake);
@@ -270,10 +300,10 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
  * Four uPlot strips (five when the track has an elevation capture). React renders this once per comparison / annotation set. Per frame, an effect subscribed to
  * the playback store moves each chart's x scale synchronously, the chip layer and the value read-outs imperatively.
  */
-export function DetailedStrips({ model, geometry, annotations, handlers }: DetailedStripsProps) {
+export function DetailedStrips({ model, geometry, annotations, handlers, lapValid = true }: DetailedStripsProps) {
   const store = usePlaybackStore();
   const { cmp } = model;
-  const specList = useMemo(() => buildSpecs(cmp, geometry), [cmp, geometry]);
+  const specList = useMemo(() => buildSpecs(cmp, geometry, lapValid), [cmp, geometry, lapValid]);
   const hosts = useRef<(HTMLDivElement | null)[]>([]);
   const frames = useRef<(HTMLDivElement | null)[]>([]);
   const values = useRef<(HTMLDivElement | null)[]>([]);

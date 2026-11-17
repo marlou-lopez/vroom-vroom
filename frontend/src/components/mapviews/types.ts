@@ -16,4 +16,6 @@ export interface TrackViewProps {
   handlers: BadgeHandlers;
   /** Recorded lap times (s) of the lap and the reference lap, for pane labels; absent or null falls back to the comparison grid's last time. */
   lapTimes?: { lap: number | null; ref: number | null };
+  /** Whether the lap counts as valid (`effectiveValid`); decides if its wheels-off marks are red (invalid) or grey close calls. Absent = valid. */
+  lapValid?: boolean;
 }

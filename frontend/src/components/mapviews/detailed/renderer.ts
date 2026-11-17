@@ -30,7 +30,7 @@ export const GAIN_STYLES: readonly GainStyle[] = ["off", "side", "track"];
 
 export interface RendererEvents { onContextLost(): void; onContextRestored(): void }
 
-export interface Colors { you: string; comparison: string; line: string; bg: string; text: string; gain: string; loss: string; lockup: string; wheelspin: string }
+export interface Colors { you: string; comparison: string; line: string; bg: string; text: string; gain: string; loss: string; lockup: string; wheelspin: string; offTrack: string; closeCall: string }
 
 /** Drawing constants shared by all renderers (CSS px, constant at every zoom). */
 export const EDGE_PX = 1;
@@ -103,6 +103,8 @@ export function readColors(el: Element): Colors {
     loss: get("--color-issue", "#FF7A59"),
     lockup: get("--color-lockup", "#FF3B3B"),
     wheelspin: get("--color-wheelspin", "#FFB020"),
+    offTrack: get("--color-off-track", "#FF2D55"),
+    closeCall: get("--color-close-call", "#868E99"),
   };
 }
 
