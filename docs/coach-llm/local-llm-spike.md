@@ -204,6 +204,49 @@ gpt-oss's two zeros are empty `what`/`fix` strings (2 of its 20 v3 runs; the sch
 the prose check isn't a retry trigger yet). The rater's note on another: "almost good, just need to flesh out
 the steering_extrema usage". terra went from 3.6 (round 1) to 4.0, luna from 3.25 to 3.0.
 
+### Round 3: DeepSeek against terra and luna (vroom-9ki.19, 2026-11-18)
+
+Same prompt (v3), same packets (v2, Spa), 5 runs per packet, round tag `2026-11-18-deepseek`. terra and luna were
+re-run in the same round so the blind sheet mixes all four. DeepSeek takes JSON mode only (`json_object`): the
+schema is in the prompt and the bench validates afterwards, so schema-valid is a real measurement. Costs use the
+peak-hour prices in `models.json`; off-peak is half.
+
+| Model | Schema valid | Guard, 1st try | Prose clean | Hedge-free | Median total s | Cost per call |
+|---|---|---|---|---|---|---|
+| gpt-6.1-terra | 20/20 | 20/20 | 20/20 | 20/20 | 5.9–16.4 | 0.83 cents |
+| gpt-6-luna | 20/20 | 20/20 | 20/20 | 20/20 | 7.5–20.7 | 0.12 cents |
+| deepseek-flash | 20/20 | 19/20 (1 "calculated", fixed by the retry) | 20/20 | 20/20 | 7.2–14.4 | 0.43 cents |
+| deepseek-v4-pro | 18/20 (2 schema failures, both on Analyze) | 18/20 | 18/20 | 18/20 | 18.0–70.2 | 2.3 cents |
+
+Both DeepSeek models spend most of the time before the first JSON token (flash 6.6–10.6 s, V4 Pro 16.8–64.9 s) although
+the first streamed token arrives in under a second: they reason first. That also makes V4 Pro cost about twice the
+estimate in the issue (1.8k–7.8k output tokens per call, against about 1k for terra).
+
+Blind ratings, 16 samples, one per model and packet (Analyze has two), names hidden
+(`results/blind-scores-2026-11-18-deepseek.json`):
+
+| Model | Mean | Analyze ×2 | Average | Corner |
+|---|---|---|---|---|
+| **gpt-6.1-terra** | **4.38** | 4.5, 4 | 4.5 | 4.5 |
+| deepseek-flash | 4.25 | 4, 5 | 4.5 | 3.5 |
+| gpt-6-luna | 4.00 | 3, 4.5 | 4 | 4.5 |
+| deepseek-v4-pro | 3.75 | 4.5, 3 | 3.5 | 4 |
+
+One rating per cell is noisy (luna scored 3.0 in round 2 and 4.0 here with the same prompt), so differences under a
+point mean little. The one written note, on V4 Pro: "almost good, but specifying the number of steering corrections
+might not be easily actionable".
+
+**Reading.** deepseek-flash is as good as terra within the noise at about half the price, with perfect schema
+validity and prose. It is not cheaper than luna (3.5 times the price) and is slower to the first JSON token.
+V4 Pro is the worst on every axis: slowest, 2.3 cents a call (almost three times terra), rated lowest, and the only model
+to fail the schema.
+
+**Recommendation: keep OpenAI as the default** (strong terra, fast luna). Neither DeepSeek model beats the
+current pair on the axis that matters: flash is not clearly better than luna's price, and V4 Pro is worse than terra on
+cost, speed and rating. Do not use V4 Pro. DeepSeek flash is a good optional "strong" setting for anyone who prefers
+that host (`llm_provider: "openai"` with `llm_base_url: "https://api.deepseek.com"`, JSON mode, the schema in the prompt,
+and the one retry on schema or guard failure); it is untested on Monza and on the corner packet's weaker rating (3.5).
+
 ### Not yet measured
 
 | Item | Why not | How |
@@ -289,6 +332,6 @@ Lessons for vroom-9ki.12 (coach packets and guard), whichever model wins:
 - **Local (Ollama) stays an option**, not the default or a fallback. So **VRAM with LMU open was not measured**:
   it only matters for running a local model next to the game, which is no longer the plan. gpt-oss-20b alone
   holds 12.74 GB of the 16 GB, for whoever picks that up.
-- **DeepSeek** (`deepseek-flash`, `deepseek-v4-pro`; JSON mode with the schema in the prompt) is checked later, in
-  its own task. Anthropic, the design's original default, stays one setting away and unmeasured.
+- **DeepSeek** (`deepseek-flash`, `deepseek-v4-pro`; JSON mode with the schema in the prompt) was checked later in
+  vroom-9ki.19 (round 3 above): OpenAI stays the default. Anthropic, the design's original default, stays one setting away and unmeasured.
 - The bench (`spikes/local-llm/`) stays for later rounds: more recordings, prompt and packet versions, providers.
