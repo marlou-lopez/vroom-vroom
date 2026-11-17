@@ -1,20 +1,24 @@
 import { useMemo, useRef, useState, type MouseEvent } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, type QueryObserverResult } from "@tanstack/react-query";
 import { sessionLapsOptions, useCalibrate, useLandmarkMutation, useLapTrace, useSessions, useTrackMap } from "../api/queries";
-import { errorInfo, type CalibrationResult, type GridChannel, type Landmark, type LandmarkKind, type SessionMeta } from "../api/types";
+import { errorInfo, type CalibrationResult, type GridChannel, type LapWithRef, type Landmark, type LandmarkKind, type SessionMeta } from "../api/types";
 import { AddLandmarkForm, LandmarkEditor } from "../components/LandmarkEditor";
 import { landmarkFill, landmarkStroke } from "../lib/landmarks";
 import { bestValidLap } from "../lib/laps";
-import { projectLatLon, nearestCorner, nearestPoint, pointAtDistance, GPS_SMOOTH_HALF, polylinePath, cornerSegmentPath, smoothClosed, type Projection } from "../lib/trackmap";
+import { nearestCorner, nearestPoint, pointAtDistance, polylinePath, cornerSegmentPath, type Projection } from "../lib/trackmap";
+import { buildProjection, MAP_H, MAP_W } from "../lib/model";
 import { cx } from "../lib/cx";
 import ui from "../components/ui.module.css";
 import styles from "./TracksPage.module.css";
 
-const W = 200;
-const H = 240;
 const PAD = 14;
 const GEO_CHANNELS: GridChannel[] = ["lat", "lon"];
-const VIEWBOX = `${-PAD} ${-PAD} ${W + 2 * PAD} ${H + 2 * PAD}`;
+const VIEWBOX = `${-PAD} ${-PAD} ${MAP_W + 2 * PAD} ${MAP_H + 2 * PAD}`;
+
+// Stable reference: useQueries re-runs a combine only when the results change, so geoLapId's memo can hold.
+function combineLaps(rs: QueryObserverResult<LapWithRef[], Error>[]) {
+  return { laps: rs.map((r) => r.data), error: rs.find((r) => r.error)?.error ?? null };
+}
 
 interface Err {
   code: string;
@@ -60,7 +64,7 @@ export function TracksPage() {
   );
   const lapsQ = useQueries({
     queries: trackSessions.map((s) => sessionLapsOptions(s.session_id)),
-    combine: (rs) => ({ laps: rs.map((r) => r.data), error: rs.find((r) => r.error)?.error ?? null }),
+    combine: combineLaps, // module-level so its result only changes with the query data
   });
   const geoLapId = useMemo(() => {
     for (const laps of lapsQ.laps) {
@@ -74,7 +78,7 @@ export function TracksPage() {
   const geo = useMemo<Geometry | null>(() => {
     const tr = traceQ.data;
     if (!tr?.ch.lat || !tr.ch.lon) return null;
-    const proj = projectLatLon(smoothClosed(tr.ch.lat, GPS_SMOOTH_HALF), smoothClosed(tr.ch.lon, GPS_SMOOTH_HALF), W, H);
+    const proj = buildProjection(tr.ch.lat, tr.ch.lon);
     return { proj, distance: tr.distance, basePath: polylinePath(proj, 0, proj.x.length - 1, 2) };
   }, [traceQ.data]);
 
@@ -185,9 +189,9 @@ export function TracksPage() {
                 {cornerSegs.map(({ c, label }) => (
                   <text
                     key={c.id}
-                    x={label.x + (label.x > W / 2 ? 8 : -8)}
+                    x={label.x + (label.x > MAP_W / 2 ? 8 : -8)}
                     y={label.y + 2}
-                    textAnchor={label.x > W / 2 ? "start" : "end"}
+                    textAnchor={label.x > MAP_W / 2 ? "start" : "end"}
                     className={cx(styles.cornerName, c.id === selectedCorner && styles.selected)}
                   >
                     {c.name}

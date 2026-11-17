@@ -16,9 +16,14 @@ export interface PlaybackModel {
   speedRange: [number, number];
 }
 
+/** The map projection every page uses: smoothed GPS fitted into the MAP_W x MAP_H box. Change smoothing or size here only. */
+export function buildProjection(lat: ArrayLike<number>, lon: ArrayLike<number>): Projection {
+  return projectLatLon(smoothClosed(lat, GPS_SMOOTH_HALF), smoothClosed(lon, GPS_SMOOTH_HALF), MAP_W, MAP_H);
+}
+
 export function buildModel(cmp: CompareResponse): PlaybackModel {
   // The map comes from the comparison lap's GPS.
-  const proj = projectLatLon(smoothClosed(cmp.ref.lat, GPS_SMOOTH_HALF), smoothClosed(cmp.ref.lon, GPS_SMOOTH_HALF), MAP_W, MAP_H);
+  const proj = buildProjection(cmp.ref.lat, cmp.ref.lon);
   let lo = Infinity;
   let hi = -Infinity;
   for (const arr of [cmp.lap.speed_kmh, cmp.ref.speed_kmh]) {

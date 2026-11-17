@@ -19,6 +19,14 @@ interface Row {
 
 const TONE: Record<FocusTone, string> = { good: styles["tone-good"], bad: styles["tone-bad"], unclear: styles["tone-unclear"] };
 
+// Module-level so useQueries only re-runs it when the query results change.
+function combine<T>(rs: { data: T | undefined; error: Error | null }[]) {
+  return {
+    data: rs.every((r) => r.data !== undefined) ? rs.map((r) => r.data as T) : null,
+    error: rs.find((r) => r.error)?.error ?? null,
+  };
+}
+
 export function SessionsPage() {
   const sessionsQ = useSessions();
   const sessions = sessionsQ.data ?? null;
@@ -32,10 +40,6 @@ export function SessionsPage() {
     () => (sessions ?? []).filter((s) => comboKey(s) === comboKeyNow).sort((a, b) => a.started_at.localeCompare(b.started_at)),
     [sessions, comboKeyNow],
   );
-  const combine = <T,>(rs: { data: T | undefined; error: Error | null }[]) => ({
-    data: rs.every((r) => r.data !== undefined) ? rs.map((r) => r.data as T) : null,
-    error: rs.find((r) => r.error)?.error ?? null,
-  });
   const summaries = useQueries({ queries: mine.map((s) => sessionSummaryOptions(s.session_id)), combine });
   const lapsOf = useQueries({ queries: mine.map((s) => sessionLapsOptions(s.session_id)), combine });
   const rows: Row[] | null =
