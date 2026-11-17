@@ -9,6 +9,7 @@ ratings. It started as the local-LLM spike; the write-up and every result so far
 | `build-packets.mjs` | Builds facts packets from a mock recording with the mock API's corner facts |
 | `packets/`, `packets-v2/` | Spa packet sets v1 (round 1) and v2 (aids, engine, kerbs, cause confidence, landmark roles; round 2) |
 | `packets-monza/`, `packets-v2-monza/` | The same two sets for the Monza recording (not run through the paid models yet) |
+| `packets-v3/`, `packets-v3-monza/` | Set v3 (round 4, vroom-aks): plain-English keys, `a against b` pairs, a per-corner `allowed_numbers` list that `guard.py` checks each finding against. Built from v2, which stays unchanged |
 | `prompt.md`, `prompt-v2.md`, `prompt-v3.md` | System prompts. v3 is the current one (it goes with packet set v2) |
 | `models.json` | The models to compare: provider, model id, price, key variable, enabled |
 | `guard.py` | Number guard with failure reasons, copied-field contract, prose lint, hedge count |

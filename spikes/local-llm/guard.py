@@ -94,10 +94,12 @@ def classify(tok: str, pnums: set[str]) -> str:
 
 def check(result: dict, packet: dict) -> dict:
     """Guard verdict: {'ok', 'failures': [{field, number, reason}], 'contract': [...]}."""
-    pnums = packet_numbers(packet)
+    whole = packet_numbers(packet)
+    scopes = finding_scopes(result, packet)
     failures = []
     for field, text in prose(result):
         text = text.replace("\u00a0", " ").replace("\u202f", " ")
+        pnums = scopes.get(field, whole)
         for n in names(packet):
             text = text.replace(n, " ")
         for tok in numbers(text):
@@ -106,6 +108,20 @@ def check(result: dict, packet: dict) -> dict:
         for m in METRES.findall(text):
             failures.append({"field": field, "number": m, "reason": "metres"})
     return {"ok": not failures, "failures": failures, "contract": contract(result, packet)}
+
+
+def finding_scopes(result: dict, packet: dict) -> dict[str, set[str]]:
+    """Packet set v3: field -> the numbers its finding's own corner allows (the corner's `allowed_numbers`).
+    A finding whose corner has no list (packet sets v1, v2), or names an unknown corner, uses the whole packet."""
+    corners = packet["corners"] if "corners" in packet else [packet["corner"]]
+    allowed = {c["corner_id"]: set(c["allowed_numbers"]) for c in corners if "allowed_numbers" in c}
+    scopes = {}
+    for i, f in enumerate(result.get("findings") or []):
+        if f.get("corner_id") in allowed:
+            for key in ("what", "fix"):
+                scopes[f"findings[{i}].{key}"] = allowed[f["corner_id"]]
+            scopes[f"findings[{i}].evidence"] = allowed[f["corner_id"]]
+    return scopes
 
 
 def contract(result: dict, packet: dict) -> list[str]:
