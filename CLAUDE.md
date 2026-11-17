@@ -75,7 +75,7 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   import mock data directly. When the contract changes, update `types.ts`, the mock and its
   tests together.
 - **UI stack:** TanStack Query for server data, Zustand for playback state, Radix UI for
-  menus, hover cards, sliders and toggles, uPlot for the strips, custom SVG for the classic map and
+  menus, popovers (annotation cards), sliders and toggles, uPlot for the strips, custom SVG for the classic map and
   scrubber, three.js (WebGL, lazy-loaded chunk) for the detailed track views (#33, #45, #39), CSS Modules with theme tokens as CSS variables (`src/theme.ts`). The theme is
   dark only and dense: 6 px spacing, 4 px radius, 12 px Inter.
 - **No tracking-like words in frontend file or folder names** (`trackview`, `tracking`,
