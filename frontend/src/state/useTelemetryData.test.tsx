@@ -41,6 +41,55 @@ describe("useTelemetryData", () => {
     expect(result.current.ctx?.lap.lap_id).toBe(lap.lap_id);
   });
 
+  it("fetches only the lap's own session for ?lap=", async () => {
+    const engine = mock.engine();
+    const sessions = [...(await engine.sessions())].sort((a, b) => a.started_at.localeCompare(b.started_at));
+    const oldest = sessions[0];
+    const lap = (await engine.sessionLaps(oldest.session_id)).find((l) => l.kind === "flying" && l.lap_time_s !== null)!;
+    const asked: string[] = [];
+    mock.server.use(
+      http.get("*/api/sessions/:id/laps", ({ params }) => {
+        asked.push(String(params.id));
+        return undefined;
+      }),
+      http.get("*/api/laps/:id", ({ params }) => {
+        asked.push(`lap:${String(params.id)}`);
+        return undefined;
+      }),
+    );
+    const { wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useTelemetryData(lap.lap_id, null), { wrapper });
+    await waitFor(() => expect(result.current.cmp).not.toBeNull());
+    expect(asked).toEqual([`lap:${lap.lap_id}`, oldest.session_id]);
+  });
+
+  it("without ?lap= stops at the first session that has a valid lap", async () => {
+    const asked: string[] = [];
+    mock.server.use(
+      http.get("*/api/sessions/:id/laps", ({ params }) => {
+        asked.push(String(params.id));
+        return undefined;
+      }),
+    );
+    const { session } = await newestBest(mock.engine());
+    const { wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useTelemetryData(null, null), { wrapper });
+    await waitFor(() => expect(result.current.cmp).not.toBeNull());
+    expect(asked).toEqual([session.session_id]);
+  });
+
+  it("falls through to an older session when the newest has no valid lap", async () => {
+    const sessions = [...(await mock.engine().sessions())].sort((a, b) => b.started_at.localeCompare(a.started_at));
+    const [newest, second] = sessions;
+    mock.server.use(
+      http.get("*/api/sessions/:id/laps", ({ params }) => (params.id === newest.session_id ? HttpResponse.json([]) : undefined)),
+    );
+    const { wrapper } = createQueryWrapper();
+    const { result } = renderHook(() => useTelemetryData(null, null), { wrapper });
+    await waitFor(() => expect(result.current.ctx).not.toBeNull());
+    expect(result.current.ctx?.session.session_id).toBe(second.session_id);
+  });
+
   it("reports unknown_lap for a lap that is in no session", async () => {
     const { wrapper } = createQueryWrapper();
     const { result } = renderHook(() => useTelemetryData("no-such-lap", null), { wrapper });
@@ -68,21 +117,24 @@ describe("useTelemetryData", () => {
   describe("when one session's laps request fails", () => {
     const failing = { code: "boom", message: "nope" };
 
-    it("shows Loading (no error) while the newest session is pending and an older one failed", async () => {
+    it("shows Loading (no error) while the newest session is pending, and does not ask an older one yet", async () => {
       const sessions = [...(await mock.engine().sessions())].sort((a, b) => b.started_at.localeCompare(a.started_at));
       expect(sessions.length).toBeGreaterThan(1);
       const [newest, older] = sessions;
+      const asked: string[] = [];
       mock.server.use(
         http.get("*/api/sessions/:id/laps", async ({ params }) => {
+          asked.push(String(params.id));
           if (params.id === newest.session_id) await delay("infinite");
-          if (params.id === older.session_id) return HttpResponse.json(failing, { status: 500 });
-          return undefined;
+          return HttpResponse.json(failing, { status: 500 });
         }),
       );
       const { wrapper, client } = createQueryWrapper();
       const { result } = renderHook(() => useTelemetryData(null, null), { wrapper });
-      // Wait until the older session's request has failed; the pending newest session must still read as loading.
-      await waitFor(() => expect(client.getQueryState(sessionLapsOptions(older.session_id).queryKey)?.status).toBe("error"));
+      await waitFor(() => expect(asked).toContain(newest.session_id));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(asked).toEqual([newest.session_id]);
+      expect(client.getQueryState(sessionLapsOptions(older.session_id).queryKey)?.fetchStatus ?? "idle").toBe("idle");
       expect(result.current.error).toBeNull();
       expect(result.current.ctx).toBeNull();
     });
