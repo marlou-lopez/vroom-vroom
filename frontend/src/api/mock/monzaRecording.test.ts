@@ -30,10 +30,10 @@ describe("Monza recording data", () => {
     expect([0, 8].map(time)).toEqual([null, null]);
   });
 
-  it("does not carry the driver's name or the setup", () => {
+  it("does not carry the driver's name; the setup is only key -> display string (vroom-pnw.25)", () => {
     const text = readFileSync(FILE, "utf8");
-    expect(text).not.toMatch(/driver|steam|setup/i);
-    expect(Object.keys(REC).sort()).toEqual(["laps", "source", "steering_range_deg"]);
+    expect(text).not.toMatch(/driver|steam/i);
+    expect(Object.keys(REC).sort()).toEqual(["car_setup", "laps", "source", "steering_range_deg"]);
   });
 
   // Speed minima on the reference lap, the way the corner list was made. Curva Grande is flat out (no minimum) and Ascari 3 is
