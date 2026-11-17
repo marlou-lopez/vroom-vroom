@@ -1,7 +1,7 @@
 import * as HoverCard from "@radix-ui/react-hover-card";
 import { useMemo } from "react";
 import { useLap, useSessionSetup } from "../api/queries";
-import type { LapWithRef } from "../api/types";
+import { idealRefSession, type LapWithRef } from "../api/types";
 import { diffSetups } from "../lib/setupDiff";
 import styles from "./SetupChip.module.css";
 
@@ -19,7 +19,8 @@ export interface SetupChipProps {
  * Nothing is shown while loading, when a load fails (not fatal) or when either session has no recorded setup.
  */
 export function SetupChip({ lapSessionId, laps, refLapId }: SetupChipProps) {
-  const sameSessionRef = refLapId !== null && laps.some((l) => l.lap_id === refLapId);
+  // The ideal lap is always the lap's own session's.
+  const sameSessionRef = refLapId !== null && (idealRefSession(refLapId) !== null || laps.some((l) => l.lap_id === refLapId));
   // A comparison lap outside this session: fetch it to learn its session.
   const refLap = useLap(refLapId !== null && !sameSessionRef ? refLapId : null).data;
   const refSessionId = refLapId === null ? null : sameSessionRef ? lapSessionId : (refLap?.session_id ?? null);

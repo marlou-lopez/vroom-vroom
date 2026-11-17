@@ -6,6 +6,9 @@ import {
   ApiError,
   effectiveValid,
   GRID_CHANNELS,
+  IDEAL_REF_PREFIX,
+  idealRefId,
+  idealRefSession,
   type CalibrationResult, type ChannelArrays, type CoachRequest, type CoachResult, type CoachResults,
   type Command, type CompareCandidate, type CompareResponse, type Corner, type Finding,
   type CarDims, type CarSetup, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SegmentTimes, type SessionMeta, type SessionSummary, type Stint, type StintLap, type TraceResponse,
@@ -220,6 +223,8 @@ const COST: Record<Command, { cost: number; input: number; output: number }> = {
 interface LapRec {
   meta: LapMeta;
   trace: Trace;
+  /** The stitched ideal lap only: grid metres where the source lap changes. */
+  joins?: number[];
 }
 
 /** Flying, valid and with a real time: can be a reference or count towards best/theoretical. */
@@ -485,8 +490,17 @@ export function createMockApi(opts: MockOptions = {}): Api {
     return same.filter(isTimed).sort((a, b) => lapTime(a) - lapTime(b))[0];
   };
 
+  /** A comparison lap by id: a real lap, or the stitched ideal of a session (`ideal:<session_id>`). */
+  const refOf = (refId: string, lap: LapRec): LapRec => {
+    const sid = idealRefSession(refId);
+    if (sid === null) return lapOf(refId);
+    // The ideal belongs to the compared lap's own session.
+    if (sid !== lap.meta.session_id) throw new ApiError("unknown_lap", `No ideal lap ${refId} for this lap: only its own session's ideal can be compared against.`);
+    return idealRec(sid);
+  };
+
   const resolveRef = (lap: LapRec, refId: string | null | undefined): LapRec => {
-    const ref = refId ? lapOf(refId) : referenceFor(lap.meta.track_id, lap.meta.car_id);
+    const ref = refId ? refOf(refId, lap) : referenceFor(lap.meta.track_id, lap.meta.car_id);
     if (!ref) throw new ApiError("no_reference", "This lap has no reference: there is no valid flying lap for this track and car.");
     if (ref.meta.track_id !== lap.meta.track_id) {
       throw new ApiError("track_mismatch", "These laps are from different track layouts and cannot be compared.");
@@ -541,7 +555,14 @@ export function createMockApi(opts: MockOptions = {}): Api {
       return out;
     };
     const lapCh = cut(a.ch);
-    const refCh = cut(b.ch);
+    let refCh = cut(b.ch);
+    if (ref.joins) {
+      // A lap's grid ends a few ms before the line, so its raw end is `eps` short of its official time. The ideal's clock is official,
+      // so give it the same shortfall, growing along the lap: the delta then ends at lap time minus ideal time, as the contract says.
+      // An out or in lap has no official time: no shortfall to add.
+      const eps = lapTime(lap) > 0 ? lapTime(lap) - lapCh.t[n - 1] : 0;
+      refCh = { ...refCh, t: refCh.t.map((x, i) => x - (eps * i) / Math.max(1, n - 1)) };
+    }
     const carName = (r: LapRec) => sessionOf(r.meta.session_id).car_name;
     const res: CompareResponse = {
       lap_id: lap.meta.lap_id,
@@ -565,6 +586,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
       lap_car_name: sessionOf(lap.meta.session_id).car_name,
       ref_car_name: sessionOf(ref.meta.session_id).car_name,
       corners: [],
+      ref_joins_m: ref.joins ?? [],
     };
     // Same numbers the mock coach reads: cornerComparison builds them (the landmark list is not needed for the metrics).
     res.corners = mapOf(lap.meta.track_id).corners.map((c) => cornerComparison(c, lapCh, refCh, res.delta, []).metrics);
@@ -573,6 +595,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
   };
 
   const label = (r: LapRec) => {
+    if (r.joins) return `Ideal lap (session) ${formatLapTime(r.meta.lap_time_s!)}`;
     const tag = r.meta.kind === "flying" ? "" : ` (${r.meta.kind})`;
     const time = r.meta.lap_time_s === null ? "—" : formatLapTime(r.meta.lap_time_s);
     return `${dateLabel.get(r.meta.session_id)} · L${r.meta.lap_no} ${time}${tag}`;
@@ -612,6 +635,54 @@ export function createMockApi(opts: MockOptions = {}): Api {
       if (e instanceof ApiError && e.code === "no_valid_laps") return null;
       throw e;
     }
+  };
+
+  /**
+   * The session's ideal lap as a lap of its own (`ideal:<session_id>`), stitched from the source laps segment by segment with the
+   * same bounds as `ideal()`. Each segment keeps its source lap's channels but its clock is re-based: it starts where the previous
+   * segment ended and lasts `best_s`, so `t` is continuous and ends at the ideal time. Joins sit at corner starts and ends, where
+   * speed and line can jump (a stitched lap is not drivable, it is a yardstick). Cached per session; cleared when a lap's validity changes (it changes the pool).
+   */
+  const idealRecs = new Map<string, LapRec>();
+  const idealRec = (sessionId: string): LapRec => {
+    const hit = idealRecs.get(sessionId);
+    if (hit) return hit;
+    const ideal0 = ideal(sessionId, "session");
+    const session = sessionOf(sessionId);
+    const pool = sortedSessionLaps(sessionId).filter(isTimed);
+    const n = Math.min(...pool.map((l) => l.trace.distance.length));
+    const first = pool.find((l) => l.meta.lap_id === ideal0.segments[0].lap_id)!;
+    const ch = {} as ChannelArrays;
+    for (const k of GRID_CHANNELS) ch[k] = new Array<number>(n);
+    let clock = 0;
+    for (const seg of ideal0.segments) {
+      const src = pool.find((l) => l.meta.lap_id === seg.lap_id)!;
+      const st = src.trace.ch.t;
+      const last = st.length - 1;
+      // Official-time scale, like `segmentDurations`, so the segment lasts best_s.
+      const scale = lapTime(src) > 0 && st[last] > st[0] ? lapTime(src) / (st[last] - st[0]) : 1;
+      const at = (m: number) => st[Math.min(Math.round(m), last)];
+      const isLast = seg === ideal0.segments[ideal0.segments.length - 1];
+      const from = Math.min(Math.round(seg.start_m), n - 1), to = isLast ? n - 1 : Math.min(Math.round(seg.end_m) - 1, n - 1);
+      for (let i = from; i <= to; i++) {
+        for (const k of GRID_CHANNELS) ch[k][i] = k === "t" ? clock + (st[Math.min(i, last)] - at(seg.start_m)) * scale : src.trace.ch[k][Math.min(i, last)];
+      }
+      clock += seg.best_s;
+    }
+    // The grid ends a hair before the line, so the clock's end is a few ms off the ideal time: stretch it to land exactly on it.
+    const tEnd = ch.t[n - 1];
+    if (tEnd > 0) ch.t = ch.t.map((x) => (x * ideal0.time_s) / tEnd);
+    const joins = ideal0.segments.slice(1).map((s) => s.start_m).filter((m) => m < n);
+    const rec: LapRec = {
+      joins,
+      trace: { distance: first.trace.distance.slice(0, n), ch },
+      meta: {
+        ...clone(first.meta), lap_id: idealRefId(sessionId), lap_no: 0, kind: "flying", lap_time_s: ideal0.time_s,
+        sectors_s: [], valid: true, valid_override: null, pinned_reference: false, session_id: session.session_id,
+      },
+    };
+    idealRecs.set(sessionId, rec);
+    return rec;
   };
 
   const delay = (ms: number) => (ms > 0 ? new Promise<void>((res) => setTimeout(res, ms)) : Promise.resolve());
@@ -663,7 +734,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
     if (req.command === "average") {
       const valid = sortedSessionLaps(session.session_id).filter(isTimed);
       if (valid.length < 2) throw new ApiError("not_enough_laps", "Average needs at least 2 valid flying laps in the session.");
-      const ref = req.ref_lap_id ? lapOf(req.ref_lap_id) : referenceFor(lap.meta.track_id, lap.meta.car_id);
+      const ref = req.ref_lap_id ? refOf(req.ref_lap_id, lap) : referenceFor(lap.meta.track_id, lap.meta.car_id);
       await delay(coachDelayMs);
       const times = valid.map(lapTime);
       const lapSpread = spread(times);
@@ -767,7 +838,12 @@ export function createMockApi(opts: MockOptions = {}): Api {
     },
     async patchLap(lapId, patch) {
       const lap = lapOf(lapId);
-      if (patch.valid_override !== undefined) lap.meta.valid_override = patch.valid_override;
+      if (patch.valid_override !== undefined) {
+        lap.meta.valid_override = patch.valid_override;
+        // Validity decides which laps the ideal is stitched from: drop the stitched laps and their comparisons.
+        idealRecs.clear();
+        for (const k of [...compareCache.keys()]) if (k.includes(`|${IDEAL_REF_PREFIX}`)) compareCache.delete(k);
+      }
       if (patch.pinned_reference !== undefined) {
         if (patch.pinned_reference) {
           for (const o of laps.values()) {
@@ -793,7 +869,19 @@ export function createMockApi(opts: MockOptions = {}): Api {
       const lap = lapOf(lapId);
       const ref = referenceFor(lap.meta.track_id, lap.meta.car_id);
       const startedAt = (r: LapRec) => sessionOf(r.meta.session_id).started_at;
-      return [...laps.values()]
+      const idealCand = (): CompareCandidate[] => {
+        try {
+          const ir = idealRec(lap.meta.session_id);
+          return [{
+            lap_id: ir.meta.lap_id, label: `Ideal lap (session) ${formatLapTime(ir.meta.lap_time_s!)}`, lap_time_s: ir.meta.lap_time_s,
+            car_name: sessionOf(lap.meta.session_id).car_name, is_reference: false, is_previous: false, other_car: false, is_ideal: true,
+          }];
+        } catch (e) {
+          if (e instanceof ApiError && e.code === "no_valid_laps") return [];
+          throw e;
+        }
+      };
+      return [...idealCand(), ...[...laps.values()]
         .filter((r) => r.meta.track_id === lap.meta.track_id && r.meta.lap_id !== lapId)
         .sort((a, b) => startedAt(b).localeCompare(startedAt(a)) || b.meta.lap_no - a.meta.lap_no)
         .map((r) => ({
@@ -804,7 +892,8 @@ export function createMockApi(opts: MockOptions = {}): Api {
           is_reference: ref?.meta.lap_id === r.meta.lap_id,
           is_previous: r.meta.session_id === lap.meta.session_id && r.meta.lap_no === lap.meta.lap_no - 1,
           other_car: r.meta.car_id !== lap.meta.car_id,
-        }));
+          is_ideal: false,
+        }))];
     },
     async trackMap(trackId) {
       return clone(mapOf(trackId));
