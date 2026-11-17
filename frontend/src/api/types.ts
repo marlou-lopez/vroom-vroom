@@ -126,11 +126,28 @@ export interface CompareResponse {
    */
   corners: CornerMetrics[];
   /**
+   * Car balance per grid metre (vroom-bi4.5), deg/s of yaw rate: > 0 is understeer (more steering than the rotation it got),
+   * < 0 oversteer. Zero means the driver's usual balance in this car, not a neutral car (the estimate is calibrated on the
+   * driver's own laps). null at metres below 15 m/s, and null for the whole array when the lap has no steering range or too
+   * few metres to calibrate. Estimated from the recording alone (docs/car-behaviour/oversteer-understeer.md).
+   */
+  lap_balance: (number | null)[] | null;
+  ref_balance: (number | null)[] | null;
+  /** Stretches of at least 5 m in a corner (>= 0.5 g) where the balance passes +5 deg/s. Empty without a balance. */
+  lap_understeer_runs: BalanceRun[];
+  ref_understeer_runs: BalanceRun[];
+  /** EXPERIMENTAL. Stretches where the balance passes -10 deg/s: only big slides (precision 0.93, recall 0.16), small ones are missed. Never given to the coach. */
+  lap_oversteer_runs: BalanceRun[];
+  ref_oversteer_runs: BalanceRun[];
+  /**
    * Grid metres of the stitched ideal lap's segment joins: every segment start after the first (corner starts and ends; neighbouring
    * segments may come from the same lap, but speed and line can still jump where they do not; the strips mark them all). Empty when `ref_lap_id` is a real lap.
    */
   ref_joins_m: number[];
 }
+
+/** A stretch of the lap in inclusive grid metres. */
+export interface BalanceRun { start_m: number; end_m: number }
 
 /**
  * One corner, lap against reference. Positions are grid metres (0 = start line); a corner that wraps over the start line
@@ -162,6 +179,13 @@ export interface CornerSideMetrics {
   overlap_s: number;
   /** Direction reversals of the smoothed steering (+-5 m, 10 % prominence). Compare with the reference's count: the difference is the extra corrections. */
   steer_corrections: number;
+  /**
+   * Peak understeer in the corner in deg/s of yaw rate (the largest balance, 0 when the car never understeered). null when the
+   * lap has no balance. Understeer only: there is no per-corner oversteer figure (the estimate misses small slides).
+   */
+  understeer_peak_deg_s: number | null;
+  /** Mean balance over the corner's metres past the +5 deg/s understeer mark, 0 when there are none. null when the lap has no balance. */
+  understeer_mean_deg_s: number | null;
 }
 
 /**

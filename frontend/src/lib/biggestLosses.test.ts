@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CompareResponse, Corner, CornerMetrics } from "../api/types";
 import { biggestLosses } from "./biggestLosses";
 
-const side = { brake_onset_m: 100, peak_brake: 1, min_speed_kmh: 100, min_speed_m: 120, throttle_pickup_m: 140, exit_speed_kmh: 150, coast_s: 0, overlap_s: 0, steer_corrections: 0 };
+const side = { brake_onset_m: 100, peak_brake: 1, min_speed_kmh: 100, min_speed_m: 120, throttle_pickup_m: 140, exit_speed_kmh: 150, coast_s: 0, overlap_s: 0, steer_corrections: 0, understeer_peak_deg_s: null, understeer_mean_deg_s: null };
 const m = (id: string, d: number, lap: Partial<typeof side> = {}): CornerMetrics => ({ corner_id: id, delta_s: d, lap: { ...side, ...lap }, ref: side });
 const corner = (id: string): Corner => ({ id, name: `T${id}`, start_m: 100, apex_m: 120, end_m: 140, complex: null, approx: false });
 const cmp = (corners: CornerMetrics[], ref = "b") => ({ lap_id: "a", ref_lap_id: ref, corners }) as unknown as CompareResponse;

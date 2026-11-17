@@ -32,7 +32,7 @@ describe("balance estimate against the capture truth, Spa flying lap", () => {
   it("follows the true front-minus-rear slip angle through the corners", () => {
     const b = t.balance.filter((_, i) => corner[i]), tt = T.filter((_, i) => corner[i]);
     expect(b.length).toBeGreaterThan(1500);
-    expect(pearson(b, tt)).toBeGreaterThan(0.8);
+    expect(pearson(b, tt)).toBeGreaterThanOrEqual(0.85);
   });
 
   it("stays quiet on the Kemmel straight (1500-2150 m)", () => {

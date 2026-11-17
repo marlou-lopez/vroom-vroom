@@ -261,6 +261,19 @@ describe("mockApi: real Spa laps", () => {
         if (side.brake_onset_m !== null) expect(side.brake_onset_m).toBeLessThanOrEqual(c.apex_m);
       }
     }
+    // Balance (vroom-bi4.5): a trace per metre for both laps, understeer per corner, and no oversteer on the corners.
+    expect(cmp.lap_balance).toHaveLength(cmp.distance.length);
+    expect(cmp.ref_balance).toHaveLength(cmp.distance.length);
+    expect(cmp.lap_balance!.some((b) => b !== null && Math.abs(b) > 0)).toBe(true);
+    expect(cmp.lap_understeer_runs.length).toBeGreaterThan(0);
+    for (const r of cmp.lap_understeer_runs) expect(r.end_m).toBeGreaterThanOrEqual(r.start_m);
+    for (const m of cmp.corners) {
+      for (const side of [m.lap, m.ref]) {
+        expect(side.understeer_peak_deg_s).toBeGreaterThanOrEqual(0);
+        expect(side.understeer_mean_deg_s).toBeGreaterThanOrEqual(0);
+        expect(Object.keys(side).some((k) => k.includes("oversteer"))).toBe(false);
+      }
+    }
     // Comparing a lap with itself changes nothing.
     const same = await api.compare(lap(4).lap_id, lap(4).lap_id);
     for (const m of same.corners) {
