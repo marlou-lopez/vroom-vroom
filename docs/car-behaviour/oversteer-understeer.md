@@ -27,7 +27,7 @@ same estimate).
 6. **Balance** B = s·(r_exp − r_act) in deg/s, where s is the sign of the turn: sign(r_act), or sign(r_exp) when
    |r_act| < 2 deg/s. **B > 0 is understeer** (more steering than the rotation it got). **B < 0 is oversteer** (more
    rotation than asked for, or counter-steer).
-7. **Marks**: B > 5 deg/s is understeer and B < −10 deg/s is oversteer. A mark needs ≥ 0.5 g of lateral g (oversteer also
+7. **Marks**: B > 5 deg/s is understeer and B < −7 deg/s is oversteer (−10 until vroom-bi4.7). A mark needs ≥ 0.5 g of lateral g (oversteer also
    counts on a counter-steer), runs closer than 3 m are merged, and runs shorter than 5 m are dropped.
 
 Because b is fitted, **zero means "this driver's usual balance in this car"**, not a neutral car. A car that understeers
@@ -90,7 +90,7 @@ The app fits on just the two compared laps, so its marks will vary a little more
 | **5** | **0.74 / 0.89** | 0.57 / 0.86 |
 | **10** | 0.99 / 0.70 | **0.93 / 0.16** |
 
-The marks use 5 for understeer and 10 for oversteer. Against raw T (not relative to the car's usual balance), oversteer
+The marks used 5 for understeer and 10 for oversteer. vroom-bi4.7 moved oversteer to 7 (0.88 / 0.45; see Steering lead below). Against raw T (not relative to the car's usual balance), oversteer
 at 5 deg/s drops to 0.30 / 0.46, because a GT3 car at the limit almost never has more rear slip than front.
 
 **Where it lights up** (flying lap, 143.78 s):
@@ -104,8 +104,8 @@ at 5 deg/s drops to 0.30 / 0.46, because a GT3 car at the limit almost never has
 
 **Known weakness:** through medium-g corners B runs 3–5 deg/s negative while T is +0.3–1°. Steering leads yaw at entry
 and unwinds early at exit, so a steady-state fit reads "more rotation than asked" there. This is why oversteer needs the
-higher threshold. A model with the steering's lead (e.g. comparing steering with the g_lat ~0.1 s later) could fix it;
-that wasn't tried.
+higher threshold. A model with the steering's lead (e.g. comparing steering with the g_lat ~0.1 s later) could fix it.
+vroom-bi4.7 tried it and it doesn't: see Steering lead below.
 
 ## Prototype
 
@@ -166,3 +166,113 @@ calibration), `lap_understeer_runs` / `ref_understeer_runs` and the experimental
 per-corner oversteer figure). The coach's evidence quotes understeer when the lap's peak is ≥ 5 deg/s and ≥ 3 deg/s above the
 reference's, and never oversteer. The mock calibrates on the two compared laps (`compareBalance`); the backend calibrates over
 all of the driver's laps in that car.
+
+## Steering lead (spike vroom-bi4.7)
+
+**Question:** the estimate dips negative at corner entry and exit on a clean lap, which looked like steering leading the car's
+rotation. If a lag model removes that dip, can oversteer marks use 5 deg/s like understeer?
+
+**Answer:** no. The dip isn't a lag artefact, and every lag model makes the estimate worse. The thresholds do show
+something else, though: **oversteer at 7 deg/s** nearly triples recall (0.16 → 0.45) and keeps precision close
+(0.93 → 0.88).
+
+### What was tried
+
+`tools/lmu-logger/balance_check.py` (section `STEERING LEAD`; same seven Spa sessions, 27 laps, same command) now also
+runs the whole fit and estimate with the steering lagged before it meets the path yaw rate, in the fit and the estimate
+alike:
+
+- **delay τ**: steering from τ seconds earlier, i.e. at the metre d − v·τ. This is "steering against g_lat about 0.1 s
+  later". Negative τ advances the steering instead, as a control.
+- **first-order lag τ**: steering through a first-order lag with time constant τ, run along the lap (dt = 1 m / v). This
+  is the bicycle model's yaw response to a steering input.
+
+Each variant is scored against the same truth as above (T_dev, the front-minus-rear slip angle relative to the car's
+usual balance; oversteer = T_dev below its 10th percentile, −0.86°). The **dip** is measured on the six fast laps (within
+3 % of the best) on corner metres where the truth is *not* oversteer: there, any negative B is the artefact. **Marks** are
+counted as the app draws them (≥ 0.5 g, runs merged within 3 m, ≥ 5 m long) on those six laps. A mark is real if any of
+its metres is true oversteer.
+
+### Before and after
+
+| Steering model | B~T_dev corner P | Clean-corner B p1 / p5 (deg/s) | Share of clean corner metres < −5 | OS precision / recall at 5 | at 10 |
+|---|---|---|---|---|---|
+| **none (as shipped)** | **+0.929** | **−6.9 / −5.4** | 0.078 | **0.57 / 0.86** | **0.93 / 0.16** |
+| delay −0.10 s (advanced) | +0.869 | −9.7 / −6.5 | 0.115 | 0.40 / 0.81 | 0.72 / 0.27 |
+| delay −0.05 s (advanced) | +0.917 | −7.9 / −5.8 | 0.095 | 0.50 / 0.88 | 0.91 / 0.21 |
+| delay 0.05 s | +0.896 | −7.1 / −5.5 | 0.076 | 0.49 / 0.75 | 0.92 / 0.12 |
+| delay 0.10 s | +0.822 | −7.8 / −6.0 | 0.097 | 0.36 / 0.61 | 0.58 / 0.08 |
+| delay 0.20 s | +0.613 | −10.7 / −7.8 | 0.149 | 0.22 / 0.48 | 0.13 / 0.06 |
+| first-order 0.05 s | +0.897 | −6.9 / −5.4 | 0.069 | 0.50 / 0.76 | 0.93 / 0.11 |
+| first-order 0.10 s | +0.836 | −7.3 / −5.6 | 0.081 | 0.40 / 0.67 | 0.57 / 0.07 |
+| first-order 0.20 s | +0.692 | −9.1 / −6.9 | 0.120 | 0.27 / 0.55 | 0.15 / 0.06 |
+
+(0.15 and 0.30 s are in the script's output and continue the trend. The fit's R² is highest without a lag too: 0.893, against 0.884 at
+0.1 s delay.) Understeer gets worse with any lag as well: 0.74 / 0.89 at 5 deg/s as shipped, 0.71 / 0.86 at 0.1 s delay.
+
+**Why no lag wins:** the truth is an instantaneous slip angle, and so is the estimate. In the linear bicycle model
+α_f − α_r = δ − L·r / v, the steering angle minus the yaw rate's share at the same instant. B is that same comparison
+at the same instant, with a speed-dependent gain. Shifting the steering in time breaks the match. The lag between steering
+and yaw is real, but it is already *in* the truth: on turn-in the front slips before the car rotates, and the truth sees that too.
+
+**The dip is mostly real.** By corner phase on the six fast laps (entry = |g_lat| rising over ±5 m, exit = falling):
+
+| Phase | Metres | B mean / p5 (deg/s) | T_dev mean / p5 (deg) | Share true oversteer | B~T_dev P |
+|---|---|---|---|---|---|
+| entry | 5,617 | −0.58 / −6.4 | −0.08 / −1.00 | 0.10 | +0.93 |
+| mid | 4,207 | +1.90 / −6.2 | +0.32 / −0.92 | 0.06 | +0.99 |
+| exit | 5,805 | −2.13 / −9.4 | −0.23 / −1.39 | 0.17 | +0.94 |
+
+At exit the truth moves the same way as B: the rear slips more as the throttle comes in. Within each phase B still
+follows the truth at +0.93 or better. On clean corner metres (truth not oversteer), B passes −10 deg/s on 0.1 % of
+metres. So the −12 to −22 deg/s readings quoted in the issue (Bus Stop, Bruxelles exit) are mostly the car rotating more
+than usual, not an artefact. A delay only moves the dip: at 0.2 s the exit mean becomes +0.82 but entry drops to −3.10, and
+precision collapses.
+
+### What does move oversteer: the threshold
+
+The shipped estimate, at thresholds between 5 and 10 deg/s:
+
+| Oversteer threshold (deg/s) | OS precision / recall (metres) | OS marks on 6 fast laps, real / false |
+|---|---|---|
+| 5 | 0.57 / 0.86 | 157 / 103 |
+| 6 | 0.77 / 0.67 | 121 / 57 |
+| **7** | **0.88 / 0.45** | **75 / 28** |
+| 7.5 | 0.90 / 0.36 | 53 / 28 |
+| 8 | 0.90 / 0.29 | 41 / 25 |
+| 10 (as shipped) | 0.93 / 0.16 | 24 / 16 |
+
+7 deg/s sits just past the clean-corner noise: the 1st percentile of B on corner metres without oversteer is −6.9. It
+roughly triples the real marks (24 → 75 on six laps) and the recall (0.16 → 0.45), for 12 more false marks (2 per lap). At
+5 deg/s, 40 % of the marks are false (17 per lap), so 5 stays out of reach for oversteer. The threshold was picked on the
+same 27 laps it is scored on. It is a single number, but a new car or track should be checked with the same script.
+
+### Options
+
+1. **Drop the lag model, lower the oversteer threshold to 7 deg/s.** One constant in `carBalance.ts`
+   (`OVERSTEER_MARK_DEG_S`) and the figures in the contract's comment (`types.ts`). Oversteer stays experimental and out of the
+   coach's facts. About 5 false marks per lap would show, against 3 today.
+2. **Drop the lag model, keep 10 deg/s.** Nothing changes in the app. Only big slides are marked.
+3. **Keep looking.** E.g. a threshold in slip-angle terms (B / v) rather than yaw rate, or entry and exit thresholds per
+   phase. Nothing here suggests a large gain: B already follows the truth at +0.93 or better within every phase.
+
+**Recommendation:** option 1. The lag model doesn't help (no tested lag beats none), and 7 deg/s nearly triples
+oversteer recall for a small loss of precision.
+
+### Decision (autopilot)
+
+**Option 1: drop the lag model and lower the oversteer threshold to 7 deg/s.** Oversteer stays experimental and out of
+the coach's facts. The autopilot judge made this call on 2026-11-17.
+
+- **The lag model fails on every measure.** No delay or first-order variant beats no lag. Pearson falls from +0.929 to +0.822
+  at 0.1 s delay, oversteer precision at 10 deg/s falls from 0.93 to 0.58, and the fit's R² is highest without a lag. B and the
+  truth are both instantaneous slip comparisons, so a time shift breaks the match.
+- **The entry and exit dip is mostly real.** The truth moves with B at exit (T_dev mean −0.23°, 17 % true oversteer).
+  On clean corner metres B passes −10 deg/s on 0.1 % of metres.
+- **7 deg/s is a cheap, large gain.** Recall goes from 0.16 to 0.45 with precision 0.88 (was 0.93), for about 2 more false
+  marks per lap. It sits just past the clean-corner noise (p1 −6.9).
+- **The risk is small.** Oversteer marks are display-only and experimental, and the coach never gets them (spec: only facts computed in code).
+
+Done in this change: `OVERSTEER_MARK_DEG_S` = 7 in `carBalance.ts` and the `lap_oversteer_runs` comment in `types.ts`.
+Follow-up: re-check the threshold on another car or track before oversteer marks lose the experimental label. It was
+tuned on the same 27 laps of one car at Spa that it was scored on.

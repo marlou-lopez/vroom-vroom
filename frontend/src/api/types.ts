@@ -136,7 +136,7 @@ export interface CompareResponse {
   /** Stretches of at least 5 m in a corner (>= 0.5 g) where the balance passes +5 deg/s. Empty without a balance. */
   lap_understeer_runs: BalanceRun[];
   ref_understeer_runs: BalanceRun[];
-  /** EXPERIMENTAL. Stretches where the balance passes -10 deg/s: only big slides (precision 0.93, recall 0.16), small ones are missed. Never given to the coach. */
+  /** EXPERIMENTAL. Stretches where the balance passes -7 deg/s: precision 0.88, recall 0.45, so small slides are missed. Never given to the coach. */
   lap_oversteer_runs: BalanceRun[];
   ref_oversteer_runs: BalanceRun[];
   /**

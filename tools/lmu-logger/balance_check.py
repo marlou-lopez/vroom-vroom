@@ -2,6 +2,7 @@
 
     python3.14 -I balance_check.py --lmu-dir DIR --pair CAPTURE.lmucap GRID.json [--pair ...] [--calib GRID.json ...]
                                    [--fixture-lap N] [--fixture OUT.json.gz] [--plot OUT_DIR]
+                                   [--lead delay:0.1]
 
 Each GRID.json is what tools/extract-laps.mjs writes from the SAME session's .duckdb recording as CAPTURE (copy the
 recording first and never modify it). Recording and capture share the game's clock, so grid metre d of a lap has the time
@@ -22,7 +23,9 @@ Estimate (recording only):
     r_exp = v (theta_L - c) / (a + b v^2);  B = s (r_exp - r_act) in deg/s, s = sign(r_act) if |r_act| > 2 deg/s
     else sign(r_exp). B > 0 understeer, < 0 oversteer.
 Variants: kappa from the GPS line (turn between the +-5 m chords), r_act replaced by the true yaw rate, smoothing 2/4/8 m,
-and no b term.
+and no b term. STEERING LEAD (vroom-bi4.7): the steering delayed by tau (or advanced, tau < 0) or passed through a first-order
+lag tau before the fit and the estimate, scored by corner phase, oversteer precision/recall and marks on the fast laps;
+--lead MODE:SECONDS makes the later sections use one of them.
 
 Stdlib only; --plot imports matplotlib lazily (uv run --with matplotlib --with numpy python -I balance_check.py ... --plot DIR).
 """
