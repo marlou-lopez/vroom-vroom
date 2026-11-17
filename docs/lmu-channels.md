@@ -61,15 +61,21 @@ Read-only copies of 4 recordings (2026-11-05 Monza to 2026-11-17 Bahrain) each h
 `channelsList` and 40 in `eventsList`, the same set as config.json. So the recorder writes what
 config.json lists, and config.json hasn't changed in that time.
 
-**Does LMU rewrite config.json on launch?** No: its mtime is still 2026-11-04 01:50, after more than
-240 recordings since. (The live test the issue planned, editing config.json and driving a session, was
-not run. This worker has no LMU session, and the newest recording was locked by a running game at the
-time.)
+**Does LMU rewrite config.json on launch?** Not an unchanged one: its mtime is still 2026-11-04 01:50,
+after more than 240 recordings since. Whether LMU strips or rewrites a file that contains unknown names
+is **not tested**.
+
+**Not done: the live test.** The issue planned to edit config.json and drive a session. This worker
+has no LMU session (the newest recording was locked by a running game at the time). So no name was
+accepted or rejected live. "The recorder knows these 8 extra names" is inferred from the exe, and so is
+"a name that isn't in the exe cannot be recorded". The second is a strong inference: the recorder has
+no other way to map a name to a value. The live test is filed as a follow-up.
 
 ### 4. Shared memory: what is really there (sample values)
 
-From two player-only captures of Spa in `tools/lmu-logger/` format (2026-11-05: 48,549 samples;
-2026-11-06: 20,139 samples), decoded with `decode.py player`, samples above 20 m/s only:
+From player-only captures of Spa in `tools/lmu-logger/` format, decoded with `decode.py player`, samples
+above 20 m/s only. The percentiles come from the 2026-11-05 capture (48,549 samples). The "always 0"
+rows hold in that capture and in the 2026-11-06 18:53 one (20,139 samples):
 
 | Field (per wheel `w0..w3` = FL, FR, RL, RR) | Live? | 5th / median / 95th percentile |
 |---|---|---|
@@ -82,8 +88,8 @@ From two player-only captures of Spa in `tools/lmu-logger/` format (2026-11-05: 
 | `wN_mTireLoad`, `wN_mGripFract`, `wN_mLateralForce`, `wN_mLongitudinalForce` | **always 0** | |
 | `mFrontRideHeight`, `mRearRideHeight`, `mFrontDownforce`, `mRearDownforce`, `mDrag` | **always 0** | (the recording's `FrontRideHeight` is live) |
 
-- **Yaw rate sign (empirical):** `mLocalRot_y` correlates +0.965 with `mUnfilteredSteering` and −0.94
-  with `mLocalAccel_x` (+x is left). So `mLocalRot_y > 0` is a right turn, the same sense as positive
+- **Yaw rate sign (empirical):** `mLocalRot_y` correlates +0.944 with `mUnfilteredSteering` (2026-11-05;
+  +0.965 on 2026-11-06) and −0.94 with `mLocalAccel_x` (+x is left) in both captures. So `mLocalRot_y > 0` is a right turn, the same sense as positive
   steering. The derived slip angles are given as computed; their sign convention hasn't been checked.
 - LMU deliberately blanks tyre load, tyre forces, grip fraction, downforce and the car-level ride
   heights in shared memory (the same in both captures). The recorder has access to more than the
@@ -96,7 +102,8 @@ From two player-only captures of Spa in `tools/lmu-logger/` format (2026-11-05: 
    capture to its recording by elapsed time (the clocks are identical, see `lmu-duckdb-schema.md`), and
    the v3 Windows agent (vroom-7cb.2) reads the same block live. For load, use `mSuspForce` (or
    vertical tyre deflection) as a proxy. Cost: the logger has to run, so older recordings get none of it.
-2. **Estimate from the recording alone.** Yaw rate ≈ `g_lat`/speed or the GPS heading rate, and slip as
+2. **Estimate from the recording alone.** Yaw rate ≈ −9.81·`g_lat`/speed in rad/s (`g_lat` is in g and positive in a left turn, while
+   `mLocalRot_y` is positive in a right turn), or the GPS heading rate, and slip as
    in `docs/track-views/cockpit-view.md` (median 0.31° yaw-vs-path difference). Works for every
    recording, but it's an estimate. This is what vroom-pnw.15 has to fall back on anyway.
 3. **Also add the 8 extra names to config.json** (`Brakes Core Temp`, `Steering Shaft Torque

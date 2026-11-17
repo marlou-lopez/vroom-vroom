@@ -48,7 +48,7 @@ def recorder_names(runs: list[str]) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--lmu-dir", default=DEFAULT_LMU)
-    ap.add_argument("--check", nargs="*", default=[], help="names to look for anywhere in the exe")
+    ap.add_argument("--check", nargs="*", default=[], help="names to look for in the exe (whole ASCII strings of 3+ characters; names already in config.json count as known)")
     args = ap.parse_args()
     lmu = Path(args.lmu_dir)
     runs = ascii_runs((lmu / "Le Mans Ultimate.exe").read_bytes())
@@ -68,7 +68,9 @@ def main() -> int:
     for n in sorted(set(table) - used):
         print("  ", n)
     for n in args.check:
-        print(f"check {n!r}: {'in the recorder block' if n in table else 'in the exe' if n in everywhere else 'absent'}")
+        where = ("in the recorder block" if n in table else "in config.json (recorded today)" if n in used
+                 else "in the exe" if n in everywhere else "absent")
+        print(f"check {n!r}: {where}")
     return 0
 
 
