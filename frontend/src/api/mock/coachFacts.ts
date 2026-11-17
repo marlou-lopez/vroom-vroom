@@ -1,5 +1,6 @@
 // Pure per-corner facts and the data-driven finding templates of the mock coach.
 // Every number quoted comes from the two laps. Positions are described against landmarks, never as metre distances.
+import { causeOf, type Cause } from "../../lib/cornerCause";
 import type { ChannelArrays, Corner, CornerMetrics, CornerSideMetrics, CueType, Landmark } from "../types";
 
 type Signals = Pick<ChannelArrays, "t" | "speed_kmh" | "throttle" | "brake" | "steering">;
@@ -30,7 +31,9 @@ export interface CornerComparison {
   metrics: CornerMetrics;
 }
 
-export type Cause = "brake" | "throttle" | "steering" | "speed";
+export type { Cause };
+
+export { causeOf };
 
 export interface Narrative {
   what: string;
@@ -202,20 +205,6 @@ const pair = (a: number, b: number) => (n0(a) === n0(b) ? `${a.toFixed(1)} / ${b
 
 function apexDesc(pos: number, apex: number): string {
   return `${offsetPhrase(pos - apex)} the apex`;
-}
-
-/** The dominant cause of a corner's loss, scored from the same `CornerMetrics` the API serves. */
-export function causeOf(m: CornerMetrics): Cause {
-  const { lap, ref } = m;
-  const score: [Cause, number][] = [
-    ["brake", lap.brake_onset_m !== null && ref.brake_onset_m !== null ? Math.abs(lap.brake_onset_m - ref.brake_onset_m) / 15 : 0],
-    ["throttle", lap.throttle_pickup_m !== null && ref.throttle_pickup_m !== null ? (lap.throttle_pickup_m - ref.throttle_pickup_m) / 15 : 0],
-    ["steering", (lap.steer_corrections - ref.steer_corrections) / 2],
-    ["speed", (ref.min_speed_kmh - lap.min_speed_kmh) / 3],
-  ];
-  let best: [Cause, number] = ["speed", 0];
-  for (const s of score) if (s[1] >= 1 && s[1] > best[1]) best = s;
-  return best[0];
 }
 
 export function narrate(c: CornerComparison, kind: "issue" | "minor" | "strength"): Narrative {
