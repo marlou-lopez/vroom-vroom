@@ -254,7 +254,7 @@ function Telemetry() {
               </div>
               {tab === "corners" ? (
                 <CornersTable corners={model.cmp.corners} trackMap={trackMap} onSeek={seekToCorner} />
-              ) : view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} lapValid={lapValid} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
+              ) : view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} lapValid={lapValid} corners={trackMap?.corners} youName={youName} refName={refName} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
             </section>
             )}
           </div>
