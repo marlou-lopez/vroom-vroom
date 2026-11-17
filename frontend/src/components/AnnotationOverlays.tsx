@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties, type KeyboardEvent, type Ref } from "react";
+import { useMemo, type CSSProperties, type Ref } from "react";
 import { MAP_W, type PlaybackModel } from "../lib/model";
 import type { Annotation } from "../lib/annotations";
 import { chipFraction } from "../lib/strips";
@@ -54,7 +54,7 @@ export function MapBadges({ annotations, model, h }: { annotations: Annotation[]
       {badges.map(({ a, x, y }) => (
         <AnnotationHoverCard key={a.findingId} annotation={a}>
           {/*
-            The hover-card trigger is the SVG <g> itself (Radix's asChild merges its props and ref onto it), so no
+            The card's anchor is the SVG <g> itself (Radix's asChild merges its props and ref onto it; Enter/Space/ArrowDown open the card, see `AnnotationHoverCard`), so no
             foreignObject is needed; the popper anchors on the group's bounding box. `data-annotation-badge` is how
             TrackPanel's scrub handlers recognise a badge and leave it alone.
           */}
@@ -65,12 +65,6 @@ export function MapBadges({ annotations, model, h }: { annotations: Annotation[]
             aria-label={aria(a)}
             className={styles.mapBadge}
             onClick={() => h.onSeek(a)}
-            onKeyDown={(e: KeyboardEvent) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                h.onSeek(a);
-              }
-            }}
           >
             <circle cx={x} cy={y} r={6.5} className={styles.mapBadgeDot} style={{ fill: a.color }} />
             <text x={x} y={y + 2.5} className={styles.mapBadgeText}>{a.label}</text>

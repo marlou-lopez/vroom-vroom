@@ -2,8 +2,8 @@ import { useCallback, useMemo, useRef } from "react";
 import { usePlaybackStore } from "./playback";
 
 /**
- * Pause/resume bookkeeping for the annotation hover cards. Positioning, hover delays and dismissal are Radix
- * HoverCard's job; this only knows which cards are open. The first card to open pauses playback (remembering
+ * Pause/resume bookkeeping for the annotation hover cards. Positioning, hover delays and dismissal belong to
+ * `AnnotationHoverCard` (a Radix Popover); this only knows which cards are open. The first card to open pauses playback (remembering
  * whether it was playing) and the last one to close resumes it. Several triggers can exist for one finding
  * (map badge, strip chip, scrubber badge), so cards are tracked by a caller-chosen key.
  */
