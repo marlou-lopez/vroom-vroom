@@ -84,11 +84,16 @@ gpt-6.1-sol was run with the v1 prompt only; it was already clean with it.
 | gpt-6-luna (OpenAI) | v2 | analyze lap 3 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 17.5 | 23.5 | 2 571 | 0.007 |
 | gpt-6-luna (OpenAI) | v2 | average | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5.8 | 8.8 | 904 | 0.003 |
 | gpt-6-luna (OpenAI) | v2 | corner (trace) | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 6.9 | 8.7 | 825 | 0.004 |
+| gpt-6.1-terra (OpenAI) | v2 | analyze lap 2 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 6.1 | 13.3 | 1 048 | 0.038 |
+| gpt-6.1-terra (OpenAI) | v2 | analyze lap 3 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 7.2 | 15.2 | 1 166 | 0.041 |
+| gpt-6.1-terra (OpenAI) | v2 | average | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 3.7 | 7.8 | 566 | 0.021 |
+| gpt-6.1-terra (OpenAI) | v2 | corner (trace) | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5.5 | 7.5 | 505 | 0.027 |
 
 Totals: gpt-oss **4/20** clean with v1 and **15/20** with v2; gpt-6.1-sol **19/20** with v1; gpt-6-luna **5/20**
-with v1 (nearly all misses were field names in `evidence`) and **20/20** with v2. gpt-6.1-sol costs
+with v1 (nearly all misses were field names in `evidence`) and **20/20** with v2; gpt-6.1-terra **20/20** with v2. gpt-6.1-sol costs
 about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 for its 20 runs; gpt-6-luna about
-**0.1 cents a call** ($0.10 / $0.50), about $0.02 for 20.
+**0.1 cents a call** ($0.10 / $0.50), about $0.02 for 20; gpt-6.1-terra about **0.6 cents a call** ($1 / $5),
+$0.13 for 20. All OpenAI runs together cost about $0.45.
 
 - **Packet bug found by the hosted model.** The first Corner packet rounded the normalised steering (−1..1) to
   whole numbers, so the trace showed 0 everywhere. gpt-6.1-sol said so ("the summary reports 5 extrema versus
@@ -128,6 +133,10 @@ about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 fo
     the reference goes from 75% to 100%") but explains less than gpt-6.1-sol, and quotes field names in its
     evidence. It writes about twice as many tokens as gpt-6.1-sol, so it is slower (7.5–19 s) despite being the
     small tier.
+  - *gpt-6.1-terra* is close to gpt-6.1-sol on the trace ("After the apex, your throttle drops from 58% to 42%
+    as you add steering again, while the reference reaches 100% throttle sooner … the trace does not establish
+    what caused the throttle lift"), with plainer fixes ("aim for a smoother, steadier steering input through
+    the apex"). It writes half the tokens luna does, so it's faster than luna (7.5–15 s) at half sol's price.
 
 ### Not yet measured
 
@@ -142,8 +151,9 @@ about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 fo
 ## Options
 
 1. **Hosted default, provider configurable.** OpenAI for now (the user has credit there), Anthropic or a local
-   model one setting away; strong tier gpt-6.1-sol (Analyze, Corner), fast tier gpt-6-luna (Average, or
-   everything if its prose rates well). Best prose, uses the trace, about 0.1–1.2 cents a call, and nothing
+   model one setting away; strong tier gpt-6.1-terra or gpt-6.1-sol (Analyze, Corner; the ratings pick), fast
+   tier gpt-6-luna (Average, or everything if its prose rates well). Clean prose, uses the trace, about
+   0.1–1.2 cents a call, and nothing
    depends on the GPU being free. Packets leave the PC.
 2. **Local default, hosted fallback when the GPU is busy** (or split by command: local for Average, hosted
    for Analyze and Corner). Free, and reliable in format (40/40 schema-valid and guard-clean). But it is
