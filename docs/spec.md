@@ -96,4 +96,6 @@ These are already spikes or decision issues in Beads; their outcome may change t
   `docs/lmu-channels.md`).
 - Whether oversteer and understeer can be estimated well enough to coach on (`vroom-pnw.15`).
 - Which fuel, virtual energy and tyre channels LMU records, for a stint view (`vroom-pnw.26`).
-- Whether a local LLM is good enough for the post-session coach, or stays hosted (`vroom-9ki.17`).
+- Settled: the post-session coach stays hosted, with the provider and models as settings: OpenAI `gpt-6.1-terra`
+  (strong) and `gpt-6-luna` (fast) by default, a local Ollama model as an option (`vroom-9ki.17`, 2026-11-17,
+  `docs/coach-llm/local-llm-spike.md`).

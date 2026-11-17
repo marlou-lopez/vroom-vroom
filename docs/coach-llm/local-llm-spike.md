@@ -280,9 +280,15 @@ Lessons for vroom-9ki.12 (coach packets and guard), whichever model wins:
   point, kerb time; for Average, the fastest and slowest lap side by side (`packets-v2/`).
 - Write paired values as "110 km/h against 112", not "110 / 112" (the rater found the latter hard to read).
 
-## Open with the user
+## Decision (the user, 2026-11-17)
 
-- **Hosted by default:** OK at 0.1–0.6 cents a call, with the facts packets sent to OpenAI? (The issue's
-  question was whether a hosted fallback is OK; with these results local is the fallback, not hosted.)
-- **VRAM with LMU open in its menus:** not measured. It matters only for the local option; gpt-oss alone holds
-  12.74 GB of the 16 GB.
+**Change.** The coach stays hosted, with the provider and models as settings (option 1):
+
+- **Default: OpenAI**, strong `gpt-6.1-terra` (Analyze, Corner), fast `gpt-6-luna` (Average), as in the config
+  above. Hosted by default is fine at well under a cent a call.
+- **Local (Ollama) stays an option**, not the default or a fallback. So **VRAM with LMU open was not measured**:
+  it only matters for running a local model next to the game, which is no longer the plan. gpt-oss-20b alone
+  holds 12.74 GB of the 16 GB, for whoever picks that up.
+- **DeepSeek** (`deepseek-flash`, `deepseek-v4-pro`; JSON mode with the schema in the prompt) is checked later, in
+  its own task. Anthropic, the design's original default, stays one setting away and unmeasured.
+- The bench (`spikes/local-llm/`) stays for later rounds: more recordings, prompt and packet versions, providers.
