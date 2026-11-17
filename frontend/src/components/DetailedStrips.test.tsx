@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createMockApi } from "../api/mock/mockApi";
 import type { Recording } from "../api/mock/recording";
@@ -44,5 +44,37 @@ describe("DetailedStrips elevation strip", () => {
     expect(screen.getByText("GEAR")).toBeTruthy();
     rerender(view(geometry));
     expect(screen.getByText("ELEVATION")).toBeTruthy();
+  });
+});
+
+describe("DetailedStrips picker", () => {
+  async function setup() {
+    const api = createMockApi({ coachDelayMs: 0, loadSpa: async () => REC });
+    const { best } = await newestBest(api);
+    const model = buildModel(await api.compare(best.lap_id));
+    const handlers = { onHover: () => {}, onLeave: () => {}, onSelect: () => {} } as never;
+    return render(
+      <PlaybackProvider><DetailedStrips model={model} geometry={null} annotations={[]} handlers={handlers} /></PlaybackProvider>,
+    );
+  }
+  const labels = () => Array.from(document.querySelectorAll("[class*=label]")).map((e) => e.textContent);
+
+  it("adds, reorders and removes strips and remembers the choice", async () => {
+    localStorage.clear();
+    await setup();
+    expect(labels()).toEqual(["SPEED", "THROTTLE · BRAKE", "GEAR", "STEERING", "DELTA"]);
+    fireEvent.click(screen.getByRole("button", { name: "Choose strips" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add RPM" }));
+    expect(labels()).toContain("RPM");
+    fireEvent.click(screen.getByRole("button", { name: "Move RPM up" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove Speed" }));
+    expect(labels()).toEqual(["THROTTLE · BRAKE", "GEAR", "STEERING", "RPM", "DELTA"]);
+    expect(JSON.parse(localStorage.getItem("vroom.strips")!)).toEqual(["pedals", "gear", "steering", "rpm", "delta", "elevation"]);
+  });
+
+  it("starts from the default set when the stored choice names an unknown channel", async () => {
+    localStorage.setItem("vroom.strips", '["speed","bogus"]');
+    await setup();
+    expect(labels()).toEqual(["SPEED", "THROTTLE · BRAKE", "GEAR", "STEERING", "DELTA"]);
   });
 });
