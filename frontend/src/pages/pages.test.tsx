@@ -149,4 +149,31 @@ describe("pages", () => {
     fireEvent.click(svg.querySelector(`path[aria-label="${first.textContent}"]`)!);
     await waitFor(() => expect(inList()).toHaveLength(0));
   });
+  it("Tracks adds a landmark by keyboard path: button, prefilled apex distance, editable distance", async () => {
+    renderApp("/tracks");
+    const svg = await screen.findByRole("img", { name: "Track map" });
+    const names = Array.from(svg.querySelectorAll("text"));
+    const target = names[1];
+    // Select a corner via its table button (keyboard reachable).
+    const table = within(await screen.findByRole("region", { name: "Corners" }));
+    const nameBtn = table.getAllByRole("button").find((b) => b.textContent?.replace(" ~", "") === target.textContent)!;
+    const apex = Number(nameBtn.closest("tr")!.querySelectorAll("td")[3].textContent?.replace(" m", ""));
+    fireEvent.click(nameBtn);
+
+    const panel = within(screen.getByRole("region", { name: "Landmarks" }));
+    fireEvent.click(panel.getByRole("button", { name: "Add landmark" }));
+    const form = within(await screen.findByRole("form", { name: "Add landmark" }));
+    const dist = form.getByRole("spinbutton", { name: "Distance (m)" }) as HTMLInputElement;
+    expect(Number(dist.value)).toBe(apex);
+    expect((form.getByRole("combobox", { name: "Corner" }) as HTMLSelectElement).selectedOptions[0].textContent).toBe(target.textContent);
+
+    fireEvent.change(dist, { target: { value: "" } });
+    expect((form.getByRole("button", { name: "Add" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(dist, { target: { value: String(apex + 5) } });
+    fireEvent.change(form.getByRole("textbox", { name: "Label" }), { target: { value: "kbd board" } });
+    fireEvent.click(form.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(screen.queryByRole("form", { name: "Add landmark" })).toBeNull());
+    await waitFor(() => expect(panel.getByText("kbd board")).toBeTruthy());
+    expect(panel.getByText(new RegExp(`${apex + 5} m`))).toBeTruthy();
+  });
 });
