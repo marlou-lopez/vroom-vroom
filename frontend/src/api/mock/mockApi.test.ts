@@ -515,16 +515,20 @@ describe("laps, pinning and sessions", () => {
   it("landmark edits, calibrate, summary, usage and import", async () => {
     const { api, spaNov3, lap } = await setup();
     const tid = spaNov3.track_id;
-    const added = await api.addLandmark(tid, {
-      id: "x1", label: "my marker", kind: "custom", distance_m: 100, corner_id: "lasource", confidence: "low",
-    });
-    expect(added.landmarks.find((l) => l.id === "x1")!.confidence).toBe("confirmed");
+    const first = await api.addLandmark(tid, { label: "my marker", kind: "custom", distance_m: 100, corner_id: "lasource" });
+    const second = await api.addLandmark(tid, { label: "my marker", kind: "custom", distance_m: 100, corner_id: "lasource" });
+    const ids = second.landmarks.filter((l) => l.label === "my marker").map((l) => l.id);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+    expect(first.landmarks.filter((l) => l.label === "my marker")).toHaveLength(1);
+    const x1 = ids[0]!;
+    expect(second.landmarks.find((l) => l.id === x1)!.confidence).toBe("confirmed");
     const confirmed = await api.patchLandmark(tid, "busstop-board50", { confirm: true });
     expect(confirmed.landmarks.find((l) => l.id === "busstop-board50")!.confidence).toBe("confirmed");
     const moved = await api.patchLandmark(tid, "busstop-board50", { distance_m: 6555 });
     expect(moved.landmarks.find((l) => l.id === "busstop-board50")!.distance_m).toBe(6555);
-    const removed = await api.deleteLandmark(tid, "x1");
-    expect(removed.landmarks.some((l) => l.id === "x1")).toBe(false);
+    const removed = await api.deleteLandmark(tid, x1);
+    expect(removed.landmarks.some((l) => l.id === x1)).toBe(false);
     expect((await rejection(api.trackMap("nowhere"))).code).toBe("unknown_track");
 
     const cal = await api.calibrate(tid);

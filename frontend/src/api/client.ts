@@ -1,7 +1,7 @@
 import {
   ApiError,
   type CalibrationResult, type CoachRequest, type CoachResult, type CoachResults, type CompareCandidate,
-  type CompareResponse, type Finding, type GridChannel, type ImportResult, type Landmark, type LandmarkPatch,
+  type CompareResponse, type Finding, type GridChannel, type ImportResult, type LandmarkPatch, type NewLandmark,
   type LapMeta, type LapPatch, type LapWithRef, type LlmUsage, type SessionMeta, type SessionSummary,
   type TraceResponse, type TrackGeometry, type TrackMap,
 } from "./types";
@@ -18,7 +18,7 @@ export interface Api {
   trackMap(trackId: string): Promise<TrackMap>;
   /** Centreline, elevation, edges, kerbs and the coordinate transform of a track, computed once per track. */
   trackGeometry(trackId: string): Promise<TrackGeometry>;
-  addLandmark(trackId: string, landmark: Landmark): Promise<TrackMap>;
+  addLandmark(trackId: string, landmark: NewLandmark): Promise<TrackMap>;
   patchLandmark(trackId: string, landmarkId: string, patch: LandmarkPatch): Promise<TrackMap>;
   deleteLandmark(trackId: string, landmarkId: string): Promise<TrackMap>;
   coach(req: CoachRequest): Promise<CoachResult>;

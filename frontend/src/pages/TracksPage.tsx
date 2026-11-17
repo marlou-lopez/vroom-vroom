@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type MouseEvent } from "react";
 import { useQueries, type QueryObserverResult } from "@tanstack/react-query";
 import { sessionLapsOptions, useCalibrate, useLandmarkMutation, useLapTrace, useSessions, useTrackMap } from "../api/queries";
-import { errorInfo, type CalibrationResult, type GridChannel, type LapWithRef, type Landmark, type LandmarkKind, type SessionMeta } from "../api/types";
+import { errorInfo, type CalibrationResult, type GridChannel, type LapWithRef, type LandmarkKind, type NewLandmark, type SessionMeta } from "../api/types";
 import { AddLandmarkForm, LandmarkEditor } from "../components/LandmarkEditor";
 import { landmarkFill, landmarkStroke } from "../lib/landmarks";
 import { bestValidLap } from "../lib/laps";
@@ -218,9 +218,9 @@ export function TracksPage() {
                 style={{ left: adding.left, top: adding.top }}
                 onCancel={() => setAdding(null)}
                 onSubmit={({ label, kind, cornerId }) => {
-                  const lm: Landmark = {
-                    id: `custom-${Date.now()}`, label, kind: kind as LandmarkKind, distance_m: Math.round(adding.distanceM),
-                    corner_id: cornerId, confidence: "confirmed",
+                  const lm: NewLandmark = {
+                    label, kind: kind as LandmarkKind, distance_m: Math.round(adding.distanceM),
+                    corner_id: cornerId,
                   };
                   setAdding(null);
                   landmarkM.mutate({ op: "add", landmark: lm });
