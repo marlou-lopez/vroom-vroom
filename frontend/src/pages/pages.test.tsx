@@ -99,9 +99,34 @@ describe("pages", () => {
     expect(screen.queryByText(/unknown_track|No geometry|Loading…/)).toBeNull();
   });
 
-  it("Telemetry shows an error for an unknown lap", async () => {
+  it("Telemetry shows 'That lap no longer exists' with ways forward for an unknown lap, and keeps the header", async () => {
     renderApp("/?lap=nope");
-    expect(await screen.findByText(/unknown_lap: No lap nope/)).toBeTruthy();
+    expect(await screen.findByText("That lap no longer exists")).toBeTruthy();
+    expect(screen.queryByText(/unknown_lap/)).toBeNull();
+    expect(screen.getByRole("banner")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open latest lap" }).getAttribute("href")).toBe("/");
+    expect(within(screen.getByRole("main")).getByRole("link", { name: "Sessions" }).getAttribute("href")).toBe("/sessions");
+  });
+
+  it("Telemetry opens on a lap that is not the reference, with no self-comparison note", async () => {
+    const { best, laps } = await newestBest(mock.engine());
+    expect(best.is_reference).toBe(false);
+    const ref = laps.find((l) => l.is_reference);
+    renderApp("/");
+    await screen.findByRole("button", { name: /Analyze lap/ });
+    await waitFor(() => expect(screen.getByRole("banner").textContent).toContain(`L${best.lap_no} `));
+    expect(screen.queryByRole("note")).toBeNull();
+    if (ref) expect(await screen.findByText(/○ ★/)).toBeTruthy();
+  });
+
+  it("Telemetry notes a self-comparison and offers the ideal lap", async () => {
+    const { laps } = await newestBest(mock.engine());
+    const ref = laps.find((l) => l.is_reference)!;
+    renderApp(`/?lap=${ref.lap_id}&ref=${ref.lap_id}`);
+    const note = await screen.findByRole("note");
+    expect(note.textContent).toMatch(/comparison lap/);
+    fireEvent.click(within(note).getByRole("button", { name: "Compare with the ideal lap" }));
+    await waitFor(() => expect(screen.queryByRole("note")).toBeNull());
   });
 
   it("Sessions lists a row per session of the selected track and car", async () => {

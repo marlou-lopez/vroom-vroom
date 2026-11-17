@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
-import { lapAtHref, type SegmentCell } from "../lib/idealGauge";
+import { useLocation } from "react-router-dom";
+import { lapLink } from "../lib/urlParams";
+import { type SegmentCell } from "../lib/idealGauge";
 import { cx } from "../lib/cx";
 import styles from "./SegmentStrip.module.css";
 
@@ -14,6 +16,7 @@ const cellTitle = (c: SegmentCell) =>
  * (inside a menu item, which is itself the focus stop).
  */
 export function SegmentStrip({ cells, lapId, label }: { cells: SegmentCell[]; lapId?: string; label: string }) {
+  const { search } = useLocation();
   if (!lapId) {
     const held = cells.filter((c) => c.tone === "purple").length;
     return (
@@ -25,7 +28,7 @@ export function SegmentStrip({ cells, lapId, label }: { cells: SegmentCell[]; la
   return (
     <span role="group" className={styles.strip} aria-label={label}>
       {cells.map((c, i) => (
-        <Link key={i} to={lapAtHref(lapId, c.start_m)} className={cx(styles.cell, styles.link, styles[c.tone])} title={cellTitle(c)} aria-label={cellTitle(c)} />
+        <Link key={i} to={lapLink(search, lapId, c.start_m)} className={cx(styles.cell, styles.link, styles[c.tone])} title={cellTitle(c)} aria-label={cellTitle(c)} />
       ))}
     </span>
   );

@@ -11,7 +11,7 @@ import { createHandlers } from "../api/mock/handlers";
 import { createMockApi } from "../api/mock/mockApi";
 import type { Recording } from "../api/mock/recording";
 import { effectiveValid } from "../api/types";
-import { bestValidLap } from "../lib/laps";
+import { defaultLap } from "../lib/laps";
 
 const RECORDING = JSON.parse(
   readFileSync(resolve(import.meta.dirname, "../../public/mock/spa-2026-11-03.json"), "utf8"),
@@ -48,7 +48,7 @@ export function createQueryWrapper(client = createTestClient()) {
 export async function newestBest(engine: Api) {
   const sessions = [...(await engine.sessions())].sort((a, b) => b.started_at.localeCompare(a.started_at));
   const laps = await engine.sessionLaps(sessions[0].session_id);
-  return { session: sessions[0], laps, best: bestValidLap(laps)! };
+  return { session: sessions[0], laps, best: defaultLap(laps)! };
 }
 
 /** Distinct (lap, ref) pairs from the Spa session: valid flying laps that are not the reference, with the reference the engine picks for them. */

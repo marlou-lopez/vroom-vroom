@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { lapLink } from "../lib/urlParams";
 import { ApiError } from "../api/types";
 import { useSessionLaps } from "../api/queries";
 import { formatLapTime } from "../lib/format";
@@ -14,6 +15,7 @@ const timesOk = (g: Map<string, unknown>) => g.size > 0;
 
 /** The valid laps of one session, each with its gap to the ideal and to the best lap and a segment strip, beside the ideal lap's breakdown (vroom-bi4.2). */
 export function LapGaugeTable({ sessionId }: { sessionId: string }) {
+  const { search } = useLocation();
   const lapsQ = useSessionLaps(sessionId);
   const { gauges, ideal, pending, error } = useSessionGauges(sessionId, lapsQ.data);
   const laps = (lapsQ.data ?? []).filter((l) => gauges.has(l.lap_id));
@@ -49,7 +51,7 @@ export function LapGaugeTable({ sessionId }: { sessionId: string }) {
                   <td className={styles.num}>{formatGap(g.gapToIdealS)}</td>
                   <td className={cx(styles.num, g.gapToBestS === 0 && styles.best)}>{g.gapToBestS === 0 ? "best" : formatGap(g.gapToBestS)}</td>
                   <td><SegmentStrip cells={g.cells} lapId={l.lap_id} label={`L${l.lap_no} segments`} /></td>
-                  <td className={styles.open}><Link to={`/?lap=${encodeURIComponent(l.lap_id)}`} className={styles.openLink} aria-label={`Open lap ${l.lap_no}`}>Open →</Link></td>
+                  <td className={styles.open}><Link to={lapLink(search, l.lap_id)} className={styles.openLink} aria-label={`Open lap ${l.lap_no}`}>Open →</Link></td>
                 </tr>
               );
             })}
