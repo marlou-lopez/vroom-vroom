@@ -18,6 +18,7 @@ vi.mock("../detailed/scene", async (orig) => ({
 }));
 vi.mock("../../../lib/carAttitude", () => ({ estimateAttitude: () => null, attitudeAt: () => null }));
 vi.mock("../../../lib/shiftLights", () => ({ deriveRpmLimits: () => null }));
+vi.mock("./marks", () => ({ ribbonMarks: () => ({ lockup: [], wheelspin: [], offTrack: [], invalid: false }) }));
 vi.mock("./CarModelControl", () => ({ CarModelControl: () => <button type="button">Car</button> }));
 
 const model = { cmp: { lap: { t: [0, 1] }, ref: {}, distance: [0, 1], delta: [] } } as unknown as PlaybackModel;
