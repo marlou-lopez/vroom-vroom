@@ -25,3 +25,9 @@
   stroke-linejoin: round;
   pointer-events: none;
 }
+/* Experimental balance tint (vroom-pnw.15, ?balance): wider and fainter than the slip marks so those stay on top. */
+.understeer { fill: none; stroke: var(--color-understeer); stroke-width: 8; stroke-opacity: 0.55; stroke-linecap: round; stroke-linejoin: round; }
+.oversteer { fill: none; stroke: var(--color-oversteer); stroke-width: 8; stroke-opacity: 0.55; stroke-linecap: round; stroke-linejoin: round; }
+.balanceLegend { font-size: 6px; fill: var(--color-muted); }
+.legendUs { fill: var(--color-understeer); }
+.legendOs { fill: var(--color-oversteer); }
