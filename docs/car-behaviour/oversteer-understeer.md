@@ -5,9 +5,10 @@ what it does have (steering, speed, lateral g, GPS) well enough to show on the s
 
 **Answer:** yes for understeer, partly for oversteer. On Spa corners, the recording-only estimate follows the true balance
 (front minus rear slip angle, from a shared-memory capture of the same session) with a correlation of **+0.90**.
-Understeer marks are right three times out of four and catch nine stretches in ten. Oversteer is harder. Steering leads
-the car's rotation at corner entry and exit, so the estimate dips there on a clean lap. Marks are only trustworthy for
-large slides (precision 0.93 at a 10 deg/s threshold), and small slides are missed.
+Understeer marks are right three times out of four and catch nine stretches in ten. Oversteer is harder. The estimate
+dips at corner exit (and a little at entry), and the truth dips there too: the rear really slips more as the throttle comes in. So
+oversteer marks need a higher threshold: at 7 deg/s, 0.88 precision and 0.45 recall (vroom-bi4.7; it was 10 deg/s,
+0.93 / 0.16). Small slides are still missed.
 
 ## Method
 
@@ -102,10 +103,10 @@ at 5 deg/s drops to 0.30 / 0.46, because a GT3 car at the limit almost never has
   T +6.5 to +7.7°). The strongest real oversteer is at the Bus Stop (B −52 deg/s, T −11.8°, a slide on the
   2026-11-05 12:07 session's in-lap) and at Bruxelles exit (B −22, T −2.0°).
 
-**Known weakness:** through medium-g corners B runs 3–5 deg/s negative while T is +0.3–1°. Steering leads yaw at entry
-and unwinds early at exit, so a steady-state fit reads "more rotation than asked" there. This is why oversteer needs the
-higher threshold. A model with the steering's lead (e.g. comparing steering with the g_lat ~0.1 s later) could fix it.
-vroom-bi4.7 tried it and it doesn't: see Steering lead below.
+**Known weakness:** through medium-g corners B runs 3–5 deg/s negative while T is +0.3–1°. vroom-pnw.15 put this down to
+steering leading yaw at entry and exit. vroom-bi4.7 tested that and it doesn't hold. A steering-lag model makes every score
+worse, and at exit the truth dips with B. The dip is mostly the car's real behaviour, and oversteer still needs a higher
+threshold than understeer (now 7 deg/s). See Steering lead below.
 
 ## Prototype
 
@@ -150,7 +151,7 @@ the autopilot judge on 2026-11-17.
 - **Small cost.** The estimator, its tests and the truth check exist. Another spike round would hold up the agreed order
   for a P3 item.
 - **Oversteer stays experimental.** On a clean lap it dips to −12 to −22 deg/s (the steering-lead artefact), and recall at
-  10 deg/s is 0.16. It stays experimental and out of the coach's facts until the lag model is tried.
+  10 deg/s is 0.16. It stays experimental and out of the coach's facts until the lag model is tried (vroom-bi4.7 tried it: see Steering lead below).
 - **Contract first.** Every contract change is written into the matching v2 issue.
 
 Follow-ups filed under Analysis features (vroom-bi4):

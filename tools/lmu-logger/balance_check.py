@@ -314,6 +314,14 @@ def main(argv=None):
     ap.add_argument("--plot", help="directory for the PNG plots (needs matplotlib)")
     ap.add_argument("--lead", help="MODE:SECONDS (e.g. delay:0.1) - the steering-lead variant the top stretches, segments and plots use")
     args = ap.parse_args(argv)
+    if args.lead:
+        try:
+            m, t = args.lead.split(":")
+            args.lead_mode, args.lead_s = m, float(t)
+        except ValueError:
+            ap.error("--lead takes MODE:SECONDS, e.g. delay:0.1")
+        if m not in ("delay", "first") or (m == "first" and args.lead_s <= 0):
+            ap.error("--lead MODE is delay (any seconds, negative advances) or first (seconds > 0)")
     if args.lmu_dir:
         os.environ["LMU_DIR"] = args.lmu_dir
     deg = math.degrees
@@ -537,8 +545,8 @@ def main(argv=None):
             lead[(mode, lag)] = r
             lead_score(f"  {mode} {lag:.2f} s", r["B"], r["glsm"])
     if args.lead:
-        mode, lag = args.lead.split(":")
-        r = lead[(mode, float(lag))]
+        mode, lag = args.lead_mode, args.lead_s
+        r = lead.get((mode, lag)) or evaluate(f"{mode} {lag:.2f} s (--lead)", lag=lag, lag_mode=mode)
         B, base = r["B"], r
         print(f"\nThe sections below use the steering lead {mode} {lag} s (--lead).")
 
