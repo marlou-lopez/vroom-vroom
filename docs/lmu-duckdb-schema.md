@@ -81,3 +81,33 @@ The recording has no orientation, but the capture's `mOri` of the same session g
 
 ## Which channels the recorder can log (verified 2026-11-17; vroom-pnw.16)
 The recorder records exactly the channels and events listed in `UserData/Telemetry/config.json` (58 channels and 40 events here; LMU leaves an unchanged file alone on launch, and whether it strips unknown names is untested). It can only record names in a table compiled into the exe (inferred from the binary; no live config edit was tested): `tools/lmu-recorder-channels.py` lists them. Besides the default config, it knows only `Brakes Core Temp`, `Steering Shaft Torque Unfiltered`, `Steering Pos Filtered`, `Air Density`, `Air Specific Heat`, `Ambient Pressure`, `Humidity` and `Rain` (not tested live). There's no yaw rate, slip, tyre load or local velocity channel; those come from shared memory (above). The `TCSlipAngle` event is the TC slip-angle map setting, not a measured slip angle. Details: `docs/lmu-channels.md`.
+
+## Stint channels: fuel, virtual energy, tyres, brakes, weather (verified 2026-11-17, vroom-pnw.26)
+
+Source: a survey of 244 recordings (copies, read-only) and two in detail: `Autodromo Nazionale Monza_R_2026-11-09T11_57_06Z` (race, 26 laps, McLaren 720S GT3 Evo #10, "Light Clouds") and `Circuit de Spa-Francorchamps_P_2026-11-05T10_19_08Z` (practice, Ferrari 499P Hypercar, one invalid lap). **Every recording has the same 58 channels and 40 events**, whatever the car class, because the recorder logs what `UserData/Telemetry/config.json` lists. Write-up: `docs/stint/stint-view.md`.
+
+| Channel | Rate | Unit (recorded) | Notes |
+|---|---|---|---|
+| Fuel Level | 20 | L | Litres in the tank. Monza race: 85.0 at the start, about 3.05 L a flying lap, 8.2 L at the stop; it rises during the stop (refuelling is visible). |
+| **Virtual Energy** | 20 | % | Percent of the virtual energy allocation left. **Recorded for GT3 too** (LMU applies the WEC energy rules to LMGT3): 100 → 5.1 % over the Monza race, about 3.8 % a flying lap, so energy runs out before fuel (26.3 laps of energy against 27.8 of fuel). Hypercar: 100 → 93.4 % on the out-lap and part of a lap. |
+| SoC | 20 | % | Hybrid battery state of charge. 0 throughout on the GT3; on the Hypercar it cycles between 3 and 100 % within a lap. |
+| Regen Rate | 100 | kW (recorded) | **The values are watts**, not kW: −117,538 to 193,617 on the Hypercar (deploy is negative). 0 on the GT3. |
+| Tyres Wear | 10 | % | Four values, **tread left** (100 = new). Monza race: FL 97.6 → 86.9 over 25 laps, the most-worn tyre (about 0.44 % a lap; the others about 0.36). |
+| TyresTempLeft / Centre / Right | 100 | C | The three tread zones. **Left and Right are the car's left and right edges** of each tyre: on the left tyres the right (inner) edge is hottest and on the right tyres the left (inner) edge, as negative camber gives (Monza lap 5: FL 75 / 84 / 85, FR 79 / 76 / 67). |
+| TyresCarcassTemp | 5 | C | About 3 °C above the surface mean on the Monza race. |
+| TyresRubberTemp | 10 | C | Close to the centre tread temperature. |
+| TyresRimTemp | 50 | C | 74–82 °C on the Monza race, 54–60 °C on the Hypercar out-lap. |
+| TyresPressure | 10 | kPa | Monza race laps: about 166–173 kPa hot. |
+| Brakes Temp | 50 | C | Disc temperature. Monza race: lap means about 470 °C front and 370 °C rear early in the race, about 370–400 front and 290–315 rear late in it (lighter car, as fuel burns off); peaks about 740 °C front. |
+| Brakes Air Temp, Brakes Force | 50 | C, % | Not used yet. |
+| Brake Thickness | 10 | % (recorded) | Values look like **centimetres** of disc: 3.6 front and 3.2 rear on the GT3, 3.4 and 3.2 on the Hypercar; 0.008 worn over the 50-minute race. |
+| OverheatingState | 2 | bool | False throughout both files. |
+| Track Temperature, Ambient Temperature | 1 | C | Monza race: track 35.3 → 37.6 °C, air about 18 °C. |
+| Wind Speed, Wind Heading | 1 | m/s, deg | |
+| Engine Oil Temp, Engine Water Temp | 7 | C | |
+
+**Events:** `TyresCompound` (four values, one per wheel; 0 on the GT3, 1 on the Hypercar; names unverified), `FuelMixtureMap` (1 on the GT3, 6 on the Hypercar), `Minimum Path Wetness` and `OffpathWetness` (%; 0 / false on dry days), `CloudDarkness`. Events are emitted on change, so a dry session has one row each.
+
+**Wheel order FL, FR, RL, RR is confirmed** by these channels on the right-handed Monza: value1 and value3 (the left tyres) run 4–8 °C hotter than value2 and value4, and value1 and value2 (the fronts) carry the hotter brakes.
+
+**A pit stop in a race:** `In Pits` goes to 1 during the last lap before the stop (that lap still gets a `Lap Time`, the pit-lane time included, 119.9 s here); the next lap starts in the pits. Lap 0 of a race is the start lap (125.2 s from the start, against 113 s for a flying lap).

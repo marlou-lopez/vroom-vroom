@@ -3,7 +3,7 @@ import {
   type CalibrationResult, type CoachRequest, type CoachResult, type CoachResults, type CompareCandidate,
   type CarSetup, type CompareResponse, type Finding, type GridChannel, type IdealLap, type IdealScope, type ImportResult, type LandmarkPatch, type NewLandmark,
   type LapMeta, type LapPatch, type LapWithRef, type LlmUsage, type SessionMeta, type SessionSummary,
-  type TraceResponse, type TrackGeometry, type TrackMap,
+  type Stint, type TraceResponse, type TrackGeometry, type TrackMap,
 } from "./types";
 
 /** The only way components talk to the backend. One method per route. */
@@ -34,6 +34,8 @@ export interface Api {
   calibrate(trackId: string): Promise<CalibrationResult>;
   importFile(path: string): Promise<ImportResult>;
   llmUsage(): Promise<LlmUsage>;
+  /** EXPERIMENTAL (vroom-pnw.26, spike): per-lap stint stats of every recording that has them. Not part of the agreed contract. */
+  stints(): Promise<Stint[]>;
 }
 
 function query(params: Record<string, string | undefined>): string {
@@ -104,6 +106,7 @@ export function createRealApi(baseUrl = ""): Api {
     calibrate: (trackId) => request(`/tracks/${enc(trackId)}/calibrate`, { method: "POST" }),
     importFile: (path) => request("/import", { method: "POST", body: { path } }),
     llmUsage: () => request("/llm/usage"),
+    stints: () => request("/experimental/stints"),
   };
 }
 

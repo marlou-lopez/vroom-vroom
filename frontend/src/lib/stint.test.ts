@@ -1,0 +1,103 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import type { StintLap, Wheels } from "../api/types";
+import type { StintFile } from "../api/mock/stint";
+import { falloff, falloffPlot, SLOW_LAP_FACTOR, stintRows, stintSummary } from "./stint";
+
+const w = (v: number): Wheels => ({ fl: v, fr: v, rl: v, rr: v });
+function lap(lap_no: number, over: Partial<StintLap> = {}): StintLap {
+  const fuel = 90 - lap_no * 3;
+  const energy = 100 - lap_no * 4;
+  return {
+    lap_no, kind: "flying", lap_time_s: 100 + lap_no * 0.1, valid: true,
+    fuel_start_l: fuel, fuel_end_l: fuel - 3, energy_start_pct: energy, energy_end_pct: energy - 4,
+    tyre_surface_c: w(80), tyre_zones_c: { left: w(78), centre: w(80), right: w(82) }, tyre_carcass_c: w(82),
+    tyre_pressure_kpa: w(170), tyre_wear_end_pct: w(100 - (lap_no + 1) * 0.5), brake_c: w(450), track_temp_c: 30, air_temp_c: 20,
+    ...over,
+  };
+}
+
+describe("stintRows", () => {
+  it("excludes out, in, invalid and slow laps from the fit", () => {
+    const laps = [lap(0, { kind: "out", lap_time_s: 130 }), lap(1), lap(2), lap(3, { valid: false, lap_time_s: 0 }), lap(4, { lap_time_s: 100.4 * SLOW_LAP_FACTOR + 0.5 }), lap(5), lap(6, { kind: "in" })];
+    expect(stintRows(laps).map((r) => r.excluded)).toEqual(["out", null, null, "invalid", "slow", null, "in"]);
+  });
+  it("gives no consumption on a lap where the tank was filled", () => {
+    const [r] = stintRows([lap(0, { kind: "out", fuel_end_l: 95, energy_end_pct: 101 })]);
+    expect(r.fuelUsed).toBeNull();
+    expect(r.energyUsed).toBeNull();
+  });
+  it("gives no energy use without virtual energy", () => {
+    const [r] = stintRows([lap(1, { energy_start_pct: null, energy_end_pct: null })]);
+    expect(r.energyUsed).toBeNull();
+    expect(r.fuelUsed).toBeCloseTo(3);
+  });
+});
+
+describe("falloff", () => {
+  it("fits the slope in seconds per lap", () => {
+    const f = falloff(stintRows([1, 2, 3, 4].map((n) => lap(n))))!;
+    expect(f.slope).toBeCloseTo(0.1);
+    expect(f.intercept).toBeCloseTo(100);
+    expect(f.n).toBe(4);
+  });
+  it("needs three laps", () => {
+    expect(falloff(stintRows([lap(1), lap(2)]))).toBeNull();
+  });
+});
+
+describe("stintSummary", () => {
+  it("finds which of fuel and energy runs out first", () => {
+    const s = stintSummary(stintRows([0, 1, 2, 3].map((n) => lap(n))));
+    expect(s.fuelPerLap).toBeCloseTo(3);
+    expect(s.energyPerLap).toBeCloseTo(4);
+    expect(s.fuelRangeLaps).toBeCloseTo(30);
+    expect(s.energyRangeLaps).toBeCloseTo(25);
+    expect(s.limit).toBe("energy");
+    expect(s.wearPerLap!.fl).toBeCloseTo(0.5);
+  });
+  it("is fuel-limited without virtual energy", () => {
+    const s = stintSummary(stintRows([0, 1, 2].map((n) => lap(n, { energy_start_pct: null, energy_end_pct: null }))));
+    expect(s.energyPerLap).toBeNull();
+    expect(s.limit).toBe("fuel");
+  });
+});
+
+describe("falloffPlot", () => {
+  it("puts faster laps higher and draws the fit across the fitted laps", () => {
+    const rows = stintRows([0, 1, 2, 3, 4].map((n) => lap(n, n === 0 ? { kind: "out", lap_time_s: 130 } : {})));
+    const p = falloffPlot(rows, falloff(rows), 1000, 200);
+    expect(p.points).toHaveLength(5);
+    expect(p.points[1].y).toBeLessThan(p.points[4].y);
+    expect(p.points[0].y).toBe(200); // the slow start lap is clamped to the bottom
+    expect(p.fit.startsWith("M")).toBe(true);
+  });
+});
+
+describe("the real Monza race stint (9 Nov 2026)", () => {
+  const file = JSON.parse(readFileSync(new URL("../../public/mock/monza-stint-2026-11-09.json", import.meta.url), "utf8")) as StintFile;
+  const rows = stintRows(file.laps);
+  const s = stintSummary(rows);
+  it("has 26 laps: start lap, 23 flying, an in lap and the out lap after the stop", () => {
+    expect(file.laps).toHaveLength(26);
+    expect(file.laps[0].kind).toBe("out");
+    expect(file.laps[24].kind).toBe("in");
+    expect(file.laps[25].kind).toBe("out");
+    expect(rows.filter((r) => r.excluded === null).length).toBeGreaterThanOrEqual(10);
+  });
+  it("uses about 3.1 L of fuel and 3.8 % of virtual energy a lap, so energy runs out first", () => {
+    expect(s.fuelPerLap!).toBeCloseTo(3.1, 1);
+    expect(s.energyPerLap!).toBeCloseTo(3.8, 1);
+    expect(s.limit).toBe("energy");
+  });
+  it("wears and heats the left tyres most on the right-handed Monza (wheel order FL FR RL RR)", () => {
+    const l5 = file.laps[5];
+    expect(l5.tyre_surface_c.fl).toBeGreaterThan(l5.tyre_surface_c.fr);
+    expect(l5.tyre_surface_c.rl).toBeGreaterThan(l5.tyre_surface_c.rr);
+    expect(l5.brake_c.fl).toBeGreaterThan(l5.brake_c.rl);
+    expect(s.wearPerLap!.fl).toBeGreaterThan(s.wearPerLap!.fr);
+  });
+  it("has a small fall-off: fuel burn and tyre wear nearly cancel", () => {
+    expect(Math.abs(s.falloff!.slope)).toBeLessThan(0.15);
+  });
+});

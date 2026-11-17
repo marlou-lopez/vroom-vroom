@@ -83,6 +83,7 @@ export function createHandlers(engine: Api): HttpHandler[] {
       return reply(() => engine.importFile(path));
     }),
     http.get("*/api/llm/usage", () => reply(() => engine.llmUsage())),
+    http.get("*/api/experimental/stints", () => reply(() => engine.stints())),
   ];
 }
 

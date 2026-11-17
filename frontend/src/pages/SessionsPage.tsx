@@ -7,6 +7,7 @@ import { formatDelta, formatLapTime, formatShortDate } from "../lib/format";
 import { bestValidLap } from "../lib/laps";
 import { comboKey, focusOutcome, groupCombos, trendPaths, type FocusTone } from "../lib/sessions";
 import { cx } from "../lib/cx";
+import { StintPanel } from "../components/StintPanel";
 import ui from "../components/ui.module.css";
 import styles from "./SessionsPage.module.css";
 
@@ -160,6 +161,9 @@ export function SessionsPage() {
           </table>
         )}
       </section>
+
+      {/* EXPERIMENTAL (vroom-pnw.26): per-lap stint stats, for the combos a stint was recorded with. */}
+      {mine[0] && <StintPanel trackId={mine[0].track_id} carId={mine[0].car_id} />}
     </div>
   );
 }

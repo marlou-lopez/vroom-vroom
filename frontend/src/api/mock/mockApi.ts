@@ -8,7 +8,7 @@ import {
   GRID_CHANNELS,
   type CalibrationResult, type ChannelArrays, type CoachRequest, type CoachResult, type CoachResults,
   type Command, type CompareCandidate, type CompareResponse, type Corner, type Finding,
-  type CarDims, type CarSetup, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SessionMeta, type SessionSummary, type TraceResponse,
+  type CarDims, type CarSetup, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SessionMeta, type SessionSummary, type Stint, type TraceResponse,
   type TrackMap, type LapMeta, type LapWithRef, type TrackGeometry,
 } from "../types";
 import {
@@ -19,6 +19,7 @@ import { mapSurvey, type SurveyFile } from "../../lib/trackSurvey";
 import { formatLapTime } from "../../lib/format";
 import { fetchSpaElevation, type ElevationLoader } from "./elevation";
 import { fetchSpaSurvey, type SurveyLoader } from "./survey";
+import { fetchMonzaStint, type StintLoader } from "./stint";
 import { fetchRecording, lapToTrace, scaleTime, type Recording, type RecordingLap, type RecordingLoader, type RecordingTrack, type Trace } from "./recording";
 import { monzaCorners, MONZA_TRACK_ID, MONZA_TRACK_LENGTH_M } from "./monzaTrack";
 import { setupLabel } from "./setupLabels";
@@ -44,6 +45,11 @@ export interface MockOptions {
    * `loadSpa` or `loadMonza` is given. A failed or null load only means `survey` is null in the track geometry.
    */
   loadSurvey?: SurveyLoader;
+  /**
+   * EXPERIMENTAL (vroom-pnw.26). Supplies the Monza race stint. Default: fetch /mock/monza-stint-2026-11-09.json, or none when a
+   * custom `loadSpa` or `loadMonza` is given. Loaded on the first stints() call only; a failure rejects that call.
+   */
+  loadStint?: StintLoader;
 }
 
 // ---- seed data ----
@@ -285,6 +291,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
   let elevationIndex: ElevationIndex | null = null;
   const loadSurvey: SurveyLoader = opts.loadSurvey ?? (custom ? async () => null : fetchSpaSurvey);
   let surveyFile: SurveyFile | null = null;
+  const loadStint: StintLoader = opts.loadStint ?? (custom ? async () => null : fetchMonzaStint);
 
   const sessions: SessionMeta[] = [];
   const laps = new Map<string, LapRec>();
@@ -847,6 +854,15 @@ export function createMockApi(opts: MockOptions = {}): Api {
     },
     async llmUsage() {
       return { calls: clone(calls), total_usd: calls.reduce((s, c) => s + (c.cost_usd ?? 0), 0) };
+    },
+    // EXPERIMENTAL (vroom-pnw.26): the one real stint, the Monza race of 9 Nov 2026 (a McLaren 720S GT3 Evo like the mock's 720S).
+    async stints(): Promise<Stint[]> {
+      const file = await loadStint();
+      if (!file) return [];
+      return [{
+        stint_id: fakeSha("monza-2026-11-09-race"), track_id: MONZA_TRACK_ID, car_id: CAR_720S.car_id, car_class: file.car_class,
+        session_type: file.session_type, started_at: "2026-11-09T11:57:00", source: file.source, laps: clone(file.laps),
+      }];
     },
   };
 

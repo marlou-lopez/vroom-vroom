@@ -1,0 +1,36 @@
+/* EXPERIMENTAL (vroom-pnw.26): the Stint view. */
+.panel { display: flex; flex-direction: column; gap: var(--gap); }
+.head { display: flex; align-items: center; gap: var(--gap); }
+.badge { font-size: 10px; letter-spacing: 0.08em; color: var(--color-minor); border: 1px solid var(--color-minor); border-radius: var(--radius); padding: 0 4px; }
+.meta { color: var(--color-muted); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--gap); }
+.card { border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--pad); }
+.cardKey { font-size: 10px; color: var(--color-muted); letter-spacing: 0.08em; }
+.cardValue { font-family: var(--font-mono); font-size: 14px; }
+
+.plot { position: relative; height: 160px; }
+.plot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.grid { stroke: var(--color-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.fit { fill: none; stroke: var(--color-you); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.dot { position: absolute; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: var(--color-you); }
+.dotOut { background: transparent; border: 1px solid var(--color-muted); }
+.axis { position: absolute; left: 4px; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); }
+.axisTop { top: 0; }
+.axisBottom { bottom: 0; }
+.legend { display: flex; gap: 16px; color: var(--color-muted); flex-wrap: wrap; align-items: center; }
+.legendDot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--color-you); vertical-align: middle; box-sizing: border-box; }
+
+.tableWrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; min-width: 960px; }
+.table th { font-weight: 500; padding: 4px 6px; color: var(--color-muted); text-align: left; }
+.table td { padding: 3px 6px; vertical-align: middle; }
+.table tbody tr { border-top: 1px solid var(--color-border); }
+.table tbody tr:hover { background: var(--color-hover); }
+.table .num { text-align: right; font-family: var(--font-mono); }
+.table th.num { font-family: inherit; }
+.excluded { color: var(--color-muted); }
+.dim { color: var(--color-muted); }
+
+/* FL FR / RL RR, like the car from above. */
+.wheels { display: inline-grid; grid-template-columns: repeat(2, auto); column-gap: 8px; font-family: var(--font-mono); font-size: 11px; line-height: 1.2; }
+.legendDot.dotOut { background: transparent; }
