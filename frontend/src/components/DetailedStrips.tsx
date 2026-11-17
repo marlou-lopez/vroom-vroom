@@ -3,6 +3,7 @@ import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import type { CompareResponse, TrackGeometry } from "../api/types";
 import type { Annotation } from "../lib/annotations";
+import { aidRuns, type AidRuns, type Run } from "../lib/driverAids";
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
@@ -47,6 +48,8 @@ interface Spec {
   series: uPlot.Series[];
   zeroLine?: boolean;
   deltaFill?: boolean;
+  /** Driver aids and slip marks of this lap, drawn on the pedals strip (vroom-pnw.14). */
+  aids?: { runs: AidRuns; throttle: number[]; brake: number[] };
   value: (cmp: CompareResponse, tau: number, iy: number) => string;
 }
 
@@ -71,7 +74,9 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null): Spec[
         line(withAlpha(colors.throttle, 0.45), 1.2), line(withAlpha(colors.brake, 0.45), 1.2),
         line(colors.throttle, 1.6), line(colors.brake, 1.6),
       ],
-      value: (c, _t, iy) => `${Math.round(c.lap.throttle[iy] * 100)}% · ${Math.round(c.lap.brake[iy] * 100)}%`,
+      aids: { runs: aidRuns(cmp.lap), throttle: cmp.lap.throttle, brake: cmp.lap.brake },
+      value: (c, _t, iy) => `${Math.round(c.lap.throttle[iy] * 100)}% · ${Math.round(c.lap.brake[iy] * 100)}%`
+        + (c.lap.abs[iy] ? " · ABS" : "") + (c.lap.tc[iy] ? " · TC" : ""),
     },
     {
       // Plotted on the normalised scale so both cars share one axis; the label uses steeringDisplay units.
@@ -126,6 +131,64 @@ function drawBands(u: uPlot, anns: Annotation[]) {
       if (endEdge && onScreen(x1)) ctx.fillRect(x1 - dpr, bbox.top, dpr, bbox.height);
     }
   }
+}
+
+const AID_BAND_ALPHA = 0.22;
+const MARK_PX = 3;
+
+/** Light bands under a trace where an aid was active: from the baseline up to the trace, only over the runs. */
+function drawAidBands(u: uPlot, runs: Run[], values: number[], color: string) {
+  const { ctx, bbox } = u;
+  const xs = u.data[0];
+  const sx = u.scales.x;
+  const lo = sx.min ?? xs[0], hi = sx.max ?? xs[xs.length - 1];
+  const baseY = bbox.top + u.valToPos(0, "y", true);
+  const px = (i: number) => bbox.left + u.valToPos(xs[i], "x", true);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
+  ctx.clip();
+  ctx.fillStyle = withAlpha(color, AID_BAND_ALPHA);
+  for (const r of runs) {
+    if (xs[r.end] < lo || xs[r.start] > hi) continue;
+    ctx.beginPath();
+    ctx.moveTo(px(r.start) - dprHalf(), baseY);
+    for (let i = r.start; i <= r.end; i++) ctx.lineTo(px(i), bbox.top + u.valToPos(values[i], "y", true));
+    ctx.lineTo(px(r.end) + dprHalf(), baseY);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+const dprHalf = () => uPlot.pxRatio / 2;
+
+/** Marks on a trace where a wheel locked (red, brake trace) or spun (amber, throttle trace): a thick stroke over the line with a dark casing. */
+function drawSlipMarks(u: uPlot, runs: Run[], values: number[], color: string) {
+  const { ctx, bbox } = u;
+  const xs = u.data[0];
+  const sx = u.scales.x;
+  const lo = sx.min ?? xs[0], hi = sx.max ?? xs[xs.length - 1];
+  const px = (i: number) => bbox.left + u.valToPos(xs[i], "x", true);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
+  ctx.clip();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const [stroke, width] of [[colors.bg, MARK_PX + 2], [color, MARK_PX]] as const) {
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = width * uPlot.pxRatio;
+    for (const r of runs) {
+      if (xs[r.end] < lo || xs[r.start] > hi) continue;
+      ctx.beginPath();
+      ctx.moveTo(px(r.start), bbox.top + u.valToPos(values[r.start], "y", true));
+      // A one-metre run is a dot (a zero-length line with round caps).
+      if (r.end === r.start) ctx.lineTo(px(r.start) + 0.01, bbox.top + u.valToPos(values[r.start], "y", true));
+      for (let i = r.start + 1; i <= r.end; i++) ctx.lineTo(px(i), bbox.top + u.valToPos(values[i], "y", true));
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 /** Zero line plus the area between the delta line and zero: issue colour above (losing time), strength below. */
@@ -186,6 +249,17 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
         (u) => {
           drawBands(u, annRef.current);
           if (spec.zeroLine || spec.deltaFill) drawDelta(u, !!spec.zeroLine, !!spec.deltaFill);
+          if (spec.aids) {
+            drawAidBands(u, spec.aids.runs.abs, spec.aids.brake, colors.brake);
+            drawAidBands(u, spec.aids.runs.tc, spec.aids.throttle, colors.throttle);
+          }
+        },
+      ],
+      draw: [
+        (u) => {
+          if (!spec.aids) return;
+          drawSlipMarks(u, spec.aids.runs.lockup, spec.aids.brake, colors.lockup);
+          drawSlipMarks(u, spec.aids.runs.wheelspin, spec.aids.throttle, colors.wheelspin);
         },
       ],
     },

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Recording } from "./recording";
+import { MIN_SLIP_SPEED_MS, aidRuns, type AidChannels } from "../../lib/driverAids";
 import { phaseStart } from "./spaTrack";
 
 const REC = JSON.parse(
@@ -35,5 +36,28 @@ describe("Spa recording mock data", () => {
     const throttle2 = throttle.map((v, i) => (i >= 150 && i < 175 ? 1 : v));
     const brake2 = brake.map((v, i) => (i >= 150 && i < 175 ? 0 : v));
     expect(phaseStart({ throttle: throttle2, brake: brake2 }, 200, 0)).toBe(174);
+  });
+
+  // Driver aids and slip (vroom-pnw.14): ABS and TC are in the grid; lap 4 has no lockup, lap 5 has one.
+  it("lap 4 has ABS and TC and no lockup or wheelspin marks", () => {
+    const lap = REC.laps.find((l) => l.lap_no === 4)!;
+    const runs = aidRuns(lap as unknown as AidChannels);
+    expect(lap.abs!.length).toBe(lap.t.length);
+    expect(runs.abs.length).toBeGreaterThan(5);
+    expect(runs.tc.length).toBeGreaterThan(5);
+    expect(runs.lockup).toEqual([]);
+    expect(runs.wheelspin).toEqual([]);
+  });
+
+  it("slip is 1 where the car is below the minimum speed, and the recording lockup shows up", () => {
+    for (const lap of REC.laps) {
+      for (let i = 0; i < lap.t.length; i++) {
+        if (lap.speed_kmh[i] / 3.6 < MIN_SLIP_SPEED_MS) {
+          for (const k of ["slip_fl", "slip_fr", "slip_rl", "slip_rr"] as const) expect(lap[k]![i]).toBe(1);
+        }
+      }
+    }
+    const lap5 = REC.laps.find((l) => l.lap_no === 5)!;
+    expect(aidRuns(lap5 as unknown as AidChannels).lockup.length).toBeGreaterThan(0);
   });
 });

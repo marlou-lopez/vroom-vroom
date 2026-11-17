@@ -4,10 +4,15 @@
 export const GRID_CHANNELS = [
   "t", "speed_kmh", "throttle", "brake", "steering", "gear", "rpm", "g_lat", "g_long", "yaw_rate",
   "lat", "lon", "path_lateral", "track_edge", "kerb", "susp_fl", "susp_fr", "susp_rl", "susp_rr",
+  "abs", "tc", "slip_fl", "slip_fr", "slip_rl", "slip_rr",
 ] as const;
 export type GridChannel = (typeof GRID_CHANNELS)[number];
 
-/** Every grid channel, one value per metre. `steering` is normalised (-1..1); degrees = steering * range / 2. */
+/**
+ * Every grid channel, one value per metre. `steering` is normalised (-1..1); degrees = steering * range / 2.
+ * `abs` and `tc` are 0/1: 1 when the aid was active at any moment inside that metre (ABS pulses ~15 ms, so a metre is "on" if any pulse falls in it).
+ * `slip_*` are tyre surface speed / ground speed per wheel (FL, FR, RL, RR; < 1 = slower than the road, lockup; > 1 = faster, spin), and 1 below 5 m/s.
+ */
 export type ChannelArrays = Record<GridChannel, number[]>;
 
 // ---- Sessions and laps (model.py) ----

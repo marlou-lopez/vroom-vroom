@@ -1,5 +1,6 @@
 // One-off extractor: LMU .duckdb -> 1 m grid JSON for the mock API. Run from a dir with @duckdb/node-api installed:
 //   node extract-laps.mjs <recording.duckdb> <out.json> "<source label>" [lap,numbers,to,keep]
+// Adds abs, tc (0/1 per metre) and slip_fl..slip_rr (wheel speed / ground speed, 1 below 5 m/s).
 // NOTE LMU swaps its G channels: 'G Force Lat' is longitudinal, 'G Force Long' is lateral (mapped below).
 // Throttle comes from 'Throttle Pos Unfiltered' (the pedal); 'Throttle Pos' includes the ignition cut at every upshift (#49).
 import { DuckDBInstance } from '@duckdb/node-api';
@@ -34,6 +35,23 @@ const ch = {
 };
 const surf = await q('select value1,value2,value3,value4 from SurfaceTypes');
 const kerb = { t: surf.map((_, i) => t0 + i / freq['SurfaceTypes']), v: surf.map(r => [r.value1, r.value2, r.value3, r.value4].some(x => Number(x) === 5 || Number(x) === 6) ? 1 : 0) };
+// Driver aids and tyre slip (#14 of the analysis epic, vroom-pnw.14). ABS and TC are on/off events or channels; ABS pulses ~15 ms, so a
+// metre counts as active when ANY on-sample falls inside it. Slip ratio = wheel surface speed / ground speed, wheel order FL FR RL RR.
+const absEv = await ev('ABS'); // on/off events (value 1 = on)
+const tcRaw = await q('select value from TC'); // 100 Hz bool
+const tcT = tcRaw.map((_, i) => t0 + i / freq['TC']);
+const tcV = tcRaw.map(r => (r.value === true || r.value === 'true' || Number(r.value) === 1) ? 1 : 0);
+const wsRaw = await q('select value1,value2,value3,value4 from "Wheel Speed"');
+const wsT = wsRaw.map((_, i) => t0 + i / freq['Wheel Speed']);
+const wsV = [1, 2, 3, 4].map(k => wsRaw.map(r => Number(r['value' + k])));
+const MIN_SLIP_SPEED = 5; // m/s: below this the ratio is meaningless (parked, pit lane), report 1 (no slip)
+const slipRatio = (wheelMs, groundKmh) => { const v = groundKmh / 3.6; return v < MIN_SLIP_SPEED ? 1 : wheelMs / v; };
+const lowerBound = (xs, x) => { let lo = 0, hi = xs.length; while (lo < hi) { const m = (lo + hi) >> 1; if (xs[m] < x) lo = m + 1; else hi = m; } return lo; };
+// 1 when a 100 Hz on/off series has an on-sample in [a, b)
+const anyOn = (ts, vs, a, b) => { for (let i = lowerBound(ts, a); i < ts.length && ts[i] < b; i++) if (vs[i]) return 1; return 0; };
+// ABS events: 1 when it is on at the window start (the last event before a is "on") or an on-event falls inside [a, b)
+const absT = absEv.map(e => e.t);
+const absOn = (a, b) => { const i = lowerBound(absT, a); if (i > 0 && absEv[i - 1].v) return 1; for (let j = i; j < absEv.length && absT[j] < b; j++) if (absEv[j].v) return 1; return 0; };
 const gearsRaw = await ev('Gear');
 const gears = gearsRaw.filter((g, i) => !(g.v === 0 && gearsRaw[i + 1] && gearsRaw[i + 1].t - g.t < 0.2));
 
@@ -50,11 +68,16 @@ for (let k = 0; k < laps.length; k++) {
   }
   const L = Math.floor(ds.at(-1));
   const g = {};
-  const keys = ['t', 'speed_kmh', 'throttle', 'brake', 'steering', 'gear', 'rpm', 'g_lat', 'g_long', 'lat', 'lon', 'path_lateral', 'track_edge', 'kerb'];
+  const keys = ['abs', 'tc', 'slip_fl', 'slip_fr', 'slip_rl', 'slip_rr', 't', 'speed_kmh', 'throttle', 'brake', 'steering', 'gear', 'rpm', 'g_lat', 'g_long', 'lat', 'lon', 'path_lateral', 'track_edge', 'kerb'];
   for (const k2 of keys) g[k2] = new Array(L + 1);
   for (let d = 0; d <= L; d++) {
     const t = interp(ds, ts, d);
+    const tn = interp(ds, ts, Math.min(d + 1, ds.at(-1))); // end of this metre's window (the last metre ends at the last sample)
     g.t[d] = +(t - a).toFixed(3);
+    g.abs[d] = absOn(t, Math.max(tn, t + 0.005));
+    g.tc[d] = anyOn(tcT, tcV, t, Math.max(tn, t + 0.005));
+    const gs = interp(ch.speed.t, ch.speed.v, t);
+    ['slip_fl', 'slip_fr', 'slip_rl', 'slip_rr'].forEach((nm, w) => { g[nm][d] = +slipRatio(interp(wsT, wsV[w], t), gs).toFixed(3); });
     g.speed_kmh[d] = +interp(ch.speed.t, ch.speed.v, t).toFixed(1);
     g.throttle[d] = +(interp(ch.thr.t, ch.thr.v, t) / 100).toFixed(3);
     g.brake[d] = +(interp(ch.brk.t, ch.brk.v, t) / 100).toFixed(3);
