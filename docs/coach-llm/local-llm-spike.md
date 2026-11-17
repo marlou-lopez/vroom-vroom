@@ -4,10 +4,10 @@
 well enough, compared with a hosted model? (The design's default is `claude-sonnet-5-5` / `claude-haiku-5-5`;
 this spike compared against OpenAI's equivalent tier, see Setup.)
 
-**Status (2026-11-17): measured, awaiting the user's ratings.** One local model (gpt-oss-20b, 40 runs on 4
-packets with 2 prompt versions) against one hosted model (OpenAI gpt-6.1-sol, 20 runs; the user has OpenAI
-credit and none on Anthropic). Still to do, by the user: VRAM with LMU open in its menus, the blind ratings,
-and the hosted-fallback question. The recommendation below is provisional until then.
+**Status (2026-11-17): measured and rated; recommendation below.** One local model (gpt-oss-20b) against
+three OpenAI tiers (gpt-6.1-sol, gpt-6.1-terra, gpt-6-luna; the user has OpenAI credit and none on Anthropic),
+over 4 facts packets, 3 prompt versions and 2 packet sets, 5 runs each, about 260 calls in all (about $0.65 of
+OpenAI credit). Two blind rating rounds by the user. Not measured: VRAM with LMU open (see the end).
 
 Prototype: `spikes/local-llm/` (see its `README.md`). No code under `backend/` (there is none yet).
 
@@ -189,7 +189,20 @@ progressive throttle; limiter time: a late upshift), bans field names by name an
 - Example, terra on Average: "You're losing consistency on the steering at Fagnes 2, with more corrections on
   your slowest lap. Traction control also worked longer on that lap." Fix: "Match the calmer steering of lap 2
   and feed the throttle in more progressively on exit."
-- A second blind round on the v3 outputs only (12 samples: `blind/sheet-round2.md`) settles the final pick.
+
+### Blind ratings (round 2: v3 prompt, v2 packets)
+
+12 samples, one per model and packet, names hidden (`results/blind-scores-round2.json`):
+
+| Model | Mean | Analyze ×2 | Average | Corner |
+|---|---|---|---|---|
+| **gpt-6.1-terra** | **4.0** | 4, 4 | 4 | 4 |
+| gpt-6-luna | 3.0 | 3, 3 | 3 | 3 |
+| gpt-oss-20b (local) | 1.25 | 3, 2 | 0 | 0 |
+
+gpt-oss's two zeros are empty `what`/`fix` strings (2 of its 20 v3 runs; the schema allows empty strings and
+the prose check isn't a retry trigger yet). The rater's note on another: "almost good, just need to flesh out
+the steering_extrema usage". terra went from 3.6 (round 1) to 4.0, luna from 3.25 to 3.0.
 
 ### Not yet measured
 
@@ -204,51 +217,57 @@ progressive throttle; limiter time: a late upshift), bans field names by name an
 ## Options
 
 1. **Hosted default, provider configurable.** OpenAI for now (the user has credit there), Anthropic or a local
-   model one setting away; strong tier gpt-6.1-terra or gpt-6.1-sol (Analyze, Corner; the ratings pick), fast
-   tier gpt-6-luna (Average, or everything if its prose rates well). Clean prose, uses the trace, about
-   0.1–1.2 cents a call, and nothing
-   depends on the GPU being free. Packets leave the PC.
-2. **Local default, hosted fallback when the GPU is busy** (or split by command: local for Average, hosted
-   for Analyze and Corner). Free, and reliable in format (40/40 schema-valid and guard-clean). But it is
-   slower (8–34 s, plus a 43–50 s cold load), probably can't share VRAM with LMU, needs the v2 prompt to write
-   usable prose, and doesn't use the Corner trace.
-3. **Local only.** No cost and no data leaves the PC, but the coach is unavailable whenever LMU (or anything
-   else) holds the GPU, and the deep dive (Corner) is noticeably weaker.
+   model one setting away. Strong tier gpt-6.1-terra (Analyze, Corner; rated 4.0, about 0.6 cents a call), fast
+   tier gpt-6-luna (Average; rated 3.0, about 0.1 cents a call). Uses the trace and the aid facts, no hedging,
+   nothing depends on the GPU being free. Facts packets leave the PC.
+2. **Local default, hosted fallback when the GPU is busy.** Free when the GPU is idle and reliable in number
+   grounding, but rated 1.25–3.25, writes field names despite the ban, sometimes leaves a finding empty, takes
+   12–27 s plus a 43–50 s cold load, and probably can't share VRAM with LMU.
+3. **Local only.** No cost and no data leaves the PC, but the coach waits until LMU is closed and reads clearly
+   worse than the hosted tiers.
 
-## Recommendation (provisional)
+## Recommendation
 
-**Change:** local isn't good enough to be the default, but keep it as an option. Build vroom-9ki.11 with the
-provider as a setting and a hosted default (option 1), with a strong and a fast model as the design already
-plans. At 0.1–1.2 cents a call, the cost is small next to the quality gap, which is widest on the Corner command, the one place the coach reads raw telemetry. Keep the local
-path (`llm_provider: "ollama"`) for anyone who wants offline or free use: its format and grounding were
-perfect in 40 runs. Final call after the blind ratings and the fallback question below.
+**Change.** A local model on the 7800 XT is not good enough to be the coach's default; keep it as an option.
+Build vroom-9ki.11 with the provider and models as settings and a hosted default: **strong = gpt-6.1-terra,
+fast = gpt-6-luna** on OpenAI for now (option 1). Anthropic stays one setting away (the design's
+Sonnet/Haiku default was not measured: no Anthropic credit), and so does Ollama (`llm_provider: "ollama"`)
+for offline or free use, where gpt-oss-20b's number grounding held in every run. Use the v2 packet shape and
+the v3 prompt as the starting point for vroom-9ki.12.
 
 Config change for vroom-9ki.11, which makes the provider configurable whichever model wins:
 
 ```python
-llm_provider: Literal["anthropic", "openai", "gemini", "ollama"] = "anthropic"
+llm_provider: Literal["anthropic", "openai", "gemini", "ollama"] = "openai"
 llm_base_url: str | None = None  # "ollama" defaults to http://127.0.0.1:11434/v1; with "openai" it reaches any
                                  # OpenAI-compatible host (OpenRouter, Groq ...)
-llm_strong: str = "claude-sonnet-5-5"  # e.g. "gpt-oss-20b-nommap" with ollama
-llm_fast: str = "claude-haiku-5-5"
+llm_strong: str = "gpt-6.1-terra"  # Analyze, Corner. e.g. "claude-sonnet-5-5" with anthropic, "gpt-oss-20b-nommap" with ollama
+llm_fast: str = "gpt-6-luna"      # Average. e.g. "claude-haiku-5-5" with anthropic
 ```
 
 Map `"ollama"` to Pydantic AI's OpenAI-compatible model with `base_url`. Use JSON-schema structured output
 (`response_format`) rather than tool calls; the handover saw a malformed nested tool call. `cost_usd` stays
 `None` for local calls. The spike's `run.py` already has this shape: one OpenAI-compatible client for
-`ollama:` and `openai:`, and Anthropic's own SDK for `anthropic:`. The design's Anthropic default is a
-separate decision and stays as it is until the comparison is in.
+`ollama:` and `openai:`, and Anthropic's own SDK for `anthropic:`. Changing the default from Anthropic to OpenAI
+updates design line 29 (defaults `claude-sonnet-5-5` / `claude-haiku-5-5`); cost logging needs OpenAI prices
+(genai-prices covers them).
 
 Lessons for vroom-9ki.12 (coach packets and guard), whichever model wins:
 - Use plain-English keys in the packet ("minimum speed"), not snake_case; models quote keys back.
 - Give each landmark its role ("exit kerb, after the apex"), not only its label.
 - Check numbers per finding against that corner's facts, so that small integers from elsewhere in the
   packet can't hide a calculation.
-- Add a prose check (empty or one-word `what`/`fix`, field names) next to the number guard.
+- Add a prose check (empty or one-word `what`/`fix`, field names, hedging phrases) next to the number guard,
+  and let it trigger the same one retry. Give `what` and `fix` a `minLength` in the schema.
+- Compute the cause and its confidence in code and pass both; the prompt states a high or medium cause as
+  fact. That removed hedging for every model (sol 0/20 hedge-free with v1, terra 20/20 with v3).
+- Add per corner: ABS and TC time, lockup and wheelspin location, rev-limiter time, gear at the slowest
+  point, kerb time; for Average, the fastest and slowest lap side by side (`packets-v2/`).
+- Write paired values as "110 km/h against 112", not "110 / 112" (the rater found the latter hard to read).
 
-## Question for the user (before the final recommendation)
+## Open with the user
 
-The issue asked: is a **hosted fallback OK when the GPU is busy**, or should the coach be **local-only**? With
-these results the question becomes: is **hosted by default** OK (0.1–1.2 cents a call, with the facts packets
-sent to OpenAI or Anthropic)? If yes, option 1. If you'd rather pay nothing when the GPU is free, option 2.
-Local-only means option 3, and the coach waits until LMU is closed.
+- **Hosted by default:** OK at 0.1–0.6 cents a call, with the facts packets sent to OpenAI? (The issue's
+  question was whether a hosted fallback is OK; with these results local is the fallback, not hosted.)
+- **VRAM with LMU open in its menus:** not measured. It matters only for the local option; gpt-oss alone holds
+  12.74 GB of the 16 GB.
