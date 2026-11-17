@@ -99,6 +99,7 @@ export interface TraceResponse {
 export interface CompareResponse {
   /** Not in the plan's route table: the ids actually compared (needed when `ref` was omitted). */
   lap_id: string;
+  /** A lap id, or `ideal:<session_id>` when the comparison lap is the session's stitched ideal lap (see `idealRefId`). */
   ref_lap_id: string;
   /** Kinds of `lap_id` and `ref_lap_id`; the view uses them to build the centreline from flying laps only. */
   lap_kind: LapKind;
@@ -124,6 +125,11 @@ export interface CompareResponse {
    * and the backend alike. A track with no corners in its map gives an empty list.
    */
   corners: CornerMetrics[];
+  /**
+   * Grid metres of the stitched ideal lap's segment joins: every segment start after the first (corner starts and ends; neighbouring
+   * segments may come from the same lap, but speed and line can still jump where they do not; the strips mark them all). Empty when `ref_lap_id` is a real lap.
+   */
+  ref_joins_m: number[];
 }
 
 /**
@@ -185,6 +191,8 @@ export interface CompareCandidate {
   is_reference: boolean;
   is_previous: boolean;
   other_car: boolean;
+  /** The session's stitched ideal lap (`lap_id` is then `ideal:<session_id>`, `lap_time_s` the ideal time). Only offered for a lap with valid laps in its session. */
+  is_ideal: boolean;
 }
 
 // ---- Track geometry ----
@@ -399,6 +407,17 @@ export interface IdealLap {
   scope: IdealScope;
   segments: IdealSegment[];
 }
+
+/**
+ * How compare, compare-candidates, the coach and coach results name the ideal lap as the comparison: a reserved ref id
+ * `ideal:<session_id>` in place of a lap id (scope=session; vroom-bi4.3).
+ * The ideal is built from the lap's own session, so a lap can only use `idealRefId(its session)`; any other session gives 404 `unknown_lap`.
+ * The response's `ref_lap_id` echoes the id, `ref_kind` is "flying", and `ref_joins_m` lists the segment joins.
+ */
+export const IDEAL_REF_PREFIX = "ideal:";
+export const idealRefId = (sessionId: string): string => `${IDEAL_REF_PREFIX}${sessionId}`;
+/** The session id inside an ideal ref id, or null for an ordinary lap id. */
+export const idealRefSession = (ref: string): string | null => (ref.startsWith(IDEAL_REF_PREFIX) ? ref.slice(IDEAL_REF_PREFIX.length) : null);
 
 /** One valid flying lap's time in every segment of the session's ideal lap. */
 export interface LapSegmentTimes {

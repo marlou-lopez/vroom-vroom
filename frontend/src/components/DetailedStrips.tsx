@@ -62,6 +62,8 @@ interface Spec {
   off: { runs: Run[]; color: string };
   /** Experimental under/oversteer marks of this lap on a trace (vroom-pnw.15), only with `?balance`. */
   balance?: { runs: BalanceRuns; values: Num };
+  /** Where the comparison lap is stitched from another lap (the ideal lap's segment joins, vroom-bi4.3); a dashed line over the whole strip. Empty for a real lap. */
+  joins: number[];
   /** Gear shifts of both laps, marked on the pedals strip (vroom-pnw.12). */
   shifts?: { lap: Shift[]; ref: Shift[] };
   value: (cmp: CompareResponse, tau: number, iy: number) => string;
@@ -88,19 +90,20 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
     ? compareBalance(cmp.lap, cmp.ref, cmp.lap_steering_range_deg, cmp.ref_steering_range_deg, cmp.lap_car_id === cmp.ref_car_id)
     : null;
   const off = { runs: offTrackRuns(cmp.lap), color: lapValid ? colors.closeCall : colors.offTrack };
+  const joins = cmp.ref_joins_m;
   const r = stripRanges(cmp);
   const gl = cleanGear(cmp.lap.gear);
   const gr = cleanGear(cmp.ref.gear);
   const refStroke = withAlpha(colors.comparison, 0.8);
   const specs: Spec[] = [
     {
-      id: "speed", label: "SPEED", off, yRange: r.speed,
+      id: "speed", label: "SPEED", off, joins, yRange: r.speed,
       data: [cmp.ref.speed_kmh, cmp.lap.speed_kmh],
       series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       value: (c, tau, iy) => `${Math.round(c.lap.speed_kmh[iy])} / ${Math.round(c.ref.speed_kmh[indexAtTime(c.ref.t, tau)])}`,
     },
     {
-      id: "pedals", label: "THROTTLE · BRAKE", off, yRange: r.pedals,
+      id: "pedals", label: "THROTTLE · BRAKE", off, joins, yRange: r.pedals,
       data: [cmp.ref.throttle, cmp.ref.brake, cmp.lap.throttle, cmp.lap.brake],
       series: [
         line(withAlpha(colors.throttle, 0.45), 1.2), line(withAlpha(colors.brake, 0.45), 1.2),
@@ -112,14 +115,14 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
         + (c.lap.abs[iy] ? " · ABS" : "") + (c.lap.tc[iy] ? " · TC" : ""),
     },
     {
-      id: "gear", label: "GEAR", off, yRange: gearRange(gl, gr),
+      id: "gear", label: "GEAR", off, joins, yRange: gearRange(gl, gr),
       data: [gr, gl],
       series: [stepLine(refStroke, 1.2), stepLine(colors.you, 1.6)],
       value: (c, tau, iy) => `${gearName(gl[iy])} / ${gearName(gr[indexAtTime(c.ref.t, tau)] ?? 0)}`,
     },
     {
       // Plotted on the normalised scale so both cars share one axis; the label uses steeringDisplay units.
-      id: "steering", label: "STEERING", off, yRange: r.steering,
+      id: "steering", label: "STEERING", off, joins, yRange: r.steering,
       data: [cmp.ref.steering, cmp.lap.steering],
       series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       // With ?balance the steering strip carries the experimental under/oversteer marks, and says so.
@@ -127,7 +130,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       value: (c, _t, iy) => formatSteering(c.lap.steering[iy], c.lap_steering_range_deg),
     },
     {
-      id: "delta", label: "DELTA", off, yRange: r.delta,
+      id: "delta", label: "DELTA", off, joins, yRange: r.delta,
       data: [cmp.delta],
       series: [line(colors.textSoft, 1.6)],
       zeroLine: true, deltaFill: true,
@@ -141,7 +144,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
     const e = Array.from({ length: n }, (_, i) => track[i] ?? null);
     const m = (v: number | null | undefined) => (v === null || v === undefined ? "–" : v.toFixed(1));
     specs.push({
-      id: "elevation", label: "ELEVATION", off, experimental: true, yRange: elevationRange(e),
+      id: "elevation", label: "ELEVATION", off, joins, experimental: true, yRange: elevationRange(e),
       data: [e],
       series: [line(colors.textSoft, 1.6)],
       value: (_c, _t, iy) => `${m(e[iy])} m`,
@@ -156,28 +159,28 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
   const slip = [lap.slip_fl, lap.slip_fr, lap.slip_rl, lap.slip_rr];
   specs.push(
     {
-      id: "rpm", label: "RPM", off, yRange: paddedRange(0.05, 1000, lap.rpm, ref.rpm),
+      id: "rpm", label: "RPM", off, joins, yRange: paddedRange(0.05, 1000, lap.rpm, ref.rpm),
       data: [ref.rpm, lap.rpm], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       value: (c, tau, iy) => `${Math.round(c.lap.rpm[iy])} / ${Math.round(c.ref.rpm[indexAtTime(c.ref.t, tau)])}`,
     },
     {
-      id: "g_lat", label: "LATERAL G", off, yRange: symmetricRange(0.5, lap.g_lat, ref.g_lat), zeroLine: true,
+      id: "g_lat", label: "LATERAL G", off, joins, yRange: symmetricRange(0.5, lap.g_lat, ref.g_lat), zeroLine: true,
       data: [ref.g_lat, lap.g_lat], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       value: (c, tau, iy) => `${c.lap.g_lat[iy].toFixed(2)} / ${c.ref.g_lat[indexAtTime(c.ref.t, tau)].toFixed(2)}`,
     },
     {
-      id: "g_long", label: "LONGITUDINAL G", off, yRange: symmetricRange(0.5, lap.g_long, ref.g_long), zeroLine: true,
+      id: "g_long", label: "LONGITUDINAL G", off, joins, yRange: symmetricRange(0.5, lap.g_long, ref.g_long), zeroLine: true,
       data: [ref.g_long, lap.g_long], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       value: (c, tau, iy) => `${c.lap.g_long[iy].toFixed(2)} / ${c.ref.g_long[indexAtTime(c.ref.t, tau)].toFixed(2)}`,
     },
     {
       // This lap only: four wheels already fill the strip.
-      id: "suspension", label: "SUSPENSION", off, yRange: paddedRange(0.05, 0.01, ...susp),
+      id: "suspension", label: "SUSPENSION", off, joins, yRange: paddedRange(0.05, 0.01, ...susp),
       data: susp, series: wheelColors.map((c) => line(dimmer(c), 1.4)),
       value: (_c, _t, iy) => wheelValues(susp, iy, 3),
     },
     {
-      id: "slip", label: "TYRE SLIP", off, yRange: paddedRange(0.05, 0.4, ...slip, [1]),
+      id: "slip", label: "TYRE SLIP", off, joins, yRange: paddedRange(0.05, 0.4, ...slip, [1]),
       data: slip, series: wheelColors.map((c) => line(dimmer(c), 1.4)),
       value: (_c, _t, iy) => wheelValues(slip, iy, 2),
     },
@@ -190,7 +193,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
     const finite = (v: Num) => v.filter((x): x is number => x !== null);
     const word = (b: number | null) => (b === null ? "–" : `${b > 0 ? "US" : "OS"} ${Math.abs(b).toFixed(1)}`);
     specs.push({
-      id: "balance", label: "BALANCE (US + / OS −, °/s)", off, experimental: true, zeroLine: true,
+      id: "balance", label: "BALANCE (US + / OS −, °/s)", off, joins, experimental: true, zeroLine: true,
       // Capped: a spin or a kerb strike reads 40+ deg/s and would flatten the rest.
       yRange: ((m) => [-m, m] as Range)(Math.min(BALANCE_MAX_DEG_S, symmetricRange(2, finite(lapB), finite(refB))[1])),
       data: [refB, lapB], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
@@ -223,6 +226,32 @@ function drawBands(u: uPlot, anns: Annotation[]) {
       if (endEdge && onScreen(x1)) ctx.fillRect(x1 - dpr, bbox.top, dpr, bbox.height);
     }
   }
+}
+
+/** Dashed lines where the comparison lap is stitched from another lap (the ideal lap's segment joins): speed and line can jump there. */
+function drawJoins(u: uPlot, joins: number[]) {
+  if (!joins.length) return;
+  const { ctx, bbox } = u;
+  const sx = u.scales.x;
+  const xs = u.data[0];
+  const lo = sx.min ?? xs[0], hi = sx.max ?? xs[xs.length - 1];
+  const dpr = uPlot.pxRatio;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
+  ctx.clip();
+  ctx.strokeStyle = withAlpha(colors.ideal, 0.75);
+  ctx.lineWidth = dpr;
+  ctx.setLineDash([4 * dpr, 3 * dpr]);
+  for (const m of joins) {
+    if (m < lo || m > hi) continue;
+    const x = Math.round(bbox.left + u.valToPos(m, "x", true)) + dpr / 2;
+    ctx.beginPath();
+    ctx.moveTo(x, bbox.top);
+    ctx.lineTo(x, bbox.top + bbox.height);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /** A faint band over the full height of a strip where wheels were off the track, with a solid edge line at its start so a short one still shows. */
@@ -393,6 +422,7 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
         (u) => {
           drawBands(u, annRef.current);
           drawOffTrack(u, spec.off.runs, spec.off.color);
+          drawJoins(u, spec.joins);
           if (spec.zeroLine || spec.deltaFill) drawDelta(u, !!spec.zeroLine, !!spec.deltaFill);
           if (spec.aids) {
             drawAidBands(u, spec.aids.runs.abs, spec.aids.brake, colors.brake);
