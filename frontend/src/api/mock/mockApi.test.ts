@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import type { Api } from "../client";
-import { ApiError, type CoachResult, type Corner, type LapWithRef, type SessionMeta } from "../types";
+import { ApiError, effectiveValid, type CoachResult, type Corner, type LapWithRef, type SessionMeta } from "../types";
 import { spread, steeringCorrections, steeringExtrema } from "./coachFacts";
 import { createMockApi } from "./mockApi";
 import type { Recording } from "./recording";
@@ -553,5 +553,20 @@ describe("laps, pinning and sessions", () => {
     expect(s.length).toBe(6);
     const times = s.map((x) => x.started_at);
     expect([...times].sort().reverse()).toEqual(times);
+  });
+});
+
+describe("validity override reset", () => {
+  it("patchLap with valid_override null clears a manual mark and validity follows the automatic value", async () => {
+    const { api, spaNov3, lap } = await setup();
+    const find = async () => (await api.sessionLaps(spaNov3.session_id)).find((l: LapWithRef) => l.lap_no === 4)!;
+    const auto = (await find()).valid;
+    await api.patchLap(lap(4).lap_id, { valid_override: !auto });
+    expect((await find()).valid_override).toBe(!auto);
+    const reset = await api.patchLap(lap(4).lap_id, { valid_override: null });
+    expect(reset.valid_override).toBeNull();
+    const after = await find();
+    expect(after.valid_override).toBeNull();
+    expect(effectiveValid(after)).toBe(auto);
   });
 });
