@@ -42,7 +42,7 @@ export function LapPicker({ session, laps, lap, refLapId, warning, candidates, o
   const previous = candidates.find((c) => c.is_previous) ?? null;
   const patchLap = usePatchLap().mutate; // refetches laps, comparisons and candidates
   const pin = (l: LapWithRef) => patchLap({ lapId: l.lap_id, patch: { pinned_reference: !l.pinned_reference } });
-  // Pin and mark-valid act on the open menu's lap and leave the menu open, like Radix's checkbox item below.
+  // Pin, mark-valid and reset-to-automatic act on the open menu's lap and leave the menu open, like Radix's checkbox item below.
   const keepOpen = (e: Event) => e.preventDefault();
 
   return (
@@ -91,6 +91,17 @@ export function LapPicker({ session, laps, lap, refLapId, warning, candidates, o
                     }}
                   >
                     Mark {effectiveValid(lap) ? "invalid" : "valid"}
+                  </DropdownMenu.Item>
+                )}
+                {lap.valid_override !== null && (
+                  <DropdownMenu.Item
+                    className={cx(ui.menuItem, styles.footerBtn)}
+                    onSelect={(e) => {
+                      keepOpen(e);
+                      patchLap({ lapId: lap.lap_id, patch: { valid_override: null } });
+                    }}
+                  >
+                    Reset to automatic
                   </DropdownMenu.Item>
                 )}
               </div>
