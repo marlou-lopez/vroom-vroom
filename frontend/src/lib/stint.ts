@@ -58,7 +58,10 @@ export interface Falloff {
 
 /** Least-squares line of lap time against lap number over the laps in the fit. null with fewer than 3 laps. */
 export function falloff(rows: StintRow[]): Falloff | null {
-  const pts = rows.filter((r) => r.excluded === null).map((r) => [r.lap.lap_no, r.lap.lap_time_s!] as const);
+  return fitLine(rows.filter((r) => r.excluded === null).map((r) => [r.lap.lap_no, r.lap.lap_time_s!] as const));
+}
+
+function fitLine(pts: (readonly [number, number])[]): Falloff | null {
   const n = pts.length;
   if (n < 3) return null;
   const mx = pts.reduce((s, p) => s + p[0], 0) / n;
@@ -68,6 +71,61 @@ export function falloff(rows: StintRow[]): Falloff | null {
   if (sxx === 0) return null;
   const slope = sxy / sxx;
   return { slope, intercept: my - slope * mx, n };
+}
+
+// ---- Fuel-corrected fall-off (EXPERIMENTAL, spike vroom-d4g; write-up in docs/stint/fuel-corrected-falloff.md) ----
+
+/** The fuel-weight effect the correction assumes. Not measured from the stint: within one stint fuel load and lap number move together. */
+export interface FuelEffect {
+  /** Fuel density, kg per litre. */
+  kgPerL: number;
+  /** Lap time a kilogram costs, as a fraction of the lap time (0.0002 = 0.02 % of the lap per kg). */
+  lapFractionPerKg: number;
+  /** Where the numbers come from, shown next to the corrected value. */
+  source: string;
+}
+
+/**
+ * GT3 assumption. Density: racing fuel is about 0.74 kg/L. Weight: the motorsport rule of thumb of about 0.03 s a lap per kg for
+ * an 800 kg car on a 90 s lap (0.033 % of the lap per kg), scaled to a GT3 of about 1,400 kg with driver (lap-time loss goes with
+ * the share of the car's mass), gives about 0.02 % per kg: 0.023 s/kg on a 113 s Monza lap. Fits across our own sessions with
+ * different start loads agree within their noise (Monza 0.019–0.023 s/kg, Spa 0.013–0.028 s/kg; tools/fuel-effect-fit.py).
+ */
+export const GT3_FUEL_EFFECT: FuelEffect = {
+  kgPerL: 0.74,
+  lapFractionPerKg: 0.0002,
+  source: "GT3 rule of thumb (0.02 % of the lap per kg, fuel 0.74 kg/L), an assumption",
+};
+
+export interface FuelCorrectedFalloff extends Falloff {
+  /** The raw fit over the same laps, for comparison. */
+  raw: Falloff;
+  /** Seconds a kilogram costs on this stint's lap: lapFractionPerKg × the median fitted lap time. */
+  secPerKg: number;
+  /** Mean fuel burnt per fitted lap, kg. */
+  kgPerLap: number;
+  /** Seconds a lap the burnt fuel gains: secPerKg × kgPerLap (raw slope + this ≈ corrected slope). */
+  fuelGainPerLap: number;
+}
+
+/**
+ * Fall-off with the fuel-weight effect taken out: each fitted lap's time gets back what the fuel burnt since the stint's start
+ * would have gained (fuel at the stint start minus fuel at mid-lap, × kg/L × s/kg), so the line shows tyre (and track) change
+ * only, at the start load. Uses fuel levels, not per-lap use, so a lap with a missing reading does not shift later laps.
+ * null without a raw fit.
+ */
+export function fuelCorrectedFalloff(rows: StintRow[], effect: FuelEffect = GT3_FUEL_EFFECT): FuelCorrectedFalloff | null {
+  const raw = falloff(rows);
+  const fitted = rows.filter((r) => r.excluded === null);
+  if (!raw || fitted.length === 0) return null;
+  const fuelRef = rows[0].lap.fuel_start_l;
+  const secPerKg = effect.lapFractionPerKg * median(fitted.map((r) => r.lap.lap_time_s!));
+  const burnt = (r: StintRow) => fuelRef - (r.lap.fuel_start_l + r.lap.fuel_end_l) / 2;
+  const fit = fitLine(fitted.map((r) => [r.lap.lap_no, r.lap.lap_time_s! + secPerKg * effect.kgPerL * burnt(r)] as const));
+  if (!fit) return null;
+  const used = fitted.flatMap((r) => (r.fuelUsed === null ? [] : [r.fuelUsed]));
+  const kgPerLap = used.length ? (used.reduce((a, b) => a + b, 0) / used.length) * effect.kgPerL : 0;
+  return { ...fit, raw, secPerKg, kgPerLap, fuelGainPerLap: secPerKg * kgPerLap };
 }
 
 export interface StintSummary {
