@@ -43,6 +43,8 @@ This section only records facts that change rarely (last checked 2026-11-17):
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone (e.g. `edge-survey.md`, `elevation-shared-memory.md`) |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON: `node extract-laps.mjs <copy.duckdb> <out.json> "<source label>" [laps]` (needs `npm i @duckdb/node-api`) |
+| `tools/extract-stint.py` | Per-lap stint stats (fuel, virtual energy, tyres, brakes) from an LMU `.duckdb` copy, for the experimental Stint view: `uv run --with duckdb python -I extract-stint.py <copy.duckdb> <out.json> "<label>"` (vroom-pnw.26) |
+| `docs/stint/` | Stint view spike write-up (`stint-view.md`) |
 | `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`, `survey`) (#94, #97). Captures stay out of git |
 | `tools/optimize-car-model.mjs` | Command-line twin of the Car popover's in-browser converter: turns a downloaded car glTF (folder, zip, .gltf, .glb) into one small GLB for `frontend/public/local-models/`. Imports `frontend/src/components/mapviews/ribbon/convert/` (the shared drop list, settings and pipeline; needs `npm ci` in `frontend/`, and network once for `sharp`). Its output is never committed (#102, `docs/track-views/car-model.md`) |
 | `docs/spec.md` | Product spec: goals, non-goals, milestones as Beads epics, order of work |

@@ -7,6 +7,8 @@ import { ApiError, effectiveValid, type CoachResult, type Corner, type LapWithRe
 import { spread, steeringCorrections, steeringExtrema } from "./coachFacts";
 import { createMockApi } from "./mockApi";
 import type { Recording } from "./recording";
+import type { StintFile } from "./stint";
+import { MONZA_TRACK_ID } from "./monzaTrack";
 import { brakeOnset, deriveLandmarks, kerbRuns, spaCorners } from "./spaTrack";
 
 const round3 = (x: number) => Number(x.toFixed(3));
@@ -614,5 +616,19 @@ describe("validity override reset", () => {
     const after = await find();
     expect(after.valid_override).toBeNull();
     expect(effectiveValid(after)).toBe(auto);
+  });
+});
+
+describe("stints (experimental, vroom-pnw.26)", () => {
+  const STINT = JSON.parse(readFileSync(fileURLToPath(new URL("../../../public/mock/monza-stint-2026-11-09.json", import.meta.url)), "utf8")) as StintFile;
+  it("serves the Monza race stint for the Monza 720S", async () => {
+    const api = createMockApi({ loadSpa, loadStint: async () => STINT });
+    const [s] = await api.stints();
+    expect(s.track_id).toBe(MONZA_TRACK_ID);
+    expect(s.car_id).toBe("mclaren_720s_gt3_evo");
+    expect(s.laps).toHaveLength(26);
+  });
+  it("has none when a custom recording loader is given and no stint loader", async () => {
+    expect(await createMockApi({ loadSpa }).stints()).toEqual([]);
   });
 });

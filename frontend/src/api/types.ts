@@ -425,3 +425,47 @@ export function errorInfo(e: unknown): { code: string; message: string } {
   const x = e as Partial<ApiError>;
   return { code: x.code ?? "error", message: x.message ?? String(e) };
 }
+
+// ---- Stint (EXPERIMENTAL, vroom-pnw.26) ----
+// Spike prototype: not part of the agreed contract yet. See docs/stint/stint-view.md for the contract options.
+
+/** One value per wheel. */
+export interface Wheels { fl: number; fr: number; rl: number; rr: number }
+
+/** Per-lap stint stats, computed from the recording's fuel, virtual energy, tyre and brake channels. */
+export interface StintLap {
+  lap_no: number;
+  kind: LapKind;
+  /** Official time; 0 = invalid, null = none (a lap that ends in the pits or with the recording). */
+  lap_time_s: number | null;
+  valid: boolean;
+  fuel_start_l: number;
+  fuel_end_l: number;
+  /** Virtual energy left, percent of the full tank. null when the car has no virtual energy (the channel reads 0). */
+  energy_start_pct: number | null;
+  energy_end_pct: number | null;
+  /** Lap mean of the tread surface temperature (mean of the three zones). */
+  tyre_surface_c: Wheels;
+  /** Lap means per tread zone; `left` and `right` are the car's left and right edges of the tread. */
+  tyre_zones_c: { left: Wheels; centre: Wheels; right: Wheels };
+  tyre_carcass_c: Wheels;
+  tyre_pressure_kpa: Wheels;
+  /** Tread left at the end of the lap, percent (100 = new). */
+  tyre_wear_end_pct: Wheels;
+  /** Lap mean of the brake disc temperature. */
+  brake_c: Wheels;
+  track_temp_c: number;
+  air_temp_c: number;
+}
+
+/** A run of laps from one recording (here: a whole session, pit stop included). */
+export interface Stint {
+  stint_id: string;
+  track_id: string;
+  car_id: string;
+  car_class: string;
+  session_type: string;
+  started_at: string;
+  source: string;
+  laps: StintLap[];
+}
