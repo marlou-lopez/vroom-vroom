@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { lapLink } from "../lib/urlParams";
 import { sessionLapsOptions, sessionSummaryOptions, useSessions } from "../api/queries";
 import type { SessionMeta, SessionSummary } from "../api/types";
 import { formatDelta, formatLapTime, formatShortDate } from "../lib/format";
@@ -30,6 +31,7 @@ function combine<T>(rs: { data: T | undefined; error: Error | null }[]) {
 }
 
 export function SessionsPage() {
+  const { search } = useLocation();
   const sessionsQ = useSessions();
   const sessions = sessionsQ.data ?? null;
   const [selected, setSelected] = useState<string | null>(null);
@@ -151,7 +153,7 @@ export function SessionsPage() {
                     </td>
                     <td className={styles.open}>
                       {bestLapId ? (
-                        <Link to={`/?lap=${encodeURIComponent(bestLapId)}`} className={styles.openLink}>Open →</Link>
+                        <Link to={lapLink(search, bestLapId)} className={styles.openLink}>Open →</Link>
                       ) : (
                         <span className={styles.dim} title="No valid flying lap with a trace to open">—</span>
                       )}
