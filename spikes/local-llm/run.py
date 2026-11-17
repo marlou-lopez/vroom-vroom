@@ -124,6 +124,13 @@ def call_openai_compatible(e: dict, system: str, messages: list[dict], *, base_u
 
     client = OpenAI(base_url=base_url, api_key=api_key)
     extra = {"temperature": temperature} if temperature is not None else {}
+    if e.get("json_mode") == "json_object":
+        # Hosts without JSON-schema output (DeepSeek's chat API): plain JSON mode, the schema goes in the prompt and
+        # jsonschema checks the answer afterwards, so the schema-valid rate is measured, not guaranteed.
+        fmt = {"type": "json_object"}
+        system = f"{system}\n\n# JSON schema of your answer\n\n```json\n{json.dumps(SCHEMA)}\n```\n"
+    else:
+        fmt = {"type": "json_schema", "json_schema": {"name": "coach_result", "schema": SCHEMA, "strict": True}}
     t0 = time.perf_counter()
     first_any = first_text = None
     text, usage = [], None
@@ -132,7 +139,7 @@ def call_openai_compatible(e: dict, system: str, messages: list[dict], *, base_u
         messages=[{"role": "system", "content": system}, *messages],
         stream=True,
         stream_options={"include_usage": True},
-        response_format={"type": "json_schema", "json_schema": {"name": "coach_result", "schema": SCHEMA, "strict": True}},
+        response_format=fmt,
         **extra,
     )
     for chunk in stream:

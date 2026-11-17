@@ -1,5 +1,5 @@
 {
-  "_doc": "Models for run.py --matrix. provider: ollama | openai (any OpenAI-compatible host, via base_url + key_env) | anthropic. price: $ per 1M [input, output] tokens, null when free or unknown (cost is then not logged). Entries whose key_env is unset are skipped. enabled: false entries run only with --select <id>. tested: the date a run of it worked; untested entries need their model id checked against the host's model list first.",
+  "_doc": "Models for run.py --matrix. json_mode: json_object for hosts without JSON-schema output (the schema then goes in the prompt). provider: ollama | openai (any OpenAI-compatible host, via base_url + key_env) | anthropic. price: $ per 1M [input, output] tokens, null when free or unknown (cost is then not logged). Entries whose key_env is unset are skipped. enabled: false entries run only with --select <id>. tested: the date a run of it worked; untested entries need their model id checked against the host's model list first.",
   "models": [
     {"id": "ollama:gpt-oss-20b-nommap", "provider": "ollama", "model": "gpt-oss-20b-nommap", "price": null, "enabled": true, "tested": "2026-11-17",
      "note": "Local, RX 7800 XT. gpt-oss:20b with use_mmap false (see the local-LLM handover). Apache-2.0."},
@@ -16,6 +16,8 @@
     {"id": "anthropic:claude-haiku-5-5", "provider": "anthropic", "model": "claude-haiku-5-5", "key_env": "ANTHROPIC_API_KEY", "price": [0.10, 0.50], "enabled": true, "tested": null,
      "note": "The design's fast default; not measured yet."},
 
+    {"id": "deepseek:deepseek-flash", "provider": "openai", "base_url": "https://api.deepseek.com", "model": "deepseek-flash", "key_env": "DEEPSEEK_API_KEY", "json_mode": "json_object", "price": [0.30, 1.20], "enabled": false, "tested": null,
+     "note": "Untested. DeepSeek V4.1 Flash. Its chat API has JSON mode only (json_mode json_object: schema in the prompt, checked afterwards). Price is peak-hour cache-miss input / output; off-peak is half. Check both on api-docs.deepseek.com before running."},
     {"id": "groq:gpt-oss-120b", "provider": "openai", "base_url": "https://api.groq.com/openai/v1", "model": "openai/gpt-oss-120b", "key_env": "GROQ_API_KEY", "price": null, "enabled": false, "tested": null,
      "note": "Untested. The bigger sibling of the local model: shows whether size, not hosting, is the local model's limit. Check the model id and price on Groq."},
     {"id": "openrouter:example", "provider": "openai", "base_url": "https://openrouter.ai/api/v1", "model": "<provider/model slug from openrouter.ai/models>", "key_env": "OPENROUTER_API_KEY", "price": null, "enabled": false, "tested": null,

@@ -219,7 +219,7 @@ the steering_extrema usage". terra went from 3.6 (round 1) to 4.0, luna from 3.2
 The bench is built to be re-run as telemetry, prompts and providers change; `spikes/local-llm/README.md` has
 the steps. In short: packets from any mock recording and lap pairs (`build-packets.mjs --track`; Spa and Monza
 so far), models from `models.json` (any OpenAI-compatible host is a config entry: OpenRouter, Groq and Gemini
-templates are there, untested), runs tagged by round, and `summarize.py` for the table, the blind sheet and
+templates are there, untested; DeepSeek too, through JSON mode with the schema in the prompt, since its chat API has no JSON-schema output), runs tagged by round, and `summarize.py` for the table, the blind sheet and
 the unblinded scores. Monza packets (both sets) are built but haven't been through the paid models yet.
 
 Room for improvement, for the next rounds:
