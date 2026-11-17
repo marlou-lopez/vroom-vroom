@@ -14,13 +14,14 @@ and GitHub Issues is disabled. Before starting, run `bd ready --exclude-type epi
 `bd list --status in_progress,review` for work in flight. Each milestone is a Beads epic (`bd list -t
 epic`). Each issue stands on its own and lists its dependencies. Don't rely on this file for progress.
 
-This section only records facts that change rarely (last checked 2026-11-14):
+This section only records facts that change rarely (last checked 2026-11-17):
 - **Phase:** the frontend runs on a mock API serving real Spa and Monza recordings. The backend
   hasn't been started, and there's no `backend/` directory yet.
-- **Agreed order:** first the **Track views** milestone (detailed 2D, then 3D), then the remaining
-  `v1 – UI on mock data` issues, then the `Analysis features` milestone (new analysis split out of v1
-  on 2026-11-07), then the backend (milestone `v2 – Real backend`, Tasks 1–13), then switching the
-  frontend to the real API. v1 and Analysis features are both done before the backend starts.
+- **Agreed order:** the **Track views** milestone (detailed 2D, then 3D) closed on 2026-11-12. Next
+  are the remaining `v1 – UI on mock data` issues, then the `Analysis features` milestone (new analysis
+  split out of v1 on 2026-11-07), then the backend (milestone `v2 – Real backend`, Tasks 1–13), then
+  switching the frontend to the real API. v1 and Analysis features are both done before the backend
+  starts; the backend scaffold issue depends on both epics in Beads, so `bd ready` reflects that.
   **Pedal scaling** (`vroom-ryg`, decided 2026-11-14) doesn't wait for the backend: its core may start
   after Analysis features, alongside v2. Goals, non-goals and milestones are in `docs/spec.md`.
 - The design spec, the v1 plan and handover notes live outside the repo, in
@@ -112,6 +113,11 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   When the user says ship it, use `/dl:ship`. It runs the quality commands, opens the PR, merges
   and closes the issue. New ideas mid-task go in `bd q "<title>" -t task`; don't widen the current
   issue. Goals and order of work are in `docs/spec.md`.
+- **Autopilot (agents develop this project on their own).** `/dl:autopilot start` runs a loop that
+  dispatches ready issues from the epics in `.claude/dispatch-loop.json` → `autopilot.epic_order` with
+  `dl-dispatch --auto`. Those workers follow `contracts/autopilot.md` from the Dispatch Loop plugin: an
+  Opus reviewer and an Opus judge stand in for the user, and the worker ships itself or parks the issue
+  with label `needs-human`. Parked issues are the user's queue (`/dl:standup` lists them first).
 - **Branch off `main`** and open a PR; don't commit directly to `main`. Only commit or push
   when asked. Outside the loop, reference the Beads ID in the PR text.
 - Exploration issues (label `spike`) end with a prototype in the app labelled

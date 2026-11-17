@@ -70,7 +70,7 @@ Each milestone is a Beads epic, and its issues are its children. GitHub mileston
 
 Agreed order:
 
-1. **Track views** (`vroom-ueg`): detailed 2D first, then 3D.
+1. **Track views** (`vroom-ueg`): detailed 2D first, then 3D. Done; the epic closed on 2026-11-12.
 2. **v1 – UI on mock data** (`vroom-pnw`): the remaining bugs, keyboard access, refactors and mock-data chores.
 3. **Analysis features** (`vroom-bi4`): the new features and their spikes. v1 and Analysis features are both
    finished before the backend starts (decided 2026-11-07).
@@ -90,9 +90,9 @@ before it ships.
 
 These are already spikes or decision issues in Beads; their outcome may change this spec.
 
-- How real-recording mock JSON is kept now that the repo is public again: in git, Git LFS, or generated locally
-  (`vroom-pnw.11`).
-- Whether a procedural low-poly 3D track meets the 60 fps target and is recognisable (`vroom-ueg.2`).
+- Settled: real-recording mock JSON stays in git (`vroom-pnw.11`, 2026-11-09), and the procedural 3D track is
+  kept (`vroom-ueg.2`, 2026-11-07; write-ups in `docs/track-views/`).
 - Whether oversteer and understeer can be estimated well enough to coach on (`vroom-pnw.15`), and whether LMU's
   recorder can log more channels (`vroom-pnw.16`).
 - Which fuel, virtual energy and tyre channels LMU records, for a stint view (`vroom-pnw.26`).
+- Whether a local LLM is good enough for the post-session coach, or stays hosted (`vroom-9ki.17`).

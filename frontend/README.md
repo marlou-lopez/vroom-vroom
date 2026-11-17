@@ -17,8 +17,9 @@ npm run preview   # serve the production build
 ## Mock API
 
 `.env.development` sets `VITE_API=mock`. With it, `npm run dev` starts an MSW service worker
-that answers `/api/*` from `src/api/mock/`. The mock is built on one real Spa recording,
-`public/mock/spa-2026-11-03.json`.
+that answers `/api/*` from `src/api/mock/`. The mock is built on real recordings in
+`public/mock/`: Spa (`spa-2026-11-03.json`, with its elevation and edge survey) and Monza
+(`monza-2026-11-05.json`).
 
 The Vite dev server also proxies `/api` to `127.0.0.1:8765`, where the future backend will
 run.

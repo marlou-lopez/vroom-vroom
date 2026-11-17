@@ -6,5 +6,7 @@
     {"name": "test", "run": "npm run test", "cwd": "frontend"},
     {"name": "lint", "run": "npm run lint", "cwd": "frontend"},
     {"name": "build", "run": "npm run build", "cwd": "frontend"}
-  ]
+  ],
+  "autopilot": {"epic_order": ["vroom-pnw", "vroom-bi4", "vroom-9ki"], "max_parked": 3, "max_dispatches": 10,
+                "stale_hours": 4, "interval_s": 300}
 }

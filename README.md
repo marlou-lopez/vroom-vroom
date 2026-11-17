@@ -15,8 +15,8 @@ just LMU.
 
 ## Status
 
-The frontend runs on a mock API that serves one real Spa recording. The backend has not been
-started.
+The frontend runs on a mock API that serves real Spa and Monza recordings. The backend has not
+been started.
 
 GitHub Issues is disabled: work is tracked privately. Outside contributions are welcome as pull requests.
 
