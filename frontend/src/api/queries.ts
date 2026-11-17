@@ -15,6 +15,8 @@ export const qk = {
   trackGeometry: (trackId: string) => ["trackGeometry", trackId] as const,
   coachResults: (lap: string, ref: string | null) => ["coachResults", lap, ref] as const,
   summary: (sessionId: string) => ["summary", sessionId] as const,
+  ideal: (sessionId: string) => ["ideal", sessionId] as const,
+  segmentTimes: (sessionId: string) => ["segmentTimes", sessionId] as const,
   setup: (sessionId: string) => ["setup", sessionId] as const,
   trace: (lapId: string, channels: GridChannel[] | undefined) => ["trace", lapId, channels?.join(",") ?? null] as const,
 };
@@ -27,6 +29,10 @@ export const sessionLapsOptions = (sessionId: string) =>
 export const lapOptions = (lapId: string) => queryOptions({ queryKey: qk.lap(lapId), queryFn: () => api.lap(lapId) });
 export const sessionSummaryOptions = (sessionId: string) =>
   queryOptions({ queryKey: qk.summary(sessionId), queryFn: () => api.sessionSummary(sessionId) });
+
+export const idealOptions = (sessionId: string) => queryOptions({ queryKey: qk.ideal(sessionId), queryFn: () => api.idealLap(sessionId, "session") });
+export const segmentTimesOptions = (sessionId: string) =>
+  queryOptions({ queryKey: qk.segmentTimes(sessionId), queryFn: () => api.segmentTimes(sessionId) });
 
 // ---- Queries ----
 
@@ -97,6 +103,9 @@ export function usePatchLap() {
         qc.invalidateQueries({ queryKey: ["lap"] }),
         qc.invalidateQueries({ queryKey: ["compare"] }),
         qc.invalidateQueries({ queryKey: ["candidates"] }),
+        qc.invalidateQueries({ queryKey: ["ideal"] }),
+        qc.invalidateQueries({ queryKey: ["segmentTimes"] }),
+        qc.invalidateQueries({ queryKey: ["summary"] }),
       ]),
   });
 }

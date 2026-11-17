@@ -1,5 +1,5 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { HeaderSlot } from "../components/AppShell";
 import { BiggestLosses } from "../components/BiggestLosses";
@@ -71,6 +71,19 @@ function Telemetry() {
     store.setDuration(model.duration);
     store.setLaps(model.cmp.lap_id, model.cmp.ref_lap_id);
   }, [model, store]);
+
+  // ?at=<metres> (from the ideal lap's breakdown and segment strips): open the lap at that distance, once per lap and distance.
+  const atParam = params.get("at");
+  const seekedAt = useRef<string | null>(null);
+  useEffect(() => {
+    const m = atParam === null || atParam.trim() === "" ? NaN : Number(atParam);
+    if (!model || !Number.isFinite(m) || model.cmp.lap_id !== lapParam) return;
+    const key = `${model.cmp.lap_id}|${atParam}`;
+    if (seekedAt.current === key) return;
+    seekedAt.current = key;
+    store.pause();
+    store.seek(timeAtDistance(model.cmp.lap.t, model.cmp.distance, m - CORNER_LEAD_M));
+  }, [model, atParam, lapParam, store]);
 
   // Coach results for this lap and comparison; Analyze and Average together form one annotation set.
   const coach = useCoach(ctx?.lap.lap_id ?? null, cmp?.ref_lap_id ?? null);

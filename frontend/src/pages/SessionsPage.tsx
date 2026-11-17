@@ -7,6 +7,7 @@ import { formatDelta, formatLapTime, formatShortDate } from "../lib/format";
 import { bestValidLap } from "../lib/laps";
 import { comboKey, focusOutcome, groupCombos, trendPaths, type FocusTone } from "../lib/sessions";
 import { cx } from "../lib/cx";
+import { LapGaugeTable } from "../components/LapGaugeTable";
 import { StintPanel } from "../components/StintPanel";
 import ui from "../components/ui.module.css";
 import styles from "./SessionsPage.module.css";
@@ -32,6 +33,7 @@ export function SessionsPage() {
   const sessionsQ = useSessions();
   const sessions = sessionsQ.data ?? null;
   const [selected, setSelected] = useState<string | null>(null);
+  const [lapsSession, setLapsSession] = useState<string | null>(null);
 
   const combos = useMemo(() => groupCombos(sessions ?? []), [sessions]);
   const comboKeyNow = selected && combos.some((c) => c.key === selected) ? selected : (combos[0]?.key ?? null);
@@ -161,6 +163,22 @@ export function SessionsPage() {
           </table>
         )}
       </section>
+
+      {rows && rows.length > 0 && (() => {
+        const shownId = rows.some((r) => r.session.session_id === lapsSession) ? lapsSession! : rows[rows.length - 1].session.session_id;
+        return (
+          <>
+            <div role="group" aria-label="Session for the lap table" className={styles.chips}>
+              {[...rows].reverse().map((r) => (
+                <button key={r.session.session_id} type="button" aria-pressed={r.session.session_id === shownId} onClick={() => setLapsSession(r.session.session_id)} className={ui.chip}>
+                  {formatShortDate(r.session.started_at)} · {r.session.session_type}
+                </button>
+              ))}
+            </div>
+            <LapGaugeTable sessionId={shownId} />
+          </>
+        );
+      })()}
 
       {/* EXPERIMENTAL (vroom-pnw.26): per-lap stint stats, for the combos a stint was recorded with. */}
       {mine[0] && <StintPanel trackId={mine[0].track_id} carId={mine[0].car_id} />}

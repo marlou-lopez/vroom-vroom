@@ -1,0 +1,8 @@
+.strip { display: inline-flex; gap: 1px; align-items: stretch; height: 10px; min-width: 60px; }
+.cell { flex: 1 1 0; min-width: 2px; border-radius: 1px; display: block; }
+.link:hover { filter: brightness(1.3); }
+.link:focus-visible { outline: 1px solid var(--color-text); outline-offset: 1px; }
+.purple { background: var(--color-ideal); }
+.green { background: var(--color-strength); opacity: 0.85; }
+.yellow { background: var(--color-minor); opacity: 0.85; }
+.red { background: var(--color-issue); }
