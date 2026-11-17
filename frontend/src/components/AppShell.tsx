@@ -8,7 +8,7 @@ import styles from "./AppShell.module.css";
 
 const SlotCtx = createContext<HTMLElement | null>(null);
 
-/** Renders its children into the right-hand side of the header (used by the Telemetry page for `LapPicker`). */
+/** Renders its children into the right-hand side of the header (currently unused). */
 export function HeaderSlot({ children }: { children: ReactNode }) {
   const el = useContext(SlotCtx);
   return el ? createPortal(children, el) : null;

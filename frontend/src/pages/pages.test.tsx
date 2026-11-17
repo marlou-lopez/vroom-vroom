@@ -51,10 +51,16 @@ describe("pages", () => {
     const { best } = await newestBest(mock.engine());
     renderApp("/");
     expect(await screen.findByRole("button", { name: /Analyze lap/ })).toBeTruthy();
-    // The lap picker (in the header slot) names the lap and its time.
-    const header = screen.getByRole("banner");
-    expect(await within(header).findByText(new RegExp(`L${best.lap_no} ${formatLapTime(best.lap_time_s).replace(".", "\\.")}`))).toBeTruthy();
-    expect(screen.queryByText(/unknown_lap|no_laps|Loading…/)).toBeNull();
+    // The lap rail marks the studied lap, with its time.
+    const rail = await screen.findByRole("complementary", { name: "Laps" });
+    const studied = await waitFor(() => {
+      const b = rail.querySelector("button[aria-current]");
+      expect(b).not.toBeNull();
+      return b!;
+    });
+    expect(studied.textContent).toContain(`L${best.lap_no}`);
+    expect(studied.textContent).toContain(formatLapTime(best.lap_time_s));
+    await waitFor(() => expect(screen.queryByText(/unknown_lap|no_laps|Loading…/)).toBeNull());
   });
 
   it("Telemetry opens a lap at ?at=<metres> (from the ideal lap's breakdown)", async () => {
@@ -114,9 +120,10 @@ describe("pages", () => {
     const ref = laps.find((l) => l.is_reference);
     renderApp("/");
     await screen.findByRole("button", { name: /Analyze lap/ });
-    await waitFor(() => expect(screen.getByRole("banner").textContent).toContain(`L${best.lap_no} `));
+    const rail = await screen.findByRole("complementary", { name: "Laps" });
+    await waitFor(() => expect(rail.querySelector("button[aria-current]")?.textContent).toContain(`L${best.lap_no}`));
     expect(screen.queryByRole("note")).toBeNull();
-    if (ref) expect(await screen.findByText(/○ ★/)).toBeTruthy();
+    if (ref) expect(await screen.findByText(/vs reference/)).toBeTruthy();
   });
 
   it("Telemetry notes a self-comparison and offers the ideal lap", async () => {

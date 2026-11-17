@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import { createTestClient, newestBest, setupMockServer } from "../test/mockServer";
 import { IdealBreakdown } from "./IdealBreakdown";
 import { LapGaugeTable } from "./LapGaugeTable";
-import { LapPicker } from "./LapPicker";
 import { SegmentStrip } from "./SegmentStrip";
 import type { IdealLap } from "../api/types";
 
@@ -80,18 +79,5 @@ describe("laps against the ideal (mock)", () => {
     }
     expect(within(table).getAllByText("best")).toHaveLength(1);
     expect(within(screen.getByRole("region", { name: "Ideal lap breakdown" })).getAllByRole("link")).toHaveLength(ideal.segments.length);
-  });
-
-  it("the lap picker shows each valid lap's gap and strip", async () => {
-    const { session, laps, best } = await newestBest(mock.engine());
-    const user = userEvent.setup();
-    render(wrap(<LapPicker session={session} laps={laps} lap={best} refLapId={null} warning={null} candidates={[]} onSelectLap={() => {}} onSelectRef={() => {}} />));
-    await user.click(screen.getByText(/^● L/));
-    const items = await screen.findAllByRole("menuitem", { name: /^L\d/ });
-    const gauged = items.filter((i) => within(i).queryByRole("img"));
-    expect(gauged.length).toBeGreaterThan(0);
-    const bestItem = items.find((i) => i.textContent?.includes(`L${best.lap_no} `))!;
-    expect(bestItem.textContent).toMatch(/ideal/);
-    expect(bestItem.textContent).toMatch(/best/);
   });
 });
