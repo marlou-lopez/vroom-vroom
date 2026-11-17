@@ -24,7 +24,8 @@ export function LapRail({ laps, lapId, refLapId, candidates, onSelectLap, onSele
   const [validOnly, setValidOnly] = useState(true);
   const timed = laps.filter((l) => l.kind === "flying" && effectiveValid(l) && l.lap_time_s !== null);
   const best = timed.length ? Math.min(...timed.map((l) => l.lap_time_s!)) : null;
-  const shown = laps.filter((l) => !validOnly || (l.kind === "flying" && effectiveValid(l)));
+  // The studied lap and the comparison stay listed even when the filter would hide them (an in-lap picked from a deep link).
+  const shown = laps.filter((l) => !validOnly || (l.kind === "flying" && effectiveValid(l)) || l.lap_id === lapId || l.lap_id === refLapId);
   const candidateIds = new Set(candidates.map((c) => c.lap_id));
   const ideal = candidates.find((c) => c.is_ideal) ?? null;
   const reference = candidates.find((c) => c.is_reference) ?? null;

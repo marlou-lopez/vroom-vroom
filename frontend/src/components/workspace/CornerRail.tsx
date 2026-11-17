@@ -8,7 +8,7 @@ import styles from "./Workspace.module.css";
 /**
  * EXPERIMENTAL (vroom-pnw.30, `?ui=workspace`): every corner in track order with the time it cost or gained (free, from
  * the comparison), and the coach's findings slotted under their corner once Analyze has run. Replaces the Biggest
- * losses row and the Analysis bar's call to action in the prototype.
+ * losses row in the prototype; the Analysis bar stays, so Analyze is offered twice (noted as a risk in the write-up).
  */
 export interface CornerRailProps {
   cmp: CompareResponse;
