@@ -133,7 +133,7 @@ function cornerPacket({ lap, ref, cmp, list }, cornerId) {
   const trace = (ch) => {
     const rows = [];
     for (let i = c.start_m; i <= c.end_m; i += 10) {
-      rows.push([String(i - c.apex_m), f0(ch.speed_kmh[i]), pct(ch.throttle[i]), pct(ch.brake[i]), f0(ch.steering[i]), String(ch.gear[i])]);
+      rows.push([String(i - c.apex_m), f0(ch.speed_kmh[i]), pct(ch.throttle[i]), pct(ch.brake[i]), f0(ch.steering[i] * 100), String(ch.gear[i])]);
     }
     return rows;
   };
@@ -143,7 +143,7 @@ function cornerPacket({ lap, ref, cmp, list }, cornerId) {
     corner: cornerFacts(cc, kind),
     trace: {
       columns: ["m_from_apex", "speed_kmh", "throttle", "brake", "steering", "gear"],
-      note: "every 10 m from the corner start to its end; steering -100..100, + = right",
+      note: "every 10 m from the corner start to its end; steering in % of full lock, -100..100, + = right",
       lap: trace(cmp.lap),
       reference: trace(cmp.ref),
     },
