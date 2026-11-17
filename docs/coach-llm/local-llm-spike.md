@@ -76,9 +76,15 @@ gpt-6.1-sol was run with the v1 prompt only.
 | gpt-6.1-sol (OpenAI) | v1 | analyze lap 3 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 4.9 | 16.0 | 1 098 | 0.078 |
 | gpt-6.1-sol (OpenAI) | v1 | average | 5/5 | 5/5 | 5/5 | 5/5 | 4/5 | 2.2 | 8.0 | 542 | 0.039 |
 | gpt-6.1-sol (OpenAI) | v1 | corner (trace) | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 2.6 | 6.5 | 290 | 0.043 |
+| gpt-6-luna (OpenAI) | v1 | analyze lap 2 | 5/5 | 5/5 | 5/5 | 5/5 | 2/5 | 11.1 | 16.8 | 1 943 | 0.006 |
+| gpt-6-luna (OpenAI) | v1 | analyze lap 3 | 5/5 | 5/5 | 5/5 | 5/5 | 1/5 | 12.8 | 18.9 | 2 198 | 0.006 |
+| gpt-6-luna (OpenAI) | v1 | average | 5/5 | 5/5 | 5/5 | 5/5 | 0/5 | 4.7 | 7.5 | 859 | 0.003 |
+| gpt-6-luna (OpenAI) | v1 | corner (trace) | 5/5 | 5/5 | 5/5 | 5/5 | 2/5 | 7.4 | 9.0 | 890 | 0.004 |
 
-Totals: gpt-oss **4/20** clean with v1 and **15/20** with v2; gpt-6.1-sol **19/20** with v1. gpt-6.1-sol costs
-about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 for its 20 runs.
+Totals: gpt-oss **4/20** clean with v1 and **15/20** with v2; gpt-6.1-sol **19/20** with v1; gpt-6-luna **5/20**
+with v1, nearly all misses being field names in `evidence` (its `what`/`fix` read cleanly). gpt-6.1-sol costs
+about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 for its 20 runs; gpt-6-luna about
+**0.1 cents a call** ($0.10 / $0.50), $0.019 for 20.
 
 - **Packet bug found by the hosted model.** The first Corner packet rounded the normalised steering (−1..1) to
   whole numbers, so the trace showed 0 everywhere. gpt-6.1-sol said so ("the summary reports 5 extrema versus
@@ -111,12 +117,16 @@ about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 fo
     steering opens, rather than forcing the throttle through a correction". It says what the data can't
     establish, often enough that it can read as hedged rather than the persona's "blunt". The blind ratings
     decide whether that's a problem.
+  - *gpt-6-luna* sits in between. It uses the trace ("throttle at 58% then 42% before reaching 100%, while
+    the reference goes from 75% to 100%") but explains less than gpt-6.1-sol, and quotes field names in its
+    evidence. It writes about twice as many tokens as gpt-6.1-sol, so it is slower (7.5–19 s) despite being the
+    small tier.
 
 ### Not yet measured
 
 | Item | Why not | How |
 |---|---|---|
-| gpt-6-luna (OpenAI's cheap tier, $0.10 / $0.50) | optional | `SPIKE_PRICE=0.10,0.50 run.py --model openai:gpt-6-luna`: a few cents for 20 runs; shows whether a nearly free hosted model already beats gpt-oss |
+| gpt-6-luna with prompt v2 | optional; v2 targets exactly luna's misses (field names) | `SPIKE_PROMPT=prompt-v2.md SPIKE_PRICE=0.10,0.50 run.py --model openai:gpt-6-luna`, about 2 cents |
 | 2nd and 3rd local model | each is a 10–16 GB download onto the Windows box, and loading it evicts Sure's model | candidates from the handover's 2026-11-10 survey: `gemma4:26b-a4b-it-qat` (Gemma licence, 16 GB, slight CPU spill) and a ~14 B Qwen instruct at Q4 (Apache-2.0; check the exact tag and licence in the Ollama library). Lower priority now: they'd have to beat gpt-oss by a wide margin |
 | VRAM with LMU open in its menus, and LMU's own VRAM | needs LMU running | Task Manager → GPU → dedicated memory: LMU alone, then LMU + `ollama ps` after one call. gpt-oss alone holds 12.74 GB of the 16 GB, so it probably won't fit next to LMU without spilling to the CPU |
 | Blind ratings | need the user | `python3 -I summarize.py blind --per 2`, rate `blind/sheet.md` 1–5, then open `blind/key.json` |
