@@ -84,7 +84,7 @@ def blind(rs: list[dict], per: int, seed: int) -> None:
     for r in rs:
         best = r["retry"] if r["retry"] and r["retry"].get("schema_ok") else r["first"]
         if best.get("schema_ok"):
-            by[(r["packet"], r["model"])].append(best["result"])
+            by[(r["packet"], r["model"] + " / " + r.get("prompt", "prompt.md"))].append(best["result"])
     items = []
     for (packet, model), results in by.items():
         for res in rng.sample(results, min(per, len(results))):
