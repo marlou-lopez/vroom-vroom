@@ -227,7 +227,11 @@ def estimate(lap, cal, half, kappa_src="glat", rate_src="path", use_b=True):
                 out.append(None)
                 continue
             r_act = -lap.truth[d]["r"]
-        r_exp = v * (theta - c) / (a + (b * v * v if use_b else 0.0))
+        gain = a + (b * v * v if use_b else 0.0)
+        if gain <= 0:  # as carBalance.ts: no estimate where the fitted steering gain is not positive
+            out.append(None)
+            continue
+        r_exp = v * (theta - c) / gain
         s = sgn(r_act) if abs(math.degrees(r_act)) > SIGN_RATE_DEG else sgn(r_exp)
         out.append(math.degrees(s * (r_exp - r_act)))
     return out

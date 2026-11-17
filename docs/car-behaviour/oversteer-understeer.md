@@ -50,8 +50,10 @@ Command: the docstring of `tools/lmu-logger/balance_check.py`.
 
 ## Results
 
-Calibration on 27 laps: a = 2480 deg·m, b = +1.35, c = +0.32°, R² = 0.893. The fixture lap alone in TypeScript gives a = 2695,
-b = 0.95, c = 0.48.
+Calibration on 27 laps: a = 2480 deg·m, b = +1.35, c = +0.32°, R² = 0.893. The same fit in TypeScript on the
+fixture lap alone gives a = 2694, b = 0.95, c = 0.37. One lap is a smaller sample, not a different method: both fit every
+metre at ≥ 15 m/s with no wheel off. The thresholds and the precision and recall figures below come from the 27-lap fit.
+The app fits on just the two compared laps, so its marks will vary a little more than these numbers suggest.
 
 ![Balance B and truth T on the 2026-11-05 flying lap](balance-spa-flying-lap.png)
 
@@ -134,3 +136,24 @@ couldn't be installed in this environment.
 
 **Recommendation:** option 1, with option 2 filed as a follow-up. Understeer is the most common GT3 balance complaint,
 and the estimate catches it reliably from the recording alone, with no capture needed.
+
+## Decision (autopilot)
+
+**Keep (option 1, understeer first)**, with option 2 filed as a separate spike that doesn't block the build. Made by
+the autopilot judge on 2026-11-17.
+
+- **Usable as a coach fact.** On corners the estimate follows the truth at Pearson +0.90 (+0.93 against the car's usual
+  balance). Understeer marks at 5 deg/s score 0.74 precision and 0.89 recall, from the recording alone. That is good
+  enough for a fact computed in code (spec goal 2).
+- **Fits the v2 importer.** It needs no shared-memory capture: the true yaw rate scored no better. So it can follow the v2
+  importer path and doesn't wait for v3.
+- **Small cost.** The estimator, its tests and the truth check exist. Another spike round would hold up the agreed order
+  for a P3 item.
+- **Oversteer stays experimental.** On a clean lap it dips to −12 to −22 deg/s (the steering-lead artefact), and recall at
+  10 deg/s is 0.16. It stays experimental and out of the coach's facts until the lag model is tried.
+- **Contract first.** Every contract change is written into the matching v2 issue.
+
+Follow-ups filed under Analysis features (vroom-bi4):
+- vroom-bi4.5: the balance in the API contract and the mock.
+- vroom-bi4.6: the strip, marks and map tint without the flag. Depends on vroom-bi4.5.
+- vroom-bi4.7: a spike to model the steering lead for oversteer.

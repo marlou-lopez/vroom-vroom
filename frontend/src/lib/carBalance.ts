@@ -17,8 +17,6 @@ export const MIN_BALANCE_SPEED_MS = 15;
 export const SMOOTH_HALF_M = 4;
 /** Below this path yaw rate (deg/s) the turn direction comes from the steering instead (a straight has no direction). */
 const MIN_TURN_DEG_S = 2;
-/** Metres with less lateral g than this are not used for the fit (straights add noise and no curvature). */
-const FIT_MIN_G = 0.3;
 /**
  * Balance (deg/s) beyond which a metre is marked as understeer. Against the capture truth on Spa corners (relative to the
  * car's usual balance): precision 0.74, recall 0.89 (docs/car-behaviour/oversteer-understeer.md).
@@ -36,7 +34,8 @@ const MERGE_GAP_M = 3;
 /** Runs shorter than this many metres are dropped as noise. */
 const MIN_RUN_M = 5;
 
-export type BalanceChannels = Pick<ChannelArrays, "speed_kmh" | "steering" | "g_lat">;
+/** `wheels_off` is optional: when given, metres with a wheel off the track are left out of the fit (as balance_check.py does). */
+export type BalanceChannels = Pick<ChannelArrays, "speed_kmh" | "steering" | "g_lat"> & Partial<Pick<ChannelArrays, "wheels_off">>;
 
 /** Steering-wheel angle (deg, left +) = a * curvature (1/m, left +) + b * curvature * v^2 + c. */
 export interface BalanceFit { a: number; b: number; c: number; n: number }
@@ -67,7 +66,7 @@ function prepare(ch: BalanceChannels, rangeDeg: number): Prepared {
   };
 }
 
-/** Least squares of [kappa, kappa*v^2, 1] on theta over the cornering metres of every lap given. null when too few. */
+/** Least squares of [kappa, kappa*v^2, 1] on theta over every metre at or above the minimum speed with no wheel off, of every lap given. null when too few. */
 export function fitBalance(laps: readonly BalanceChannels[], rangeDeg: number): BalanceFit | null {
   // Normal equations, 3x3.
   const m = [0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -76,7 +75,7 @@ export function fitBalance(laps: readonly BalanceChannels[], rangeDeg: number): 
   for (const ch of laps) {
     const p = prepare(ch, rangeDeg);
     for (let i = 0; i < p.v.length; i++) {
-      if (p.v[i] < MIN_BALANCE_SPEED_MS || Math.abs(p.gLat[i]) < FIT_MIN_G) continue;
+      if (p.v[i] < MIN_BALANCE_SPEED_MS || (ch.wheels_off?.[i] ?? 0) > 0) continue;
       const x = [p.kappa[i], p.kappa[i] * p.v[i] * p.v[i], 1];
       for (let j = 0; j < 3; j++) {
         r[j] += x[j] * p.theta[i];
