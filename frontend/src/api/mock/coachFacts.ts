@@ -1,6 +1,7 @@
 // Pure per-corner facts and the data-driven finding templates of the mock coach.
 // Every number quoted comes from the two laps. Positions are described against landmarks, never as metre distances.
 import { causeOf, type Cause } from "../../lib/cornerCause";
+import { BALANCE_MARK_DEG_S, cornerUndersteer } from "../../lib/carBalance";
 import { describeAgainst, offsetPhrase } from "../../lib/landmarkPhrase";
 
 export { describeAgainst, offsetPhrase };
@@ -21,6 +22,8 @@ export interface CornerSide {
   overlapS: number;
   /** Steering extrema in the corner (see steeringExtrema); compare against the reference's count. */
   steerExtrema: number;
+  /** Peak and mean understeer (deg/s, see `cornerUndersteer`); null when the lap has no balance. Understeer only: the coach never gets oversteer. */
+  understeer: { peak: number; mean: number } | null;
 }
 
 export interface CornerComparison {
@@ -118,7 +121,7 @@ const COAST_PEDAL = 0.05;
 const COAST_MIN_KMH = 50;
 const OVERLAP_PEDAL = 0.1;
 
-export function cornerSide(ch: Signals, corner: Corner): CornerSide {
+export function cornerSide(ch: Signals, corner: Corner, balance: ArrayLike<number | null> | null = null): CornerSide {
   const last = ch.speed_kmh.length - 1;
   const walk = cornerWalk(corner, last);
   const wraps = corner.start_m > corner.end_m;
@@ -150,6 +153,7 @@ export function cornerSide(ch: Signals, corner: Corner): CornerSide {
     minSpeed: ch.speed_kmh[minIdx], minIdx, exitSpeed: ch.speed_kmh[walk[walk.length - 1].i], brakeOnset: onset, peakBrake,
     throttlePickup: pickup, coastS, overlapS,
     steerExtrema: steeringExtrema(ch.steering, walk[0].i, walk[walk.length - 1].i),
+    understeer: cornerUndersteer(balance, corner.start_m, corner.end_m),
   };
 }
 
@@ -160,6 +164,7 @@ const sideMetrics = (s: CornerSide): CornerSideMetrics => ({
   brake_onset_m: s.brakeOnset, peak_brake: r3(s.peakBrake), min_speed_kmh: r1(s.minSpeed), min_speed_m: s.minIdx,
   throttle_pickup_m: s.throttlePickup, exit_speed_kmh: r1(s.exitSpeed), coast_s: r3(s.coastS), overlap_s: r3(s.overlapS),
   steer_corrections: s.steerExtrema,
+  understeer_peak_deg_s: s.understeer?.peak ?? null, understeer_mean_deg_s: s.understeer?.mean ?? null,
 });
 
 /** Change of a grid series between a corner's start and end; over the start line for a wrapping corner. */
@@ -174,9 +179,10 @@ export const isUsable = (l: Landmark) => l.confidence !== "low";
 
 export function cornerComparison(
   corner: Corner, lap: Signals, ref: Signals, delta: ArrayLike<number>, landmarks: Landmark[],
+  balance: { lap: ArrayLike<number | null> | null; ref: ArrayLike<number | null> | null } | null = null,
 ): CornerComparison {
   const d = cornerChange(delta, corner);
-  const [lapSide, refSide] = [cornerSide(lap, corner), cornerSide(ref, corner)];
+  const [lapSide, refSide] = [cornerSide(lap, corner, balance?.lap ?? null), cornerSide(ref, corner, balance?.ref ?? null)];
   return {
     corner, delta: d, lap: lapSide, ref: refSide,
     anchors: landmarks.filter((l) => l.corner_id === corner.id && isUsable(l)),
@@ -221,10 +227,14 @@ export function narrate(c: CornerComparison, kind: "issue" | "minor" | "strength
       : braked ? `peak brake ${(lap.peakBrake * 100).toFixed(0)}% / ${(ref.peakBrake * 100).toFixed(0)}%` : null,
     throttle: thrLap && thrRef ? `throttle pickup ${thrLap} / ${thrRef}` : null,
     steering: steerDiff !== 0 ? `${Math.abs(steerDiff)} ${steerDiff > 0 ? "more" : "fewer"} steering corrections than the reference` : null,
+    // Understeer only, and only when this lap clearly understeers more than the reference. Oversteer is never a coach fact.
+    understeer: lap.understeer && ref.understeer && lap.understeer.peak >= BALANCE_MARK_DEG_S && lap.understeer.peak - ref.understeer.peak >= 3
+      ? `understeer peak ${n0(lap.understeer.peak)} deg/s / ${n0(ref.understeer.peak)} deg/s`
+      : null,
     exit: `exit speed ${pair(lap.exitSpeed, ref.exitSpeed)} km/h`,
   };
   const pack = (first: keyof typeof evidence): string[] => {
-    const order = [first, "speed", "brake", "throttle", "steering", "exit"] as const;
+    const order = [first, "speed", "understeer", "brake", "throttle", "steering", "exit"] as const;
     return [...new Set(order)].map((k) => evidence[k]).filter((x): x is string => !!x).slice(0, 3);
   };
 

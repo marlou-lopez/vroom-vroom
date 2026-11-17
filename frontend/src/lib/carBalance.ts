@@ -1,4 +1,5 @@
 import type { ChannelArrays } from "../api/types";
+import type { BalanceRun } from "../api/types";
 import { runsOf, type Run } from "./driverAids";
 
 // Experimental (vroom-pnw.15): under- and oversteer estimated from a recording, which has no yaw rate or slip angle.
@@ -161,4 +162,36 @@ export function compareBalance(
 export function balanceEnabled(search: string): boolean {
   const v = new URLSearchParams(search).get("balance");
   return v !== null && v !== "0" && v !== "false";
+}
+
+const r1 = (x: number) => Math.round(x * 10) / 10;
+
+/** The API shape of a balance trace: one decimal, null where not computed. */
+export const balanceForApi = (balance: readonly number[]): (number | null)[] => balance.map((b) => (Number.isFinite(b) ? r1(b) : null));
+
+/** The API shape of runs (inclusive grid metres). */
+export const runsForApi = (runs: readonly Run[]): BalanceRun[] => runs.map((r) => ({ start_m: r.start, end_m: r.end }));
+
+/**
+ * Peak and mean understeer of one corner from a balance trace (understeer only, never oversteer). `startM` / `endM` are grid
+ * metres; a corner that wraps over the start line (start > end) is measured across it. Both null when no metre has a balance.
+ * Peak is the largest balance, floored at 0. Mean is over the metres past `BALANCE_MARK_DEG_S` only (0 when there are none).
+ */
+export function cornerUndersteer(
+  balance: ArrayLike<number | null> | null, startM: number, endM: number,
+): { peak: number; mean: number } | null {
+  if (!balance || balance.length === 0) return null;
+  const last = balance.length - 1;
+  const s = Math.min(Math.round(startM), last), e = Math.min(Math.round(endM), last);
+  let peak = -Infinity, sum = 0, count = 0, seen = false;
+  const visit = (i: number) => {
+    const b = balance[i];
+    if (b === null || !Number.isFinite(b)) return;
+    seen = true;
+    peak = Math.max(peak, b);
+    if (b > BALANCE_MARK_DEG_S) { sum += b; count++; }
+  };
+  if (s <= e) for (let i = s; i <= e; i++) visit(i);
+  else { for (let i = s; i <= last; i++) visit(i); for (let i = 0; i <= e; i++) visit(i); }
+  return seen ? { peak: r1(Math.max(0, peak)), mean: count ? r1(sum / count) : 0 } : null;
 }
