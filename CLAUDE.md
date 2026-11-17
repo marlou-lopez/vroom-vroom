@@ -44,6 +44,7 @@ This section only records facts that change rarely (last checked 2026-11-17):
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone (e.g. `edge-survey.md`, `elevation-shared-memory.md`) |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON: `node extract-laps.mjs <copy.duckdb> <out.json> "<source label>" [laps]` (needs `npm i @duckdb/node-api`) |
 | `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`, `survey`) (#94, #97). Captures stay out of git |
+| `tools/lmu-recorder-channels.py` | Lists the channel names LMU's built-in recorder knows (read from the game exe) and diffs them with `config.json`: `python3 -I tools/lmu-recorder-channels.py [--check "<name>" ...]`. Re-run after an LMU update (vroom-pnw.16, `docs/lmu-channels.md`) |
 | `tools/optimize-car-model.mjs` | Command-line twin of the Car popover's in-browser converter: turns a downloaded car glTF (folder, zip, .gltf, .glb) into one small GLB for `frontend/public/local-models/`. Imports `frontend/src/components/mapviews/ribbon/convert/` (the shared drop list, settings and pipeline; needs `npm ci` in `frontend/`, and network once for `sharp`). Its output is never committed (#102, `docs/track-views/car-model.md`) |
 | `docs/spec.md` | Product spec: goals, non-goals, milestones as Beads epics, order of work |
 | `.claude/dispatch-loop.json` | Dispatch Loop config: the quality commands `/dl:ship` runs |
@@ -97,6 +98,7 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
   - Steering is −100..100 with + meaning right.
   - Grid channels: `g_lat` > 0 is a left turn and `g_long` > 0 is braking. The recordings have no orientation channel; the cockpit camera estimates it (`docs/track-views/cockpit-view.md`).
   - `Path Lateral` is metres from the track centreline, + meaning right of travel (10 Hz).
+  - The recorder can't log yaw rate, slip or tyre load: config.json only takes names compiled into the exe (`docs/lmu-channels.md`). Shared memory has yaw rate (`mLocalRot_y`, + = right turn) and slip velocities, but LMU zeroes `mTireLoad`, `mGripFract` and the tyre forces there; `mSuspForce` is live (vroom-pnw.16).
   - Driver throttle is `Throttle Pos Unfiltered`; `Throttle Pos` is after the game's interventions (0 at every upshift).
 - **The coach** (planned backend): the LLM only phrases facts computed in code. Every number
   it uses must appear in the facts it's given, and fixes never use metre distances.
