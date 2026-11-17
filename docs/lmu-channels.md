@@ -69,7 +69,8 @@ is **not tested**.
 has no LMU session (the newest recording was locked by a running game at the time). So no name was
 accepted or rejected live. "The recorder knows these 8 extra names" is inferred from the exe, and so is
 "a name that isn't in the exe cannot be recorded". The second is a strong inference: the recorder has
-no other way to map a name to a value. The live test is filed as a follow-up.
+no other way to map a name to a value. The live test is only worth doing if a v5 setup or brake
+feature wants `Brakes Core Temp`; it needs a person driving LMU on Windows.
 
 ### 4. Shared memory: what is really there (sample values)
 
@@ -117,3 +118,23 @@ exists. Don't build anything on config.json channels that don't already exist.
 
 Run `python3 -I tools/lmu-recorder-channels.py`. If it reports "recorder strings not found", the exe
 layout changed: update `START`/`END` in the script.
+
+## Decision (autopilot)
+
+**Keep** (Opus judge, 2026-11-17). Leave config.json alone. Yaw rate and slip come from shared memory:
+`tools/lmu-logger/` now, the v3 agent (vroom-7cb.2, gh-42) later. `mSuspForce` is the load proxy, and
+the recording-only estimate is the fallback when there's no capture. `tools/lmu-recorder-channels.py`
+stays as the re-check after LMU updates.
+
+- The answer holds without the live test. No yaw, slip, load or local-velocity name exists anywhere in
+  the exe, and the recordings match config.json exactly. The untested claims (the 8 extra names,
+  whether LMU strips unknown names) don't change the outcome.
+- It fits the spec's rule that the coach never invents physics the data doesn't show. LMU zeroes tyre
+  load and the tyre forces, so the coach must never present "tyre load" as a measured fact.
+  `mSuspForce` is the honest substitute.
+- It unblocks vroom-pnw.15. That spike gets a recording-only fallback method and ground truth with a
+  known sign (`mLocalRot_y` > 0 is a right turn), without pulling v2 or v3 work forward.
+- The script is small, uses only the standard library, writes nothing and reads only the user's own
+  install. Option 3 (adding the 8 extra names) is left out because none of them helps coaching.
+- No new issues. The judge didn't file a live config.json test: it needs a person on Windows and
+  wouldn't change this decision. If wanted, it belongs as a small task under v5, not Analysis features.
