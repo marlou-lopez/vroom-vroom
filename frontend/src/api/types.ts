@@ -547,4 +547,38 @@ export interface Stint {
   /** 1-based, in session order. */
   stint_no: number;
   laps: StintLap[];
+  /**
+   * Least-squares lap-time fall-off over the stint's fitted laps (flying, valid, not slower than 1.02 × the median; out, in,
+   * incomplete, invalid and slow laps are left out). null with fewer than 3 fitted laps.
+   */
+  falloff: StintFalloff | null;
+  /** The fall-off with the fuel-weight effect taken out (tyre and track change only). null without a raw fit or when the car class has no constant. */
+  falloff_fuel_corrected: StintFalloffFuelCorrected | null;
+}
+
+export interface StintFalloff {
+  /** Seconds per lap; positive: getting slower. */
+  slope_s_per_lap: number;
+  /** Laps in the fit. */
+  n_laps: number;
+}
+
+/** Fuel-corrected fall-off (spike vroom-d4g, docs/stint/fuel-corrected-falloff.md). The fuel-weight effect is an assumed per-class constant, not measured. */
+export interface StintFalloffFuelCorrected {
+  /** Seconds per lap of the corrected fit; `falloff.slope_s_per_lap` + `fuel_gain_s_per_lap` is about this. */
+  slope_s_per_lap: number;
+  /** Seconds a lap the burnt fuel gains: `s_per_kg` × `kg_per_lap`. */
+  fuel_gain_s_per_lap: number;
+  /** Mean fuel burnt per fitted lap, kg. */
+  kg_per_lap: number;
+  /** Seconds a kilogram costs on this stint's lap: `assumption.lap_fraction_per_kg` × the median fitted lap time. */
+  s_per_kg: number;
+  assumption: {
+    /** Fuel density, kg per litre. */
+    kg_per_l: number;
+    /** Lap time a kilogram costs, as a fraction of the lap time (0.0002 = 0.02 % of the lap per kg). */
+    lap_fraction_per_kg: number;
+    /** Where the constant comes from, shown with the value. */
+    source: string;
+  };
 }

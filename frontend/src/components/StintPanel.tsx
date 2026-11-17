@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { sessionStintsOptions } from "../api/queries";
 import type { SessionMeta, Stint, Wheels } from "../api/types";
 import { formatLapTime, formatShortDate } from "../lib/format";
-import { falloffPlot, stintRows, stintSummary, type FitExclusion } from "../lib/stint";
+import { falloff as fitFalloff, falloffPlot, stintRows, stintSummary, type FitExclusion } from "../lib/stint";
 import { cx } from "../lib/cx";
 import ui from "./ui.module.css";
 import styles from "./StintPanel.module.css";
@@ -13,6 +13,7 @@ import styles from "./StintPanel.module.css";
 const EXCLUDED: Record<FitExclusion, string> = { out: "out lap", in: "in lap", incomplete: "incomplete", invalid: "invalid", slow: "slow (> 2 % off the median)" };
 const f1 = (v: number | null, unit = "") => (v === null ? "—" : `${v.toFixed(1)}${unit}`);
 const f2 = (v: number | null, unit = "") => (v === null ? "—" : `${v.toFixed(2)}${unit}`);
+const signed = (v: number, digits = 3) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(digits)}`;
 
 /** Four wheel values laid out like the car seen from above: FL FR on top, RL RR below. */
 function WheelGrid({ v, digits = 0, label }: { v: Wheels | null; digits?: number; label: string }) {
@@ -28,10 +29,13 @@ function WheelGrid({ v, digits = 0, label }: { v: Wheels | null; digits?: number
 function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMeta; multi: boolean }) {
   const rows = useMemo(() => stintRows(stint.laps), [stint]);
   const sum = useMemo(() => stintSummary(rows), [rows]);
-  const plot = useMemo(() => falloffPlot(rows, sum.falloff, 1000, 160), [rows, sum.falloff]);
+  // The numbers come from the API (stint.falloff, stint.falloff_fuel_corrected); the chart's line needs the intercept, so it is drawn from a local raw fit.
+  const plot = useMemo(() => falloffPlot(rows, fitFalloff(rows), 1000, 160), [rows]);
+  const raw = stint.falloff;
+  const corrected = stint.falloff_fuel_corrected;
   const hasEnergy = stint.laps.some((l) => l.energy_start_pct !== null);
   const cards: { k: string; v: string; title?: string }[] = [
-    { k: "FALL-OFF", v: sum.falloff ? `${sum.falloff.slope >= 0 ? "+" : ""}${sum.falloff.slope.toFixed(3)} s/lap` : "—", title: sum.falloff ? `Least-squares fit over ${sum.falloff.n} laps` : undefined },
+    { k: "FALL-OFF", v: raw ? `${signed(raw.slope_s_per_lap)} s/lap` : "—", title: raw ? `Least-squares fit over ${raw.n_laps} laps` : undefined },
     { k: "FUEL / LAP", v: f2(sum.fuelPerLap, " L") },
     { k: "ENERGY / LAP", v: hasEnergy ? f2(sum.energyPerLap, " %") : "n/a" },
     {
@@ -54,6 +58,17 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
           </div>
         ))}
       </div>
+      {corrected && (
+        // The fuel-weight effect is an assumed per-class constant (docs/stint/fuel-corrected-falloff.md), shown with its source.
+        <div className={styles.corrected} aria-label="Fuel-corrected fall-off">
+          <span className={styles.cardKey}>FUEL-CORRECTED FALL-OFF</span>
+          <span className={styles.cardValue}>{signed(corrected.slope_s_per_lap)} s/lap</span>
+          <span className={styles.dim}>
+            {raw ? `raw ${signed(raw.slope_s_per_lap)} + ` : ""}fuel gain {corrected.fuel_gain_s_per_lap.toFixed(3)} ({corrected.kg_per_lap.toFixed(2)} kg a lap ×{" "}
+            {corrected.s_per_kg.toFixed(4)} s/kg). Assumed: {corrected.assumption.source}.
+          </span>
+        </div>
+      )}
       <div className={styles.plot}>
         <svg viewBox="0 0 1000 160" preserveAspectRatio="none" role="img" aria-label="Lap time against lap number, with the fall-off line">
           <path d="M0 40 L1000 40 M0 80 L1000 80 M0 120 L1000 120" className={styles.grid} />

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { StintLap, Wheels } from "../api/types";
 import type { StintFile } from "../api/mock/stint";
-import { falloff, falloffPlot, SLOW_LAP_FACTOR, stintRows, stintSummary } from "./stint";
+import { falloff, falloffPlot, fuelCorrectedFalloff, GT3_FUEL_EFFECT, SLOW_LAP_FACTOR, stintRows, stintSummary } from "./stint";
 
 const w = (v: number): Wheels => ({ fl: v, fr: v, rl: v, rr: v });
 function lap(lap_no: number, over: Partial<StintLap> = {}): StintLap {
@@ -43,6 +43,35 @@ describe("falloff", () => {
   });
   it("needs three laps", () => {
     expect(falloff(stintRows([lap(1), lap(2)]))).toBeNull();
+  });
+});
+
+describe("fuelCorrectedFalloff", () => {
+  // 3 L a lap at 0.74 kg/L = 2.22 kg; 0.02 % of a ~100 s lap per kg = 0.02 s/kg, so the burnt fuel gains about 0.0444 s a lap.
+  const tyre = 0.1;
+  const gain = 0.0002 * 100 * 0.74 * 3;
+  const laps = [0, 1, 2, 3, 4, 5, 6].map((n) => lap(n, n === 0 ? { kind: "out", lap_time_s: 130 } : { lap_time_s: 100 + (tyre - gain) * n }));
+  it("recovers the tyre-only fall-off hidden under the fuel gain", () => {
+    const f = fuelCorrectedFalloff(stintRows(laps))!;
+    expect(f.raw.slope).toBeCloseTo(tyre - gain, 3);
+    expect(f.slope).toBeCloseTo(tyre, 2);
+    expect(f.kgPerLap).toBeCloseTo(2.22, 2);
+    expect(f.secPerKg).toBeCloseTo(0.02, 3);
+    expect(f.slope).toBeCloseTo(f.raw.slope + f.fuelGainPerLap, 6);
+    expect(f.n).toBe(6);
+  });
+  it("leaves the slope alone with a zero fuel effect", () => {
+    const f = fuelCorrectedFalloff(stintRows(laps), { ...GT3_FUEL_EFFECT, lapFractionPerKg: 0 })!;
+    expect(f.slope).toBeCloseTo(f.raw.slope, 9);
+  });
+  it("uses fuel levels, so a missing per-lap reading does not shift the fit", () => {
+    const withGap = laps.map((l) => (l.lap_no === 3 ? { ...l, fuel_end_l: l.fuel_start_l + 1 } : l)); // reads as a refuel
+    const a = fuelCorrectedFalloff(stintRows(laps))!;
+    const b = fuelCorrectedFalloff(stintRows(withGap))!;
+    expect(Math.abs(b.slope - a.slope)).toBeLessThan(0.01);
+  });
+  it("needs a raw fit", () => {
+    expect(fuelCorrectedFalloff(stintRows([lap(1), lap(2)]))).toBeNull();
   });
 });
 
@@ -100,5 +129,14 @@ describe("the real Monza race stint (9 Nov 2026)", () => {
   });
   it("has a small fall-off: fuel burn and tyre wear nearly cancel", () => {
     expect(Math.abs(s.falloff!.slope)).toBeLessThan(0.15);
+  });
+  it("about doubles once the fuel gain is taken out (GT3 assumption: about 0.023 s/kg, 2.3 kg a lap)", () => {
+    const f = fuelCorrectedFalloff(rows)!;
+    expect(f.raw.slope).toBeCloseTo(0.05, 2);
+    expect(f.secPerKg).toBeCloseTo(0.0226, 3);
+    expect(f.kgPerLap).toBeCloseTo(2.26, 1);
+    expect(f.fuelGainPerLap).toBeCloseTo(0.051, 2);
+    expect(f.slope).toBeGreaterThan(0.09);
+    expect(f.slope).toBeLessThan(0.11);
   });
 });

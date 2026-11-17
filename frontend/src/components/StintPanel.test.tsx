@@ -27,16 +27,38 @@ const serve = (stint: StintFile | null) =>
 const sessionOf = async (pick: (s: SessionMeta) => boolean) => (await createMockApi({ coachDelayMs: 0, loadSpa: async () => SPA, loadMonza: async () => MONZA, loadStint: async () => STINT }).sessions()).find(pick)!;
 
 describe("StintPanel", () => {
-  it("loads the Monza race by session id, with a row per lap of the first stint and no experimental label", async () => {
+  it("loads the Monza race by session id, with a row per lap of the first stint", async () => {
     serve(STINT);
     const race = await sessionOf((s) => s.session_type === "Race");
     const { wrapper } = createQueryWrapper();
     render(<StintPanel session={race} />, { wrapper });
     const panel = await screen.findByRole("region", { name: "Stint" });
-    expect(within(panel).queryByText(/experimental/i)).toBeNull();
     expect(within(panel).getAllByRole("row")).toHaveLength(1 + 25); // the one-lap stint after the stop has no flying lap and is left out
     expect(within(panel).getByText("virtual energy")).toBeTruthy(); // the limit card
-    expect(within(panel).getByText(/s\/lap$/)).toBeTruthy();
+    expect(within(panel).getAllByText(/s\/lap$/).length).toBeGreaterThan(0);
+  });
+
+  it("shows the fuel-corrected fall-off next to the raw one, with its assumed constant and source", async () => {
+    serve(STINT);
+    const race = await sessionOf((s) => s.session_type === "Race");
+    const { wrapper } = createQueryWrapper();
+    render(<StintPanel session={race} />, { wrapper });
+    const box = await screen.findByLabelText("Fuel-corrected fall-off");
+    expect(within(box).queryByText(/experimental/i)).toBeNull();
+    expect(within(box).getByText("+0.102 s/lap")).toBeTruthy();
+    expect(box.textContent).toMatch(/raw \+0\.050/);
+    expect(box.textContent).toMatch(/0\.0228 s\/kg/);
+    expect(box.textContent).toMatch(/0\.74 kg\/L/);
+  });
+
+  it("hides the corrected fall-off for a car class without a constant, and keeps the raw one", async () => {
+    serve({ ...STINT, car_class: "LMP2" });
+    const race = await sessionOf((s) => s.session_type === "Race");
+    const { wrapper } = createQueryWrapper();
+    render(<StintPanel session={race} />, { wrapper });
+    const panel = await screen.findByRole("region", { name: "Stint" });
+    expect(screen.queryByLabelText("Fuel-corrected fall-off")).toBeNull();
+    expect(within(panel).getByText("+0.050 s/lap")).toBeTruthy();
   });
 
   it("renders nothing for a session without stint stats", async () => {

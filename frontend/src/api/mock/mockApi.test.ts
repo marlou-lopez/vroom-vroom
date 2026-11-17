@@ -675,6 +675,27 @@ describe("the Monza race session and its stints (vroom-bi4.4)", () => {
     expect(stints[1].laps[0].kind).toBe("out");
     expect(stints.flatMap((s) => s.laps).every((l) => ids.has(l.lap_id))).toBe(true);
   });
+  it("carries the raw and fuel-corrected fall-off per stint, with the assumption and its source (vroom-bi4.9)", async () => {
+    const api = make();
+    const r = (await api.sessions()).find((x) => x.session_type === "Race")!;
+    const [s1, s2] = await api.sessionStints(r.session_id);
+    expect(s1.falloff!.slope_s_per_lap).toBeCloseTo(0.05, 3);
+    expect(s1.falloff!.n_laps).toBeGreaterThan(3);
+    const c = s1.falloff_fuel_corrected!;
+    expect(c.slope_s_per_lap).toBeGreaterThan(0.09);
+    expect(c.slope_s_per_lap).toBeLessThan(0.11);
+    expect(c.fuel_gain_s_per_lap).toBeCloseTo(c.s_per_kg * c.kg_per_lap, 6);
+    expect(c.assumption).toMatchObject({ kg_per_l: 0.74, lap_fraction_per_kg: 0.0002 });
+    expect(c.assumption.source).toMatch(/GT3/);
+    expect([s2.falloff, s2.falloff_fuel_corrected]).toEqual([null, null]); // a one-lap stint has no fit
+  });
+  it("gives no corrected fall-off for a car class without a constant, but keeps the raw one", async () => {
+    const api = createMockApi({ coachDelayMs: 0, loadSpa, loadMonza, loadStint: async () => ({ ...STINT, car_class: "LMP2" }) });
+    const r = (await api.sessions()).find((x) => x.session_type === "Race")!;
+    const [s1] = await api.sessionStints(r.session_id);
+    expect(s1.falloff).not.toBeNull();
+    expect(s1.falloff_fuel_corrected).toBeNull();
+  });
   it("gives no stints for a session without stint stats, and unknown_session for a bad id", async () => {
     const api = make();
     const spa = (await api.sessions()).find((s) => s.track_id === TRACK)!;

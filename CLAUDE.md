@@ -44,7 +44,8 @@ This section only records facts that change rarely (last checked 2026-11-17):
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone (e.g. `edge-survey.md`, `elevation-shared-memory.md`) |
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON: `node extract-laps.mjs <copy.duckdb> <out.json> "<source label>" [laps]` (needs `npm i @duckdb/node-api`) |
 | `tools/extract-stint.py` | Per-lap stint stats (fuel, virtual energy, tyres, brakes) from an LMU `.duckdb` copy, for the Stint view: `uv run --with duckdb python -I extract-stint.py <copy.duckdb> <out.json> "<label>"` (vroom-pnw.26) |
-| `docs/stint/` | Stint view spike write-up (`stint-view.md`) |
+| `tools/fuel-effect-fit.py` | Fits the fuel-weight effect (s/kg per lap) and tyre fall-off across a car's sessions at one track with different fuel loads: `uv run --with duckdb --with numpy python -I tools/fuel-effect-fit.py <telemetry dir> <scratch dir> "<track prefix>" "<car prefix>" [PQR]` (copies each recording first; vroom-d4g) |
+| `docs/stint/` | Stint view spike write-ups (`stint-view.md`, `fuel-corrected-falloff.md`) |
 | `docs/car-behaviour/` | Under/oversteer spike write-up (`oversteer-understeer.md`, vroom-pnw.15); its truth check is `tools/lmu-logger/balance_check.py` (recording grid against a capture of the same session) |
 | `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`, `survey`) (#94, #97). Captures stay out of git |
 | `tools/lmu-recorder-channels.py` | Lists the channel names LMU's built-in recorder knows (read from the game exe) and diffs them with `config.json`: `python3 -I tools/lmu-recorder-channels.py [--check "<name>" ...]`. Re-run after an LMU update (vroom-pnw.16, `docs/lmu-channels.md`) |
