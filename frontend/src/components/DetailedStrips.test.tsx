@@ -78,3 +78,47 @@ describe("DetailedStrips picker", () => {
     expect(labels()).toEqual(["SPEED", "THROTTLE · BRAKE", "GEAR", "STEERING", "DELTA"]);
   });
 });
+
+describe("DetailedStrips legend, window control and axis (vroom-pnw.35)", () => {
+  async function setup(extra: Record<string, unknown> = {}) {
+    const api = createMockApi({ coachDelayMs: 0, loadSpa: async () => REC });
+    const { best } = await newestBest(api);
+    const model = buildModel(await api.compare(best.lap_id));
+    const handlers = { onHover: () => {}, onLeave: () => {}, onSelect: () => {} } as never;
+    return render(
+      <PlaybackProvider>
+        <DetailedStrips model={model} geometry={null} annotations={[]} handlers={handlers} youName="You · L8" refName="Comparison · L2" {...extra} />
+      </PlaybackProvider>,
+    );
+  }
+
+  it("names the lap and the comparison in a legend", async () => {
+    await setup();
+    expect(screen.getByText("You · L8")).toBeTruthy();
+    expect(screen.getByText("Comparison · L2")).toBeTruthy();
+  });
+
+  it("switches the window mode, remembers it and marks the pressed one", async () => {
+    localStorage.clear();
+    await setup();
+    const pressed = () => screen.getAllByRole("button", { pressed: true }).map((b) => b.textContent);
+    expect(pressed()).toEqual(["700 m"]);
+    fireEvent.click(screen.getByRole("button", { name: "Lap" }));
+    expect(pressed()).toEqual(["Lap"]);
+    expect(localStorage.getItem("vroom.stripWindow")).toBe("lap");
+    fireEvent.click(screen.getByRole("button", { name: "Corner" }));
+    expect(pressed()).toEqual(["Corner"]);
+  });
+
+  it("draws distance ticks under the strips and colours paired read-outs", async () => {
+    localStorage.clear();
+    const { container } = await setup({ corners: [] });
+    fireEvent.click(screen.getByRole("button", { name: "Lap" }));
+    const ticks = Array.from(container.querySelectorAll("[class*=tick]")).map((e) => e.textContent);
+    expect(ticks.length).toBeGreaterThan(3);
+    expect(ticks[0]).toBe("0");
+    const speed = container.querySelectorAll("[class*=value]")[0];
+    expect(speed.hasAttribute("data-pair")).toBe(true);
+    expect(speed.children[2].textContent).not.toBe("");
+  });
+});
