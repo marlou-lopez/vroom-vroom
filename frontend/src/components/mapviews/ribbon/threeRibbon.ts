@@ -29,7 +29,7 @@ import { paneRects } from "./split";
 import type { RibbonEvents, RibbonFrame, RibbonRenderer, ScreenPoint } from "./types";
 
 /** Lifts (m, before the vertical exaggeration) that keep each layer clear of the one below it. */
-const MARK_LIFT = 0.08;
+const MARK_LIFT = 0.08; // wheels-off, lockup and wheelspin marks, over the lap line
 const EDGE_LIFT = 0.02, KERB_LIFT = 0.03, AHEAD_LIFT = 0.05, DRIVEN_LIFT = 0.07;
 const CAR_BODY_H = 0.6, CAR_BODY_Y = 0.15, CAB_H = 0.45;
 const MAX_DPR = 2;
