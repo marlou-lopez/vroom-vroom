@@ -2,6 +2,7 @@
 
     python3.14 -I balance_check.py --lmu-dir DIR --pair CAPTURE.lmucap GRID.json [--pair ...] [--calib GRID.json ...]
                                    [--fixture-lap N] [--fixture OUT.json.gz] [--plot OUT_DIR]
+                                   [--lead delay:0.1]
 
 Each GRID.json is what tools/extract-laps.mjs writes from the SAME session's .duckdb recording as CAPTURE (copy the
 recording first and never modify it). Recording and capture share the game's clock, so grid metre d of a lap has the time
@@ -22,7 +23,9 @@ Estimate (recording only):
     r_exp = v (theta_L - c) / (a + b v^2);  B = s (r_exp - r_act) in deg/s, s = sign(r_act) if |r_act| > 2 deg/s
     else sign(r_exp). B > 0 understeer, < 0 oversteer.
 Variants: kappa from the GPS line (turn between the +-5 m chords), r_act replaced by the true yaw rate, smoothing 2/4/8 m,
-and no b term.
+and no b term. STEERING LEAD (vroom-bi4.7): the steering delayed by tau (or advanced, tau < 0) or passed through a first-order
+lag tau before the fit and the estimate, scored by corner phase, oversteer precision/recall and marks on the fast laps;
+--lead MODE:SECONDS makes the later sections use one of them.
 
 Stdlib only; --plot imports matplotlib lazily (uv run --with matplotlib --with numpy python -I balance_check.py ... --plot DIR).
 """
@@ -207,11 +210,40 @@ class Lap:
         return self.truth[d] is not None
 
 
-def estimate(lap, cal, half, kappa_src="glat", rate_src="path", use_b=True):
+def lag_steering(st, v, lag, mode):
+    """Steering as the car's rotation follows it: steering leads yaw (vroom-bi4.7).
+
+    "delay": the steering lag seconds earlier, i.e. at the metre d - v*lag (linear interpolation on the grid); a negative
+             lag takes it from later instead (the opposite hypothesis, as a control).
+    "first": a first-order lag with time constant lag seconds, run along the lap (dt = 1 m / v).
+    """
+    if lag == 0 or mode == "none" or (mode == "first" and lag < 0):
+        return st
+    n = len(st)
+    out = [0.0] * n
+    if mode == "delay":
+        for d in range(n):
+            x = min(d - max(v[d], 0.0) * lag, n - 1)  # a negative lag advances the steering instead
+            if x <= 0:
+                out[d] = st[0]
+                continue
+            i = int(x)
+            f = x - i
+            out[d] = st[i] * (1 - f) + st[min(i + 1, n - 1)] * f
+        return out
+    y = st[0]
+    for d in range(n):
+        dt = 1.0 / max(v[d], 1.0)
+        y += dt / (lag + dt) * (st[d] - y)
+        out[d] = y
+    return out
+
+
+def estimate(lap, cal, half, kappa_src="glat", rate_src="path", use_b=True, lag=0.0, lag_mode="none"):
     """B per metre (deg/s) or None; also returns (r_exp, r_act) in rad/s, left +."""
     a, b, c = cal
     gl = smooth_open(lap.glat_raw, half)
-    st = smooth_open(lap.steer_raw, half)
+    st = lag_steering(smooth_open(lap.steer_raw, half), lap.v, lag, lag_mode)
     kg = smooth_open(lap.kgps, half) if kappa_src == "gps" else None
     out = []
     for d in range(lap.n):
@@ -237,11 +269,11 @@ def estimate(lap, cal, half, kappa_src="glat", rate_src="path", use_b=True):
     return out
 
 
-def calibrate(laps, half, kappa_src="glat", use_b=True):
+def calibrate(laps, half, kappa_src="glat", use_b=True, lag=0.0, lag_mode="none"):
     rows, ys = [], []
     for l in laps:
         gl = smooth_open(l.glat_raw, half)
-        st = smooth_open(l.steer_raw, half)
+        st = lag_steering(smooth_open(l.steer_raw, half), l.v, lag, lag_mode)
         kg = smooth_open(l.kgps, half)
         for d in range(l.n):
             v = l.v[d]
@@ -280,7 +312,16 @@ def main(argv=None):
     ap.add_argument("--fixture-lap", type=int, default=1)
     ap.add_argument("--fixture", help="gzipped JSON of the flying lap's inputs and truth, for a TypeScript test")
     ap.add_argument("--plot", help="directory for the PNG plots (needs matplotlib)")
+    ap.add_argument("--lead", help="MODE:SECONDS (e.g. delay:0.1) - the steering-lead variant the top stretches, segments and plots use")
     args = ap.parse_args(argv)
+    if args.lead:
+        try:
+            m, t = args.lead.split(":")
+            args.lead_mode, args.lead_s = m, float(t)
+        except ValueError:
+            ap.error("--lead takes MODE:SECONDS, e.g. delay:0.1")
+        if m not in ("delay", "first") or (m == "first" and args.lead_s <= 0):
+            ap.error("--lead MODE is delay (any seconds, negative advances) or first (seconds > 0)")
     if args.lmu_dir:
         os.environ["LMU_DIR"] = args.lmu_dir
     deg = math.degrees
@@ -340,10 +381,10 @@ def main(argv=None):
         pct(list(T.values()), .05), pct(list(T.values()), .5), pct(list(T.values()), .95),
         pearson(list(T.values()), list(Tabs.values()))))
 
-    def evaluate(label, half=SMOOTH_HALF_M, kappa_src="glat", rate_src="path", use_b=True, verbose=False):
-        cal, r2, n = calibrate(all_laps, half, kappa_src, use_b)
-        Bs = {id(l): estimate(l, cal, half, kappa_src, rate_src, use_b) for l in all_laps}
-        BTs = {id(l): estimate(l, cal, half, kappa_src, "true", use_b) for l in laps}
+    def evaluate(label, half=SMOOTH_HALF_M, kappa_src="glat", rate_src="path", use_b=True, lag=0.0, lag_mode="none"):
+        cal, r2, n = calibrate(all_laps, half, kappa_src, use_b, lag, lag_mode)
+        Bs = {id(l): estimate(l, cal, half, kappa_src, rate_src, use_b, lag, lag_mode) for l in all_laps}
+        BTs = {id(l): estimate(l, cal, half, kappa_src, "true", use_b, lag, lag_mode) for l in laps}
         glsm = {id(l): smooth_open(l.glat_raw, half) for l in all_laps}
         res = {"cal": cal, "r2": r2, "B": Bs, "BT": BTs}
         rowsets = {}
@@ -427,6 +468,87 @@ def main(argv=None):
                 fp = sum(1 for b, t in zip(xc, tv) if flag(b) and not true(t))
                 fn = sum(1 for b, t in zip(xc, tv) if not flag(b) and true(t))
                 print(f"  X {X:4.1f} deg/s {kind:<5}: flagged {tp + fp:5d}, precision {tp / max(1, tp + fp):.2f}, recall {tp / max(1, tp + fn):.2f}")
+
+    # Steering lead (vroom-bi4.7): the steady-state fit reads corner entry and exit as oversteer, because the steering
+    # turns in before the car rotates and unwinds before it straightens. Steering delayed by `lag` seconds, or passed
+    # through a first-order lag, should line up with the car's rotation. Scored against the same T_dev thresholds as above.
+    tu_dev, to_dev = pct(dc, .9), pct(dc, .1)
+    fast_truth = [l for l in fast if l in laps]
+
+    def lead_score(label, Bv, glv, thresholds=(5.0, 7.5, 10.0)):
+        xs, ts = [], []
+        for l, d in pts:
+            b = Bv[id(l)][d]
+            if b is not None and abs(glv[id(l)][d]) > CORNER_G:
+                xs.append(b)
+                ts.append(Tdev[(id(l), d)])
+        # The dip: B on clean corner metres (fast laps, truth not oversteer).
+        clean = [Bv[id(l)][d] for l in fast_truth for d in range(l.n) if (id(l), d) in Tdev and Bv[id(l)][d] is not None
+                 and abs(glv[id(l)][d]) > CORNER_G and Tdev[(id(l), d)] >= to_dev]
+        out = [f"{label:<24} P {pearson(xs, ts):+.3f} | clean-corner B p1 {pct(clean, .01):+6.1f} p5 {pct(clean, .05):+6.1f} "
+               f"< -5: {sum(1 for b in clean if b < -5) / max(1, len(clean)):.3f} < -10: {sum(1 for b in clean if b < -10) / max(1, len(clean)):.3f}"]
+        # By corner phase on the clean laps: entry (|g_lat| rising over +-5 m), exit (falling), mid. If T_dev dips with B at
+        # entry and exit, the dip is in the truth too, not a steering-lead artefact.
+        ph = {"entry": [], "mid": [], "exit": []}
+        for l in fast_truth:
+            ga = [abs(x) for x in glv[id(l)]]
+            for d in range(5, l.n - 5):
+                b = Bv[id(l)][d]
+                if b is None or ga[d] <= CORNER_G or (id(l), d) not in Tdev:
+                    continue
+                sl = ga[d + 5] - ga[d - 5]
+                ph["entry" if sl > 0.05 else "exit" if sl < -0.05 else "mid"].append((b, Tdev[(id(l), d)]))
+        out.append("    phase " + ", ".join(
+            f"{k} {len(v)} m: B mean {sum(b for b, _ in v) / max(1, len(v)):+.2f} p5 {pct([b for b, _ in v], .05):+.1f}, "
+            f"T_dev mean {sum(t for _, t in v) / max(1, len(v)):+.2f} p5 {pct([t for _, t in v], .05):+.2f}, "
+            f"OS truth share {sum(1 for _, t in v if t < to_dev) / max(1, len(v)):.2f}, P {pearson([b for b, _ in v], [t for _, t in v]):+.2f}"
+            for k, v in ph.items()))
+        for X in thresholds:
+            cells = []
+            for kind, flag, true in (("US", lambda b: b > X, lambda t: t > tu_dev), ("OS", lambda b: b < -X, lambda t: t < to_dev)):
+                tp = sum(1 for b, t in zip(xs, ts) if flag(b) and true(t))
+                fp = sum(1 for b, t in zip(xs, ts) if flag(b) and not true(t))
+                fn = sum(1 for b, t in zip(xs, ts) if not flag(b) and true(t))
+                cells.append(f"{kind} {tp / max(1, tp + fp):.2f}/{tp / max(1, tp + fn):.2f}")
+            # Oversteer marks as the app draws them (>= 0.5 g, merge 3 m, >= 5 m) on the clean laps: real (any metre with
+            # T_dev oversteer) or false.
+            real = false = 0
+            for l in fast_truth:
+                on = [Bv[id(l)][d] is not None and Bv[id(l)][d] < -X and abs(glv[id(l)][d]) >= CORNER_G for d in range(l.n)]
+                d = 0
+                while d < l.n:
+                    if not on[d]:
+                        d += 1
+                        continue
+                    e, gap = d, 0
+                    while e + 1 < l.n and gap <= 3:
+                        e += 1
+                        gap = 0 if on[e] else gap + 1
+                    e -= gap
+                    if e - d + 1 >= 5:
+                        if any((id(l), k) in Tdev and Tdev[(id(l), k)] < to_dev for k in range(d, e + 1)):
+                            real += 1
+                        else:
+                            false += 1
+                    d = e + 1
+            cells.append(f"OS marks/{len(fast_truth)} laps {real} real {false} false")
+            out.append(f"    X {X:4.1f}: " + ", ".join(cells))
+        print("\n".join(out))
+
+    print(f"\nSTEERING LEAD (precision/recall vs T_dev; clean = {len(fast_truth)} fast laps with truth, corner metres with "
+          f"T_dev >= {to_dev:+.2f})")
+    lead_score("none (as shipped)", B, glsm, (5.0, 6.0, 7.0, 7.5, 8.0, 9.0, 10.0))
+    lead = {}
+    for mode, lags in (("delay", (-0.1, -0.05, 0.05, 0.1, 0.15, 0.2, 0.3)), ("first", (0.05, 0.1, 0.15, 0.2, 0.3))):
+        for lag in lags:
+            r = evaluate(f"{mode} {lag:.2f} s", lag=lag, lag_mode=mode)
+            lead[(mode, lag)] = r
+            lead_score(f"  {mode} {lag:.2f} s", r["B"], r["glsm"])
+    if args.lead:
+        mode, lag = args.lead_mode, args.lead_s
+        r = lead.get((mode, lag)) or evaluate(f"{mode} {lag:.2f} s (--lead)", lag=lag, lag_mode=mode)
+        B, base = r["B"], r
+        print(f"\nThe sections below use the steering lead {mode} {lag} s (--lead).")
 
     # Top stretches (over laps with truth).
     X = 5.0

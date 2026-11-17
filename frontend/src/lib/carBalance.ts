@@ -23,10 +23,11 @@ const MIN_TURN_DEG_S = 2;
  */
 export const BALANCE_MARK_DEG_S = 5;
 /**
- * Oversteer needs more: steering leads the car's rotation at corner entry and exit, so the estimate dips 3-10 deg/s there on a
- * clean lap. At 10 deg/s precision is 0.93 but recall 0.16: only real slides are marked, small ones are missed.
+ * Oversteer needs more: on corner metres where the truth has no oversteer, the estimate still reaches -6.9 deg/s at its 1st
+ * percentile. At 7 deg/s precision is 0.88 and recall 0.45; at 5, 40 % of the marks are false. A steering-lag model doesn't
+ * help: the entry and exit dip is in the truth too (vroom-bi4.7, docs/car-behaviour/oversteer-understeer.md).
  */
-export const OVERSTEER_MARK_DEG_S = 10;
+export const OVERSTEER_MARK_DEG_S = 7;
 /** Marks only count in corners: at least this much lateral g, or (oversteer) a counter-steer. */
 export const MARK_MIN_G = 0.5;
 /** Marks closer than this many metres merge into one run. */
