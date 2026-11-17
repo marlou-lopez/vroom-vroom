@@ -336,29 +336,121 @@ Lessons for vroom-9ki.12 (coach packets and guard), whichever model wins:
   vroom-9ki.19 (round 3 above): OpenAI stays the default. Anthropic, the design's original default, stays one setting away and unmeasured.
 - The bench (`spikes/local-llm/`) stays for later rounds: more recordings, prompt and packet versions, providers.
 
-## Round 4: packet set v3 (not run yet)
+## Round 4: packet set v3
 
-Built, not measured. The packet builder and the guard are done; the paid runs are waiting because the autopilot
-worker had no `OPENAI_API_KEY` or `DEEPSEEK_API_KEY` (and no `ANTHROPIC_API_KEY` or `GROQ_API_KEY`) in its
-environment.
+Round tag `2026-11-18-r4`. Prompt v3 with packet sets v2 and v3 on Spa and Monza, 5 runs per packet, three models
+(gpt-6.1-terra, gpt-6-luna, deepseek-flash): 240 runs, about $1.10 in all: terra $0.64, luna $0.10, flash $0.35.
 
-- `build-packets.mjs` now also writes `packets-v3/` (Spa) and `packets-v3-monza/`: plain-English keys ("minimum
-  speed"), pairs written `110 km/h against 112`, and an `allowed_numbers` list on every corner. v2 output is unchanged.
-- `guard.py` checks each finding's prose against its own corner's `allowed_numbers` when the packet has them (v1 and v2
-  packets: the whole packet, as before). Check: "147 km/h against 151" passes, "4 km/h" (the round-1 subtraction) fails as
-  calculated, and a number from another corner fails as invented.
+**What v3 is.** `build-packets.mjs` writes `packets-v3/` (Spa) and `packets-v3-monza/` from the v2 packets, which are
+unchanged: plain-English keys ("minimum speed"), pairs written `110 km/h against 112`, and an `allowed_numbers` list on
+every corner. `guard.py` checks each finding against its own corner's list when there is one (v1 and v2 packets: the whole
+packet, as before). By hand: "147 km/h against 151" passes, "4 km/h" (the round-1 subtraction) fails as calculated, a
+number from another corner fails as invented. **The v3 guard is therefore stricter than the v2 guard** (a subtraction
+that reuses a small number from the corner's own list, such as "2 km/h down" with a gear 2, still passes): equal pass rates
+mean v3 held up under the harder check. One limit for vroom-9ki.12: a corner's list leaves out packet-level numbers (lap delta,
+lap times, notes), so a finding that quotes one is flagged as invented under v3. No run here hit it.
 
-To finish the round (from `spikes/local-llm/`, keys exported in your shell):
+**Summary** (20 runs per cell, 4 packets × 5):
+
+| Model | Packets | Schema valid | Guard 1st try | After retry | Prose clean | Hedge-free | Cost, 20 runs |
+|---|---|---|---|---|---|---|---|
+| terra | v2 Spa / v2 Monza | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | $0.161 / $0.155 |
+| terra | v3 Spa / v3 Monza | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | $0.164 / $0.162 |
+| luna | v2 Spa / v2 Monza | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | $0.026 / $0.026 |
+| luna | v3 Spa / v3 Monza | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | 20/20, 20/20 | $0.027 / $0.025 |
+| deepseek-flash | v2 Spa / v2 Monza | 19/20, 20/20 | 19/20, 20/20 | 19/20, 20/20 | 19/20, 20/20 | 19/20, 20/20 | $0.082 / $0.086 |
+| deepseek-flash | v3 Spa / v3 Monza | 19/20, 20/20 | 18/20, 19/20 | 19/20, 20/20 | 19/20, 20/20 | 19/20, 20/20 | $0.101 / $0.086 |
+
+Cost per call is about 0.8 cents for terra, 0.13 cents for luna and 0.4 to 0.5 cents for flash (the table below shows
+the cost of the 5 runs of each row). The one deepseek-flash schema failure per Spa packet set is on `analyze-lap3-vs-lap4` in both
+sets, but not the same failure: in v2 a `fix` came back null (DeepSeek's JSON mode checks the schema only afterwards), in
+v3 the reply was not valid JSON ("Extra data").
+
+**Reading it.**
+- terra and luna were perfect on all 160 runs, v2 and v3, on both tracks, including the stricter v3 guard. Monza
+  packets work with no changes.
+- Only deepseek-flash separates the sets: with v3 it failed the number guard on its first try twice in 40 runs (one on Spa,
+  one on Monza; "calculated" both times, so it still subtracted despite the pairs) against 0 with v2, and a retry fixed
+  both. (The schema failure on `analyze-lap3-vs-lap4` shows up in both sets, with different causes.) Its v3 output is longer on Spa (analyze packets: 3,300 to 4,200 tokens against 2,700 to 2,800, Spa cost +23%); on Monza it is
+  mixed (one analyze packet longer, one shorter; cost the same).
+  Whether the scoped guard would also have flagged those v2 cases is not known: v2 runs were not re-checked with scopes.
+- Speed is unchanged between sets for terra and luna (terra 5 to 16 s a call, luna 7 to 24 s, flash 6 to 21 s).
+
+**Blind sheet.** Generated: `spikes/local-llm/blind/2026-11-18-r4.md` (48 samples, one per model × packet set × packet; the
+key is `blind/2026-11-18-r4-key.json`; `blind/` is git-ignored). **Ratings are pending**: rate each **Score:** 1 to 5
+(notes after it), then `python3 -I summarize.py scores --name 2026-11-18-r4`. No prose-quality conclusion can be
+drawn until then.
+
+**Not yet measured.** `anthropic:claude-sonnet-5-5` and `groq:gpt-oss-120b`: `ANTHROPIC_API_KEY` and `GROQ_API_KEY` were
+not set. Run, from `spikes/local-llm/`, with the key exported and the same round tag:
 
 ```bash
 R=2026-11-18-r4
 for set in packets-v2 packets-v3 packets-v2-monza packets-v3-monza; do
   uv run --with openai --with anthropic --with jsonschema python -I run.py --matrix models.json --prompt prompt-v3.md \
-    --packets $set --runs 5 --round $R --select openai:gpt-6.1-terra,openai:gpt-6-luna,deepseek:deepseek-flash
+    --packets $set --runs 5 --round $R --select anthropic:claude-sonnet-5-5   # or groq:gpt-oss-120b
 done
-python3 -I summarize.py table --round $R
-python3 -I summarize.py blind --round $R --per 1 --name $R
 ```
+(Check the Groq model id and price in `models.json` first; they are untested.)
 
-Not yet measured: `anthropic:claude-sonnet-5-5` and `groq:gpt-oss-120b` (same loop with
-`--select anthropic:claude-sonnet-5-5` or `--select groq:gpt-oss-120b`; needs `ANTHROPIC_API_KEY` / `GROQ_API_KEY`).
+**Recommendation for vroom-9ki.12.** Use **packet set v3**, provisionally. It costs nothing on the strong and fast tiers
+(100% on every check under a stricter guard), the per-finding number list is what lets the real number guard check a
+finding against its own corner, and the plain keys and pairs remove the need for the model to subtract. The one
+downside is deepseek-flash, which got slightly worse on the first try and longer; it stays a non-default model. Confirm
+with the blind ratings: if v3 rates below v2 on prose, fall back to v2 and keep only the scoped guard (it works on both).
+**Default models do not change** (terra for Analyze and Corner, luna for Average); round 3's flash result is unchanged.
+
+<details><summary>Full table (<code>summarize.py table --round 2026-11-18-r4</code>; cost is for the 5 runs in a row)</summary>
+
+| Model | Packet | n | Schema valid | Guard pass, 1st try | after 1 retry | Contract kept | Prose clean | Hedge-free | Failure reasons | TTFT s (median, warm) | First JSON token s | Total s (median, warm) | Output tokens | Cost $ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| deepseek:deepseek-flash / prompt-v3.md / packets-v2 | analyze-lap2-vs-lap4 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.8 | 9.9 | 13.6 | 2677.0 | 0.0225 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v2 | analyze-lap3-vs-lap4 | 5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | schema 1 | 0.7 | 11.6 | 15.2 | 2799.0 | 0.0232 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v2 | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.6 | 6.3 | 10.0 | 1866.0 | 0.0193 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v2 | corner-lap2-stavelot | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.6 | 7.2 | 8.2 | 1489.0 | 0.0165 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v2-monza | analyze-lap1-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.6 | 9.7 | 14.2 | 3002.0 | 0.0251 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v2-monza | analyze-lap5-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.6 | 10.3 | 13.4 | 2699.0 | 0.0209 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v2-monza | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.6 | 9.2 | 11.9 | 2440.0 | 0.0198 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v2-monza | corner-lap5-curvagrande | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.8 | 12.4 | 13.2 | 2055.0 | 0.0203 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v3 | analyze-lap2-vs-lap4 | 5 | 5/5 | 4/5 | 5/5 | 5/5 | 5/5 | 5/5 | calculated 1 | 0.7 | 13.6 | 16.7 | 4235.0 | 0.0345 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v3 | analyze-lap3-vs-lap4 | 5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | 4/5 | schema 1 | 0.7 | 12.8 | 17.1 | 3295.0 | 0.0288 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v3 | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.7 | 10.1 | 13.2 | 2303.0 | 0.0218 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v3 | corner-lap2-stavelot | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.6 | 5.8 | 6.3 | 1213.0 | 0.0154 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v3-monza | analyze-lap1-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.6 | 18.2 | 20.8 | 4230.0 | 0.0328 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v3-monza | analyze-lap5-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.5 | 6.4 | 9.5 | 2113.0 | 0.0167 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v3-monza | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 0.5 | 7.4 | 9.6 | 1861.0 | 0.0161 |
+| deepseek:deepseek-flash / prompt-v3.md / packets-v3-monza | corner-lap5-curvagrande | 5 | 5/5 | 4/5 | 5/5 | 5/5 | 5/5 | 5/5 | calculated 1 | 0.7 | 6.8 | 7.3 | 1366.0 | 0.0205 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v2 | analyze-lap2-vs-lap4 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 11.9 | 11.9 | 17.0 | 1929.0 | 0.0069 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v2 | analyze-lap3-vs-lap4 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 17.9 | 17.9 | 22.7 | 2559.0 | 0.0080 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v2 | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 15.1 | 15.1 | 19.4 | 2101.0 | 0.0070 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v2 | corner-lap2-stavelot | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 5.1 | 5.1 | 7.0 | 664.0 | 0.0038 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v2-monza | analyze-lap1-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 17.0 | 17.0 | 22.4 | 2363.0 | 0.0082 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v2-monza | analyze-lap5-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 12.8 | 12.8 | 17.2 | 1995.0 | 0.0068 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v2-monza | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 14.2 | 14.2 | 17.9 | 1956.0 | 0.0063 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v2-monza | corner-lap5-curvagrande | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 5.3 | 5.3 | 7.1 | 697.0 | 0.0042 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v3 | analyze-lap2-vs-lap4 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 13.2 | 13.2 | 19.0 | 2251.0 | 0.0075 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v3 | analyze-lap3-vs-lap4 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 18.7 | 18.7 | 23.7 | 2556.0 | 0.0085 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v3 | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 12.8 | 12.8 | 15.9 | 1707.0 | 0.0061 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v3 | corner-lap2-stavelot | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 6.1 | 6.1 | 7.8 | 754.0 | 0.0044 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v3-monza | analyze-lap1-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 17.3 | 17.3 | 22.2 | 2514.0 | 0.0082 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v3-monza | analyze-lap5-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 10.9 | 10.9 | 15.5 | 1861.0 | 0.0064 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v3-monza | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 10.6 | 10.6 | 13.9 | 1569.0 | 0.0055 |
+| openai:gpt-6-luna / prompt-v3.md / packets-v3-monza | corner-lap5-curvagrande | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 5.2 | 5.2 | 6.6 | 686.0 | 0.0046 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v2 | analyze-lap2-vs-lap4 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 6.9 | 6.9 | 14.2 | 989.0 | 0.0447 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v2 | analyze-lap3-vs-lap4 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 9.3 | 9.3 | 16.0 | 1185.0 | 0.0482 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v2 | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 8.1 | 8.1 | 13.3 | 932.0 | 0.0391 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v2 | corner-lap2-stavelot | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 3.4 | 3.4 | 5.7 | 324.0 | 0.0289 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v2-monza | analyze-lap1-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 6.9 | 6.9 | 14.4 | 1117.0 | 0.0463 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v2-monza | analyze-lap5-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 4.9 | 4.9 | 11.7 | 858.0 | 0.0384 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v2-monza | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 6.7 | 6.7 | 12.2 | 862.0 | 0.0385 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v2-monza | corner-lap5-curvagrande | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 2.0 | 2.0 | 5.0 | 257.0 | 0.0317 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v3 | analyze-lap2-vs-lap4 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 9.3 | 9.3 | 16.2 | 1252.0 | 0.0484 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v3 | analyze-lap3-vs-lap4 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 7.7 | 7.7 | 15.2 | 1163.0 | 0.0476 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v3 | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 4.6 | 4.6 | 9.4 | 654.0 | 0.0339 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v3 | corner-lap2-stavelot | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 4.1 | 4.1 | 6.3 | 372.0 | 0.0337 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v3-monza | analyze-lap1-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 8.2 | 8.2 | 15.5 | 1159.0 | 0.0477 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v3-monza | analyze-lap5-vs-lap2 | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 6.8 | 6.8 | 12.9 | 1017.0 | 0.0405 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v3-monza | average-session | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 6.0 | 6.0 | 10.9 | 807.0 | 0.0366 |
+| openai:gpt-6.1-terra / prompt-v3.md / packets-v3-monza | corner-lap5-curvagrande | 5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | – | 4.8 | 4.8 | 7.4 | 392.0 | 0.0375 |
+
+</details>
