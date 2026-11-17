@@ -4,6 +4,7 @@ import "uplot/dist/uPlot.min.css";
 import type { CompareResponse, TrackGeometry } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import { aidRuns, type AidRuns, type Run } from "../lib/driverAids";
+import { balanceEnabled, compareBalance, type BalanceRuns } from "../lib/carBalance";
 import { offTrackRuns } from "../lib/offTrack";
 import { cleanGear, gearName, gearShifts, shiftLabel, type Shift } from "../lib/gearShifts";
 import { formatDelta } from "../lib/format";
@@ -59,6 +60,8 @@ interface Spec {
   aids?: { runs: AidRuns; throttle: number[]; brake: number[] };
   /** Where two or more wheels were off the track, as a band over the whole strip (vroom-pnw.24). */
   off: { runs: Run[]; color: string };
+  /** Experimental under/oversteer marks of this lap on a trace (vroom-pnw.15), only with `?balance`. */
+  balance?: { runs: BalanceRuns; values: Num };
   /** Gear shifts of both laps, marked on the pedals strip (vroom-pnw.12). */
   shifts?: { lap: Shift[]; ref: Shift[] };
   value: (cmp: CompareResponse, tau: number, iy: number) => string;
@@ -80,7 +83,10 @@ function gearRange(...gears: number[][]): Range {
   return Number.isFinite(lo) ? [lo - 0.5, hi + 0.5] : [0.5, 7.5];
 }
 
-function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapValid: boolean): Spec[] {
+function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapValid: boolean, balanceOn: boolean): Spec[] {
+  const bal = balanceOn
+    ? compareBalance(cmp.lap, cmp.ref, cmp.lap_steering_range_deg, cmp.ref_steering_range_deg, cmp.lap_car_id === cmp.ref_car_id)
+    : null;
   const off = { runs: offTrackRuns(cmp.lap), color: lapValid ? colors.closeCall : colors.offTrack };
   const r = stripRanges(cmp);
   const gl = cleanGear(cmp.lap.gear);
@@ -116,6 +122,8 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       id: "steering", label: "STEERING", off, yRange: r.steering,
       data: [cmp.ref.steering, cmp.lap.steering],
       series: [line(refStroke, 1.2), line(colors.you, 1.6)],
+      // With ?balance the steering strip carries the experimental under/oversteer marks, and says so.
+      ...(bal?.lap ? { experimental: true, balance: { runs: bal.lap.runs, values: cmp.lap.steering } } : {}),
       value: (c, _t, iy) => formatSteering(c.lap.steering[iy], c.lap_steering_range_deg),
     },
     {
@@ -174,6 +182,22 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       value: (_c, _t, iy) => wheelValues(slip, iy, 2),
     },
   );
+  if (bal?.lap) {
+    // Experimental (vroom-pnw.15): yaw rate the steering asks for minus the path's, deg/s; > 0 understeer, < 0 oversteer.
+    const nul = (v: number[]) => v.map((x) => (Number.isFinite(x) ? x : null));
+    const lapB = nul(bal.lap.balance);
+    const refB = bal.ref ? nul(bal.ref.balance) : lapB.map(() => null);
+    const finite = (v: Num) => v.filter((x): x is number => x !== null);
+    const word = (b: number | null) => (b === null ? "–" : `${b > 0 ? "US" : "OS"} ${Math.abs(b).toFixed(1)}`);
+    specs.push({
+      id: "balance", label: "BALANCE (US + / OS −, °/s)", off, experimental: true, zeroLine: true,
+      // Capped: a spin or a kerb strike reads 40+ deg/s and would flatten the rest.
+      yRange: ((m) => [-m, m] as Range)(Math.min(BALANCE_MAX_DEG_S, symmetricRange(2, finite(lapB), finite(refB))[1])),
+      data: [refB, lapB], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
+      balance: { runs: bal.lap.runs, values: lapB },
+      value: (c, tau, iy) => `${word(lapB[iy])} / ${word(refB[indexAtTime(c.ref.t, tau)])}`,
+    });
+  }
   return specs;
 }
 
@@ -226,6 +250,7 @@ function drawOffTrack(u: uPlot, runs: Run[], color: string) {
 const AID_BAND_ALPHA = 0.22;
 const OFF_BAND_ALPHA = 0.18;
 const MARK_PX = 3;
+const BALANCE_MAX_DEG_S = 25;
 
 /** Light bands under a trace where an aid was active: from the baseline up to the trace, only over the runs. */
 function drawAidBands(u: uPlot, runs: Run[], values: number[], color: string) {
@@ -254,7 +279,7 @@ function drawAidBands(u: uPlot, runs: Run[], values: number[], color: string) {
 const dprHalf = () => uPlot.pxRatio / 2;
 
 /** Marks on a trace where a wheel locked (red, brake trace) or spun (amber, throttle trace): a thick stroke over the line with a dark casing. */
-function drawSlipMarks(u: uPlot, runs: Run[], values: number[], color: string) {
+function drawSlipMarks(u: uPlot, runs: Run[], values: Num, color: string) {
   const { ctx, bbox } = u;
   const xs = u.data[0];
   const sx = u.scales.x;
@@ -272,10 +297,10 @@ function drawSlipMarks(u: uPlot, runs: Run[], values: number[], color: string) {
     for (const r of runs) {
       if (xs[r.end] < lo || xs[r.start] > hi) continue;
       ctx.beginPath();
-      ctx.moveTo(px(r.start), bbox.top + u.valToPos(values[r.start], "y", true));
+      ctx.moveTo(px(r.start), bbox.top + u.valToPos(values[r.start] ?? 0, "y", true));
       // A one-metre run is a dot (a zero-length line with round caps).
-      if (r.end === r.start) ctx.lineTo(px(r.start) + 0.01, bbox.top + u.valToPos(values[r.start], "y", true));
-      for (let i = r.start + 1; i <= r.end; i++) ctx.lineTo(px(i), bbox.top + u.valToPos(values[i], "y", true));
+      if (r.end === r.start) ctx.lineTo(px(r.start) + 0.01, bbox.top + u.valToPos(values[r.start] ?? 0, "y", true));
+      for (let i = r.start + 1; i <= r.end; i++) ctx.lineTo(px(i), bbox.top + u.valToPos(values[i] ?? 0, "y", true));
       ctx.stroke();
     }
   }
@@ -377,6 +402,10 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
       ],
       draw: [
         (u) => {
+          if (spec.balance) {
+            drawSlipMarks(u, spec.balance.runs.understeer, spec.balance.values, colors.understeer);
+            drawSlipMarks(u, spec.balance.runs.oversteer, spec.balance.values, colors.oversteer);
+          }
           if (!spec.aids) return;
           drawSlipMarks(u, spec.aids.runs.lockup, spec.aids.brake, colors.lockup);
           drawSlipMarks(u, spec.aids.runs.wheelspin, spec.aids.throttle, colors.wheelspin);
@@ -438,7 +467,8 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
   const store = usePlaybackStore();
   const { cmp } = model;
   const [choice, setChoice] = useState<StripId[]>(() => loadStrips());
-  const allSpecs = useMemo(() => buildSpecs(cmp, geometry, lapValid), [cmp, geometry, lapValid]);
+  const balanceOn = useMemo(() => balanceEnabled(globalThis.location?.search ?? ""), []);
+  const allSpecs = useMemo(() => buildSpecs(cmp, geometry, lapValid, balanceOn), [cmp, geometry, lapValid, balanceOn]);
   // The chosen strips in the chosen order; one the data cannot draw (elevation on a flat track) is skipped.
   const specList = useMemo(() => {
     const picked = choice.flatMap((id) => allSpecs.filter((s) => s.id === id));

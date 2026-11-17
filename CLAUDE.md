@@ -45,6 +45,7 @@ This section only records facts that change rarely (last checked 2026-11-17):
 | `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON: `node extract-laps.mjs <copy.duckdb> <out.json> "<source label>" [laps]` (needs `npm i @duckdb/node-api`) |
 | `tools/extract-stint.py` | Per-lap stint stats (fuel, virtual energy, tyres, brakes) from an LMU `.duckdb` copy, for the Stint view: `uv run --with duckdb python -I extract-stint.py <copy.duckdb> <out.json> "<label>"` (vroom-pnw.26) |
 | `docs/stint/` | Stint view spike write-up (`stint-view.md`) |
+| `docs/car-behaviour/` | Under/oversteer spike write-up (`oversteer-understeer.md`, vroom-pnw.15); its truth check is `tools/lmu-logger/balance_check.py` (recording grid against a capture of the same session) |
 | `tools/lmu-logger/` | Windows-only Python logger that records LMU's shared memory to `.lmucap` files (player-only by default), plus a reader, a header parser (`layout.py`, reads the layout from your own LMU install: no struct copies, licence) and `decode.py` (`layout`, `player`, `track`, `survey`) (#94, #97). Captures stay out of git |
 | `tools/lmu-recorder-channels.py` | Lists the channel names LMU's built-in recorder knows (read from the game exe) and diffs them with `config.json`: `python3 -I tools/lmu-recorder-channels.py [--check "<name>" ...]`. Re-run after an LMU update (vroom-pnw.16, `docs/lmu-channels.md`) |
 | `tools/optimize-car-model.mjs` | Command-line twin of the Car popover's in-browser converter: turns a downloaded car glTF (folder, zip, .gltf, .glb) into one small GLB for `frontend/public/local-models/`. Imports `frontend/src/components/mapviews/ribbon/convert/` (the shared drop list, settings and pipeline; needs `npm ci` in `frontend/`, and network once for `sharp`). Its output is never committed (#102, `docs/track-views/car-model.md`) |
@@ -68,7 +69,7 @@ Tests named `*.test.ts` run in node and `*.test.tsx` run in jsdom (setup in `src
 
 CI (`.github/workflows/ci.yml`) runs lint, test and build on every PR and push to `main`.
 
-The detailed 2D and 3D track views show their frame-rate HUD, benchmark and GPU context-loss test (and the 2D one its line-source selector) only in `npm run dev` or with `?debug` in the URL; `?debug=0` hides them in dev to preview the production view. `?mirror=0` turns off the 3D cockpit's live rear-view mirror (a second render pass; the glass then shows a still picture), to measure its cost.
+The detailed 2D and 3D track views show their frame-rate HUD, benchmark and GPU context-loss test (and the 2D one its line-source selector) only in `npm run dev` or with `?debug` in the URL; `?debug=0` hides them in dev to preview the production view. `?balance` turns on the experimental under/oversteer estimate (a Balance strip, marks on the steering strip, a tint on the classic map; vroom-pnw.15). `?mirror=0` turns off the 3D cockpit's live rear-view mirror (a second render pass; the glass then shows a still picture), to measure its cost.
 
 Run test, lint and build before calling frontend work done. Vite proxies `/api` to
 `127.0.0.1:8765` for when the real backend exists.

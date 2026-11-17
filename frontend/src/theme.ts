@@ -19,6 +19,9 @@ export const colors = {
   /** Wheel lockup marks (brake trace, map line) and wheelspin marks (throttle trace, map line). */
   lockup: "#FF3B3B",
   wheelspin: "#FFB020",
+  /** Experimental balance marks (vroom-pnw.15): understeer (steering strip, map line) and oversteer. */
+  understeer: "#4C8DFF",
+  oversteer: "#FF4FD8",
   /** Wheels off the track (vroom-pnw.24): red on an invalid lap (map, strips, scrubber), grey "close call" on a valid one. */
   offTrack: "#FF2D55",
   closeCall: "#868E99",

@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type PointerEvent } from "react";
 import { aidRuns, mapSpan } from "../../lib/driverAids";
+import { balanceEnabled, compareBalance } from "../../lib/carBalance";
 import { offTrackRuns } from "../../lib/offTrack";
 import { MAP_H, MAP_PAD, MAP_W } from "../../lib/model";
 import { distanceAtTime, timeAtDistance } from "../../lib/playback";
@@ -58,6 +59,17 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
     const path = (rs: typeof runs.lockup) => rs.map((r) => segmentPath(proj, cmp.distance, ...mapSpan(r, last))).join("");
     return { lockup: path(runs.lockup), wheelspin: path(runs.wheelspin), offTrack: path(offTrackRuns(cmp.lap)) };
   }, [cmp.lap, cmp.distance, proj]);
+
+  // Experimental (vroom-pnw.15), only with ?balance: where the lap under- or oversteered, tinting the line under the slip marks.
+  const balanceOn = useMemo(() => balanceEnabled(globalThis.location?.search ?? ""), []);
+  const balancePaths = useMemo(() => {
+    if (!balanceOn) return null;
+    const b = compareBalance(cmp.lap, cmp.ref, cmp.lap_steering_range_deg, cmp.ref_steering_range_deg, cmp.lap_car_id === cmp.ref_car_id).lap;
+    if (!b) return null;
+    const last = cmp.distance.length - 1;
+    const path = (rs: typeof b.runs.understeer) => rs.map((r) => segmentPath(proj, cmp.distance, ...mapSpan(r, last))).join("");
+    return { understeer: path(b.runs.understeer), oversteer: path(b.runs.oversteer) };
+  }, [balanceOn, cmp, proj]);
 
   const toMap = (e: PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
@@ -149,6 +161,13 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
     >
       <path d={model.mapPath} className={styles.base} />
       {cornerPath && <path d={cornerPath} className={styles.cornerNow} />}
+      {balancePaths && (
+        <text x={-MAP_PAD + 2} y={-MAP_PAD + 7} className={styles.balanceLegend} data-testid="balance-legend">
+          exp: <tspan className={styles.legendUs}>understeer</tspan> · <tspan className={styles.legendOs}>oversteer</tspan>
+        </text>
+      )}
+      {balancePaths?.understeer && <path d={balancePaths.understeer} className={styles.understeer} data-testid="understeer-marks" />}
+      {balancePaths?.oversteer && <path d={balancePaths.oversteer} className={styles.oversteer} data-testid="oversteer-marks" />}
       {slipPaths.offTrack && <path d={slipPaths.offTrack} className={lapValid === false ? styles.offTrack : styles.closeCall} data-testid="off-track-marks" />}
       {slipPaths.wheelspin && <path d={slipPaths.wheelspin} className={styles.wheelspin} />}
       {slipPaths.lockup && <path d={slipPaths.lockup} className={styles.lockup} />}
