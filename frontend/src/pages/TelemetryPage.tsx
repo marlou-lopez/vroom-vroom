@@ -83,16 +83,27 @@ function Telemetry() {
   const seekTo = useCallback((a: Annotation) => cmp && store.seek(leadInTime(cmp, a)), [cmp, store]);
   // Stable between renders, so the memoised track views only render when something they draw changes.
   const handlers = useMemo<BadgeHandlers>(() => ({ onSeek: seekTo }), [seekTo]);
-  const cardActions: AnnotationCardActions = {
-    deepDives: coach.deepDives,
-    setOpen: popup.setOpen,
-    onPlay: (a) => {
+  const { deepDives, setReviewed, askCorner } = coach;
+  const { setOpen } = popup;
+  const onPlay = useCallback(
+    (a: Annotation) => {
       seekTo(a);
       store.play();
     },
-    onToggleReviewed: (a) => void coach.setReviewed(a.findingId, !a.reviewed),
-    onAsk: (a) => coach.askCorner(a.cornerId),
-  };
+    [seekTo, store],
+  );
+  const onToggleReviewed = useCallback((a: Annotation) => void setReviewed(a.findingId, !a.reviewed), [setReviewed]);
+  const onAsk = useCallback((a: Annotation) => askCorner(a.cornerId), [askCorner]);
+  // Stable, so the card context's consumers only render when an input changes.
+  const cardActions = useMemo<AnnotationCardActions>(
+    () => ({ deepDives, setOpen, onPlay, onToggleReviewed, onAsk }),
+    [deepDives, setOpen, onPlay, onToggleReviewed, onAsk],
+  );
+
+  const lapTime = ctx?.laps.find((l) => l.lap_id === cmp?.lap_id)?.lap_time_s ?? null;
+  const refTime = ctx?.laps.find((l) => l.lap_id === cmp?.ref_lap_id)?.lap_time_s ?? null;
+  // Stable, so the memoised track views don't render for unrelated page state.
+  const lapTimes = useMemo(() => (cmp ? { lap: lapTime, ref: refTime } : undefined), [cmp, lapTime, refTime]);
 
   const selectLap = (id: string) => setParams({ lap: id });
   const selectRef = (id: string | null) => setParams(id ? { lap: ctx!.lap.lap_id, ref: id } : { lap: ctx!.lap.lap_id });
@@ -134,7 +145,7 @@ function Telemetry() {
             <TrackPanel
               model={model} trackMap={trackMap} geometry={geometry}
               annotations={annotations} handlers={handlers}
-              lapTimes={cmp ? { lap: ctx?.laps.find((l) => l.lap_id === cmp.lap_id)?.lap_time_s ?? null, ref: ctx?.laps.find((l) => l.lap_id === cmp.ref_lap_id)?.lap_time_s ?? null } : undefined}
+              lapTimes={lapTimes}
               expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
               footer={<EngineerLine annotations={annotations} trackMap={trackMap} model={model} />}
             />

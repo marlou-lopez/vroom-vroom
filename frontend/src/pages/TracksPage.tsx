@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type MouseEvent } from "react";
 import { useQueries, type QueryObserverResult } from "@tanstack/react-query";
 import { sessionLapsOptions, useCalibrate, useLandmarkMutation, useLapTrace, useSessions, useTrackMap } from "../api/queries";
 import { errorInfo, type CalibrationResult, type GridChannel, type LapWithRef, type LandmarkKind, type NewLandmark, type SessionMeta } from "../api/types";
-import { AddLandmarkForm, LandmarkEditor } from "../components/LandmarkEditor";
+import { ADD_LANDMARK_BTN_ID, AddLandmarkForm, LandmarkEditor } from "../components/LandmarkEditor";
 import { landmarkFill, landmarkStroke } from "../lib/landmarks";
 import { bestValidLap } from "../lib/laps";
 import { nearestCorner, nearestPoint, pointAtDistance, polylinePath, cornerSegmentPath, type Projection } from "../lib/trackmap";
@@ -37,8 +37,17 @@ export function TracksPage() {
   const [trackId, setTrackId] = useState<string | null>(null);
   const [selectedCorner, setSelectedCorner] = useState<string | null>(null);
   const [calResult, setCalResult] = useState<CalibrationResult | null>(null);
-  const [adding, setAdding] = useState<{ seq: number; distanceM: number; cornerId: string | null; left: number; top: number } | null>(null);
+  const [adding, setAdding] = useState<{ seq: number; distanceM: number; cornerId: string | null; left?: number; top?: number; inline?: boolean } | null>(null);
   const addSeq = useRef(0);
+  // The side-panel form is prefilled from the selected corner: close it when the selection changes so it can't go stale.
+  const selectCorner = (id: string | null) => {
+    setSelectedCorner(id);
+    setAdding((a) => (a?.inline ? null : a));
+  };
+  const closeInline = () => {
+    setAdding(null);
+    requestAnimationFrame(() => document.getElementById(ADD_LANDMARK_BTN_ID)?.focus());
+  };
   const svgRef = useRef<SVGSVGElement>(null);
   const mapBoxRef = useRef<HTMLDivElement>(null);
 
@@ -132,6 +141,31 @@ export function TracksPage() {
     });
   };
 
+  const openAddForm = () => {
+    if (!map) return;
+    const corner = map.corners.find((c) => c.id === selectedCorner);
+    setAdding({ seq: ++addSeq.current, distanceM: corner ? Math.round(corner.apex_m) : 0, cornerId: corner?.id ?? null, inline: true });
+  };
+
+  const addForm = adding && map && (
+    <AddLandmarkForm
+      key={adding.seq} // remount per open: the form's state only reads its props initially
+      distanceM={adding.distanceM}
+      corners={map.corners}
+      defaultCornerId={adding.cornerId}
+      inline={adding.inline}
+      style={adding.inline ? undefined : { left: adding.left, top: adding.top }}
+      maxM={geo ? geo.distance[geo.distance.length - 1] : undefined}
+      onCancel={() => (adding.inline ? closeInline() : setAdding(null))}
+      onSubmit={({ label, kind, cornerId, distanceM }) => {
+        const lm: NewLandmark = { label, kind: kind as LandmarkKind, distance_m: Math.round(distanceM), corner_id: cornerId };
+        if (adding.inline) closeInline();
+        else setAdding(null);
+        landmarkM.mutate({ op: "add", landmark: lm });
+      }}
+    />
+  );
+
   if (sessions === null && !error) return <div className={styles.status}>Loading…</div>;
   if (tracks.length === 0) return <div className={styles.status}>{error ? `${error.code}: ${error.message}` : "No tracks yet. Import a recording first."}</div>;
 
@@ -170,7 +204,7 @@ export function TracksPage() {
           </div>
           <div ref={mapBoxRef} className={styles.mapBox}>
             {geo && map ? (
-              // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- Alt-click map; keyboard path tracked in #75
+              // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- Alt-click is the fast path; the keyboard path is the Add landmark button in the Landmarks panel
               <svg ref={svgRef} viewBox={VIEWBOX} onClick={onMapClick} role="img" aria-label="Track map" className={styles.map}>
                 <path d={geo.basePath} className={styles.base} />
                 {cornerSegs.map(({ c, d }) =>
@@ -180,7 +214,7 @@ export function TracksPage() {
                       d={d}
                       aria-label={c.name}
                       onClick={(e) => {
-                        if (!e.altKey) setSelectedCorner(c.id);
+                        if (!e.altKey) selectCorner(c.id);
                       }}
                       className={cx(styles.seg, c.id === selectedCorner && styles.selected)}
                     />
@@ -209,24 +243,7 @@ export function TracksPage() {
             ) : (
               <div className={styles.loadingMap}>{error ? "" : "Loading map…"}</div>
             )}
-            {adding && map && (
-              <AddLandmarkForm
-                key={adding.seq} // remount per Alt-click: the form's state only reads its props initially
-                distanceM={adding.distanceM}
-                corners={map.corners}
-                defaultCornerId={adding.cornerId}
-                style={{ left: adding.left, top: adding.top }}
-                onCancel={() => setAdding(null)}
-                onSubmit={({ label, kind, cornerId }) => {
-                  const lm: NewLandmark = {
-                    label, kind: kind as LandmarkKind, distance_m: Math.round(adding.distanceM),
-                    corner_id: cornerId,
-                  };
-                  setAdding(null);
-                  landmarkM.mutate({ op: "add", landmark: lm });
-                }}
-              />
-            )}
+            {addForm && !adding?.inline && addForm}
           </div>
         </section>
 
@@ -251,7 +268,7 @@ export function TracksPage() {
                         <button
                           type="button"
                           aria-pressed={c.id === selectedCorner}
-                          onClick={() => setSelectedCorner(c.id === selectedCorner ? null : c.id)}
+                          onClick={() => selectCorner(c.id === selectedCorner ? null : c.id)}
                           className={styles.nameBtn}
                         >
                           {c.name}{c.approx ? " ~" : ""}
@@ -273,7 +290,9 @@ export function TracksPage() {
             busy={busy}
             onConfirm={(id) => landmarkM.mutate({ op: "patch", landmarkId: id, patch: { confirm: true } })}
             onDelete={(id) => landmarkM.mutate({ op: "delete", landmarkId: id })}
+            onAdd={openAddForm}
           />
+          {adding?.inline && addForm}
         </div>
       </div>
     </div>
