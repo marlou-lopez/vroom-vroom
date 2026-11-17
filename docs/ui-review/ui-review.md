@@ -180,3 +180,22 @@ More: `img/41-ws-lap-vs-ref.png`, `img/43-ws-seek-corner.png`, `img/44-ws-vs-ide
 | task | Legend for map marks, and pressed state for track-view toggles | The classic map has a legend for understeer, close call, lockup and wheelspin. Toggle buttons in the detailed 2D and 3D views show their on state. The 3D cockpit mirror no longer covers the readout. |
 | bug | Unknown-lap link shows a way forward | `?lap=<unknown>` shows "That lap no longer exists" with "Open latest lap" and "Sessions" actions, and keeps the header. Test. |
 | feature | Page-wide playback keys and a shortcuts popover | Space, ←/→ and J/K/L work outside inputs; a "?" popover lists them; corner ticks are a roving-tabindex group that includes hidden ticks. |
+
+## Decision (autopilot)
+
+**Change** (Opus judge, 2026-11-18): keep direction C as the target layout for the Telemetry page, with these changes.
+
+Reasons:
+- C fixes the two structural root causes (the comparison has no home; "where is the time" is answered in four places). A leaves them. B goes against the spec's dense, tool-like theme and the persona, and fits poorly with v3's live dashboard.
+- It is UI work on mock data with no contract change, so it belongs in the current v1 epic and doesn't delay Analysis features or the backend. The corner rail gives later analysis one place to land.
+- The prototype's costs (width, the readout collision, the duplicate Analyze, stacking at 1100 px) must be designed in, not left for later.
+- The cheap bugs (self-comparison landing, URL params, unknown lap) ship first, whatever the layout.
+
+Changes to the direction:
+- The rails are narrow (~180 px and ~240 px), collapsible, and remember their state. The corner rail starts collapsed below 1400 px, and the rails never stack under the centre.
+- One coach entry point: Analyze, Average, cost and Re-analyze stay in a labelled Analysis bar. The corner rail only shows results (deltas, fixes, deep-dive answers), with no "Ask the coach" button.
+- The corner rail replaces the Biggest losses row and the Corners tab's job of ranking losses. The Corners table stays as the detail view.
+- When the rails ship, the header pickers and the `?ui=workspace` flag go. The rails become the default, with no long period of two layouts.
+- The Sessions rework stays small (one session selector, Stint tied to it). Sessions isn't demoted to history only yet.
+
+Follow-up issues filed under vroom-pnw: vroom-pnw.31 (landing + unknown lap), .32 (URL params), .33 (lap rail, after .31 .32), .34 (corner rail, after .33), .35 (strips axis/window/legend), .36 (page-wide keys, after .33 .34), .37 (Sessions selector, after .32), .38 (map legend, toggle states, cockpit mirror).
