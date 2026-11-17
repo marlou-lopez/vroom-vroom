@@ -60,7 +60,7 @@ The schema is the part of `CoachResult` the LLM writes (`summary`, `findings[]` 
 
 5 runs per packet, model and prompt. TTFT counts any first token, including reasoning (gpt-oss streams its
 reasoning first). "First JSON" is the first token of the answer itself, which is what a UI could start showing.
-gpt-6.1-sol was run with the v1 prompt only.
+gpt-6.1-sol was run with the v1 prompt only; it was already clean with it.
 
 | Model | Prompt | Packet | Schema valid | Guard 1st try | After retry | Contract | Prose clean | First JSON s | Total s (median) | Output tok | Cost $ (5 calls) |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -80,11 +80,15 @@ gpt-6.1-sol was run with the v1 prompt only.
 | gpt-6-luna (OpenAI) | v1 | analyze lap 3 | 5/5 | 5/5 | 5/5 | 5/5 | 1/5 | 12.8 | 18.9 | 2 198 | 0.006 |
 | gpt-6-luna (OpenAI) | v1 | average | 5/5 | 5/5 | 5/5 | 5/5 | 0/5 | 4.7 | 7.5 | 859 | 0.003 |
 | gpt-6-luna (OpenAI) | v1 | corner (trace) | 5/5 | 5/5 | 5/5 | 5/5 | 2/5 | 7.4 | 9.0 | 890 | 0.004 |
+| gpt-6-luna (OpenAI) | v2 | analyze lap 2 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 15.4 | 21.5 | 2 359 | 0.007 |
+| gpt-6-luna (OpenAI) | v2 | analyze lap 3 | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 17.5 | 23.5 | 2 571 | 0.007 |
+| gpt-6-luna (OpenAI) | v2 | average | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 5.8 | 8.8 | 904 | 0.003 |
+| gpt-6-luna (OpenAI) | v2 | corner (trace) | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 | 6.9 | 8.7 | 825 | 0.004 |
 
 Totals: gpt-oss **4/20** clean with v1 and **15/20** with v2; gpt-6.1-sol **19/20** with v1; gpt-6-luna **5/20**
-with v1, nearly all misses being field names in `evidence` (its `what`/`fix` read cleanly). gpt-6.1-sol costs
+with v1 (nearly all misses were field names in `evidence`) and **20/20** with v2. gpt-6.1-sol costs
 about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 for its 20 runs; gpt-6-luna about
-**0.1 cents a call** ($0.10 / $0.50), $0.019 for 20.
+**0.1 cents a call** ($0.10 / $0.50), about $0.02 for 20.
 
 - **Packet bug found by the hosted model.** The first Corner packet rounded the normalised steering (−1..1) to
   whole numbers, so the trace showed 0 everywhere. gpt-6.1-sol said so ("the summary reports 5 extrema versus
@@ -96,6 +100,9 @@ about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 fo
 - **Guard failure reasons:** none for either model. Every run passed first time, so the retry path never ran
   on a real failure. (An early guard bug failed the Corner packet; the stored outputs were re-checked after
   the fix, see `summarize.py`.)
+- **Every model leans on "use the exit kerb as your cue"**, because the exit kerb is often the only landmark
+  in the packet and the packet doesn't say what each landmark is for. That's a packet problem for vroom-9ki.12,
+  not a model one.
 - **What the guard misses:**
   - One subtraction in gpt-oss's 40 runs ("drops your exit speed by 4 km/h", 151 − 147) passed, because "4"
     appears elsewhere in the packet (a gear). A string guard can't catch small integers; the real guard
@@ -126,7 +133,6 @@ about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 fo
 
 | Item | Why not | How |
 |---|---|---|
-| gpt-6-luna with prompt v2 | optional; v2 targets exactly luna's misses (field names) | `SPIKE_PROMPT=prompt-v2.md SPIKE_PRICE=0.10,0.50 run.py --model openai:gpt-6-luna`, about 2 cents |
 | 2nd and 3rd local model | each is a 10–16 GB download onto the Windows box, and loading it evicts Sure's model | candidates from the handover's 2026-11-10 survey: `gemma4:26b-a4b-it-qat` (Gemma licence, 16 GB, slight CPU spill) and a ~14 B Qwen instruct at Q4 (Apache-2.0; check the exact tag and licence in the Ollama library). Lower priority now: they'd have to beat gpt-oss by a wide margin |
 | VRAM with LMU open in its menus, and LMU's own VRAM | needs LMU running | Task Manager → GPU → dedicated memory: LMU alone, then LMU + `ollama ps` after one call. gpt-oss alone holds 12.74 GB of the 16 GB, so it probably won't fit next to LMU without spilling to the CPU |
 | Blind ratings | need the user | `python3 -I summarize.py blind --per 2`, rate `blind/sheet.md` 1–5, then open `blind/key.json` |
@@ -135,9 +141,10 @@ about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 fo
 
 ## Options
 
-1. **Hosted default, provider configurable.** OpenAI's gpt-6.1-sol for now (the user has credit there),
-   Anthropic or a local model one setting away. Best prose, uses the trace, 2–5 s to the first answer token,
-   about 1 cent a call, and nothing depends on the GPU being free. Packets leave the PC.
+1. **Hosted default, provider configurable.** OpenAI for now (the user has credit there), Anthropic or a local
+   model one setting away; strong tier gpt-6.1-sol (Analyze, Corner), fast tier gpt-6-luna (Average, or
+   everything if its prose rates well). Best prose, uses the trace, about 0.1–1.2 cents a call, and nothing
+   depends on the GPU being free. Packets leave the PC.
 2. **Local default, hosted fallback when the GPU is busy** (or split by command: local for Average, hosted
    for Analyze and Corner). Free, and reliable in format (40/40 schema-valid and guard-clean). But it is
    slower (8–34 s, plus a 43–50 s cold load), probably can't share VRAM with LMU, needs the v2 prompt to write
@@ -148,8 +155,8 @@ about **1.2 cents a call** ($2 / $10 per M tokens, `SPIKE_PRICE=2,10`), $0.24 fo
 ## Recommendation (provisional)
 
 **Change:** local isn't good enough to be the default, but keep it as an option. Build vroom-9ki.11 with the
-provider as a setting and a hosted default (option 1). At about 1 cent a call, the cost is small next to the
-quality gap, which is widest on the Corner command, the one place the coach reads raw telemetry. Keep the local
+provider as a setting and a hosted default (option 1), with a strong and a fast model as the design already
+plans. At 0.1–1.2 cents a call, the cost is small next to the quality gap, which is widest on the Corner command, the one place the coach reads raw telemetry. Keep the local
 path (`llm_provider: "ollama"`) for anyone who wants offline or free use: its format and grounding were
 perfect in 40 runs. Final call after the blind ratings and the fallback question below.
 
@@ -179,6 +186,6 @@ Lessons for vroom-9ki.12 (coach packets and guard), whichever model wins:
 ## Question for the user (before the final recommendation)
 
 The issue asked: is a **hosted fallback OK when the GPU is busy**, or should the coach be **local-only**? With
-these results the question becomes: is **hosted by default** OK (about 1 cent a call, with the facts packets
+these results the question becomes: is **hosted by default** OK (0.1–1.2 cents a call, with the facts packets
 sent to OpenAI or Anthropic)? If yes, option 1. If you'd rather pay nothing when the GPU is free, option 2.
 Local-only means option 3, and the coach waits until LMU is closed.
