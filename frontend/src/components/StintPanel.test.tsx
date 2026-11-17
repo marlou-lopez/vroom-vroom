@@ -38,17 +38,27 @@ describe("StintPanel", () => {
     expect(within(panel).getAllByText(/s\/lap$/).length).toBeGreaterThan(0);
   });
 
-  it("shows the fuel-corrected fall-off next to the raw one, labelled experimental, with its assumed constant", async () => {
+  it("shows the fuel-corrected fall-off next to the raw one, with its assumed constant and source", async () => {
     serve(STINT);
     const race = await sessionOf((s) => s.session_type === "Race");
     const { wrapper } = createQueryWrapper();
     render(<StintPanel session={race} />, { wrapper });
     const box = await screen.findByLabelText("Fuel-corrected fall-off");
-    expect(within(box).getByText(/experimental/i)).toBeTruthy();
+    expect(within(box).queryByText(/experimental/i)).toBeNull();
     expect(within(box).getByText("+0.102 s/lap")).toBeTruthy();
     expect(box.textContent).toMatch(/raw \+0\.050/);
     expect(box.textContent).toMatch(/0\.0228 s\/kg/);
     expect(box.textContent).toMatch(/0\.74 kg\/L/);
+  });
+
+  it("hides the corrected fall-off for a car class without a constant, and keeps the raw one", async () => {
+    serve({ ...STINT, car_class: "LMP2" });
+    const race = await sessionOf((s) => s.session_type === "Race");
+    const { wrapper } = createQueryWrapper();
+    render(<StintPanel session={race} />, { wrapper });
+    const panel = await screen.findByRole("region", { name: "Stint" });
+    expect(screen.queryByLabelText("Fuel-corrected fall-off")).toBeNull();
+    expect(within(panel).getByText("+0.050 s/lap")).toBeTruthy();
   });
 
   it("renders nothing for a session without stint stats", async () => {

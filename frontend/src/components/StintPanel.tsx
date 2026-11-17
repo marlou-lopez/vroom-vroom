@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { sessionStintsOptions } from "../api/queries";
 import type { SessionMeta, Stint, Wheels } from "../api/types";
 import { formatLapTime, formatShortDate } from "../lib/format";
-import { falloffPlot, fuelCorrectedFalloff, GT3_FUEL_EFFECT, stintRows, stintSummary, type FitExclusion } from "../lib/stint";
+import { falloff as fitFalloff, falloffPlot, stintRows, stintSummary, type FitExclusion } from "../lib/stint";
 import { cx } from "../lib/cx";
 import ui from "./ui.module.css";
 import styles from "./StintPanel.module.css";
@@ -29,11 +29,13 @@ function WheelGrid({ v, digits = 0, label }: { v: Wheels | null; digits?: number
 function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMeta; multi: boolean }) {
   const rows = useMemo(() => stintRows(stint.laps), [stint]);
   const sum = useMemo(() => stintSummary(rows), [rows]);
-  const plot = useMemo(() => falloffPlot(rows, sum.falloff, 1000, 160), [rows, sum.falloff]);
-  const corrected = useMemo(() => fuelCorrectedFalloff(rows), [rows]);
+  // The numbers come from the API (stint.falloff, stint.falloff_fuel_corrected); the chart's line needs the intercept, so it is drawn from a local raw fit.
+  const plot = useMemo(() => falloffPlot(rows, fitFalloff(rows), 1000, 160), [rows]);
+  const raw = stint.falloff;
+  const corrected = stint.falloff_fuel_corrected;
   const hasEnergy = stint.laps.some((l) => l.energy_start_pct !== null);
   const cards: { k: string; v: string; title?: string }[] = [
-    { k: "FALL-OFF", v: sum.falloff ? `${sum.falloff.slope >= 0 ? "+" : ""}${sum.falloff.slope.toFixed(3)} s/lap` : "—", title: sum.falloff ? `Least-squares fit over ${sum.falloff.n} laps` : undefined },
+    { k: "FALL-OFF", v: raw ? `${signed(raw.slope_s_per_lap)} s/lap` : "—", title: raw ? `Least-squares fit over ${raw.n_laps} laps` : undefined },
     { k: "FUEL / LAP", v: f2(sum.fuelPerLap, " L") },
     { k: "ENERGY / LAP", v: hasEnergy ? f2(sum.energyPerLap, " %") : "n/a" },
     {
@@ -57,14 +59,13 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
         ))}
       </div>
       {corrected && (
-        // EXPERIMENTAL (spike vroom-d4g, docs/stint/fuel-corrected-falloff.md): the fuel-weight effect is an assumed constant.
+        // The fuel-weight effect is an assumed per-class constant (docs/stint/fuel-corrected-falloff.md), shown with its source.
         <div className={styles.corrected} aria-label="Fuel-corrected fall-off">
-          <span className={styles.tag}>experimental</span>
           <span className={styles.cardKey}>FUEL-CORRECTED FALL-OFF</span>
-          <span className={styles.cardValue}>{signed(corrected.slope)} s/lap</span>
+          <span className={styles.cardValue}>{signed(corrected.slope_s_per_lap)} s/lap</span>
           <span className={styles.dim}>
-            raw {signed(corrected.raw.slope)} + fuel gain {corrected.fuelGainPerLap.toFixed(3)} ({corrected.kgPerLap.toFixed(2)} kg a lap ×{" "}
-            {corrected.secPerKg.toFixed(4)} s/kg). Assumed: {GT3_FUEL_EFFECT.source}.
+            {raw ? `raw ${signed(raw.slope_s_per_lap)} + ` : ""}fuel gain {corrected.fuel_gain_s_per_lap.toFixed(3)} ({corrected.kg_per_lap.toFixed(2)} kg a lap ×{" "}
+            {corrected.s_per_kg.toFixed(4)} s/kg). Assumed: {corrected.assumption.source}.
           </span>
         </div>
       )}

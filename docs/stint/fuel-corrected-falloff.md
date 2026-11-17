@@ -139,3 +139,11 @@ setting, C), or drop it and keep only the raw fall-off?
 Follow-ups: **vroom-bi4.9** (raw and corrected fall-off in the stints contract and mock; the panel reads them and loses the
 EXPERIMENTAL label) and **vroom-9ki.20** (compute both in racecoach with constants in `config/cars.yaml`, into the coach facts).
 vroom-9ki.18 now depends on vroom-bi4.9.
+
+## Built in vroom-bi4.9
+
+The stints contract carries `falloff` and `falloff_fuel_corrected` per stint (`frontend/src/api/types.ts`). The mock computes them with
+`lib/stint.ts` and a per-class table (`FUEL_EFFECT_BY_CLASS` in `api/mock/stint.ts`, GT3 only; a class without an entry gets null). The
+Stint panel reads both from the API, shows the corrected value next to the raw one with the constant and its source, and has lost the
+EXPERIMENTAL label. The chart line stays raw (drawn from a local fit, because the contract carries no intercept). Monza race: raw
++0.050, corrected +0.102 s/lap.

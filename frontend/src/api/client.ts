@@ -38,7 +38,8 @@ export interface Api {
   llmUsage(): Promise<LlmUsage>;
   /**
    * The session's laps split into stints at each pit stop (GET /sessions/{id}/stints), each lap with its `lap_id` and its
-   * fuel, virtual energy, tyre and brake stats. Empty when the recording has no stint stats. Unknown session: `unknown_session`.
+   * fuel, virtual energy, tyre and brake stats, and each stint's raw and fuel-corrected lap-time fall-off (the latter null for a car class
+   * without a fuel-weight constant). Empty when the recording has no stint stats. Unknown session: `unknown_session`.
    */
   sessionStints(sessionId: string): Promise<Stint[]>;
 }

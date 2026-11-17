@@ -1010,8 +1010,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
       return { calls: clone(calls), total_usd: calls.reduce((s, c) => s + (c.cost_usd ?? 0), 0) };
     },
     async sessionStints(sessionId): Promise<Stint[]> {
-      sessionOf(sessionId);
-      return splitStints(clone(stintStats.get(sessionId) ?? []));
+      return splitStints(clone(stintStats.get(sessionId) ?? []), sessionOf(sessionId).car_class);
     },
   };
 
