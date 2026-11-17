@@ -128,3 +128,18 @@ export function elevationRange(...heights: ArrayLike<number | null>[]): Range {
 export function cornerBands(startM: number, endM: number, lapEnd: number): Array<{ d0: number; d1: number; startEdge: boolean; endEdge: boolean }> {
   return splitWrapping(startM, endM, lapEnd).map(([d0, d1]) => ({ d0, d1, startEdge: d0 === startM, endEdge: d1 === endM }));
 }
+
+/** Fixed y range over arrays: their min and max with `padFrac` of the span either side; at least `minSpan` wide. */
+export function paddedRange(padFrac: number, minSpan: number, ...arrs: ArrayLike<number>[]): Range {
+  const r = minMax(...arrs);
+  if (!r) return [0, minSpan];
+  const mid = (r[0] + r[1]) / 2;
+  const half = Math.max((r[1] - r[0]) * (0.5 + padFrac), minSpan / 2);
+  return [mid - half, mid + half];
+}
+
+/** Symmetric y range around zero over arrays: 5 % headroom, at least `minHalf`. */
+export function symmetricRange(minHalf: number, ...arrs: ArrayLike<number>[]): Range {
+  const m = Math.max(maxAbs(...arrs) * 1.05, minHalf);
+  return [-m, m];
+}
