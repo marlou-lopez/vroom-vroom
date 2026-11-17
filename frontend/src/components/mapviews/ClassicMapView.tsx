@@ -144,6 +144,7 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
   const labelRight = ghost ? ghost.x <= MAP_W / 2 : true;
 
   return (
+    <>
     <svg
       ref={svgRef}
       viewBox={VIEWBOX}
@@ -160,13 +161,6 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
     >
       <path d={model.mapPath} className={styles.base} />
       {cornerPath && <path d={cornerPath} className={styles.cornerNow} />}
-      {balancePaths && (
-        <text x={-MAP_PAD + 2} y={-MAP_PAD + 7} className={styles.balanceLegend} data-testid="balance-legend">
-          <title>{BALANCE_HINT}</title>
-          <tspan className={styles.legendUs}>understeer</tspan>
-          {oversteerOn && <> · exp: <tspan className={styles.legendOs}>oversteer</tspan></>}
-        </text>
-      )}
       {balancePaths?.understeer && <path d={balancePaths.understeer} className={styles.understeer} data-testid="understeer-marks" />}
       {balancePaths?.oversteer && <path d={balancePaths.oversteer} className={styles.oversteer} data-testid="oversteer-marks" />}
       {slipPaths.offTrack && <path d={slipPaths.offTrack} className={lapValid === false ? styles.offTrack : styles.closeCall} data-testid="off-track-marks" />}
@@ -188,5 +182,12 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
       <circle cx={you.x} cy={you.y} r={3.6} className={styles.youDot} />
       <MapBadges annotations={annotations} model={model} h={handlers} />
     </svg>
+    <ul className={styles.legend} aria-label="Map marks" data-testid="map-legend">
+      {balancePaths && <li title={BALANCE_HINT}><i className={styles.swUnder} />understeer{oversteerOn && <> · exp: <i className={styles.swOver} />oversteer</>}</li>}
+      <li>{lapValid === false ? <><i className={styles.swOff} />off track</> : <><i className={styles.swClose} />close call</>}</li>
+      <li><i className={styles.swLock} />lockup</li>
+      <li><i className={styles.swSpin} />wheelspin</li>
+    </ul>
+    </>
   );
 }

@@ -26,6 +26,8 @@
   cursor: pointer;
 }
 .btn:hover:not(:disabled) { background: var(--color-hover); }
+/* On state of a toggle button (aria-pressed), the same look as an on toggleItem plus an accent edge. */
+.btn[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-you); }
 .btn:disabled, .btnPrimary:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .btnMuted { color: var(--color-muted); }

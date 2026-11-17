@@ -104,7 +104,7 @@ export function readColors(el: Element): Colors {
     lockup: get("--color-lockup", "#FF3B3B"),
     wheelspin: get("--color-wheelspin", "#FFB020"),
     offTrack: get("--color-off-track", "#FF2D55"),
-    closeCall: get("--color-close-call", "#868E99"),
+    closeCall: get("--color-close-call", "#B08968"),
   };
 }
 
