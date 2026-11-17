@@ -13,6 +13,7 @@ import { newestBest } from "../test/mockServer";
 vi.mock("uplot", () => ({
   default: class {
     static pxRatio = 1;
+    static paths = { stepped: () => () => null };
     root = document.createElement("div");
     over = document.createElement("div");
     bbox = { left: 0, top: 0, width: 0, height: 0 };
@@ -40,6 +41,7 @@ describe("DetailedStrips elevation strip", () => {
     );
     const { rerender } = render(view(null));
     expect(screen.queryByText("ELEVATION")).toBeNull();
+    expect(screen.getByText("GEAR")).toBeTruthy();
     rerender(view(geometry));
     expect(screen.getByText("ELEVATION")).toBeTruthy();
   });
