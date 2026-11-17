@@ -6,20 +6,25 @@
   overflow: hidden;
 }
 
-.readout { position: absolute; left: 8px; top: 6px; display: flex; flex-direction: column; gap: 2px; z-index: 2; pointer-events: none; }
+/* The three overlays share one row at the top of the panel and wrap instead of colliding when the panel is narrow (1280 px windows give it about 540 px). */
+.top {
+  position: absolute; left: 8px; right: 8px; top: 6px; z-index: 2; pointer-events: none;
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 4px 8px;
+}
+.readout { display: flex; flex-direction: column; gap: 2px; min-width: 0; order: 1; }
 .corner { font-size: 18px; font-weight: 700; }
 .mono { font-family: var(--font-mono); }
 .muted { color: var(--color-muted); }
 
-.deltaBox { position: absolute; right: 8px; top: 6px; text-align: right; z-index: 2; pointer-events: none; }
+.deltaBox { text-align: right; order: 3; margin-left: auto; }
 .delta { font-family: var(--font-mono); font-size: 22px; font-weight: 600; color: var(--color-muted); }
 .loss { color: var(--color-issue); }
 .gain { color: var(--color-strength); }
 
 .footer { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; }
 
-/* Top-centre, compact so it stays clear of the readout (left) and delta box (right). */
-.toolbar { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); display: flex; gap: 4px; z-index: 2; }
+/* Between the readout and the delta box when there is room; on its own row below them when there is not. */
+.toolbar { display: flex; gap: 4px; pointer-events: auto; order: 2; margin: 0 auto; }
 .viewToggle { display: flex; border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; background: var(--color-bg); }
 .exp { margin-left: 4px; font-size: 9px; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .expand { padding: 1px 6px; background: var(--color-bg); line-height: 1; }

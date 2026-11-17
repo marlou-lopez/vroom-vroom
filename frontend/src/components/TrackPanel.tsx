@@ -6,6 +6,7 @@ import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, indexAtTime } from "../lib/playback";
 import { formatDelta, gearLabel } from "../lib/format";
 import { cx } from "../lib/cx";
+import { standingLabel } from "../lib/compareName";
 import { cornerAt } from "../lib/trackmap";
 import { usePlayback } from "../state/playback";
 import { loadTrackView, saveTrackView } from "../state/mapViewPref";
@@ -24,13 +25,15 @@ export interface TrackPanelProps {
   handlers: BadgeHandlers;
   lapTimes?: { lap: number | null; ref: number | null };
   lapValid?: boolean;
+  /** Short name of the comparison ("ideal", "reference", "L7"), so the read-out says who you are ahead of or behind. */
+  refName?: string | null;
   /** Bottom strip of the panel (EngineerLine). */
   footer?: ReactNode;
   expanded: boolean;
   onToggleExpanded(): void;
 }
 
-export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, lapValid, footer, expanded, onToggleExpanded }: TrackPanelProps) {
+export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, lapValid, refName, footer, expanded, onToggleExpanded }: TrackPanelProps) {
   const [viewId, setViewId] = useState<TrackViewId>(loadTrackView);
 
   const active = TRACK_VIEWS.find((v) => v.id === viewId) ?? TRACK_VIEWS[0];
@@ -47,7 +50,8 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
       <ErrorBoundary label="track view" variant="panel" resetKeys={[model, active.id]}>
         <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} />
       </ErrorBoundary>
-      <Readout model={model} trackMap={trackMap} />
+      <div className={styles.top}>
+      <Readout model={model} trackMap={trackMap} refName={refName ?? null} />
       <div className={styles.toolbar}>
         <ToggleGroup.Root
           type="single" aria-label="Track view" className={styles.viewToggle}
@@ -72,13 +76,14 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
           {expanded ? "⤡" : "⤢"}
         </button>
       </div>
+      </div>
       {footer && <div className={styles.footer}>{footer}</div>}
     </section>
   );
 }
 
 /** Corner, distance, gear, speed and delta read-out. The only part of the panel that follows the playhead, so the view above it stays still. */
-function Readout({ model, trackMap }: { model: PlaybackModel; trackMap: TrackMap | null }) {
+function Readout({ model, trackMap, refName }: { model: PlaybackModel; trackMap: TrackMap | null; refName: string | null }) {
   const tau = usePlayback((s) => s.tau);
   const { cmp } = model;
   const iy = indexAtTime(cmp.lap.t, tau);
@@ -87,8 +92,10 @@ function Readout({ model, trackMap }: { model: PlaybackModel; trackMap: TrackMap
   const corner = trackMap ? cornerAt(trackMap, dYou) : null;
   const delta = cmp.delta[iy] ?? 0;
   const gap = Math.round(dRef - dYou);
-  const gapLabel = gap > 0 ? `reference ${gap} m ahead` : gap < 0 ? `reference ${-gap} m behind` : "level with reference";
-  return (
+  const standing = standingLabel(delta, refName);
+  const who = refName ?? "reference";
+  const gapLabel = gap > 0 ? `${who} ${gap} m ahead` : gap < 0 ? `${who} ${-gap} m behind` : standing ? null : `level with ${who}`;
+    return (
     <Fragment>
       <div className={styles.readout}>
         <div className={styles.corner}>{corner ? corner.name : "Straight"}</div>
@@ -98,6 +105,7 @@ function Readout({ model, trackMap }: { model: PlaybackModel; trackMap: TrackMap
       </div>
       <div className={styles.deltaBox}>
         <div className={cx(styles.delta, delta > 0.005 && styles.loss, delta < -0.005 && styles.gain)}>{formatDelta(delta)} s</div>
+        {standing && <div className={cx(styles.mono, styles.muted)}>{standing}</div>}
         <div className={cx(styles.mono, styles.muted)}>{gapLabel}</div>
       </div>
     </Fragment>

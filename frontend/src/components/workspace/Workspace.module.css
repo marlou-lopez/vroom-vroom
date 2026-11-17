@@ -1,39 +1,19 @@
-/* EXPERIMENTAL workspace layout (vroom-pnw.30, ?ui=workspace). Theme tokens only. */
+/* Telemetry page layout: the lap rail beside the centre. Theme tokens only. The rail never stacks under the centre. */
 
 .layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr) 250px;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: var(--gap);
   padding: var(--pad) var(--pad) 0;
   min-height: 0;
 }
-.center { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-/* The page grid keeps its own padding; inside the workspace the outer layout already pads. */
-.center > div { padding: 0; }
-
-@media (max-width: 1100px) {
-  .layout { grid-template-columns: 180px minmax(0, 1fr); }
-  .layout > aside:last-child { grid-column: 1 / -1; }
-}
-@media (max-width: 700px) {
-  .layout { grid-template-columns: minmax(0, 1fr); }
-}
-
-.banner {
-  display: flex; align-items: center; gap: var(--gap);
-  padding: 3px 10px; border-bottom: 1px solid var(--color-border);
-  color: var(--color-muted); font-size: 11px;
-}
-.expTag {
-  color: var(--color-minor); border: 1px solid var(--color-minor); border-radius: var(--radius);
-  padding: 0 4px; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
-}
-.banner a { color: var(--color-you); }
+.center { display: flex; flex-direction: column; min-width: 0; min-height: 0; --grid-pad: 0px; }
 
 .rail {
+  width: 188px; box-sizing: border-box;
   border: 1px solid var(--color-border); border-radius: var(--radius);
-  padding: var(--pad); display: flex; flex-direction: column; gap: var(--gap);
+  padding: 6px; display: flex; flex-direction: column; gap: var(--gap);
   min-height: 0; overflow: auto;
 }
 .railHead { display: flex; align-items: baseline; justify-content: space-between; gap: var(--gap); }
@@ -63,8 +43,8 @@
 .lapRow[data-you] { background: var(--color-selected); box-shadow: inset 2px 0 0 var(--color-you); }
 .lapRow[data-ref] { box-shadow: inset 2px 0 0 var(--color-comparison); }
 .lapMain {
-  flex: 1; display: grid; grid-template-columns: 12px 28px 1fr auto; align-items: center; gap: 4px;
-  background: transparent; border: 0; color: var(--color-text); font: inherit; padding: 3px 4px; text-align: left; cursor: pointer;
+  flex: 1; display: grid; grid-template-columns: 10px 24px 1fr auto; align-items: center; gap: 3px;
+  background: transparent; border: 0; color: var(--color-text); font: inherit; padding: 3px 2px; text-align: left; cursor: pointer; min-width: 0;
 }
 .lapMarker { color: var(--color-you); font-size: 10px; }
 .lapRow[data-ref] .lapMarker { color: var(--color-comparison); }
@@ -108,6 +88,24 @@
   font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; margin-top: 1px;
 }
 
-.lapMain:focus-visible, .refBtn:focus-visible, .quickBtn:focus-visible, .cornerMain:focus-visible, .coachBtn:focus-visible {
+.lapMain:focus-visible, .lapRow:focus-visible, .refBtn:focus-visible, .quickBtn:focus-visible, .cornerMain:focus-visible, .coachBtn:focus-visible {
   outline: 1px solid var(--color-you); outline-offset: 1px;
 }
+
+.railCollapsed { width: 28px; align-items: center; padding: 6px 0; }
+.vertical { writing-mode: vertical-rl; color: var(--color-you); font-family: var(--font-mono); }
+.collapseBtn {
+  background: transparent; border: 1px solid var(--color-border-strong); border-radius: var(--radius);
+  color: var(--color-muted); font: inherit; font-size: 10px; line-height: 1; padding: 2px 5px; cursor: pointer;
+}
+.collapseBtn:hover { color: var(--color-text); }
+.collapseBtn:focus-visible, .sessionSelect:focus-visible { outline: 1px solid var(--color-you); outline-offset: 1px; }
+.sessionSelect {
+  width: 100%; min-width: 0; background: var(--color-bg); color: var(--color-text);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius); font: inherit; font-size: 11px; padding: 2px;
+}
+.studied { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-family: var(--font-mono); }
+.versus { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.comparison { color: var(--color-comparison); font-family: var(--font-mono); }
+.invalid { color: var(--color-issue); }
+.badge { color: var(--color-minor); font-size: 10px; font-family: var(--font-mono); }

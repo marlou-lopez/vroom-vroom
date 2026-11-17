@@ -7,7 +7,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--gap);
-  padding: var(--pad);
+  padding: var(--grid-pad, var(--pad));
   min-height: 0;
 }
 
