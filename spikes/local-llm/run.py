@@ -192,15 +192,16 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", action="append", required=True, help="ollama:<tag> or anthropic:<model id>")
     ap.add_argument("--runs", type=int, default=5)
-    ap.add_argument("--packet", action="append", help="packet name (default: all in packets/)")
+    ap.add_argument("--packet", action="append", help="packet name (default: all in the packet set)")
+    ap.add_argument("--packets", default="packets", help="packet set: packets (v1) or packets-v2")
     ap.add_argument("--out", default=str(HERE / "results" / "runs.jsonl"))
     a = ap.parse_args()
-    names = a.packet or sorted(p.stem for p in (HERE / "packets").glob("*.json"))
+    names = a.packet or sorted(p.stem for p in (HERE / a.packets).glob("*.json"))
     Path(a.out).parent.mkdir(exist_ok=True)
     with open(a.out, "a") as log:
         for spec in a.model:
             for name in names:
-                packet = json.loads((HERE / "packets" / f"{name}.json").read_text())
+                packet = json.loads((HERE / a.packets / f"{name}.json").read_text())
                 for run in range(a.runs):
                     messages = [{"role": "user", "content": user_message(packet)}]
                     first = attempt(spec, messages, packet)
@@ -209,7 +210,7 @@ def main() -> None:
                         messages += [{"role": "assistant", "content": first["text"]},
                                      {"role": "user", "content": guard.retry_message(first["guard"])}]
                         retry = attempt(spec, messages, packet)
-                    row = {"at": dt.datetime.now().isoformat(timespec="seconds"), "model": spec, "prompt": PROMPT, "packet": name,
+                    row = {"at": dt.datetime.now().isoformat(timespec="seconds"), "model": spec, "prompt": PROMPT, "packets": a.packets, "packet": name,
                            "run": run, "first": first, "retry": retry}
                     log.write(json.dumps(row, ensure_ascii=False) + "\n")
                     log.flush()

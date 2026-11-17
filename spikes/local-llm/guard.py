@@ -151,3 +151,16 @@ def lint(result: dict) -> list[str]:
         for m in SNAKE.findall(text):
             issues.append(f"{field}: field name '{m}'")
     return issues
+
+
+HEDGE = re.compile(
+    r"\b(ambiguous|unclear|does not (?:establish|prove|show|identify|explain)|do not (?:establish|prove|show|identify|explain)"
+    r"|cannot (?:establish|tell|confirm)|can't (?:establish|tell|confirm)|not (?:a )?(?:confirmed|proven)|only a clue"
+    r"|insufficient|not enough data|without (?:pedal|speed|more) data)\b",
+    re.IGNORECASE,
+)
+
+
+def hedges(result: dict) -> int:
+    """Hedging phrases in the prose ("does not establish", "ambiguous" ...), the pattern the blind rating flagged."""
+    return sum(len(HEDGE.findall(text)) for _, text in prose(result))

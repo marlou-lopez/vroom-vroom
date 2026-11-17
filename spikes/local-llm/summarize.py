@@ -24,13 +24,20 @@ def rows(path: Path) -> list[dict]:
     out = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
     packets = {}
     for r in out:
-        packet = packets.setdefault(r["packet"], json.loads((HERE / "packets" / f"{r['packet']}.json").read_text()))
+        pset = r.get("packets", "packets")
+        packet = packets.setdefault((pset, r["packet"]), json.loads((HERE / pset / f"{r['packet']}.json").read_text()))
         for att in (r["first"], r["retry"]):
             if att and att.get("schema_ok"):
                 att["guard"] = guard.check(att["result"], packet)
         if r["retry"] and r["first"].get("schema_ok") and r["first"]["guard"]["ok"]:
             r["retry"] = None  # the retry only ran because of a guard bug since fixed
     return out
+
+
+def label(r: dict) -> str:
+    """Model / prompt, plus the packet set when it isn't v1."""
+    pset = r.get("packets", "packets")
+    return f"{r['model']} / {r.get('prompt', 'prompt.md')}" + ("" if pset == "packets" else f" / {pset}")
 
 
 def ok(x: dict | None) -> bool:
@@ -45,12 +52,12 @@ def med(xs: list[float]) -> str:
 def table(rs: list[dict]) -> str:
     groups = collections.defaultdict(list)
     for r in rs:
-        groups[(r["model"] + " / " + r.get("prompt", "prompt.md"), r["packet"])].append(r)
+        groups[(label(r), r["packet"])].append(r)
     cold = {}
     for r in rs:  # the first call of each model loads it; leave it out of the timing medians
-        cold.setdefault(r["model"] + " / " + r.get("prompt", "prompt.md"), id(r))
-    out = ["| Model | Packet | n | Schema valid | Guard pass, 1st try | after 1 retry | Contract kept | Prose clean | Failure reasons | TTFT s (median, warm) | First JSON token s | Total s (median, warm) | Output tokens | Cost $ |",
-           "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+        cold.setdefault(label(r), id(r))
+    out = ["| Model | Packet | n | Schema valid | Guard pass, 1st try | after 1 retry | Contract kept | Prose clean | Hedge-free | Failure reasons | TTFT s (median, warm) | First JSON token s | Total s (median, warm) | Output tokens | Cost $ |",
+           "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for (model, packet), g in sorted(groups.items()):
         n = len(g)
         schema = sum(1 for r in g if r["first"].get("schema_ok"))
@@ -58,6 +65,7 @@ def table(rs: list[dict]) -> str:
         after = sum(1 for r in g if ok(r["first"]) or ok(r["retry"]))
         contract = sum(1 for r in g if r["first"].get("schema_ok") and not r["first"]["guard"]["contract"])
         clean = sum(1 for r in g if r["first"].get("schema_ok") and not guard.lint(r["first"]["result"]))
+        hedge_free = sum(1 for r in g if r["first"].get("schema_ok") and not guard.hedges(r["first"]["result"]))
         reasons = collections.Counter()
         for r in g:
             for att in (r["first"], r["retry"]):
@@ -70,7 +78,7 @@ def table(rs: list[dict]) -> str:
         warm = [r for r in g if id(r) != cold[model]]
         cost = [r["first"].get("cost_usd") or 0 for r in g] + [(r["retry"] or {}).get("cost_usd") or 0 for r in g]
         out.append(
-            f"| {model} | {packet} | {n} | {schema}/{n} | {first}/{n} | {after}/{n} | {contract}/{n} | {clean}/{n} | "
+            f"| {model} | {packet} | {n} | {schema}/{n} | {first}/{n} | {after}/{n} | {contract}/{n} | {clean}/{n} | {hedge_free}/{n} | "
             f"{', '.join(f'{k} {v}' for k, v in reasons.most_common()) or '–'} | "
             f"{med([r['first'].get('ttft_s') for r in warm])} | {med([r['first'].get('ttft_text_s') for r in warm])} | {med([r['first'].get('total_s') for r in warm])} | "
             f"{med([r['first'].get('output_tokens') for r in g])} | {sum(cost):.4f} |"
@@ -84,7 +92,7 @@ def blind(rs: list[dict], per: int, seed: int) -> None:
     for r in rs:
         best = r["retry"] if r["retry"] and r["retry"].get("schema_ok") else r["first"]
         if best.get("schema_ok"):
-            by[(r["packet"], r["model"] + " / " + r.get("prompt", "prompt.md"))].append(best["result"])
+            by[(r["packet"], label(r))].append(best["result"])
     items = []
     for (packet, model), results in by.items():
         for res in rng.sample(results, min(per, len(results))):

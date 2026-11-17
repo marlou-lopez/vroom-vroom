@@ -1,0 +1,5 @@
+ollama:gpt-oss-20b-nommap analyze-lap2-vs-lap4 #0: first ok retry - total 62.7s
+ollama:gpt-oss-20b-nommap analyze-lap2-vs-lap4 #1: first ok retry - total 22.7s
+ollama:gpt-oss-20b-nommap analyze-lap2-vs-lap4 #2: first ok retry - total 25.5s
+ollama:gpt-oss-20b-nommap analyze-lap2-vs-lap4 #3: first ok retry - total 20.3s
+ollama:gpt-oss-20b-nommap analyze-lap2-vs-lap4 #4: first ok retry - total 19.0s

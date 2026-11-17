@@ -1,0 +1,122 @@
+{
+ "S01": {
+  "model": "ollama:gpt-oss-20b-nommap / prompt.md",
+  "packet": "analyze-lap2-vs-lap4",
+  "score": "1"
+ },
+ "S02": {
+  "model": "openai:gpt-6.1-terra / prompt-v2.md",
+  "packet": "analyze-lap2-vs-lap4",
+  "score": "3-4"
+ },
+ "S03": {
+  "model": "openai:gpt-6-luna / prompt.md",
+  "packet": "analyze-lap2-vs-lap4",
+  "score": "3"
+ },
+ "S04": {
+  "model": "openai:gpt-6-luna / prompt-v2.md",
+  "packet": "analyze-lap2-vs-lap4",
+  "score": "4"
+ },
+ "S05": {
+  "model": "openai:gpt-6.1-sol / prompt.md",
+  "packet": "analyze-lap2-vs-lap4",
+  "score": "1"
+ },
+ "S06": {
+  "model": "ollama:gpt-oss-20b-nommap / prompt-v2.md",
+  "packet": "analyze-lap2-vs-lap4",
+  "score": "3, prose is good, it just needs to remove steering_extrema jargon"
+ },
+ "S07": {
+  "model": "openai:gpt-6-luna / prompt.md",
+  "packet": "analyze-lap3-vs-lap4",
+  "score": "3"
+ },
+ "S08": {
+  "model": "ollama:gpt-oss-20b-nommap / prompt-v2.md",
+  "packet": "analyze-lap3-vs-lap4",
+  "score": "4 prose is good, just hard to read with the values being formatted as value1 / value2"
+ },
+ "S09": {
+  "model": "openai:gpt-6.1-terra / prompt-v2.md",
+  "packet": "analyze-lap3-vs-lap4",
+  "score": "4"
+ },
+ "S10": {
+  "model": "ollama:gpt-oss-20b-nommap / prompt.md",
+  "packet": "analyze-lap3-vs-lap4",
+  "score": "1"
+ },
+ "S11": {
+  "model": "openai:gpt-6.1-sol / prompt.md",
+  "packet": "analyze-lap3-vs-lap4",
+  "score": "2"
+ },
+ "S12": {
+  "model": "openai:gpt-6-luna / prompt-v2.md",
+  "packet": "analyze-lap3-vs-lap4",
+  "score": "3"
+ },
+ "S13": {
+  "model": "openai:gpt-6-luna / prompt-v2.md",
+  "packet": "average-session",
+  "score": "3"
+ },
+ "S14": {
+  "model": "ollama:gpt-oss-20b-nommap / prompt.md",
+  "packet": "average-session",
+  "score": "1"
+ },
+ "S15": {
+  "model": "openai:gpt-6.1-terra / prompt-v2.md",
+  "packet": "average-session",
+  "score": "3"
+ },
+ "S16": {
+  "model": "openai:gpt-6-luna / prompt.md",
+  "packet": "average-session",
+  "score": "1"
+ },
+ "S17": {
+  "model": "openai:gpt-6.1-sol / prompt.md",
+  "packet": "average-session",
+  "score": "1"
+ },
+ "S18": {
+  "model": "ollama:gpt-oss-20b-nommap / prompt-v2.md",
+  "packet": "average-session",
+  "score": "3"
+ },
+ "S19": {
+  "model": "openai:gpt-6.1-sol / prompt.md",
+  "packet": "corner-lap2-stavelot",
+  "score": "4"
+ },
+ "S20": {
+  "model": "openai:gpt-6-luna / prompt.md",
+  "packet": "corner-lap2-stavelot",
+  "score": "2"
+ },
+ "S21": {
+  "model": "ollama:gpt-oss-20b-nommap / prompt-v2.md",
+  "packet": "corner-lap2-stavelot",
+  "score": "3"
+ },
+ "S22": {
+  "model": "openai:gpt-6.1-terra / prompt-v2.md",
+  "packet": "corner-lap2-stavelot",
+  "score": "4"
+ },
+ "S23": {
+  "model": "openai:gpt-6-luna / prompt-v2.md",
+  "packet": "corner-lap2-stavelot",
+  "score": "3"
+ },
+ "S24": {
+  "model": "ollama:gpt-oss-20b-nommap / prompt.md",
+  "packet": "corner-lap2-stavelot",
+  "score": "3"
+ }
+}

@@ -138,6 +138,29 @@ $0.13 for 20. All OpenAI runs together cost about $0.45.
     what caused the throttle lift"), with plainer fixes ("aim for a smoother, steadier steering input through
     the apex"). It writes half the tokens luna does, so it's faster than luna (7.5–15 s) at half sol's price.
 
+### Blind ratings (round 1)
+
+The user rated 24 samples (one per model, prompt and packet; model names hidden until all were scored) 1–5 on
+"does it read like a race engineer?". Scores are in `spikes/local-llm/results/blind-scores-round1.json`.
+
+| Model / prompt | Mean | Analyze ×2 | Average | Corner |
+|---|---|---|---|---|
+| gpt-6.1-terra / v2 | **3.6** | 3.5, 4 | 3 | 4 |
+| gpt-6-luna / v2 | 3.25 | 4, 3 | 3 | 3 |
+| gpt-oss-20b (local) / v2 | 3.25 | 3, 4 | 3 | 3 |
+| gpt-6-luna / v1 | 2.25 | 3, 3 | 1 | 2 |
+| gpt-6.1-sol / v1 | 2.0 | 1, 2 | 1 | 4 |
+| gpt-oss-20b (local) / v1 | 1.5 | 1, 1 | 1 | 3 |
+
+- **The prompt mattered more than the model.** Every v2 run rated 3.25–3.6, every v1 run 1.5–2.25. With v2
+  the local gpt-oss tied with gpt-6-luna.
+- **Hedging costs points.** gpt-6.1-sol, the most expensive tier, rated near the bottom: none of its 20 runs is
+  free of phrases like "does not establish" or "only a clue" (the "Hedge-free" column of `summarize.py table`:
+  sol 0/20, terra 4/20, luna 13/20 with v2, gpt-oss 40/40). Only its Corner deep dive rated well (4).
+- **The rater's notes:** remove field-name jargon ("steering_extrema"); values written as "110 / 112" are hard
+  to read (that format came from the v2 prompt's example).
+- This led to packet set v2 and prompt v3 (below).
+
 ### Not yet measured
 
 | Item | Why not | How |

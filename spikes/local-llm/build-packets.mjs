@@ -150,17 +150,177 @@ function cornerPacket({ lap, ref, cmp, list }, cornerId) {
   };
 }
 
-const out = join(here, "packets");
-mkdirSync(out, { recursive: true });
+// ---- packet set v2: driver aids, engine, kerbs, cause confidence, landmark roles, per-lap Average facts ----
+
+const { aidRuns } = await load("/src/lib/driverAids.ts");
+const { deriveRpmLimits } = await load("/src/lib/shiftLights.ts");
+const REV_LIMITER = Number(String(SPA.car_setup?.VM_REV_LIMITER ?? "").replace(/[^\d]/g, "")) || null;
+/** "On the limiter": within 1.5 % of the rev limiter from the car setup (else of the shift point derived from the lap). */
+const LIMITER_FRACTION = 0.985;
+
+const inCorner = (c, i) => (c.start_m <= c.end_m ? i >= c.start_m && i <= c.end_m : i >= c.start_m || i <= c.end_m);
+const cornerIdx = (c, n) => {
+  const out = [];
+  for (let i = 0; i < n; i++) if (inCorner(c, i)) out.push(i);
+  return out;
+};
+const secondsWhere = (ch, idx, flag) => {
+  let s = 0;
+  for (const i of idx) if (i + 1 < ch.t.length && flag(i)) s += ch.t[i + 1] - ch.t[i];
+  return s;
+};
+const where = (pos, c, anchors) => facts.describeAgainst(pos, anchors) ?? `${facts.offsetPhrase(pos - c.apex_m)} the apex`;
+
+/** Aids, engine and kerb facts for one lap in one corner, all as display strings. */
+function extrasOf(ch, c, anchors) {
+  const n = ch.t.length;
+  const idx = cornerIdx(c, n);
+  const runs = aidRuns(ch);
+  const first = (rs) => rs.find((r) => idx.includes(r.start) || idx.includes(r.end));
+  const lock = first(runs.lockup);
+  const spin = first(runs.wheelspin);
+  const limits = deriveRpmLimits(ch.rpm, ch.gear);
+  const limit = REV_LIMITER ?? limits?.limit ?? null;
+  const minI = idx.reduce((m, i) => (ch.speed_kmh[i] < ch.speed_kmh[m] ? i : m), idx[0]);
+  return {
+    abs_active_s: f1(secondsWhere(ch, idx, (i) => ch.abs[i] > 0)),
+    tc_active_s: f1(secondsWhere(ch, idx, (i) => ch.tc[i] > 0)),
+    lockup: lock ? where(lock.start, c, anchors) : "none",
+    wheelspin: spin ? where(spin.start, c, anchors) : "none",
+    on_rev_limiter_s: limit ? f1(secondsWhere(ch, idx, (i) => ch.rpm[i] >= LIMITER_FRACTION * limit)) : null,
+    peak_rpm: f0(Math.max(...idx.map((i) => ch.rpm[i]))),
+    gear_at_min_speed: String(ch.gear[minI]),
+    on_kerb_s: f1(secondsWhere(ch, idx, (i) => ch.kerb[i] > 0)),
+  };
+}
+
+/** causeOf's scores (src/lib/cornerCause.ts), kept here to get the margin: >= 1 counts, the top's lead sets the confidence. */
+function causeWithConfidence(m) {
+  const { lap, ref } = m;
+  const scores = [
+    ["brake", lap.brake_onset_m !== null && ref.brake_onset_m !== null ? Math.abs(lap.brake_onset_m - ref.brake_onset_m) / 15 : 0],
+    ["throttle", lap.throttle_pickup_m !== null && ref.throttle_pickup_m !== null ? (lap.throttle_pickup_m - ref.throttle_pickup_m) / 15 : 0],
+    ["steering", (lap.steer_corrections - ref.steer_corrections) / 2],
+    ["speed", (ref.min_speed_kmh - lap.min_speed_kmh) / 3],
+  ].sort((a, b) => b[1] - a[1]);
+  const cause = causeOf(m);
+  const [top, second] = scores;
+  const confidence = top[1] < 1 ? "low" : top[1] >= 2 && second[1] < 1 ? "high" : "medium";
+  const basis = {
+    brake: "the braking point differs from the reference",
+    throttle: "the throttle pickup comes later than on the reference",
+    steering: "more steering corrections than the reference",
+    speed: "a lower minimum speed than the reference",
+  }[cause];
+  return { cause, cause_confidence: confidence, cause_basis: top[1] < 1 ? "no single input stands out" : basis };
+}
+
+function landmarkRoles(c, anchors) {
+  const seen = new Set();
+  return anchors
+    .map((a) => {
+      const side = a.distance_m < c.apex_m - 8 ? "before the apex" : a.distance_m > c.apex_m + 8 ? "after the apex" : "at the apex";
+      const role = a.kind === "brake_board" ? "braking reference" : a.kind === "kerb_entry" ? "turn-in" : a.kind === "kerb_apex" ? "apex" : a.kind === "kerb_exit" ? "exit" : "reference";
+      return `${a.label} (${role}, ${side})`;
+    })
+    .filter((x) => !seen.has(x) && seen.add(x));
+}
+
+function cornerFactsV2(cc, kind, cmp) {
+  const base = cornerFacts(cc, kind);
+  delete base.likely_cause;
+  return {
+    ...base,
+    ...causeWithConfidence(cc.metrics),
+    lap: { ...base.lap, ...extrasOf(cmp.lap, cc.corner, cc.anchors) },
+    reference: { ...base.reference, ...extrasOf(cmp.ref, cc.corner, cc.anchors) },
+    landmarks: landmarkRoles(cc.corner, cc.anchors),
+  };
+}
+
+const NOTES_V2 = {
+  aids: "abs_active_s / tc_active_s: seconds the ABS / traction control was working in the corner. lockup / wheelspin: where a wheel locked under braking or a rear wheel spun under power, or none",
+  engine: `on_rev_limiter_s: seconds within 1.5% of the ${REV_LIMITER ?? "derived"} rpm rev limiter. gear_at_min_speed: the gear at the slowest point`,
+  cause: "cause and cause_confidence are computed in code; state a high or medium cause as fact",
+};
+
+function analyzePacketV2(cf) {
+  const p = analyzePacket(cf);
+  const byId = new Map(cf.list.map((x) => [x.corner.id, x]));
+  return { ...p, notes: NOTES_V2, corners: p.corners.map((c) => cornerFactsV2(byId.get(c.corner_id), c.kind, cf.cmp)) };
+}
+
+function cornerPacketV2(cf, cornerId) {
+  const p = cornerPacket(cf, cornerId);
+  const cc = cf.list.find((x) => x.corner.id === cornerId);
+  const c = cc.corner;
+  const trace = (ch) => {
+    const rows = [];
+    for (let i = c.start_m; i <= c.end_m; i += 10) {
+      rows.push([String(i - c.apex_m), f0(ch.speed_kmh[i]), pct(ch.throttle[i]), pct(ch.brake[i]), f0(ch.steering[i] * 100),
+        String(ch.gear[i]), f0(ch.rpm[i]), ch.abs[i] > 0 ? "on" : "off", ch.tc[i] > 0 ? "on" : "off", ch.kerb[i] > 0 ? "yes" : "no"]);
+    }
+    return rows;
+  };
+  return {
+    ...p, notes: NOTES_V2,
+    corner: cornerFactsV2(cc, p.corner.kind, cf.cmp),
+    trace: {
+      columns: ["m_from_apex", "speed_kmh", "throttle", "brake", "steering", "gear", "rpm", "abs", "tc", "kerb"],
+      note: "every 10 m from the corner start to its end; steering in % of full lock, -100..100, + = right",
+      lap: trace(cf.cmp.lap), reference: trace(cf.cmp.ref),
+    },
+  };
+}
+
+/** Average with a reason to work from: each variable corner's facts on its fastest and its slowest lap. */
+async function averagePacketV2() {
+  const p = averagePacket();
+  const valid = laps.filter((l) => l.kind === "flying" && (l.valid_override ?? l.valid) && l.lap_time_s);
+  const cornerTime = (l, c) => {
+    const t = SPA.laps.find((x) => x.lap_no === l.lap_no).t;
+    return t[Math.min(c.end_m, t.length - 1)] - t[c.start_m];
+  };
+  const corners = [];
+  for (const pc of p.corners) {
+    const c = map.corners.find((x) => x.id === pc.corner_id);
+    const sorted = [...valid].sort((a, b) => cornerTime(a, c) - cornerTime(b, c));
+    const [fast, slow] = [sorted[0], sorted[sorted.length - 1]];
+    const cmp = await api.compare(slow.lap_id, fast.lap_id);
+    const cc = facts.cornerComparison(c, cmp.lap, cmp.ref, cmp.delta, map.landmarks);
+    const side = (s, ch) => ({ ...sideFacts(s, c, cc.anchors), ...extrasOf(ch, c, cc.anchors) });
+    corners.push({
+      ...pc,
+      landmarks: landmarkRoles(c, cc.anchors),
+      ...causeWithConfidence(cc.metrics),
+      fastest_lap: { lap: `lap ${fast.lap_no}`, corner_time_s: f3(cornerTime(fast, c)), ...side(cc.ref, cmp.ref) },
+      slowest_lap: { lap: `lap ${slow.lap_no}`, corner_time_s: f3(cornerTime(slow, c)), ...side(cc.lap, cmp.lap) },
+    });
+  }
+  return { ...p, notes: { ...NOTES_V2, cause: "cause compares the slowest lap with the fastest; state a high or medium cause as fact" }, corners };
+}
+
 const c2 = await comparisonFacts(2, 4);
 const c3 = await comparisonFacts(3, 4);
 const a2 = analyzePacket(c2);
-const packets = {
-  "analyze-lap2-vs-lap4": a2,
-  "analyze-lap3-vs-lap4": analyzePacket(c3),
-  "average-session": averagePacket(),
-  [`corner-lap2-${a2.corners[0].corner_id}`]: cornerPacket(c2, a2.corners[0].corner_id),
+const cornerName = `corner-lap2-${a2.corners[0].corner_id}`;
+const sets = {
+  packets: {
+    "analyze-lap2-vs-lap4": a2,
+    "analyze-lap3-vs-lap4": analyzePacket(c3),
+    "average-session": averagePacket(),
+    [cornerName]: cornerPacket(c2, a2.corners[0].corner_id),
+  },
+  "packets-v2": {
+    "analyze-lap2-vs-lap4": analyzePacketV2(c2),
+    "analyze-lap3-vs-lap4": analyzePacketV2(c3),
+    "average-session": await averagePacketV2(),
+    [cornerName]: cornerPacketV2(c2, a2.corners[0].corner_id),
+  },
 };
-for (const [name, p] of Object.entries(packets)) writeFileSync(join(out, `${name}.json`), JSON.stringify(p, null, 2) + "\n");
-console.log(Object.keys(packets).join("\n"));
+for (const [dir, packets] of Object.entries(sets)) {
+  mkdirSync(join(here, dir), { recursive: true });
+  for (const [name, p] of Object.entries(packets)) writeFileSync(join(here, dir, `${name}.json`), JSON.stringify(p, null, 2) + "\n");
+  console.log(`${dir}: ${Object.keys(packets).join(", ")}`);
+}
 await server.close();
