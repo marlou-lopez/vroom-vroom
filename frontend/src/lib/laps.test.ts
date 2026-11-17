@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LapMeta } from "../api/types";
-import { bestValidLap } from "./laps";
+import { bestValidLap, defaultLap } from "./laps";
 
 function lap(id: string, over: Partial<LapMeta> = {}): LapMeta {
   return {
@@ -44,5 +44,17 @@ describe("bestValidLap", () => {
     const a = lap("a", { lap_time_s: 100 });
     const b = lap("b", { lap_time_s: 100 });
     expect(bestValidLap([a, b])).toBe(a);
+  });
+});
+
+describe("defaultLap", () => {
+  const r = (id: string, no: number, over: Partial<LapMeta & { is_reference: boolean }> = {}) => ({ ...lap(id, { lap_no: no, ...over }), is_reference: false, ...over });
+  it("picks the newest valid flying lap that is not the reference", () => {
+    const laps = [r("a", 1), r("ref", 2, { is_reference: true, lap_time_s: 90 }), r("c", 3), r("out", 4, { kind: "out" }), r("bad", 5, { valid: false })];
+    expect(defaultLap(laps)?.lap_id).toBe("c");
+  });
+  it("falls back to the best lap when the reference is the only one", () => {
+    expect(defaultLap([r("ref", 1, { is_reference: true })])?.lap_id).toBe("ref");
+    expect(defaultLap([])).toBeNull();
   });
 });

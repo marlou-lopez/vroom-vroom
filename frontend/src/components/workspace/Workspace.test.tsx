@@ -62,8 +62,9 @@ describe("workspace layout prototype", () => {
     renderAt("/?ui=workspace");
     const laps = await screen.findByRole("complementary", { name: "Laps" });
     expect(screen.getByText("Experimental")).toBeTruthy();
-    // The default landing is the reference lap against itself: the rail says so.
-    expect(within(laps).getByRole("status").textContent).toMatch(/its own reference/);
+    // The default landing is a non-reference lap (vroom-pnw.31), so the rail has no self-comparison status.
+    await within(laps).findAllByRole("button", { name: /L\d/ });
+    expect(within(laps).queryByRole("status")).toBeNull();
     expect(loc.search).toContain("ui=workspace");
 
     const other = within(laps).getAllByRole("button").find((b) => /^L\d/.test(b.textContent?.trim() ?? "") && !b.hasAttribute("aria-current"));

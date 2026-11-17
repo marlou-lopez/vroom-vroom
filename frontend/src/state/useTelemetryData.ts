@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQueries, useQuery, type QueryObserverResult } from "@tanstack/react-query";
 import { lapOptions, sessionLapsOptions, useCompare, useCompareCandidates, useSessions, useTrackGeometry, useTrackMap } from "../api/queries";
 import { ApiError, errorInfo, type CompareCandidate, type LapWithRef, type SessionMeta } from "../api/types";
-import { bestValidLap } from "../lib/laps";
+import { defaultLap } from "../lib/laps";
 
 export interface LapContext {
   session: SessionMeta;
@@ -20,7 +20,7 @@ const NO_CANDIDATES: CompareCandidate[] = [];
 /**
  * Loads what the Telemetry page needs: the lap (and its session's laps), the comparison, the track map and the track geometry.
  * With a `lapParam` it fetches that lap by id, then only its session's laps.
- * With none it opens the newest session's best valid flying lap against its reference, trying sessions newest first
+ * With none it opens the newest session's newest valid flying lap that is not the reference (else the best one), against the reference, trying sessions newest first
  * one at a time and stopping at the first that has such a lap.
  */
 export function useTelemetryData(lapParam: string | null, refParam: string | null) {
@@ -73,7 +73,7 @@ export function useTelemetryData(lapParam: string | null, refParam: string | nul
       }
       if (!laps) lapsError ??= lapsQ.errors[i];
       else {
-        const lap = bestValidLap(laps);
+        const lap = defaultLap(laps);
         if (lap) {
           found = { session: sorted[i], laps, lap };
           next = Math.max(next, i + 1); // its query must be enabled (active), or a lap patch would not refetch it
@@ -99,7 +99,7 @@ export function useTelemetryData(lapParam: string | null, refParam: string | nul
   else if (!ctx && !pending) {
     shown = {
       code: lapParam ? "unknown_lap" : "no_laps",
-      message: lapParam ? `No lap ${lapParam}` : "No session with a valid flying lap yet. Import a recording first.",
+      message: lapParam ? "That lap no longer exists" : "No session with a valid flying lap yet. Import a recording first.",
     };
   } else if (cmpQ.error) shown = errorInfo(cmpQ.error);
 

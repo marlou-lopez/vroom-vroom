@@ -31,3 +31,6 @@
 
 /* Expanded: the track panel takes the whole grid. */
 .grid[data-expanded="true"] { grid-template-columns: minmax(0, 1fr); }
+.missing { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.missing p { margin: 0; }
+.actions { display: flex; gap: 6px; }
