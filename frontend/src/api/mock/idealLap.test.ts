@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createRealApi } from "../client";
-import { ApiError, effectiveValid } from "../types";
+import { ApiError, effectiveValid, idealRefId, idealRefSession } from "../types";
 import { createHandlers } from "./handlers";
 import { createMockApi } from "./mockApi";
 import type { Recording } from "./recording";
@@ -226,5 +226,114 @@ describe("segment times (vroom-bi4.2)", () => {
     const s = await sessionOf("2026-11-03");
     expect(await http.segmentTimes(s.session_id)).toEqual(await engine.segmentTimes(s.session_id));
     expect((await rejection(http.segmentTimes("nope"))).code).toBe("unknown_session");
+  });
+});
+
+describe("compare against the ideal lap (vroom-bi4.3)", () => {
+  it("names the ideal by the reserved ref id ideal:<session_id>", () => {
+    expect(idealRefId("abc")).toBe("ideal:abc");
+    expect(idealRefSession("ideal:abc")).toBe("abc");
+    expect(idealRefSession("abc")).toBeNull();
+  });
+
+  it("gives a delta that ends at lap time minus ideal time, on every Spa and Monza lap", async () => {
+    for (const day of ["2026-11-03", "2026-11-05"]) {
+      const s = await sessionOf(day);
+      const ideal = await engine.idealLap(s.session_id);
+      const laps = (await engine.sessionLaps(s.session_id)).filter((l) => l.kind === "flying" && effectiveValid(l) && (l.lap_time_s ?? 0) > 0);
+      expect(laps.length).toBeGreaterThan(1);
+      for (const lap of laps) {
+        const cmp = await engine.compare(lap.lap_id, idealRefId(s.session_id));
+        expect(cmp.ref_lap_id).toBe(idealRefId(s.session_id));
+        expect(cmp.ref_kind).toBe("flying");
+        expect(cmp.warning).toBeNull();
+        const end = cmp.delta[cmp.delta.length - 1];
+        expect(Math.abs(end - (lap.lap_time_s! - ideal.time_s))).toBeLessThan(0.02);
+        expect(cmp.ref.t[0]).toBe(0);
+        // The stitched clock never runs backwards.
+        cmp.ref.t.forEach((t, i) => { if (i > 0) expect(t).toBeGreaterThanOrEqual(cmp.ref.t[i - 1]); });
+      }
+    }
+  });
+
+  it("lists the joins at the segment starts after the first, and a real lap has none", async () => {
+    const s = await sessionOf("2026-11-03");
+    const ideal = await engine.idealLap(s.session_id);
+    const lap = (await engine.sessionLaps(s.session_id)).find((l) => l.kind === "flying" && effectiveValid(l))!;
+    const cmp = await engine.compare(lap.lap_id, idealRefId(s.session_id));
+    expect(cmp.ref_joins_m).toEqual(ideal.segments.slice(1).map((x) => x.start_m).filter((m) => m < cmp.distance.length));
+    expect(cmp.ref_joins_m.length).toBeGreaterThan(5);
+    const real = await engine.compare(lap.lap_id);
+    expect(real.ref_joins_m).toEqual([]);
+  });
+
+  it("takes each segment's channels from the lap that holds it", async () => {
+    const s = await sessionOf("2026-11-03");
+    const ideal = await engine.idealLap(s.session_id);
+    const lap = (await engine.sessionLaps(s.session_id)).find((l) => l.kind === "flying" && effectiveValid(l))!;
+    const cmp = await engine.compare(lap.lap_id, idealRefId(s.session_id));
+    for (const seg of ideal.segments) {
+      const mid = Math.floor((seg.start_m + seg.end_m) / 2);
+      if (mid >= cmp.distance.length) continue;
+      const src = await engine.lapTrace(seg.lap_id, ["speed_kmh"]);
+      expect(cmp.ref.speed_kmh[mid]).toBe(src.ch.speed_kmh![mid]);
+    }
+  });
+
+  it("offers the ideal as the first candidate, only for a lap with valid laps in its own session", async () => {
+    const s = await sessionOf("2026-11-03");
+    const lap = (await engine.sessionLaps(s.session_id)).find((l) => l.kind === "flying" && effectiveValid(l))!;
+    const cands = await engine.compareCandidates(lap.lap_id);
+    expect(cands[0]).toMatchObject({ lap_id: idealRefId(s.session_id), is_ideal: true, other_car: false });
+    expect(cands[0].lap_time_s).toBe((await engine.idealLap(s.session_id)).time_s);
+    expect(cands[0].label).toContain("Ideal lap (session)");
+    expect(cands.filter((c) => c.is_ideal)).toHaveLength(1);
+  });
+
+  it("compares only against the lap's own session's ideal", async () => {
+    const spa = await sessionOf("2026-11-03");
+    const monza = await sessionOf("2026-11-05");
+    const lap = (await engine.sessionLaps(spa.session_id)).find((l) => l.kind === "flying" && effectiveValid(l))!;
+    expect((await rejection(engine.compare(lap.lap_id, idealRefId(monza.session_id)))).code).toBe("unknown_lap");
+    expect((await rejection(engine.compare(lap.lap_id, "ideal:nope"))).code).toBe("unknown_lap");
+  });
+
+  it("runs the coach against the ideal and files the result under the ideal's ref id", async () => {
+    const s = await sessionOf("2026-11-03");
+    const ref = idealRefId(s.session_id);
+    const lap = (await engine.sessionLaps(s.session_id)).find((l) => l.kind === "flying" && effectiveValid(l))!;
+    const res = await engine.coach({ command: "analyze", lap_id: lap.lap_id, ref_lap_id: ref, corner_id: null });
+    expect(res.ref_lap_id).toBe(ref);
+    expect((await engine.coachResults(lap.lap_id, ref)).analyze?.id).toBe(res.id);
+  });
+
+  it("is served over HTTP with the ref id in the query", async () => {
+    const s = await sessionOf("2026-11-03");
+    const lap = (await engine.sessionLaps(s.session_id)).find((l) => l.kind === "flying" && effectiveValid(l))!;
+    const cmp = await http.compare(lap.lap_id, idealRefId(s.session_id));
+    expect(cmp.ref_lap_id).toBe(idealRefId(s.session_id));
+    expect(cmp.ref_joins_m.length).toBeGreaterThan(5);
+    expect((await http.compareCandidates(lap.lap_id))[0].is_ideal).toBe(true);
+  });
+});
+
+describe("ideal lap comparison edge cases (vroom-bi4.3 review)", () => {
+  it("an out lap has no shortfall correction, and marking a lap invalid rebuilds the ideal", async () => {
+    const s = await sessionOf("2026-11-03");
+    const ref = idealRefId(s.session_id);
+    const laps = await engine.sessionLaps(s.session_id);
+    const out = laps.find((l) => l.kind === "out")!;
+    const cmp = await engine.compare(out.lap_id, ref);
+    expect(Math.abs(cmp.delta[cmp.delta.length - 1])).toBeLessThan(60); // not minus the whole lap time
+    const best = laps.filter((l) => l.kind === "flying" && effectiveValid(l)).sort((a, b) => a.lap_time_s! - b.lap_time_s!)[0];
+    const other = laps.find((l) => l.kind === "flying" && effectiveValid(l) && l.lap_id !== best.lap_id)!;
+    const before = (await engine.compareCandidates(other.lap_id))[0].lap_time_s;
+    await engine.patchLap(best.lap_id, { valid_override: false });
+    const after = (await engine.compareCandidates(other.lap_id))[0].lap_time_s;
+    expect(after).toBe((await engine.idealLap(s.session_id)).time_s);
+    expect(after).not.toBe(before);
+    const c2 = await engine.compare(other.lap_id, ref);
+    expect(Math.abs(c2.delta[c2.delta.length - 1] - (other.lap_time_s! - after!))).toBeLessThan(0.02);
+    await engine.patchLap(best.lap_id, { valid_override: null });
   });
 });

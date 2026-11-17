@@ -72,3 +72,26 @@ describe("LapPicker invalid hint (vroom-pnw.24)", () => {
     expect(screen.queryByText(/invalid/)).toBeNull();
   });
 });
+
+describe("LapPicker ideal lap (vroom-bi4.3)", () => {
+  const session = { track_name: "T", car_name: "C", started_at: "2026-11-03T10:00:00Z" } as never;
+  const lap = { lap_id: "l1", lap_no: 5, lap_time_s: 0, kind: "flying", valid: true, valid_override: null, is_reference: false, pinned_reference: false } as never;
+  const cand = (lap_id: string, label: string, is_ideal: boolean) =>
+    ({ lap_id, label, lap_time_s: 141.061, car_name: "C", is_reference: false, is_previous: false, other_car: false, is_ideal });
+
+  it("lists the ideal lap once, first, and selects it by its ref id", async () => {
+    const picked: (string | null)[] = [];
+    const candidates = [cand("ideal:s1", "Ideal lap (session) 2:21.061", true), cand("l2", "L2 2:22.139", false)];
+    render(
+      <LapPicker session={session} laps={[lap]} lap={lap} refLapId="l2" warning={null} candidates={candidates}
+        onSelectLap={() => {}} onSelectRef={(id) => picked.push(id)} />,
+      { wrapper: createQueryWrapper().wrapper },
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByText(/^○ /));
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.filter((i) => /Ideal lap \(session\)/.test(i.textContent ?? ""))).toHaveLength(1);
+    await user.click(screen.getByRole("menuitem", { name: /Ideal lap \(session\)/ }));
+    expect(picked).toEqual(["ideal:s1"]);
+  });
+});

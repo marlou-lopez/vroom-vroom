@@ -140,7 +140,8 @@ function Telemetry() {
   );
 
   const lapTime = ctx?.laps.find((l) => l.lap_id === cmp?.lap_id)?.lap_time_s ?? null;
-  const refTime = ctx?.laps.find((l) => l.lap_id === cmp?.ref_lap_id)?.lap_time_s ?? null;
+  // The ideal lap is not in the session's lap list: its time comes from the candidate.
+  const refTime = ctx?.laps.find((l) => l.lap_id === cmp?.ref_lap_id)?.lap_time_s ?? candidates.find((c) => c.lap_id === cmp?.ref_lap_id)?.lap_time_s ?? null;
   // Stable, so the memoised track views don't render for unrelated page state.
   const lapTimes = useMemo(() => (cmp ? { lap: lapTime, ref: refTime } : undefined), [cmp, lapTime, refTime]);
 

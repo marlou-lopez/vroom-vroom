@@ -47,6 +47,7 @@ export function LapPicker({ session, laps, lap, refLapId, warning, candidates, i
   const shown = laps.filter((l) => !validOnly || (l.kind === "flying" && effectiveValid(l)));
   const refCand = candidates.find((c) => c.lap_id === refLapId) ?? null;
   const previous = candidates.find((c) => c.is_previous) ?? null;
+  const ideal = candidates.find((c) => c.is_ideal) ?? null;
   const patchLap = usePatchLap().mutate; // refetches laps, comparisons and candidates
   const pin = (l: LapWithRef) => patchLap({ lapId: l.lap_id, patch: { pinned_reference: !l.pinned_reference } });
   // Pin, mark-valid and reset-to-automatic act on the open menu's lap and leave the menu open, like Radix's checkbox item below.
@@ -141,9 +142,15 @@ export function LapPicker({ session, laps, lap, refLapId, warning, candidates, i
                   <span>Previous lap</span><span className={cx(styles.lapText, styles.muted)}>{previous.label}</span>
                 </DropdownMenu.Item>
               )}
+              {ideal && (
+                <DropdownMenu.Item className={ui.menuItem} data-selected={ideal.lap_id === refLapId} onSelect={() => onSelectRef(ideal.lap_id)}>
+                  <span style={{ color: colors.ideal }}>Ideal lap (session)</span>
+                  <span className={cx(styles.lapText, styles.muted)}>{ideal.lap_time_s === null ? "—" : formatLapTime(ideal.lap_time_s)}</span>
+                </DropdownMenu.Item>
+              )}
               <DropdownMenu.Separator className={ui.menuSeparator} />
-              {candidates.length === 0 && <div className={styles.empty}>No other laps on this track.</div>}
-              {candidates.map((c) => (
+              {candidates.filter((c) => !c.is_ideal).length === 0 && <div className={styles.empty}>No other laps on this track.</div>}
+              {candidates.filter((c) => !c.is_ideal).map((c) => (
                 <DropdownMenu.Item key={c.lap_id} className={ui.menuItem} data-selected={c.lap_id === refLapId} onSelect={() => onSelectRef(c.lap_id)}>
                   <span className={styles.lapText}>{c.label}</span>
                   {c.is_reference && <span title="Reference" className={styles.star}>★</span>}
