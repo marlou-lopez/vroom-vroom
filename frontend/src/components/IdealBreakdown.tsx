@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import type { IdealLap } from "../api/types";
 import { formatLapTime } from "../lib/format";
-import { lapAtHref } from "../lib/idealGauge";
+import { useLocation } from "react-router-dom";
+import { lapLink } from "../lib/urlParams";
 import { cx } from "../lib/cx";
 import ui from "./ui.module.css";
 import styles from "./IdealBreakdown.module.css";
@@ -11,6 +12,7 @@ import styles from "./IdealBreakdown.module.css";
  * Whole rows are links, so they are reachable with Tab and open with Enter.
  */
 export function IdealBreakdown({ ideal }: { ideal: IdealLap }) {
+  const { search } = useLocation();
   return (
     <section aria-label="Ideal lap breakdown" className={cx(ui.panel, styles.panel)}>
       <div className={styles.head}>
@@ -20,7 +22,7 @@ export function IdealBreakdown({ ideal }: { ideal: IdealLap }) {
       <ol className={styles.list}>
         {ideal.segments.map((s, i) => (
           <li key={i}>
-            <Link to={lapAtHref(s.lap_id, s.start_m)} className={styles.row} aria-label={`${s.label}, ${s.best_s.toFixed(3)} seconds, lap ${s.lap_no}. Open`}>
+            <Link to={lapLink(search, s.lap_id, s.start_m)} className={styles.row} aria-label={`${s.label}, ${s.best_s.toFixed(3)} seconds, lap ${s.lap_no}. Open`}>
               <span className={styles.label}>{s.label}</span>
               <span className={styles.lap}>L{s.lap_no}</span>
               <span className={styles.time}>{s.best_s.toFixed(3)}</span>

@@ -1,6 +1,7 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { withParams } from "../lib/urlParams";
 import { HeaderSlot } from "../components/AppShell";
 import { BiggestLosses } from "../components/BiggestLosses";
 import { AnalysisBar } from "../components/AnalysisBar";
@@ -63,7 +64,7 @@ function Telemetry() {
 
   // No ?lap: reflect the resolved default in the URL.
   useEffect(() => {
-    if (!lapParam && ctx) setParams({ lap: ctx.lap.lap_id }, { replace: true });
+    if (!lapParam && ctx) setParams((p) => withParams(p, { lap: ctx.lap.lap_id }), { replace: true });
   }, [lapParam, ctx, setParams]);
 
   const model = useMemo(() => (cmp ? buildModel(cmp) : null), [cmp]);
@@ -145,8 +146,8 @@ function Telemetry() {
   // Stable, so the memoised track views don't render for unrelated page state.
   const lapTimes = useMemo(() => (cmp ? { lap: lapTime, ref: refTime } : undefined), [cmp, lapTime, refTime]);
 
-  const selectLap = (id: string) => setParams({ lap: id });
-  const selectRef = (id: string | null) => setParams(id ? { lap: ctx!.lap.lap_id, ref: id } : { lap: ctx!.lap.lap_id });
+  const selectLap = (id: string) => setParams((p) => withParams(p, { lap: id, ref: null, at: null }));
+  const selectRef = (id: string | null) => setParams((p) => withParams(p, { lap: ctx!.lap.lap_id, ref: id, at: null }));
 
   // Whether the lap counts as valid (the manual override wins); decides whether its wheels-off marks are red or grey.
   const lapValid = ctx ? effectiveValid(ctx.lap) : true;
