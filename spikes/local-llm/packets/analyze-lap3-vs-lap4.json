@@ -1,0 +1,183 @@
+{
+  "command": "analyze",
+  "track": "Spa-Francorchamps",
+  "car": "McLaren 720S GT3 Evo",
+  "session": "practice, 3 Nov 2026",
+  "lap": "lap 3, 2:21.947",
+  "reference": "lap 4, 2:21.525",
+  "profile": {
+    "driver": "casual sim racer, Simagic P1000 load-cell pedals, metric units",
+    "focus_areas": [
+      "minimum corner speeds",
+      "exits onto long straights (Kemmel, the run to the Bus Stop)",
+      "consistency"
+    ]
+  },
+  "lap_delta_s": "+0.436",
+  "rules": "Write one finding per corner below, keeping its kind and time_s. focus is the first issue's corner.",
+  "corners": [
+    {
+      "corner_id": "fagnes2",
+      "corner": "Fagnes 2",
+      "kind": "issue",
+      "time_s": "0.193",
+      "likely_cause": "steering",
+      "lap": {
+        "min_speed_kmh": "125",
+        "min_speed_where": "a little after the apex",
+        "exit_speed_kmh": "158",
+        "brake_onset": "a little before the apex",
+        "peak_brake": "13%",
+        "throttle_pickup": "a little after the apex",
+        "coast_s": "0.0",
+        "pedal_overlap_s": "0.0",
+        "steering_extrema": "7"
+      },
+      "reference": {
+        "min_speed_kmh": "126",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "169",
+        "brake_onset": "a little before the apex",
+        "peak_brake": "15%",
+        "throttle_pickup": "at the apex",
+        "coast_s": "0.0",
+        "pedal_overlap_s": "0.1",
+        "steering_extrema": "1"
+      },
+      "landmarks": [
+        "exit kerb"
+      ]
+    },
+    {
+      "corner_id": "pouhon2",
+      "corner": "Pouhon 2",
+      "kind": "issue",
+      "time_s": "0.089",
+      "likely_cause": "speed",
+      "lap": {
+        "min_speed_kmh": "184",
+        "min_speed_where": null,
+        "exit_speed_kmh": "225",
+        "brake_onset": null,
+        "peak_brake": "0%",
+        "throttle_pickup": "well before the apex",
+        "coast_s": "0.0",
+        "pedal_overlap_s": "0.0",
+        "steering_extrema": "4"
+      },
+      "reference": {
+        "min_speed_kmh": "191",
+        "min_speed_where": null,
+        "exit_speed_kmh": "228",
+        "brake_onset": null,
+        "peak_brake": "0%",
+        "throttle_pickup": "well before the apex",
+        "coast_s": "0.0",
+        "pedal_overlap_s": "0.0",
+        "steering_extrema": "0"
+      },
+      "landmarks": [
+        "exit kerb"
+      ]
+    },
+    {
+      "corner_id": "busstop",
+      "corner": "Bus Stop",
+      "kind": "issue",
+      "time_s": "0.077",
+      "likely_cause": "steering",
+      "lap": {
+        "min_speed_kmh": "65",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "149",
+        "brake_onset": "at the 100 board",
+        "peak_brake": "100%",
+        "throttle_pickup": "just after the apex kerb",
+        "coast_s": "1.3",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "4"
+      },
+      "reference": {
+        "min_speed_kmh": "68",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "149",
+        "brake_onset": "at the 100 board",
+        "peak_brake": "100%",
+        "throttle_pickup": "just after the apex kerb",
+        "coast_s": "1.0",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "2"
+      },
+      "landmarks": [
+        "apex kerb",
+        "exit kerb",
+        "100 board"
+      ]
+    },
+    {
+      "corner_id": "stavelot",
+      "corner": "Stavelot",
+      "kind": "minor",
+      "time_s": "0.053",
+      "likely_cause": "speed",
+      "lap": {
+        "min_speed_kmh": "114",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "152",
+        "brake_onset": "well before the apex",
+        "peak_brake": "96%",
+        "throttle_pickup": "at the apex",
+        "coast_s": "0.0",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "4"
+      },
+      "reference": {
+        "min_speed_kmh": "112",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "151",
+        "brake_onset": "well before the apex",
+        "peak_brake": "86%",
+        "throttle_pickup": "at the apex",
+        "coast_s": "0.5",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "3"
+      },
+      "landmarks": [
+        "exit kerb"
+      ]
+    },
+    {
+      "corner_id": "lasource",
+      "corner": "La Source",
+      "kind": "strength",
+      "time_s": "-0.070",
+      "likely_cause": "speed",
+      "lap": {
+        "min_speed_kmh": "63",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "157",
+        "brake_onset": "at the 100 board",
+        "peak_brake": "100%",
+        "throttle_pickup": "just after the apex",
+        "coast_s": "0.7",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "1"
+      },
+      "reference": {
+        "min_speed_kmh": "65",
+        "min_speed_where": "at the apex",
+        "exit_speed_kmh": "157",
+        "brake_onset": "at the 100 board",
+        "peak_brake": "100%",
+        "throttle_pickup": "just after the apex",
+        "coast_s": "0.7",
+        "pedal_overlap_s": "0.2",
+        "steering_extrema": "1"
+      },
+      "landmarks": [
+        "exit kerb",
+        "100 board"
+      ]
+    }
+  ]
+}
