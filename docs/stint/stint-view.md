@@ -91,3 +91,19 @@ invented. Keep the view; build it on option 2 in the v2 backend and on the mock 
 Things the prototype does not try, for later issues if the view is kept: a fuel-corrected fall-off (needs a fuel-weight effect per
 car, which the recordings don't give), a Hypercar stint (needs a recording), and per-zone tyre temperatures in the table (in the
 data as `tyre_zones_c`, not shown).
+
+## Decision (autopilot)
+
+**Keep**, built on **contract option 2** (`GET /sessions/{id}/stints`, the session's laps split into stints at pit stops). The
+experimental `Api.stints()` is replaced in the build issue. Decided 2026-11-17 by the autopilot judge (Opus), standing in for the user.
+
+- The Analysis features epic names a stint view, and the spike settled the spec's open question: fuel, virtual energy, tyre and
+  brake channels are in every recording, GT3 included.
+- The prototype works on a real 26-lap race, and `lib/stint.ts` is pure and tested, in line with "facts computed in code".
+- Option 2 keeps `LapMeta` lean; the view is session-level and splitting at pit stops belongs in the backend, where it is tested.
+  Option 3 adds two places to keep in step for no current consumer.
+- `LapMeta.conditions` carries invented `fuel_l` and `tyre_wear` in the mock, so the build types it or removes it.
+- The contract stays sim-agnostic (energy in percent, FL/FR/RL/RR wheels, no LMU names).
+
+No Hypercar recording issue: virtual energy is already shown on GT3, and SoC and regen are confirmed present. Fuel-corrected fall-off
+is parked as an idea.
