@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { usePatchLap } from "../api/queries";
 import { effectiveValid, type CompareCandidate, type LapWithRef, type SessionMeta } from "../api/types";
 import { formatLapTime, formatShortDate } from "../lib/format";
+import { SetupChip } from "./SetupChip";
 import { cx } from "../lib/cx";
 import { colors } from "../theme";
 import styles from "./LapPicker.module.css";
@@ -142,6 +143,7 @@ export function LapPicker({ session, laps, lap, refLapId, warning, candidates, i
           </DropdownMenu.Portal>
         </DropdownMenu.Root>
         {warning && <Badge color={colors.minor} title={warning}>DIFFERENT CAR</Badge>}
+        {!warning && <SetupChip lapSessionId={session.session_id} laps={laps} refLapId={refLapId} />}
       </div>
     </>
   );

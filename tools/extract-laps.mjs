@@ -2,6 +2,7 @@
 //   node extract-laps.mjs <recording.duckdb> <out.json> "<source label>" [lap,numbers,to,keep]
 // Adds abs, tc (0/1 per metre), slip_fl..slip_rr (wheel speed / ground speed, 1 below 5 m/s) and wheels_off (0-4 wheels on grass or gravel).
 // NOTE LMU swaps its G channels: 'G Force Lat' is longitudinal, 'G Force Long' is lateral (mapped below).
+// The garage setup (metadata.CarSetup) goes into `car_setup` as { VM_KEY: display string } and nothing else (vroom-pnw.25).
 // Throttle comes from 'Throttle Pos Unfiltered' (the pedal); 'Throttle Pos' includes the ignition cut at every upshift (#49).
 import { DuckDBInstance } from '@duckdb/node-api';
 import fs from 'node:fs';
@@ -61,6 +62,16 @@ const absOn = (a, b) => { const i = lowerBound(absT, a); if (i > 0 && absEv[i - 
 const gearsRaw = await ev('Gear');
 const gears = gearsRaw.filter((g, i) => !(g.v === 0 && gearsRaw[i + 1] && gearsRaw[i + 1].t - g.t < 0.2));
 
+// CarSetup is JSON with one object per setup key (VM_* and the per-wheel WM_*). Keep only the display string of each (e.g. VM_STEER_LOCK "524deg (18.5deg)"); the
+// other fields (limits, saved value, captions) are not needed, and the metadata's driver and account keys are never read.
+const carSetup = {};
+const setupRow = (await q("select value from metadata where key = 'CarSetup'"))[0];
+if (setupRow) {
+  for (const [k, e] of Object.entries(JSON.parse(setupRow.value))) {
+    if (e && typeof e.stringValue === 'string') carSetup[k] = e.stringValue;
+  }
+}
+
 const out_laps = [];
 for (let k = 0; k < laps.length; k++) {
   const a = laps[k].t, b = k + 1 < laps.length ? laps[k + 1].t : t0 + (ch.speed.v.length - 1) / 100;
@@ -107,5 +118,5 @@ for (let k = 0; k < laps.length; k++) {
   out_laps.push({ lap_no: k, start_ts: a, end_ts: b, lap_time_s: lt ? (lt.v > 0 ? +lt.v.toFixed(3) : 0) : null, sectors_s: sectors, length_m: L, ...g });
   console.log('lap', k, 'start', a.toFixed(2), 'dur', (b - a).toFixed(2), 'time', lt ? lt.v.toFixed(3) : '-', 'firstDist', ds[0].toFixed(1), 'L', L, 'gridT', g.t[L]);
 }
-fs.writeFileSync(out, JSON.stringify({ source: label, steering_range_deg: 524, laps: out_laps }));
+fs.writeFileSync(out, JSON.stringify({ source: label, steering_range_deg: 524, car_setup: carSetup, laps: out_laps }));
 console.log('bytes', fs.statSync(out).size);

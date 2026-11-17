@@ -1,7 +1,7 @@
 import {
   ApiError,
   type CalibrationResult, type CoachRequest, type CoachResult, type CoachResults, type CompareCandidate,
-  type CompareResponse, type Finding, type GridChannel, type IdealLap, type IdealScope, type ImportResult, type LandmarkPatch, type NewLandmark,
+  type CarSetup, type CompareResponse, type Finding, type GridChannel, type IdealLap, type IdealScope, type ImportResult, type LandmarkPatch, type NewLandmark,
   type LapMeta, type LapPatch, type LapWithRef, type LlmUsage, type SessionMeta, type SessionSummary,
   type TraceResponse, type TrackGeometry, type TrackMap,
 } from "./types";
@@ -27,6 +27,8 @@ export interface Api {
   coachResults(lap: string, ref: string): Promise<CoachResults>;
   setFindingReviewed(findingId: string, reviewed: boolean): Promise<Finding>;
   sessionSummary(sessionId: string): Promise<SessionSummary>;
+  /** The garage setup the session was recorded with (CarSetup in the recording's metadata). Unknown session: ApiError `unknown_session`. */
+  sessionSetup(sessionId: string): Promise<CarSetup>;
   /** The driver's best segments as one lap. Throws `no_valid_laps` when no valid flying lap is in scope. `scope` defaults to "session". */
   idealLap(sessionId: string, scope?: IdealScope): Promise<IdealLap>;
   calibrate(trackId: string): Promise<CalibrationResult>;
@@ -97,6 +99,7 @@ export function createRealApi(baseUrl = ""): Api {
     setFindingReviewed: (id, reviewed) =>
       request(`/coach/findings/${enc(id)}`, { method: "PATCH", body: { reviewed } }),
     sessionSummary: (id) => request(`/sessions/${enc(id)}/summary`),
+    sessionSetup: (id) => request(`/sessions/${enc(id)}/setup`),
     idealLap: (id, scope) => request(`/sessions/${enc(id)}/ideal${query({ scope })}`),
     calibrate: (trackId) => request(`/tracks/${enc(trackId)}/calibrate`, { method: "POST" }),
     importFile: (path) => request("/import", { method: "POST", body: { path } }),

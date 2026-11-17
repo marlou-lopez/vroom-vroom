@@ -353,6 +353,20 @@ export interface SessionSummary {
   focus: { instruction: string; improved: boolean | null } | null;
 }
 
+// ---- Car setup ----
+
+/** One garage setting as the game shows it. `key` is LMU's id ("VM_REAR_WING"), `label` a readable name, `value` the display string ("6.7 deg"). */
+export interface CarSetupEntry {
+  key: string;
+  label: string;
+  value: string;
+}
+
+/** GET /api/sessions/{session_id}/setup. `entries` is empty when the recording has no setup (the setup is then unknown, not "none"). */
+export interface CarSetup {
+  entries: CarSetupEntry[];
+}
+
 // ---- Ideal lap ----
 
 /** `session`: the best segments of one session's laps. `all`: of every session on the same track and car. */
