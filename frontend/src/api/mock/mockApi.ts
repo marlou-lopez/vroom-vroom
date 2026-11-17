@@ -8,7 +8,7 @@ import {
   GRID_CHANNELS,
   type CalibrationResult, type ChannelArrays, type CoachRequest, type CoachResult, type CoachResults,
   type Command, type CompareCandidate, type CompareResponse, type Corner, type Finding,
-  type CarDims, type FindingKind, type GridChannel, type LlmCall, type SessionMeta, type SessionSummary, type TraceResponse,
+  type CarDims, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SessionMeta, type SessionSummary, type TraceResponse,
   type TrackMap, type LapMeta, type LapWithRef, type TrackGeometry,
 } from "../types";
 import {
@@ -206,22 +206,58 @@ const COST: Record<Command, { cost: number; input: number; output: number }> = {
 interface LapRec {
   meta: LapMeta;
   trace: Trace;
-  /** Duration of each map segment (corners and the straights between them) on this lap's own clock. */
-  segDur: number[];
 }
 
 /** Flying, valid and with a real time: can be a reference or count towards best/theoretical. */
 const isTimed = (l: LapRec) => l.meta.kind === "flying" && effectiveValid(l.meta) && (l.meta.lap_time_s ?? 0) > 0;
 const lapTime = (l: LapRec) => l.meta.lap_time_s ?? 0;
 
-/** Segment boundaries of a map: 0, every corner start and end, ascending. The last segment runs to the end of the lap. */
-function segmentBounds(map: TrackMap): number[] {
-  return [...new Set([0, ...map.corners.flatMap((c) => [c.start_m, c.end_m])])].sort((a, b) => a - b);
+/** A stretch of the track between two boundaries of the map: a corner, or the straight between two corners. */
+interface MapSegment {
+  label: string;
+  corner_id: string | null;
+  start_m: number;
+  end_m: number;
 }
 
-function segmentDurations(t: number[], bounds: number[]): number[] {
+/**
+ * The map's segments: boundaries at 0, every corner start and end, and the track length, so they tile the lap. A segment that
+ * starts where a corner starts is that corner; the others are straights, named from the corner before and the one after.
+ */
+function mapSegments(map: TrackMap): MapSegment[] {
+  const corners = [...map.corners].sort((a, b) => a.start_m - b.start_m);
+  const bounds = [...new Set([0, ...corners.flatMap((c) => [c.start_m, c.end_m]).filter((m) => m > 0 && m < map.length_m), map.length_m])]
+    .sort((a, b) => a - b);
+  const out: MapSegment[] = [];
+  for (let k = 0; k + 1 < bounds.length; k++) {
+    const start_m = bounds[k], end_m = bounds[k + 1];
+    const corner = corners.find((c) => c.start_m === start_m && c.end_m === end_m);
+    if (corner) {
+      out.push({ label: corner.name, corner_id: corner.id, start_m, end_m });
+      continue;
+    }
+    const before = [...corners].reverse().find((c) => c.end_m <= start_m);
+    const after = corners.find((c) => c.start_m >= end_m);
+    out.push({ label: `${before?.name ?? "Start"} → ${after?.name ?? "Finish"}`, corner_id: null, start_m, end_m });
+  }
+  return out;
+}
+
+/** The recorded sectors scaled to a re-timed lap, so the three still add up to its time. */
+function fitSectors(rec: number[], lapTimeS: number): number[] {
+  const total = rec[0] + rec[1] + rec[2];
+  if (Math.abs(total - lapTimeS) < 0.002) return [...rec]; // not re-timed: as recorded
+  const f = lapTimeS / total;
+  const s1 = round3(rec[0] * f), s2 = round3(rec[1] * f);
+  return [s1, s2, round3(lapTimeS - s1 - s2)];
+}
+
+/** Duration of each segment on the lap's own clock, scaled so they add up to `lapTimeS` (the official time vs the grid's last sample). */
+function segmentDurations(t: number[], segs: MapSegment[], lapTimeS: number): number[] {
   const last = t.length - 1;
-  return bounds.map((b, k) => t[Math.min(bounds[k + 1] ?? last, last)] - t[Math.min(b, last)]);
+  const at = (m: number) => t[Math.min(Math.round(m), last)];
+  const scale = lapTimeS > 0 && t[last] > t[0] ? lapTimeS / (t[last] - t[0]) : 1;
+  return segs.map((s) => (at(s.end_m) - at(s.start_m)) * scale);
 }
 
 const cornerTime = (t: number[], c: Corner) => t[Math.min(Math.round(c.end_m), t.length - 1)] - t[Math.min(Math.round(c.start_m), t.length - 1)];
@@ -278,7 +314,6 @@ export function createMockApi(opts: MockOptions = {}): Api {
       const rec = recs[track]!;
       maps.set(trackInfo[track].id, trackInfo[track].map(rec.laps.find((l) => l.lap_no === REF_LAP[track]) ?? rec.laps[0]));
     }
-    const bounds = new Map([...maps].map(([id, m]) => [id, segmentBounds(m)]));
     const baseTraces = new Map<string, Trace>();
     const baseTrace = (track: RecordingTrack, no: number) => {
       const key = `${track}:${no}`;
@@ -318,11 +353,12 @@ export function createMockApi(opts: MockOptions = {}): Api {
       dateLabel.set(session_id, `${d.getDate()} ${DATE_FMT[d.getMonth()]}`);
       extras.set(session_id, { trackTempC: sp.trackTempC, focus: sp.focus });
 
-      const specs: { kind: LapMeta["kind"]; valid?: boolean; trace: Trace; lap_time_s: number | null }[] = sp.laps.map((l) => {
+      const specs: { kind: LapMeta["kind"]; valid?: boolean; trace: Trace; lap_time_s: number | null; src_sectors: number[] | null }[] = sp.laps.map((l) => {
         const recLap = rec.laps.find((x) => x.lap_no === l.src)!;
         const base = baseTrace(sp.track, l.src);
         return {
           kind: l.kind, valid: l.valid,
+          src_sectors: recLap.sectors_s ?? null,
           trace: l.time !== undefined ? scaleTime(base, l.time) : base,
           // A recorded 0 means invalid: show the elapsed time instead (the lap stays valid: false).
           lap_time_s: l.time ?? (recLap.lap_time_s === 0 ? recLap.t[recLap.t.length - 1] : recLap.lap_time_s),
@@ -330,13 +366,13 @@ export function createMockApi(opts: MockOptions = {}): Api {
       });
       specs.forEach((l, lap_no) => {
         const lap_id = `${session_id.slice(0, 12)}-${pad3(lap_no)}`;
-        const t = l.trace.ch.t;
-        const at = (frac: number) => t[Math.floor(frac * (t.length - 1))];
-        const sectors = [round3(at(0.28)), round3(at(0.65) - at(0.28))];
-        sectors.push(round3(t[t.length - 1] - sectors[0] - sectors[1]));
+        // Real sectors from the recording; none on an invalid, out or in lap. A re-timed lap (`time`) scales them with its clock.
+        const recSectors = l.src_sectors ?? [];
+        const sectors = recSectors.length === 3 && l.kind === "flying" && l.valid !== false && l.lap_time_s
+          ? fitSectors(recSectors, l.lap_time_s)
+          : [];
         laps.set(lap_id, {
           trace: l.trace,
-          segDur: segmentDurations(t, bounds.get(track_id)!),
           meta: {
             lap_id, session_id, lap_no, kind: l.kind, lap_time_s: l.lap_time_s, sectors_s: sectors,
             valid: l.valid ?? true, valid_override: null, pinned_reference: false, source: "own_recording",
@@ -490,13 +526,35 @@ export function createMockApi(opts: MockOptions = {}): Api {
     is_reference: referenceFor(r.meta.track_id, r.meta.car_id)?.meta.lap_id === r.meta.lap_id,
   });
 
-  /** Best valid lap minus what the best segments of all valid laps would gain (never above the best lap). */
+  /**
+   * The best time of each map segment over the valid flying laps in scope, and the lap it came from (the earliest on a tie).
+   * Segments come from the track map as it is now, so this is computed on every call. The time is the sum of the segment times.
+   */
+  const ideal = (sessionId: string, scope: IdealScope): IdealLap => {
+    const session = sessionOf(sessionId);
+    const pool = [...laps.values()]
+      .filter((l) => (scope === "all"
+        ? l.meta.track_id === session.track_id && l.meta.car_id === session.car_id
+        : l.meta.session_id === sessionId) && isTimed(l))
+      .sort((a, b) => sessionOf(a.meta.session_id).started_at.localeCompare(sessionOf(b.meta.session_id).started_at) || a.meta.lap_no - b.meta.lap_no);
+    if (!pool.length) throw new ApiError("no_valid_laps", "There is no valid flying lap to build an ideal lap from.");
+    const segs = mapSegments(mapOf(session.track_id));
+    const durs = pool.map((l) => segmentDurations(l.trace.ch.t, segs, lapTime(l)));
+    const segments: IdealSegment[] = segs.map((s, k) => {
+      let best = 0;
+      for (let i = 1; i < pool.length; i++) if (durs[i][k] < durs[best][k]) best = i;
+      const m = pool[best].meta;
+      return { ...s, best_s: round3(durs[best][k]), lap_id: m.lap_id, lap_no: m.lap_no, session_id: m.session_id };
+    });
+    return { time_s: round3(segments.reduce((sum, s) => sum + s.best_s, 0)), scope, segments };
+  };
   const theoreticalBest = (sessionId: string): number | null => {
-    const valid = sortedSessionLaps(sessionId).filter(isTimed);
-    if (!valid.length) return null;
-    const best = valid.reduce((a, b) => (lapTime(b) < lapTime(a) ? b : a));
-    const gain = best.segDur.reduce((s, d, k) => s + d - Math.min(...valid.map((l) => l.segDur[k])), 0);
-    return round3(lapTime(best) - gain);
+    try {
+      return ideal(sessionId, "session").time_s;
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "no_valid_laps") return null;
+      throw e;
+    }
   };
 
   const delay = (ms: number) => (ms > 0 ? new Promise<void>((res) => setTimeout(res, ms)) : Promise.resolve());
@@ -743,6 +801,9 @@ export function createMockApi(opts: MockOptions = {}): Api {
         track_temp_c: x.trackTempC,
         focus: clone(x.focus),
       };
+    },
+    async idealLap(sessionId, scope = "session") {
+      return clone(ideal(sessionId, scope));
     },
     async calibrate(trackId): Promise<CalibrationResult> {
       const m = mapOf(trackId);

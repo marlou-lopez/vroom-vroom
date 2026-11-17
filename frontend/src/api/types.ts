@@ -53,6 +53,7 @@ export interface LapMeta {
   lap_no: number;
   kind: LapKind;
   lap_time_s: number | null;
+  /** [sector 1, sector 2, sector 3] durations in seconds, adding up to `lap_time_s`; empty when the lap has none (invalid, out or in lap). */
   sectors_s: number[];
   valid: boolean;
   /** Manual override; wins over `valid` (effective validity = valid_override ?? valid). */
@@ -306,6 +307,35 @@ export interface SessionSummary {
   theoretical_best_s: number | null;
   track_temp_c: number | null;
   focus: { instruction: string; improved: boolean | null } | null;
+}
+
+// ---- Ideal lap ----
+
+/** `session`: the best segments of one session's laps. `all`: of every session on the same track and car. */
+export type IdealScope = "session" | "all";
+
+/** One segment of the track map (a corner, or the straight between two corners) and the lap that holds its best time. */
+export interface IdealSegment {
+  label: string;
+  /** The corner this segment is; null for a straight. */
+  corner_id: string | null;
+  start_m: number;
+  end_m: number;
+  best_s: number;
+  lap_id: string;
+  lap_no: number;
+  session_id: string;
+}
+
+/**
+ * GET /api/sessions/{session_id}/ideal?scope=session|all. `time_s` is the sum of the segments' `best_s`, never above the best valid
+ * lap. Only valid flying laps count (never invalid, out or in laps). Segments follow the track map's corners as they are now, so
+ * this is recomputed rather than stored. For scope=session, `SessionSummary.theoretical_best_s` equals `time_s`.
+ */
+export interface IdealLap {
+  time_s: number;
+  scope: IdealScope;
+  segments: IdealSegment[];
 }
 
 export interface ImportResult {

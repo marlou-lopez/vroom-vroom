@@ -8,6 +8,8 @@ export interface RecordingLap {
   end_ts: number;
   /** null: no official time (out/in lap); 0: invalid lap. */
   lap_time_s: number | null;
+  /** Real [sector 1, 2, 3] durations from LMU's Last Sector1/2 events; null on an invalid, out or in lap. Older files lack it. */
+  sectors_s?: number[] | null;
   length_m: number;
   t: number[];
   speed_kmh: number[];
