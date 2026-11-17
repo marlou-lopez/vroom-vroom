@@ -112,6 +112,43 @@ export interface CompareResponse {
   /** Display names of those cars (the 3D view's car popover). */
   lap_car_name: string;
   ref_car_name: string;
+  /**
+   * One entry per track-map corner, in map order (#86): the numbers a race engineer checks first, for the table, the coach
+   * and the backend alike. A track with no corners in its map gives an empty list.
+   */
+  corners: CornerMetrics[];
+}
+
+/**
+ * One corner, lap against reference. Positions are grid metres (0 = start line); a corner that wraps over the start line
+ * (start_m > end_m) is measured across it.
+ */
+export interface CornerMetrics {
+  corner_id: string;
+  /** Time between the corner's start and end, lap minus reference: positive = time lost, negative = gained. */
+  delta_s: number;
+  lap: CornerSideMetrics;
+  ref: CornerSideMetrics;
+}
+
+export interface CornerSideMetrics {
+  /** First point from the corner start to the apex where the brake reaches 0.1; null when the corner has no braking before the apex. */
+  brake_onset_m: number | null;
+  /** Highest brake pressure in the corner, 0..1. */
+  peak_brake: number;
+  /** Lowest speed in the corner, and where it happens. */
+  min_speed_kmh: number;
+  min_speed_m: number;
+  /** First point from the minimum speed on where the throttle reaches 0.5; null when it never does. */
+  throttle_pickup_m: number | null;
+  /** Speed at the corner's end. */
+  exit_speed_kmh: number;
+  /** Seconds with neither pedal pressed (throttle and brake < 0.05) above 50 km/h. First guess, tuned in #25. */
+  coast_s: number;
+  /** Seconds with both pedals pressed (throttle and brake > 0.1). First guess, tuned in #25. */
+  overlap_s: number;
+  /** Direction reversals of the smoothed steering (+-5 m, 10 % prominence). Compare with the reference's count: the difference is the extra corrections. */
+  steer_corrections: number;
 }
 
 /**

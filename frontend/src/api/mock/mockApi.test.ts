@@ -241,6 +241,39 @@ describe("mockApi: real Spa laps", () => {
     });
   });
 
+  it("compare carries CornerMetrics for every corner: Spa L4 against L3", async () => {
+    const { api, lap } = await setup();
+    const [cmp, map] = await Promise.all([api.compare(lap(4).lap_id, lap(3).lap_id), api.trackMap(TRACK)]);
+    expect(cmp.corners.map((c) => c.corner_id)).toEqual(map.corners.map((c) => c.id));
+    for (const m of cmp.corners) {
+      const c = map.corners.find((x) => x.id === m.corner_id)!;
+      expect(Number.isFinite(m.delta_s)).toBe(true);
+      expect(m.delta_s).toBe(round3(cmp.delta[Math.round(c.end_m)] - cmp.delta[Math.round(c.start_m)]));
+      for (const side of [m.lap, m.ref]) {
+        for (const k of ["peak_brake", "min_speed_kmh", "min_speed_m", "exit_speed_kmh", "coast_s", "overlap_s", "steer_corrections"] as const) {
+          expect(Number.isFinite(side[k]), `${c.name} ${k}`).toBe(true);
+        }
+        expect(side.coast_s).toBeGreaterThanOrEqual(0);
+        expect(side.overlap_s).toBeGreaterThanOrEqual(0);
+        expect(side.min_speed_kmh).toBeGreaterThan(0);
+        if (side.brake_onset_m !== null) expect(side.brake_onset_m).toBeLessThanOrEqual(c.apex_m);
+      }
+    }
+    // Comparing a lap with itself changes nothing.
+    const same = await api.compare(lap(4).lap_id, lap(4).lap_id);
+    for (const m of same.corners) {
+      expect(m.delta_s).toBe(0);
+      expect(m.lap).toEqual(m.ref);
+    }
+  });
+
+  it("the coach and the compare corners agree on time lost", async () => {
+    const { api, lap } = await setup();
+    const res = await api.coach({ command: "analyze", lap_id: lap(1).lap_id, ref_lap_id: null, corner_id: null });
+    const cmp = await api.compare(lap(1).lap_id, lap(4).lap_id);
+    for (const f of res.findings) expect(f.time_s).toBe(cmp.corners.find((m) => m.corner_id === f.corner_id)!.delta_s);
+  });
+
   it("compare without ref uses the reference for that track and car", async () => {
     const { api, lap } = await setup();
     expect((await api.compare(lap(1).lap_id)).ref_lap_id).toBe(lap(4).lap_id);
