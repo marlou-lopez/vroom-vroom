@@ -21,6 +21,9 @@
 .loss { color: var(--color-issue); }
 .gain { color: var(--color-strength); }
 
+/* 3D: solid chips so the numbers stay readable over the scene. */
+.readout[data-view="3d"], .deltaBox[data-view="3d"] { background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 3px 6px; }
+
 .footer { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 2; }
 
 /* Between the readout and the delta box when there is room; on its own row below them when there is not. */

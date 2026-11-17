@@ -26,8 +26,18 @@
   pointer-events: none;
 }
 /* Experimental balance tint (vroom-pnw.15, ?balance): wider and fainter than the slip marks so those stay on top. */
-.understeer { fill: none; stroke: var(--color-understeer); stroke-width: 8; stroke-opacity: 0.55; stroke-linecap: round; stroke-linejoin: round; }
+.understeer { fill: none; stroke: var(--color-understeer); stroke-width: 8; stroke-opacity: 0.28; stroke-linecap: round; stroke-linejoin: round; }
 .oversteer { fill: none; stroke: var(--color-oversteer); stroke-width: 8; stroke-opacity: 0.55; stroke-linecap: round; stroke-linejoin: round; }
-.balanceLegend { font-size: 6px; fill: var(--color-muted); }
-.legendUs { fill: var(--color-understeer); }
-.legendOs { fill: var(--color-oversteer); }
+/* Legend (vroom-pnw.38): top right, under the delta box. */
+.legend {
+  position: absolute; right: 8px; top: 58px; z-index: 1; margin: 0; padding: 3px 6px; list-style: none;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px; pointer-events: none;
+  font-size: 10px; color: var(--color-muted); background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius);
+}
+.legend i { display: inline-block; width: 12px; height: 4px; margin-right: 5px; border-radius: 2px; vertical-align: middle; }
+.swUnder { background: var(--color-understeer); opacity: 0.5; }
+.swOver { background: var(--color-oversteer); opacity: 0.5; }
+.swClose { background: var(--color-close-call); }
+.swOff { background: var(--color-off-track); }
+.swLock { background: var(--color-lockup); }
+.swSpin { background: var(--color-wheelspin); }
