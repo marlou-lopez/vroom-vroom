@@ -77,6 +77,14 @@ describe("realApi over MSW", () => {
     expect((await rejection(api.sessionLaps("nope"))).code).toBe("unknown_session");
   });
 
+  it("gets a lap by id and answers 404 unknown_lap for a missing one", async () => {
+    const [spa] = await api.sessions();
+    const [first] = await api.sessionLaps(spa.session_id);
+    expect(await api.lap(first.lap_id)).toEqual(first);
+    expect((await rejection(api.lap("nope"))).code).toBe("unknown_lap");
+    expect((await fetch("http://localhost/api/laps/nope")).status).toBe(404);
+  });
+
   it("runs coach analyze, stores it and persists a reviewed flag", async () => {
     const sessions = await api.sessions();
     const spa = sessions.find((s) => s.started_at.startsWith("2026-11-03"))!;
