@@ -126,8 +126,8 @@ function StintBody({ stint }: { stint: Stint }) {
 export function StintPanel({ trackId, carId }: { trackId: string; carId: string }) {
   const q = useQuery({ queryKey: ["experimental", "stints"], queryFn: () => api.stints(), staleTime: Infinity });
   const mine = (q.data ?? []).filter((s) => s.track_id === trackId && s.car_id === carId);
-  if (q.error) return <section aria-label="Stint" className={ui.panel}><div className={ui.muted}>Stint: {q.error.message}</div></section>;
-  if (mine.length === 0) return null;
+  // The endpoint is experimental: when it fails (the real backend has no such route yet), the panel stays hidden.
+  if (q.error || mine.length === 0) return null;
   return (
     <section aria-label="Stint" className={cx(ui.panel, styles.panel)}>
       <div className={styles.head}>

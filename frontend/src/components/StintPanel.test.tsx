@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { render, screen, within } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createHandlers } from "../api/mock/handlers";
@@ -39,6 +40,15 @@ describe("StintPanel (experimental)", () => {
     const { container } = render(<StintPanel trackId="spa" carId="mclaren_720s_gt3_evo" />, { wrapper });
     await new Promise((r) => setTimeout(r, 50));
     expect(client.getQueryData(["experimental", "stints"])).toHaveLength(1);
+    expect(container.innerHTML).toBe("");
+  });
+
+  it("stays hidden when the experimental endpoint fails (the real backend has no such route yet)", async () => {
+    server.resetHandlers(http.get("*/api/experimental/stints", () => HttpResponse.json({ code: "http_404", message: "Not Found" }, { status: 404 })));
+    const { wrapper, client } = createQueryWrapper();
+    const { container } = render(<StintPanel trackId="monza-grand-prix" carId="mclaren_720s_gt3_evo" />, { wrapper });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(client.getQueryState(["experimental", "stints"])?.status).toBe("error");
     expect(container.innerHTML).toBe("");
   });
 });

@@ -90,7 +90,7 @@ Source: a survey of 244 recordings (copies, read-only) and two in detail: `Autod
 | TyresRubberTemp | 10 | C | Close to the centre tread temperature. |
 | TyresRimTemp | 50 | C | 74–82 °C on the Monza race, 54–60 °C on the Hypercar out-lap. |
 | TyresPressure | 10 | kPa | Monza race laps: about 166–173 kPa hot. |
-| Brakes Temp | 50 | C | Disc temperature. Monza race: lap means about 470 °C front and 370 °C rear, peaks about 740 °C front. |
+| Brakes Temp | 50 | C | Disc temperature. Monza race: lap means about 470 °C front and 370 °C rear early in the race, about 370–400 front and 290–315 rear late in it (lighter car, as fuel burns off); peaks about 740 °C front. |
 | Brakes Air Temp, Brakes Force | 50 | C, % | Not used yet. |
 | Brake Thickness | 10 | % (recorded) | Values look like **centimetres** of disc: 3.6 front and 3.2 rear on the GT3, 3.4 and 3.2 on the Hypercar; 0.008 worn over the 50-minute race. |
 | OverheatingState | 2 | bool | False throughout both files. |
@@ -100,6 +100,6 @@ Source: a survey of 244 recordings (copies, read-only) and two in detail: `Autod
 
 **Events:** `TyresCompound` (four values, one per wheel; 0 on the GT3, 1 on the Hypercar; names unverified), `FuelMixtureMap` (1 on the GT3, 6 on the Hypercar), `Minimum Path Wetness` and `OffpathWetness` (%; 0 / false on dry days), `CloudDarkness`. Events are emitted on change, so a dry session has one row each.
 
-**Wheel order FL, FR, RL, RR is confirmed** by these channels on the right-handed Monza: value1 and value3 (the left tyres) run 5–7 °C hotter than value2 and value4, and value1 and value2 (the fronts) carry the hotter brakes.
+**Wheel order FL, FR, RL, RR is confirmed** by these channels on the right-handed Monza: value1 and value3 (the left tyres) run 4–8 °C hotter than value2 and value4, and value1 and value2 (the fronts) carry the hotter brakes.
 
 **A pit stop in a race:** `In Pits` goes to 1 during the last lap before the stop (that lap still gets a `Lap Time`, the pit-lane time included, 119.9 s here); the next lap starts in the pits. Lap 0 of a race is the start lap (125.2 s from the start, against 113 s for a flying lap).

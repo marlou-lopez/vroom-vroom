@@ -25,7 +25,7 @@ units, rates and quirks is in `docs/lmu-duckdb-schema.md`, section "Stint channe
 | Weather | `Track Temperature`, `Ambient Temperature`, `Wind Speed/Heading` (1 Hz); events `Minimum Path Wetness`, `OffpathWetness`, `CloudDarkness` | | yes |
 | Set-up state | events `TyresCompound` (per wheel), `FuelMixtureMap` | on change | names of the values unverified |
 
-**Wheel order FL, FR, RL, RR is confirmed** (until now it was assumed): on the right-handed Monza the left tyres run 5–7 °C
+**Wheel order FL, FR, RL, RR is confirmed** (until now it was assumed): on the right-handed Monza the left tyres run 4–8 °C
 hotter and the front brakes about 100 °C hotter.
 
 ## The stint
@@ -46,7 +46,7 @@ What the Monza race shows (from `frontend/src/lib/stint.ts` on the extracted fil
 | Virtual energy | 3.80 % a flying lap; the 100 % start lasts **26.3 laps, so energy, not fuel, limits the stint** (5.1 % VE and 8.2 L of fuel were left at the stop) |
 | Wear | FL 0.44 % a lap, the other three 0.36 % |
 | Tyre surface (lap mean) | FL 78 → 82 → 78 °C over the race (it peaks around lap 12 and cools as fuel burns off), FR about 74 → 70 °C |
-| Brakes (lap mean) | front about 470 °C early, 380–400 °C late in the race |
+| Brakes (lap mean) | front about 470 °C early, about 370–400 °C late in the race (rear about 370 → 290–315 °C) |
 | Track | 35.3 → 37.6 °C |
 
 The small fall-off is the sum of two effects the recording cannot separate: the car gets lighter (faster) as it burns fuel, and the
