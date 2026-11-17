@@ -335,3 +335,30 @@ Lessons for vroom-9ki.12 (coach packets and guard), whichever model wins:
 - **DeepSeek** (`deepseek-flash`, `deepseek-v4-pro`; JSON mode with the schema in the prompt) was checked later in
   vroom-9ki.19 (round 3 above): OpenAI stays the default. Anthropic, the design's original default, stays one setting away and unmeasured.
 - The bench (`spikes/local-llm/`) stays for later rounds: more recordings, prompt and packet versions, providers.
+
+## Round 4: packet set v3 (not run yet)
+
+Built, not measured. The packet builder and the guard are done; the paid runs are waiting because the autopilot
+worker had no `OPENAI_API_KEY` or `DEEPSEEK_API_KEY` (and no `ANTHROPIC_API_KEY` or `GROQ_API_KEY`) in its
+environment.
+
+- `build-packets.mjs` now also writes `packets-v3/` (Spa) and `packets-v3-monza/`: plain-English keys ("minimum
+  speed"), pairs written `110 km/h against 112`, and an `allowed_numbers` list on every corner. v2 output is unchanged.
+- `guard.py` checks each finding's prose against its own corner's `allowed_numbers` when the packet has them (v1 and v2
+  packets: the whole packet, as before). Check: "147 km/h against 151" passes, "4 km/h" (the round-1 subtraction) fails as
+  calculated, and a number from another corner fails as invented.
+
+To finish the round (from `spikes/local-llm/`, keys exported in your shell):
+
+```bash
+R=2026-11-18-r4
+for set in packets-v2 packets-v3 packets-v2-monza packets-v3-monza; do
+  uv run --with openai --with anthropic --with jsonschema python -I run.py --matrix models.json --prompt prompt-v3.md \
+    --packets $set --runs 5 --round $R --select openai:gpt-6.1-terra,openai:gpt-6-luna,deepseek:deepseek-flash
+done
+python3 -I summarize.py table --round $R
+python3 -I summarize.py blind --round $R --per 1 --name $R
+```
+
+Not yet measured: `anthropic:claude-sonnet-5-5` and `groq:gpt-oss-120b` (same loop with
+`--select anthropic:claude-sonnet-5-5` or `--select groq:gpt-oss-120b`; needs `ANTHROPIC_API_KEY` / `GROQ_API_KEY`).
