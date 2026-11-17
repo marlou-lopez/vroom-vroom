@@ -1,20 +1,18 @@
 import * as Slider from "@radix-ui/react-slider";
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Viewport } from "../../../lib/camera";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { cx } from "../../../lib/cx";
 import { debugEnabled } from "../../../lib/debugFlag";
 import { attitudeAt, estimateAttitude } from "../../../lib/carAttitude";
 import { pointAt } from "../../../lib/geo";
-import { summarize } from "../../../lib/perf";
 import { deriveRpmLimits } from "../../../lib/shiftLights";
 import { timeAtDistance } from "../../../lib/playback";
 import { usePlaybackStore } from "../../../state/playback";
 import ui from "../../ui.module.css";
-import { benchMarkdown, type BenchRow } from "../detailed/bench";
 import { buildScene, carPositions, type CarSync } from "../detailed/scene";
 import { AnnotationBadges } from "../shared/AnnotationBadges";
-import { Ring } from "../shared/ring";
+import { useBenchHud } from "../shared/useBenchHud";
+import { useGpuRenderer } from "../shared/useGpuRenderer";
 import { loadSetting, loadString, saveString } from "../shared/storage";
 import type { TrackViewProps } from "../types";
 import { dashAt } from "./dashValues";
@@ -23,13 +21,12 @@ import { deltaLabel, paneReadout, paneTitle } from "./split";
 import { VIEW_MODES, type ViewMode } from "./viewModes";
 import { heightAt, roadHeights } from "./heights";
 import { aheadPoint, carPose } from "./pose";
-import { loadRibbonRenderer, type RibbonRenderer, type ScreenPoint } from "./types";
+import { loadRibbonRenderer, type ScreenPoint } from "./types";
 import styles from "./RibbonView.module.css";
 
 /** The Car popover (Radix popover, the model store, the converter's client) loads with the 3D view, not with the app's main bundle. */
 const CarModelControl = lazy(() => import("./CarModelControl").then((m) => ({ default: m.CarModelControl })));
 
-const HUD_MS = 250;
 const MIN_INTERVAL_MS = 4;
 const JUMP_M = 50;
 /** Metres ahead of the lap car the chase camera looks at. */
@@ -38,7 +35,6 @@ const BADGE_OFFSET_PX = 12;
 const BADGE_STACK_PX = 14;
 /** Badges float this far above the road so they clear the surface and the cars. */
 const BADGE_LIFT_M = 3;
-const RESTORE_WAIT_MS = 3000;
 
 /**
  * Vertical exaggeration range. Default 1x: the true shape, where a car's pitch and the chase view read as the real road
@@ -65,9 +61,6 @@ function loadMode(): ViewMode {
 function loadSplit(): boolean {
   return loadString(SPLIT_KEY) === "1";
 }
-
-type GpuState = "ok" | "lost" | "stuck" | "failed";
-const f1 = (v: number) => v.toFixed(1);
 
 /** Experimental 3D view (#39): the track as a ribbon with elevation, both cars, and chase / cockpit (#100) / orbit / top-down cameras. */
 export function RibbonView({ model, geometry, annotations, handlers, lapTimes }: TrackViewProps) {
@@ -114,24 +107,12 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
     [cmp],
   );
 
-  const [epoch, setEpoch] = useState(0);
-  const [gpu, setGpu] = useState<GpuState>("ok");
   const [mode, setModeState] = useState<ViewMode>(loadMode);
   const [exag, setExagState] = useState(loadExaggeration);
   const [sync, setSyncState] = useState<CarSync>("time");
   const [split, setSplitState] = useState(loadSplit);
-  const [showHud, setShowHud] = useState(true);
-  const [hudText, setHudText] = useState("");
-  const [running, setRunning] = useState(false);
-  const [rows, setRows] = useState<BenchRow[]>([]);
-  const [panel, setPanel] = useState<Viewport | undefined>(undefined);
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const hostRef = useRef<HTMLDivElement>(null);
-  const reportRef = useRef<HTMLTextAreaElement>(null);
-  const rendererRef = useRef<RibbonRenderer | null>(null);
-  const lostRef = useRef(false);
-  const lostTimer = useRef(0);
   const sceneRef = useRef(scene);
   const heightsRef = useRef(heights);
   const attitudeRef = useRef(attitude);
@@ -148,17 +129,31 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
   const modeRef = useRef(mode);
   const exagRef = useRef(exag);
   const syncRef = useRef<CarSync>("time");
-  const vp = useRef<Viewport>({ w: 0, h: 0 });
   const raf = useRef(0);
   const lastDist = useRef(0);
   const lastDrawT = useRef(0);
-  const frames = useRef(new Ring());
-  const draws = useRef(new Ring());
-  const drawRec = useRef<number[] | null>(null);
-  const benchRunning = useRef(false);
-  const abort = useRef<AbortController | null>(null);
   const badgeEls = useRef(new Map<string, HTMLButtonElement>());
   const screenPt = useRef<ScreenPoint>({ x: 0, y: 0, visible: false });
+
+  const { hostRef, rendererRef, lostRef, vp, requestDrawRef, gpu, retry } = useGpuRenderer({
+    load: loadRibbonRenderer,
+    onReady: (r) => {
+      r.setScene({ scene: sceneRef.current, heights: heightsRef.current });
+      r.setMode(modeRef.current);
+    },
+    failLabel: "3D renderer failed",
+  });
+
+  const {
+    showHud, setShowHud, hudText, running, rows, clearRows, markdown, copy, startBench, reportRef,
+    frames, draws, drawRec, benchRunning,
+  } = useBenchHud({
+    debug, viewport: () => vp.current, makeControl, run: runRibbonBench,
+    extraHud: () => {
+      const st = rendererRef.current?.stats();
+      return st ? `  ${st.calls} calls  ${(st.triangles / 1000).toFixed(0)}k tris` : "";
+    },
+  });
 
   const setPaneText = useCallback((key: "lapInfo" | "refInfo" | "delta", text: string) => {
     if (paneText.current[key] === text) return;
@@ -229,18 +224,21 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
       el.style.transform = `translate(${s.x.toFixed(1)}px, ${y.toFixed(1)}px)`;
       el.style.visibility = !s.visible || s.x < minX - 10 || s.x > v.w + 10 || y < -10 || y > v.h + 10 ? "hidden" : "visible";
     }
-  }, [store, setPaneText]);
+  }, [store, vp, lostRef, rendererRef, setPaneText, frames, draws, drawRec, benchRunning]);
 
   const requestDraw = useCallback(() => {
     if (!raf.current) raf.current = requestAnimationFrame(drawFrame);
   }, [drawFrame]);
+  useLayoutEffect(() => {
+    requestDrawRef.current = requestDraw;
+  }, [requestDrawRef, requestDraw]);
 
   const applyMode = useCallback((next: ViewMode) => {
     modeRef.current = next;
     setModeState(next);
     rendererRef.current?.setMode(next);
     requestDraw();
-  }, [requestDraw]);
+  }, [requestDraw, rendererRef]);
 
   useEffect(() => {
     cmpRef.current = cmp;
@@ -258,7 +256,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
     refDeltaRef.current = refDelta;
     rendererRef.current?.setScene({ scene, heights });
     requestDraw();
-  }, [scene, heights, attitude, refAttitude, limits, refLimits, refDelta, requestDraw]);
+  }, [scene, heights, attitude, refAttitude, limits, refLimits, refDelta, rendererRef, requestDraw]);
 
   // While playing, tau changes once per frame inside the playback loop's own rAF: draw right then (no one-frame lag).
   useEffect(() => store.subscribe(() => {
@@ -274,76 +272,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
   useEffect(() => () => {
     cancelAnimationFrame(raf.current);
     raf.current = 0;
-    abort.current?.abort();
-    window.clearTimeout(lostTimer.current);
   }, []);
-
-  // Renderer lifecycle, as in the detailed view: a late renderer is destroyed; a lost context stops drawing and a
-  // restore (or Retry) bumps the epoch, which builds a fresh renderer. A chunk that fails to load shows a message with Retry.
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const ac = new AbortController();
-    const events = {
-      onContextLost: () => {
-        if (ac.signal.aborted) return;
-        lostRef.current = true;
-        setGpu("lost");
-        window.clearTimeout(lostTimer.current);
-        lostTimer.current = window.setTimeout(() => setGpu("stuck"), RESTORE_WAIT_MS);
-      },
-      onContextRestored: () => {
-        if (ac.signal.aborted) return;
-        window.clearTimeout(lostTimer.current);
-        setEpoch((e) => e + 1);
-      },
-      onNeedsDraw: () => requestDraw(),
-    };
-    const ready = loadRibbonRenderer(host, events).then((r) => {
-      if (ac.signal.aborted) {
-        r.destroy();
-        return null;
-      }
-      rendererRef.current = r;
-      lostRef.current = false;
-      setGpu("ok");
-      r.setScene({ scene: sceneRef.current, heights: heightsRef.current });
-      r.setMode(modeRef.current);
-      r.resize(vp.current, window.devicePixelRatio || 1);
-      requestDraw();
-      return r;
-    }, (err) => {
-      console.error("3D renderer failed", err);
-      if (!ac.signal.aborted) setGpu("failed");
-      return null;
-    });
-    return () => {
-      ac.abort();
-      void ready.then((r) => {
-        if (!r) return;
-        r.destroy();
-        if (rendererRef.current === r) rendererRef.current = null;
-      });
-    };
-  }, [epoch, requestDraw]);
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const measure = () => {
-      vp.current = { w: host.clientWidth, h: host.clientHeight };
-      rendererRef.current?.resize(vp.current, window.devicePixelRatio || 1);
-      requestDraw();
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(host);
-    window.addEventListener("resize", measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [requestDraw]);
 
   // The chase and top cameras zoom with the wheel; in orbit mode the orbit controls take it. Wheel needs preventDefault, so it is attached by hand.
   useEffect(() => {
@@ -359,19 +288,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
     };
     root.addEventListener("wheel", onWheel, { passive: false });
     return () => root.removeEventListener("wheel", onWheel);
-  }, [requestDraw]);
-
-  useEffect(() => {
-    if (!debug || !showHud) return;
-    const id = setInterval(() => {
-      const s = summarize(frames.current.values());
-      const d = summarize(draws.current.values());
-      if (s.fps === 0) return;
-      const st = rendererRef.current?.stats();
-      setHudText(`${s.fps.toFixed(0)} fps  ${f1(s.meanMs)} ms  p95 ${f1(s.p95Ms)}  max ${f1(s.maxMs)}  >20ms ${s.over20}\ndraw p95 ${f1(d.p95Ms)} ms${st ? `  ${st.calls} calls  ${(st.triangles / 1000).toFixed(0)}k tris` : ""}`);
-    }, HUD_MS);
-    return () => clearInterval(id);
-  }, [debug, showHud]);
+  }, [requestDraw, rendererRef, benchRunning]);
 
   const selectMode = (v: string) => {
     if (!VIEW_MODES.includes(v as ViewMode)) return;
@@ -411,7 +328,9 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
     if (!rendererRef.current?.simulateContextLoss()) console.warn("WEBGL_lose_context is not available");
   };
 
-  const makeControl = (): RibbonBenchControl => ({
+  /** Hoisted: the bench hook is created before the camera functions this reads. */
+  function makeControl(): Omit<RibbonBenchControl, "recordDraws" | "drawTimes"> {
+    return {
     lapLength: () => sceneRef.current.ref.x.length,
     lapTimeAtDistance: (d) => timeAtDistance(cmpRef.current.lap.t, cmpRef.current.distance, d),
     seek: (tau) => store.seek(tau),
@@ -429,40 +348,8 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
       else store.pause();
       requestDraw();
     },
-    recordDraws: (on) => {
-      drawRec.current = on ? [] : null;
-    },
-    drawTimes: () => drawRec.current ?? [],
-  });
-
-  const startBench = async () => {
-    if (benchRunning.current) return;
-    benchRunning.current = true;
-    setRunning(true);
-    setPanel({ ...vp.current });
-    const ac = new AbortController();
-    abort.current = ac;
-    try {
-      const out = await runRibbonBench(makeControl(), ac.signal);
-      setRows((prev) => [...prev, ...out]);
-    } finally {
-      benchRunning.current = false;
-      setRunning(false);
-    }
-  };
-
-  const markdown = benchMarkdown(rows, { panel });
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(markdown);
-    } catch {
-      const ta = reportRef.current;
-      if (!ta) return;
-      ta.select();
-      document.execCommand("copy");
-    }
-  };
+    };
+  }
 
   return (
     <div ref={rootRef} className={styles.root}>
@@ -489,7 +376,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
         <div className={styles.gpu} data-controls="" role="status">
           <span>{gpu === "failed" ? "The 3D view could not load." : "Graphics reset — restoring…"}</span>
           {(gpu === "stuck" || gpu === "failed") && (
-            <button type="button" className={cx(ui.btn, styles.small)} onClick={() => { setGpu("lost"); setEpoch((e) => e + 1); }}>Retry</button>
+            <button type="button" className={cx(ui.btn, styles.small)} onClick={retry}>Retry</button>
           )}
         </div>
       )}
@@ -561,7 +448,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes }:
             <textarea ref={reportRef} readOnly rows={Math.min(rows.length + 6, 14)} value={markdown} aria-label="Benchmark results" />
             <div className={styles.bar}>
               <button type="button" className={cx(ui.btn, styles.small)} onClick={copy}>Copy as Markdown</button>
-              <button type="button" className={cx(ui.btn, ui.btnMuted, styles.small)} disabled={running} onClick={() => setRows([])}>Clear</button>
+              <button type="button" className={cx(ui.btn, ui.btnMuted, styles.small)} disabled={running} onClick={clearRows}>Clear</button>
             </div>
           </div>
         )}

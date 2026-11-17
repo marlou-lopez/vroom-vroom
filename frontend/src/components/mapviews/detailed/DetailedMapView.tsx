@@ -1,8 +1,8 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   FOLLOW_WIDTH_M, fitBounds, followCamera, northUp, panBy, smoothHeading, worldToScreen, zoomAt,
-  type Camera, type Viewport,
+  type Camera,
 } from "../../../lib/camera";
 import { cx } from "../../../lib/cx";
 import { debugEnabled } from "../../../lib/debugFlag";
@@ -11,13 +11,14 @@ import { distanceAtTime, timeAtDistance } from "../../../lib/playback";
 import { usePlaybackStore } from "../../../state/playback";
 import ui from "../../ui.module.css";
 import type { TrackViewProps } from "../types";
-import type { BenchControl, CameraMode } from "./bench";
-import { GAIN_STYLES, loadRenderer, type GainStyle, type Renderer } from "./renderer";
+import { runBench, type BenchControl, type CameraMode } from "./bench";
+import { GAIN_STYLES, loadRenderer, type GainStyle } from "./renderer";
 import { buildScene, carPositions, type CarSync, type EdgeSource, type LineSource } from "./scene";
 import { AnnotationBadges } from "../shared/AnnotationBadges";
 import { loadFlag, loadSetting, saveFlag, saveSetting } from "../shared/storage";
 import styles from "./DetailedMapView.module.css";
-import { useBenchHud } from "./useBenchHud";
+import { useBenchHud } from "../shared/useBenchHud";
+import { useGpuRenderer } from "../shared/useGpuRenderer";
 import { useMapGestures } from "./useMapGestures";
 
 const HEADING_ALPHA = 0.2;
@@ -26,10 +27,6 @@ const HEADING_JUMP_M = 50;
 const MIN_INTERVAL_MS = 4;
 const BADGE_OFFSET_PX = 12;
 const BADGE_STACK_PX = 14;
-/** A lost context not restored within this long offers a Retry button. */
-const RESTORE_WAIT_MS = 3000;
-
-type GpuState = "ok" | "lost" | "stuck" | "failed";
 
 /** Whether the line ahead of each car is shown (#48). */
 const LINE_AHEAD_KEY = "vroom.lineAhead";
@@ -55,8 +52,6 @@ export function DetailedMapView({ model, geometry, annotations, handlers }: Trac
   const [edgeSource, setEdgeSourceState] = useState<EdgeSource>(loadEdgeSource);
   const scene = useMemo(() => buildScene(cmp, { source, gpsHalf, edges: edgeSource, survey: geometry?.survey }), [cmp, geometry, source, gpsHalf, edgeSource]);
 
-  const [epoch, setEpoch] = useState(0);
-  const [gpu, setGpu] = useState<GpuState>("ok");
   const [mode, setModeState] = useState<CameraMode>("follow");
   const [headingUp, setHeadingUpState] = useState(false);
   /** Whether the free camera is turned (kept from heading-up); enables North-up (#60). */
@@ -65,10 +60,6 @@ export function DetailedMapView({ model, geometry, annotations, handlers }: Trac
   const [gainStyle, setGainStyleState] = useState(loadGainStyle);
 
   const rootRef = useRef<HTMLDivElement>(null);
-  const hostRef = useRef<HTMLDivElement>(null);
-  const rendererRef = useRef<Renderer | null>(null);
-  const lostRef = useRef(false);
-  const lostTimer = useRef(0);
   const sceneRef = useRef(scene);
   const cmpRef = useRef(cmp);
   const annRef = useRef(annotations);
@@ -83,15 +74,25 @@ export function DetailedMapView({ model, geometry, annotations, handlers }: Trac
   const freeCam = useRef<Camera | null>(null);
   const shownCam = useRef<Camera | null>(null);
   const followW = useRef(FOLLOW_WIDTH_M);
-  const vp = useRef<Viewport>({ w: 0, h: 0 });
   const raf = useRef(0);
   const lastDrawT = useRef(0);
   const badgeEls = useRef(new Map<string, HTMLButtonElement>());
 
+  const { hostRef, rendererRef, lostRef, vp, requestDrawRef, gpu, retry } = useGpuRenderer({
+    load: loadRenderer,
+    onReady: (r) => {
+      r.setScene(sceneRef.current);
+      r.setAheadVisible(lineAheadRef.current);
+      r.setGainStyle(gainStyleRef.current);
+      r.setEdgeDebug(debug);
+    },
+    failLabel: "renderer failed",
+  });
+
   const {
     showHud, setShowHud, hudText, running, rows, clearRows, markdown, copy, startBench, reportRef,
     frames, draws, drawRec, benchRunning,
-  } = useBenchHud({ debug, viewport: () => vp.current, makeControl, onRunStart: suspendHeadingUp });
+  } = useBenchHud({ debug, viewport: () => vp.current, makeControl, run: runBench, onRunStart: suspendHeadingUp });
 
   const drawFrame = useCallback((now: number) => {
     raf.current = 0;
@@ -139,11 +140,14 @@ export function DetailedMapView({ model, geometry, annotations, handlers }: Trac
       el.style.transform = `translate(${s.x.toFixed(1)}px, ${y.toFixed(1)}px)`;
       el.style.visibility = s.x < -10 || s.x > v.w + 10 || y < -10 || y > v.h + 10 ? "hidden" : "visible";
     }
-  }, [store, frames, draws, drawRec, benchRunning]);
+  }, [store, vp, lostRef, rendererRef, frames, draws, drawRec, benchRunning]);
 
   const requestDraw = useCallback(() => {
     if (!raf.current) raf.current = requestAnimationFrame(drawFrame);
   }, [drawFrame]);
+  useLayoutEffect(() => {
+    requestDrawRef.current = requestDraw;
+  }, [requestDrawRef, requestDraw]);
 
   /** Sets the free camera where its rotation may change; pan and zoom keep the rotation and write the ref directly. */
   const setFreeCam = useCallback((c: Camera) => {
@@ -159,7 +163,7 @@ export function DetailedMapView({ model, geometry, annotations, handlers }: Trac
     modeRef.current = next;
     setModeState(next);
     requestDraw();
-  }, [requestDraw, setFreeCam]);
+  }, [requestDraw, setFreeCam, vp]);
 
   const zoomBy = useCallback((factor: number, anchor: { x: number; y: number }, limits: { minM: number; maxM: number }) => {
     if (modeRef.current === "follow") {
@@ -169,13 +173,13 @@ export function DetailedMapView({ model, geometry, annotations, handlers }: Trac
       freeCam.current = zoomAt(cam, vp.current, anchor, factor, limits);
     }
     requestDraw();
-  }, [requestDraw]);
+  }, [requestDraw, vp]);
 
   const panFree = useCallback((dx: number, dy: number) => {
     const cam = freeCam.current ?? fitBounds(sceneRef.current.bounds, vp.current);
     freeCam.current = panBy(cam, vp.current, dx, dy);
     requestDraw();
-  }, [requestDraw]);
+  }, [requestDraw, vp]);
 
   const gestures = useMapGestures({
     rootRef, vp, sceneRef, cmpRef, modeRef, shownCam, benchRunning, store, applyMode, zoomBy, panFree,
@@ -192,7 +196,7 @@ export function DetailedMapView({ model, geometry, annotations, handlers }: Trac
     sceneRef.current = scene;
     rendererRef.current?.setScene(scene);
     requestDraw();
-  }, [scene, requestDraw]);
+  }, [scene, rendererRef, requestDraw]);
 
   // While playing, tau changes once per frame inside the playback loop's own rAF: draw right then (no one-frame lag).
   useEffect(() => store.subscribe(() => {
@@ -208,83 +212,13 @@ export function DetailedMapView({ model, geometry, annotations, handlers }: Trac
   useEffect(() => () => {
     cancelAnimationFrame(raf.current);
     raf.current = 0;
-    window.clearTimeout(lostTimer.current);
   }, []);
-
-  // Renderer lifecycle. The promise can resolve after an unmount or a new epoch; a late renderer is destroyed.
-  // A lost context stops drawing; a restore (or Retry) bumps the epoch, which builds a fresh renderer.
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const ac = new AbortController();
-    const events = {
-      onContextLost: () => {
-        if (ac.signal.aborted) return;
-        lostRef.current = true;
-        setGpu("lost");
-        window.clearTimeout(lostTimer.current);
-        lostTimer.current = window.setTimeout(() => setGpu("stuck"), RESTORE_WAIT_MS);
-      },
-      onContextRestored: () => {
-        if (ac.signal.aborted) return;
-        window.clearTimeout(lostTimer.current);
-        setEpoch((e) => e + 1);
-      },
-    };
-    const ready = loadRenderer(host, events).then((r) => {
-      if (ac.signal.aborted) {
-        r.destroy();
-        return null;
-      }
-      rendererRef.current = r;
-      lostRef.current = false;
-      setGpu("ok");
-      r.setScene(sceneRef.current);
-      r.setAheadVisible(lineAheadRef.current);
-      r.setGainStyle(gainStyleRef.current);
-      r.setEdgeDebug(debug);
-      r.resize(vp.current, window.devicePixelRatio || 1);
-      requestDraw();
-      return r;
-    }, (err) => {
-      console.error("renderer failed", err);
-      if (!ac.signal.aborted) setGpu("failed");
-      return null;
-    });
-    return () => {
-      ac.abort();
-      void ready.then((r) => {
-        if (!r) return;
-        r.destroy();
-        if (rendererRef.current === r) rendererRef.current = null;
-      });
-    };
-  }, [epoch, requestDraw, debug]);
-
-  // Resize: the host's size feeds the renderer; the free camera keeps its centre and width.
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const measure = () => {
-      vp.current = { w: host.clientWidth, h: host.clientHeight };
-      rendererRef.current?.resize(vp.current, window.devicePixelRatio || 1);
-      requestDraw();
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(host);
-    window.addEventListener("resize", measure);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [requestDraw]);
 
   // The flag is fixed per page load; the renderer also gets it when it is created.
   useEffect(() => {
     rendererRef.current?.setEdgeDebug(debug);
     requestDraw();
-  }, [debug, requestDraw]);
+  }, [debug, rendererRef, requestDraw]);
 
   const fit = () => {
     modeRef.current = "free";
@@ -394,7 +328,7 @@ export function DetailedMapView({ model, geometry, annotations, handlers }: Trac
               : "Graphics reset — restoring…"}
           </span>
           {(gpu === "stuck" || gpu === "failed") && (
-            <button type="button" className={cx(ui.btn, styles.small)} onClick={() => { setGpu("lost"); setEpoch((e) => e + 1); }}>Retry</button>
+            <button type="button" className={cx(ui.btn, styles.small)} onClick={retry}>Retry</button>
           )}
         </div>
       )}
