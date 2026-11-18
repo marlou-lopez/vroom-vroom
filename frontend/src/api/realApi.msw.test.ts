@@ -42,6 +42,14 @@ describe("realApi over MSW", () => {
     expect(laps.length).toBeGreaterThan(0);
   });
 
+  it("fetches the session report, and 404s for an unknown session", async () => {
+    const [s] = await api.sessions();
+    const r = await api.sessionReport(s.session_id);
+    expect(r.session_id).toBe(s.session_id);
+    expect(r.events.length).toBeGreaterThan(0);
+    expect((await rejection(api.sessionReport("nope"))).code).toBe("unknown_session");
+  });
+
   it("fetches track geometry, and 404s for an unknown track", async () => {
     const g = await api.trackGeometry("spa-francorchamps-grand-prix");
     expect(g.track_id).toBe("spa-francorchamps-grand-prix");

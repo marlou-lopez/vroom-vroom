@@ -11,7 +11,7 @@ import {
   idealRefSession,
   type CalibrationResult, type ChannelArrays, type CoachRequest, type CoachResult, type CoachResults,
   type Command, type CompareCandidate, type CompareResponse, type Corner, type Finding,
-  type CarDims, type CarSetup, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SegmentTimes, type SessionMeta, type SessionSummary, type Stint, type StintLap, type TraceResponse,
+  type CarDims, type CarSetup, type FindingKind, type GridChannel, type IdealLap, type IdealScope, type IdealSegment, type LlmCall, type SegmentTimes, type SessionMeta, type SessionReport, type SessionSummary, type Stint, type StintLap, type TraceResponse,
   type TrackMap, type LapMeta, type LapWithRef, type TrackGeometry,
 } from "../types";
 import {
@@ -26,6 +26,8 @@ import { balanceForApi, compareBalance, runsForApi } from "../../lib/carBalance"
 import { fetchMonzaStint, fetchSpaRaceStint, splitStints, type StintFile, type StintLoader } from "./stint";
 import { fetchRecording, fetchSpaRace, lapToTrace, scaleTime, type Recording, type RecordingLap, type RecordingLoader, type RecordingTrack, type Trace } from "./recording";
 import { monzaCorners, MONZA_TRACK_ID, MONZA_TRACK_LENGTH_M } from "./monzaTrack";
+import { aidRuns } from "../../lib/driverAids";
+import { buildSessionReport, type TraceFacts } from "../../lib/sessionReport";
 import { setupLabel } from "./setupLabels";
 import { deriveLandmarks, spaCorners, SPA_TRACK_ID, SPA_TRACK_LENGTH_M } from "./spaTrack";
 
@@ -315,6 +317,8 @@ export function createMockApi(opts: MockOptions = {}): Api {
   const metaLaps = new Map<string, LapMeta[]>();
   const stintStats = new Map<string, StintLap[]>();
   const setups = new Map<string, CarSetup>();
+  /** In-car setting changes per session (only the Spa race has them), for the session report. */
+  const settingLog = new Map<string, NonNullable<Parameters<typeof buildSessionReport>[0]["settings"]>>();
   const extras = new Map<string, { trackTempC: number; focus: SessionSummary["focus"] }>();
   const dateLabel = new Map<string, string>();
   const maps = new Map<string, TrackMap>();
@@ -471,6 +475,9 @@ export function createMockApi(opts: MockOptions = {}): Api {
     setups.set(session_id, { entries: Object.entries(rec.car_setup ?? {}).map(([key, value]) => ({ key, label: setupLabel(key), value })) });
     const stats = file.laps.map((l) => ({ ...l, lap_id: `${session_id.slice(0, 12)}-${pad3(l.lap_no)}` }));
     stintStats.set(session_id, stats);
+    if (rec.initial_settings && rec.setting_events) {
+      settingLog.set(session_id, { initial: rec.initial_settings, events: rec.setting_events.map(({ setting, value, previous, lap_no, dist_m }) => ({ setting, value, previous, lap_no, dist_m })) });
+    }
     for (const st of stats) {
       const recLap = rec.laps.find((x) => x.lap_no === st.lap_no);
       if (!recLap) continue;
@@ -1059,6 +1066,28 @@ export function createMockApi(opts: MockOptions = {}): Api {
     },
     async sessionStints(sessionId): Promise<Stint[]> {
       return splitStints(clone(stintStats.get(sessionId) ?? []), sessionOf(sessionId).car_class);
+    },
+    async sessionReport(sessionId): Promise<SessionReport> {
+      const session = sessionOf(sessionId);
+      const metas = metaLaps.get(sessionId) ?? sortedSessionLaps(sessionId).map((l) => l.meta);
+      const stats = stintStats.get(sessionId) ?? null;
+      const corners = mapOf(session.track_id).corners;
+      const traces = new Map<number, TraceFacts>();
+      const aid = new Map<number, { abs_m: number; tc_m: number }>();
+      for (const rec of sortedSessionLaps(sessionId)) {
+        const ch = rec.trace.ch;
+        const idx = (m: number) => Math.min(ch.t.length - 1, Math.max(0, Math.round(m)));
+        const aids = aidRuns(ch);
+        traces.set(rec.meta.lap_no, { aids, corner_times_s: corners.map((c) => ch.t[idx(c.end_m)] - ch.t[idx(c.start_m)]) });
+        const metres = (runs: { start: number; end: number }[]) => runs.reduce((a, x) => a + x.end - x.start + 1, 0);
+        aid.set(rec.meta.lap_no, { abs_m: metres(aids.abs), tc_m: metres(aids.tc) });
+      }
+      return clone(buildSessionReport({
+        session_id: sessionId, car_class: session.car_class, track_length_m: session.track_length_m,
+        laps: metas.map((m) => ({ lap_id: m.lap_id, lap_no: m.lap_no, kind: m.kind, lap_time_s: m.lap_time_s, valid: effectiveValid(m), has_trace: m.has_trace })),
+        stats, stints: stats ? splitStints(clone(stats), session.car_class) : [],
+        settings: settingLog.get(sessionId) ?? null, corners, traces, aid_activation: aid,
+      }));
     },
   };
 

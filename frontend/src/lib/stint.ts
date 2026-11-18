@@ -21,7 +21,7 @@ export const SLOW_LAP_FACTOR = 1.02;
 
 const WHEELS = ["fl", "fr", "rl", "rr"] as const;
 
-const median = (xs: number[]) => {
+export const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b);
   const m = s.length >> 1;
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
@@ -61,7 +61,7 @@ export function falloff(rows: StintRow[]): Falloff | null {
   return fitLine(rows.filter((r) => r.excluded === null).map((r) => [r.lap.lap_no, r.lap.lap_time_s!] as const));
 }
 
-function fitLine(pts: (readonly [number, number])[]): Falloff | null {
+export function fitLine(pts: (readonly [number, number])[]): Falloff | null {
   const n = pts.length;
   if (n < 3) return null;
   const mx = pts.reduce((s, p) => s + p[0], 0) / n;
