@@ -64,10 +64,10 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
     { k: "ENERGY PER LAP", v: hasEnergy ? f2(sum.energyPerLap, " %") : "n/a" },
     {
       k: "LAPS THE LOAD LASTS", v: `${f1(sum.fuelRangeLaps, " laps")} on fuel · ${hasEnergy ? f1(sum.energyRangeLaps, " laps") : "—"} on energy`,
-      title: "Laps the starting load lasts at the mean use per flying lap",
+      title: "Laps the starting load lasts at the mean use per timed lap",
     },
     { k: "RUNS OUT FIRST", v: sum.limit === null ? "—" : sum.limit === "energy" ? "virtual energy" : "fuel" },
-    { k: "TYRE WEAR PER LAP", v: sum.wearPerLap ? <LabelledWheels v={sum.wearPerLap} digits={2} unit=" %" /> : "—", title: "Tread lost on an average flying lap, per tyre" },
+    { k: "TYRE WEAR PER LAP", v: sum.wearPerLap ? <LabelledWheels v={sum.wearPerLap} digits={2} unit=" %" /> : "—", title: "Tread lost on an average timed lap, per tyre" },
   ];
   return (
     <>
@@ -89,7 +89,7 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
           {raw
             ? `Slowing per lap is the slope of a straight line through your lap times over ${raw.n_laps} laps. Out laps, in laps, invalid laps and laps more than 2 % slower than the median are left out.`
             : "Slowing per lap needs a straight line through at least 3 clean laps, and this stint has fewer."}{" "}
-          Laps the load lasts is the starting fuel or virtual energy divided by the average used on a flying lap.
+          Laps the load lasts is the starting fuel or virtual energy divided by the average used on a timed lap.
         </p>
       {corrected && (
         // The fuel-weight effect is an assumed per-class constant (docs/stint/fuel-corrected-falloff.md), shown with its source.
