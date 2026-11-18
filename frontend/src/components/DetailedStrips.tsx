@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import type { CompareResponse, Corner, TrackGeometry } from "../api/types";
+import type { CompareResponse, TrackGeometry } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import { aidRuns, type AidRuns, type Run } from "../lib/driverAids";
 import { BALANCE_HINT, balanceEnabled, balanceFromContract, type BalanceRuns } from "../lib/carBalance";
@@ -10,7 +10,7 @@ import { cleanGear, gearName, gearShifts, shiftLabel, type Shift } from "../lib/
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
-import { DEFAULT_HALF_M, chipLayerGeometry, cornerBands, clipBand, distanceTicks, elevationRange, paddedRange, parseWindowMode, pickCorner, stripDistanceAt, stripRanges, symmetricRange, stripScrubTarget, stripView, WINDOW_MODE_KEY, WINDOW_MODES, withAlpha, type Range, type WindowMode } from "../lib/strips";
+import { DEFAULT_WINDOW_M, WINDOW_WIDTH_KEY, chipLayerGeometry, clampWidth, cornerBands, cornerFitWidth, clipBand, distanceTicks, elevationRange, paddedRange, parseWidth, stripDistanceAt, stripPanCentre, stripRanges, symmetricRange, stripScrubTarget, stripView, wheelFactor, withAlpha, zoomWidth, type Range } from "../lib/strips";
 import { usePlaybackStore } from "../state/playback";
 import { colors, fonts } from "../theme";
 import styles from "./DetailedStrips.module.css";
@@ -24,8 +24,8 @@ const PAD_Y = 4;
 const DRAG_THRESHOLD_PX = 4;
 const STEP_M = 10;
 const BIG_STEP_M = 100;
-/** A picked corner stays fitted while the playhead is within this fraction of the window outside it (the badge seeks a little before the corner). */
-const PIN_SLACK = 0.5;
+/** Keyboard zoom step (+ zooms in, − out). */
+const KEY_ZOOM = 1.25;
 const IGNORE_SELECTOR = "button,[data-annotation-badge]";
 
 interface Gesture {
@@ -34,6 +34,10 @@ interface Gesture {
   startD: number;
   resume: boolean;
   dragging: boolean;
+  /** Shift-drag or middle-drag: slide the traces and leave the playhead where it is. */
+  pan: boolean;
+  /** Centre of the window when the gesture began (pan only). */
+  startCentre: number;
 }
 
 export interface DetailedStripsProps {
@@ -42,10 +46,10 @@ export interface DetailedStripsProps {
   geometry: TrackGeometry | null;
   annotations: Annotation[];
   handlers: BadgeHandlers;
+  /** A corner the user just clicked (rail, badge, scrubber): the window fits it once; `n` changes on every click. The window then follows the playhead as before. */
+  focusCorner?: { startM: number; endM: number; n: number } | null;
   /** Whether the lap is valid: wheels-off bands are red on an invalid lap, grey close calls on a valid one. Absent = valid. */
   lapValid?: boolean;
-  /** The track's corners: the window control's "Corner" fit uses them. Without any it falls back to 700 m. */
-  corners?: Corner[];
   /** Names in the legend and the read-outs' colour key, e.g. "You · L8" and "Comparison · ★L2". */
   youName?: string;
   refName?: string;
@@ -409,8 +413,8 @@ function drawDelta(u: uPlot, zeroLine: boolean, fill: boolean) {
   ctx.restore();
 }
 
-function loadWindowMode(): WindowMode {
-  try { return parseWindowMode(localStorage.getItem(WINDOW_MODE_KEY)); } catch { return "700"; }
+function loadWidth(): number {
+  try { return parseWidth(localStorage.getItem(WINDOW_WIDTH_KEY)); } catch { return DEFAULT_WINDOW_M; }
 }
 
 /** Distance ticks under the last strip, pooled spans moved on each window change. Tick x matches the plot, which spans the axis's full width. */
@@ -520,7 +524,7 @@ function StripPicker({ choice: stored, available, onChange }: { choice: StripId[
  * Five uPlot strips (six when the track has an elevation capture). React renders this once per comparison / annotation set. Per frame, an effect subscribed to
  * the playback store moves each chart's x scale synchronously, the chip layer and the value read-outs imperatively.
  */
-export function DetailedStrips({ model, geometry, annotations, handlers, lapValid = true, corners, youName = "You", refName = "Comparison" }: DetailedStripsProps) {
+export function DetailedStrips({ model, geometry, annotations, handlers, focusCorner = null, lapValid = true, youName = "You", refName = "Comparison" }: DetailedStripsProps) {
   const store = usePlaybackStore();
   const { cmp } = model;
   const [choice, setChoice] = useState<StripId[]>(() => loadStrips());
@@ -532,41 +536,41 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
     return picked.length > 0 ? picked : allSpecs.slice(0, 1);
   }, [choice, allSpecs]);
   const changeChoice = (next: StripId[]) => { setChoice(next); saveStrips(next); };
-  const [mode, setMode] = useState<WindowMode>(loadWindowMode);
-  // The window the effect reads each frame; changing it re-applies at once through `reapply`.
-  const modeRef = useRef(mode);
-  const cornersRef = useRef<Corner[]>(corners ?? []);
-  /** A corner picked by clicking its badge: the corner fit stays on it until the playhead leaves its window. */
-  const pinned = useRef<Corner | null>(null);
+  const [width, setWidth] = useState(loadWidth);
+  // The width and the pan the effect reads each frame; changing either re-applies at once through `reapply`.
+  const widthRef = useRef(width);
+  /** Window centre after a pan; null while the window follows the playhead. Cleared by the next playhead move. */
+  const panRef = useRef<number | null>(null);
   const reapply = useRef<() => void>(() => {});
   const axis = useRef<HTMLDivElement | null>(null);
-  const changeMode = (next: WindowMode) => {
-    pinned.current = null;
-    modeRef.current = next;
-    setMode(next);
-    try { localStorage.setItem(WINDOW_MODE_KEY, next); } catch { /* storage unavailable */ }
+  const root = useRef<HTMLDivElement | null>(null);
+  const lapSpan = () => (cmp.distance[cmp.distance.length - 1] ?? 0) - (cmp.distance[0] ?? 0);
+  /** Set the window width (clamped to 100 m..the whole lap); `keep` stores it as the user's choice. */
+  const applyWidth = (next: number, keep = true) => {
+    const w = clampWidth(next, lapSpan());
+    widthRef.current = w;
+    setWidth(w);
+    if (keep) { try { localStorage.setItem(WINDOW_WIDTH_KEY, String(Math.round(w))); } catch { /* storage unavailable */ } }
     reapply.current();
   };
-  useLayoutEffect(() => { cornersRef.current = corners ?? []; reapply.current(); }, [corners]);
-  const onSeek = (a: Annotation) => {
-    // Clicking a corner's badge fits the strips to that corner.
-    const c = cornersRef.current.find((k) => k.id === a.cornerId);
-    if (c) {
-      pinned.current = c;
-      modeRef.current = "corner";
-      setMode("corner");
-      try { localStorage.setItem(WINDOW_MODE_KEY, "corner"); } catch { /* storage unavailable */ }
-    }
-    handlers.onSeek(a);
-    reapply.current();
-  };
-  const strippedHandlers = { ...handlers, onSeek };
+  const applyWidthRef = useRef(applyWidth);
+  useLayoutEffect(() => { applyWidthRef.current = applyWidth; });
+  // A click on a corner elsewhere fits it once (not stored); the playhead's next move brings the follow window back at that width.
+  const lastFocus = useRef(focusCorner?.n ?? 0);
+  useEffect(() => {
+    if (!focusCorner || focusCorner.n === lastFocus.current) return;
+    lastFocus.current = focusCorner.n;
+    const xs = cmp.distance;
+    const d = distanceAtTime(cmp.lap.t, xs, store.get().tau);
+    applyWidthRef.current(cornerFitWidth({ startM: focusCorner.startM, endM: focusCorner.endM }, d, xs[xs.length - 1] ?? 0, lapSpan()), false);
+  // fires per click (`n`), not per render
+  }, [focusCorner?.n]);
   const hosts = useRef<(HTMLDivElement | null)[]>([]);
   const frames = useRef<(HTMLDivElement | null)[]>([]);
   const values = useRef<(HTMLDivElement | null)[]>([]);
   const playheads = useRef<(HTMLDivElement | null)[]>([]);
   /** The x window currently shown (metres); clicks map through it. */
-  const shown = useRef({ min: 0, max: 2 * DEFAULT_HALF_M });
+  const shown = useRef({ min: 0, max: DEFAULT_WINDOW_M });
   const chipLayer = useRef<HTMLDivElement | null>(null);
   const charts = useRef<uPlot[]>([]);
   const annRef = useRef(annotations);
@@ -607,27 +611,16 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
 
     // Runs synchronously from the store listener. The store ticks inside the app's rAF, so this lands in the same
     // frame as the map and scrubber. Skipped when the playhead has not moved (cmp is fixed for this effect).
-    const currentWindow = (d: number) => {
-      const mode = modeRef.current;
-      const list = cornersRef.current.map((c) => ({ c, startM: c.start_m, endM: c.end_m }));
-      let corner = mode === "corner" ? list.find((x) => x.c === pinned.current) ?? null : null;
-      if (corner) {
-        // A picked corner stays until the playhead leaves its window.
-        const w = stripView(mode, d, dMin, dMax, corner);
-        if (w.playhead < -PIN_SLACK || w.playhead > 1 + PIN_SLACK) { pinned.current = null; corner = null; }
-      }
-      if (mode === "corner" && !corner) corner = pickCorner(list, d);
-      return stripView(mode, d, dMin, dMax, corner);
-    };
-
     const apply = (force = false) => {
       const tau = store.get().tau;
       if (tau === lastTau && !force) return;
       // oxlint-disable-next-line react/immutability -- local of this effect's own closure, not render state
+      // A playhead move (drag, click, playback, keys) ends a pan: the window follows the playhead again.
+      if (tau !== lastTau) panRef.current = null;
       lastTau = tau;
       const d = distanceAtTime(cmp.lap.t, xs, tau);
       // Clamped to the lap: near the start or end the window stops and the playhead line moves off centre instead.
-      const win = currentWindow(d);
+      const win = stripView(widthRef.current, d, dMin, dMax, panRef.current);
       lastMin = win.min;
       lastMax = win.max;
       shown.current = { min: win.min, max: win.max };
@@ -688,9 +681,13 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
     wasDrag.current = false;
-    if (e.button !== 0 || gesture.current || foreign(e)) return;
+    const pan = e.button === 1 || (e.button === 0 && e.shiftKey);
+    if ((e.button !== 0 && e.button !== 1) || gesture.current || foreign(e)) return;
+    // Middle button: no browser autoscroll.
+    if (e.button === 1) e.preventDefault();
     gesture.current = {
       pointerId: e.pointerId, startX: e.clientX, startD: centreM(), resume: store.get().playing, dragging: false,
+      pan, startCentre: (shown.current.min + shown.current.max) / 2,
     };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
@@ -702,25 +699,21 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
     if (!g.dragging) {
       if (Math.abs(dx) < DRAG_THRESHOLD_PX) return;
       g.dragging = true;
-      // The corner window must not hop to another corner mid-drag: hold the one under the playhead.
-      if (modeRef.current === "corner" && !pinned.current) {
-        const list = cornersRef.current.map((c) => ({ c, startM: c.start_m, endM: c.end_m }));
-        pinned.current = pickCorner(list, g.startD)?.c ?? null;
-      }
       e.currentTarget.setAttribute("data-dragging", "");
       store.pause();
     }
     const [lo, hi] = lapRange();
-    if (modeRef.current === "700") {
-      // The window follows the playhead: the trace follows the pointer, so dragging left goes forward.
-      store.seek(timeAtDistance(cmp.lap.t, cmp.distance, stripScrubTarget(g.startD, dx, plotWidth(), (shown.current.max - shown.current.min) / 2, lo, hi)));
-    } else {
-      // A fixed window (lap, corner): the playhead goes to the distance under the pointer.
-      const over = charts.current[0]?.over;
-      if (!over) return;
-      const { min, max } = shown.current;
-      seekToDistance(stripDistanceAt(e.clientX - over.getBoundingClientRect().left, over.clientWidth, (min + max) / 2, (max - min) / 2));
+    const { min, max } = shown.current;
+    if (g.pan) {
+      // The traces slide with the pointer; the playhead (and so the map, read-outs and 3D view) stays put.
+      panRef.current = stripPanCentre(g.startCentre, dx, plotWidth(), widthRef.current, lo, hi);
+      reapply.current();
+      return;
     }
+    // The window follows the playhead: the trace follows the pointer, so dragging left goes forward. The whole lap
+    // cannot scroll, so there the playhead goes where the pointer goes.
+    const whole = widthRef.current >= hi - lo;
+    store.seek(timeAtDistance(cmp.lap.t, cmp.distance, stripScrubTarget(g.startD, whole ? -dx : dx, plotWidth(), (max - min) / 2, lo, hi)));
   };
 
   const endGesture = (e: PointerEvent<HTMLDivElement>) => {
@@ -731,7 +724,8 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
     if (g.dragging) {
       wasDrag.current = true;
-      if (g.resume) store.play();
+      // A pan holds the view, and playback would pull it straight back: stay paused.
+      if (g.resume && !g.pan) store.play();
     }
   };
 
@@ -743,9 +737,25 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
       const { min, max } = shown.current;
       seekToDistance(stripDistanceAt(e.clientX - over.getBoundingClientRect().left, over.clientWidth, (min + max) / 2, (max - min) / 2));
     } else if (e.detail === 2) {
-      store.toggle();
+      // Double-click: back to the default width, following the playhead.
+      panRef.current = null;
+      applyWidth(DEFAULT_WINDOW_M);
     }
   };
+
+  // Wheel and trackpad pinch (ctrl+wheel) zoom the window width. A native listener, because React's wheel handler is passive and cannot stop the page scrolling.
+  useEffect(() => {
+    const el = root.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if ((e.target as Element | null)?.closest?.(IGNORE_SELECTOR) || e.deltaY === 0) return;
+      e.preventDefault();
+      applyWidthRef.current(zoomWidth(widthRef.current, wheelFactor(e.deltaY, e.ctrlKey), lapSpan()));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  // reads the lap through refs and the latest closure
+  }, [cmp]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
@@ -754,6 +764,10 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
     } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       const step = (e.shiftKey ? BIG_STEP_M : STEP_M) * (e.key === "ArrowRight" ? 1 : -1);
       seekToDistance(centreM() + step);
+    } else if (e.key === "+" || e.key === "=") {
+      applyWidth(widthRef.current / KEY_ZOOM);
+    } else if (e.key === "-" || e.key === "_") {
+      applyWidth(widthRef.current * KEY_ZOOM);
     } else {
       return;
     }
@@ -763,11 +777,12 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
   return (
     // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- labelled, focusable role="group" with full keyboard handling (arrows scrub, Space plays)
     <div
+      ref={root}
       className={styles.strips}
       // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable, keyboard-operated group
       tabIndex={0}
       role="group"
-      aria-label="Telemetry strips: drag or arrow keys to scrub, Space to play or pause"
+      aria-label="Telemetry strips: drag or arrow keys to scrub, Shift-drag to pan, wheel or plus and minus to zoom, Space to play or pause"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endGesture}
@@ -781,10 +796,11 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
           <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.you }} />{youName}</span>
           <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.comparison }} />{refName}</span>
         </div>
-        <div className={styles.windowGroup} role="group" aria-label="Strip window">
-          {WINDOW_MODES.map((m) => (
-            <button key={m.id} type="button" className={styles.windowButton} aria-pressed={mode === m.id} onClick={() => changeMode(m.id)}>{m.label}</button>
-          ))}
+        <div className={styles.windowGroup}>
+          <span className={styles.hint}>Shift-drag to pan · wheel to zoom</span>
+          <button type="button" className={styles.windowButton} title="Window width: click to reset to 700 m (double-clicking the strips does the same)" onClick={() => { panRef.current = null; applyWidth(DEFAULT_WINDOW_M); }}>
+            {width >= lapSpan() ? "Whole lap" : `${Math.round(width)} m`}
+          </button>
         </div>
         <StripPicker choice={choice} available={allSpecs.map((x) => x.id)} onChange={changeChoice} />
       </div>
@@ -804,7 +820,7 @@ export function DetailedStrips({ model, geometry, annotations, handlers, lapVali
             <div aria-hidden="true" ref={(el) => void (playheads.current[i] = el)} className={styles.playhead} />
             {i === 0 && (
               <div className={styles.chips}>
-                <ChipLayer annotations={annotations} distance={cmp.distance} h={strippedHandlers} layerRef={chipLayer} />
+                <ChipLayer annotations={annotations} distance={cmp.distance} h={handlers} layerRef={chipLayer} />
               </div>
             )}
           </div>

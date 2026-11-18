@@ -113,7 +113,17 @@ function Telemetry() {
     [coach.showNotes, allAnnotations],
   );
 
-  const seekTo = useCallback((a: Annotation) => cmp && store.seek(leadInTime(cmp, a)), [cmp, store]);
+  // A corner click (badge, rail, scrubber, table) fits the strips' window to that corner once; the window then follows the playhead.
+  const [focusCorner, setFocusCorner] = useState<{ startM: number; endM: number; n: number } | null>(null);
+  const focusCornerSpan = useCallback((startM: number, endM: number) => setFocusCorner((f) => ({ startM, endM, n: (f?.n ?? 0) + 1 })), []);
+  const seekTo = useCallback(
+    (a: Annotation) => {
+      if (!cmp) return;
+      store.seek(leadInTime(cmp, a));
+      focusCornerSpan(a.startM, a.endM);
+    },
+    [cmp, store, focusCornerSpan],
+  );
   // Stable between renders, so the memoised track views only render when something they draw changes.
   const handlers = useMemo<BadgeHandlers>(() => ({ onSeek: seekTo }), [seekTo]);
   const seekToCornerStart = useCallback(
@@ -121,8 +131,10 @@ function Telemetry() {
       if (!cmp) return;
       store.pause();
       store.seek(leadInTime(cmp, { startM }));
+      const c = trackMap?.corners.find((k) => k.start_m === startM);
+      if (c) focusCornerSpan(c.start_m, c.end_m);
     },
-    [cmp, store],
+    [cmp, trackMap, store, focusCornerSpan],
   );
   const seekToCorner = useCallback((c: Corner) => seekToCornerStart(c.start_m), [seekToCornerStart]);
 
@@ -269,7 +281,7 @@ function Telemetry() {
                 <Tabs.Content value={tab} className={styles.tabContent}>
                 {tab === "corners" ? (
                   <CornersTable corners={model.cmp.corners} trackMap={trackMap} onSeek={seekToCorner} refName={refShort} />
-                ) : view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} lapValid={lapValid} corners={trackMap?.corners} youName={youName} refName={refName} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
+                ) : view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} focusCorner={focusCorner} lapValid={lapValid} youName={youName} refName={refName} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
                 </Tabs.Content>
                 </Tabs.Root>
               </section>

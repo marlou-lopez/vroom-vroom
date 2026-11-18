@@ -47,15 +47,13 @@
 .legend { display: flex; gap: 12px; font-size: 11px; color: var(--color-text); min-width: 0; }
 .legendItem { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .swatch { display: inline-block; width: 14px; height: 3px; border-radius: 1px; }
-.windowGroup { display: inline-flex; margin-left: auto; }
+.windowGroup { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
+.hint { font-size: 11px; color: var(--color-muted); }
 .windowButton {
   font: inherit; font-size: 11px; color: var(--color-muted); background: transparent;
-  border: 1px solid var(--color-border); padding: 1px 8px; cursor: pointer; margin-left: -1px;
+  border: 1px solid var(--color-border); border-radius: var(--radius); padding: 1px 8px; cursor: pointer;
 }
-.windowButton:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
-.windowButton:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
 .windowButton:hover { background: var(--color-hover); }
-.windowButton[aria-pressed="true"] { color: var(--color-text); background: var(--color-hover); border-color: var(--color-border-strong); position: relative; }
 
 /* Distance axis under the last strip; ticks are placed from JS over the plot's full width (inside the strips' 1px border). */
 .axis { flex: none; position: relative; height: 14px; margin: 0 1px; overflow: hidden; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); pointer-events: none; }
