@@ -2,13 +2,15 @@
 // Clicking a lap or an event opens that lap in playback against the session's best lap; the page does the navigation (`onOpen`).
 import { useMemo, useState } from "react";
 import { useSessionReport } from "../../api/queries";
-import { REPORT_CATEGORIES, type ReportCategory, type ReportEvent, type ReportLap, type SessionReport } from "../../api/types";
+import { REPORT_CATEGORIES, type ReportCategory, type ReportEvent, type ReportLap, type ReportSeverity, type SessionReport } from "../../api/types";
 import { cx } from "../../lib/cx";
 import { categoryCounts, CHARTS, eventLap, groupEvents, noPlayback, sessionBestLap } from "../../lib/sessionTab";
 import { errorInfo } from "../../api/types";
 import ui from "../ui.module.css";
 import { LapTimeChart, MetricChart } from "./SessionCharts";
 import styles from "./Session.module.css";
+
+const SEVERITY_TEXT: Record<ReportSeverity, string> = { info: "for your information", watch: "keep an eye on it", problem: "needs fixing" };
 
 /** What the page needs to open a lap: the reference is the session's best lap (null when the lap is that lap), `distanceM` moves the playhead. */
 export interface OpenLap { lapId: string; refLapId: string | null; distanceM: number | null }
@@ -86,7 +88,7 @@ function ReportBody({ report, onOpen, filter }: { report: SessionReport; onOpen(
               {g.events.map((e) => (
                 <li key={e.id}>
                   <button type="button" className={styles.event} data-severity={e.severity} onClick={() => openEvent(e)}>
-                    <span className={styles.badges}><span className={styles.badge}>{e.category}</span><span className={styles.badge}>{e.severity}</span></span>
+                    <span className={styles.badges}><span className={styles.badge}>{e.category}</span><span className={styles.badge}>{SEVERITY_TEXT[e.severity]}</span></span>
                     <span className={styles.sentence}>{e.sentence}</span>
                     {(e.corner || e.distance_m !== null) && (
                       <span className={styles.where}>{e.corner ? e.corner.name : ""}{e.corner && e.distance_m !== null ? " · " : ""}{e.distance_m !== null ? `${Math.round(e.distance_m)} m` : ""}</span>

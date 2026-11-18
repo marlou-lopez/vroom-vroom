@@ -99,7 +99,7 @@ export function useTelemetryData(lapParam: string | null, refParam: string | nul
   else if (!ctx && !pending) {
     shown = {
       code: lapParam ? "unknown_lap" : "no_laps",
-      message: lapParam ? "That lap no longer exists" : "No session with a valid flying lap yet. Import a recording first.",
+      message: lapParam ? "That lap no longer exists" : "No session with a valid timed lap yet. Import a recording first.",
     };
   } else if (cmpQ.error) shown = errorInfo(cmpQ.error);
 

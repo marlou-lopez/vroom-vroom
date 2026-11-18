@@ -56,7 +56,7 @@ export const RULES = {
   lockupMinLaps: 2,
   wheelspinMinLaps: 2,
   /**
-   * Lock-up and wheelspin trend per corner (vroom-bij): traced flying laps, first third against last third (at least `cornerTrendMinLaps`
+   * Lock-up and wheelspin trend per corner (vroom-bij): traced timed laps, first third against last third (at least `cornerTrendMinLaps`
    * laps in all). Reported when one third has at least `cornerTrendMinCount` runs in the corner and the two differ by `cornerTrendMinChange`.
    * The 'repeated' event is the per-corner `lockups` / `wheelspins` event above (`lockupMinLaps`, `wheelspinMinLaps`).
    */
@@ -67,7 +67,7 @@ export const RULES = {
   absCornerMinM: 15,
   tcCornerMinM: 10,
   maxAidCorners: 3,
-  /** Aid trend: change across the session as a share of the first lap's value, and in metres; flying laps needed for any trend (vroom-bi4.13). */
+  /** Aid trend: change across the session as a share of the first lap's value, and in metres; timed laps needed for any trend (vroom-bi4.13). */
   trendShare: 0.2,
   trendMinM: 30,
   trendMinLaps: 6,
@@ -82,9 +82,9 @@ export const RULES = {
   falloffWatch: 0.1,
   falloffProblem: 0.3,
   trackTempDriftC: 2,
-  /** An out lap's disc temperature this far below the flying laps before the stop is reported. */
+  /** An out lap's disc temperature this far below the timed laps before the stop is reported. */
   pitCoolingShare: 0.2,
-  /** 'Vs your best laps': the best laps are the fastest `bestShare` of the timed flying laps, at least `bestMinSet`; at least `bestMinOthers`
+  /** 'Vs your best laps': the best laps are the fastest `bestShare` of the timed laps, at least `bestMinSet`; at least `bestMinOthers`
    * other laps must exist to compare, otherwise the comparison is skipped and the report says so. */
   bestShare: 0.2,
   bestMinSet: 3,
@@ -134,7 +134,7 @@ export function buildSessionReport(input: ReportInput): SessionReport {
   const events: ReportEvent[] = [];
   const unavailable: { category: ReportCategory; reason: string }[] = [];
 
-  /** Seconds slower than the session's best flying lap; null for a lap that is not timed. */
+  /** Seconds slower than the session's best timed lap; null for a lap that is not timed. */
   const lost = (lapNo: number): number | null => {
     const l = lapOf.get(lapNo);
     return best && l && isTimed(l) ? l.lap_time_s! - best.lap_time_s! : null;
@@ -198,7 +198,7 @@ export function buildSessionReport(input: ReportInput): SessionReport {
     const need = RULES.bestMinSet + RULES.bestMinOthers;
     const bestSet = timed.length >= need ? [...timed].sort((a, b) => a.lap_time_s! - b.lap_time_s!).slice(0, Math.max(RULES.bestMinSet, Math.ceil(RULES.bestShare * timed.length))) : null;
     if (!bestSet || timed.length - bestSet.length < RULES.bestMinOthers) {
-      for (const c of ["tyres", "brakes"] as const) unavailable.push({ category: c, reason: `Too few timed flying laps to compare with your best laps (${timed.length}, need at least ${need}).` });
+      for (const c of ["tyres", "brakes"] as const) unavailable.push({ category: c, reason: `Too few timed laps to compare with your best laps (${timed.length}, need at least ${need}).` });
     } else {
       vsBestEvents(stats, new Set(bestSet.map((l) => l.lap_no)), lapCoincidence, add, range, withRange);
     }
@@ -292,7 +292,7 @@ const outside = (v: number, w: WindowRange, tolerance: number) => (v < w.min - t
 /** 'problem' needs a gap of at least twice the tolerance; a smaller gap is at most a watch. */
 const capSev = (severity: ReportSeverity, gap: number, tolerance: number): ReportSeverity => (severity === "problem" && gap < 2 * tolerance ? "watch" : severity);
 
-/** Only flying laps are judged against a window: out, in and incomplete laps run cold, slow or cut short on purpose. */
+/** Only timed laps are judged against a window: out, in and incomplete laps run cold, slow or cut short on purpose. */
 const settled = (s: StintLap) => s.kind === "flying";
 
 function tyreEvents(stats: StintLap[], win: ClassWindows, add: Add, range: Range, withRange: WithRange) {
@@ -355,7 +355,7 @@ function brakeEvents(stats: StintLap[], win: ClassWindows, add: Add, range: Rang
       });
     }
   }
-  // Discs cool in the pits: an out lap's disc temperature against the flying laps before the stop.
+  // Discs cool in the pits: an out lap's disc temperature against the timed laps before the stop.
   stats.forEach((s, i) => {
     if (s.kind !== "out" || i === 0) return;
     const before = stats.slice(0, i).filter((x) => x.kind === "flying");
@@ -367,7 +367,7 @@ function brakeEvents(stats: StintLap[], win: ClassWindows, add: Add, range: Rang
     add({
       category: "brakes", kind: "brake_pit_cooling", severity: "info", laps: [s.lap_no],
       numbers: withRange([s.lap_no], { front_c: r(now.front, 0), rear_c: r(now.rear, 0), front_before_c: r(avg("front"), 0), rear_before_c: r(avg("rear"), 0) }),
-      say: (n) => `Brake discs were cooler on the out lap (${range(n)}): front ${n.front_c.toFixed(0)} °C and rear ${n.rear_c.toFixed(0)} °C, against ${n.front_before_c.toFixed(0)} °C and ${n.rear_before_c.toFixed(0)} °C on the flying laps before the stop.`,
+      say: (n) => `Brake discs were cooler on the out lap (${range(n)}): front ${n.front_c.toFixed(0)} °C and rear ${n.rear_c.toFixed(0)} °C, against ${n.front_before_c.toFixed(0)} °C and ${n.rear_before_c.toFixed(0)} °C on the timed laps before the stop.`,
     });
   });
   const ratio = (s: StintLap) => { const b = wheelsOf(s, "brake_c"); return b.rear > 0 ? b.front / b.rear : 1; };
@@ -434,7 +434,7 @@ function drivingEvents(
     const m = mean(xs);
     return m >= RULES.minCornerLostS ? { scope: "corner", lost_s: r(m), laps: lapNos.filter((l) => l !== bestLap && timedNo(l)) } : null;
   };
-  // The best laps among the traced timed flying laps, same rule as the tyre comparison; null when there are too few to compare.
+  // The best laps among the traced timed laps, same rule as the tyre comparison; null when there are too few to compare.
   const timedTraced = traced.filter(([lap]) => timedNo(lap) && input.laps.find((x) => x.lap_no === lap)!.kind === "flying")
     .sort((a, b) => input.laps.find((x) => x.lap_no === a[0])!.lap_time_s! - input.laps.find((x) => x.lap_no === b[0])!.lap_time_s!);
   const nBest = Math.max(RULES.bestMinSet, Math.ceil(RULES.bestShare * timedTraced.length));
@@ -458,7 +458,7 @@ function drivingEvents(
       });
     }
   }
-  // Trend per corner: the same runs, first third of the traced flying laps against the last third.
+  // Trend per corner: the same runs, first third of the traced timed laps against the last third.
   const flying = traced.filter(([lap]) => input.laps.some((l) => l.lap_no === lap && l.kind === "flying")).sort((a, b) => a[0] - b[0]);
   const third = Math.floor(flying.length / 3);
   if (flying.length >= RULES.cornerTrendMinLaps && third >= 2) {
@@ -477,7 +477,7 @@ function drivingEvents(
             ...withRange(laps, {}), n_window: third, first_runs: first, last_runs: last,
             first_lap_from: head[0], first_lap_to: head[third - 1], last_lap_from: tail[0], last_lap_to: tail[third - 1],
           },
-          say: (nn) => `${label} at ${c.name} ${rising ? "rose" : "fell"} from ${nn.first_runs} in the first ${nn.n_window} flying laps (laps ${nn.first_lap_from} to ${nn.first_lap_to}) to ${nn.last_runs} in the last ${nn.n_window} (laps ${nn.last_lap_from} to ${nn.last_lap_to}).`,
+          say: (nn) => `${label} at ${c.name} ${rising ? "rose" : "fell"} from ${nn.first_runs} in the first ${nn.n_window} timed laps (laps ${nn.first_lap_from} to ${nn.first_lap_to}) to ${nn.last_runs} in the last ${nn.n_window} (laps ${nn.last_lap_from} to ${nn.last_lap_to}).`,
           corner: c, distance_m: c.apex_m, coincides: cornerLoss(laps, i),
         });
       }
@@ -505,12 +505,12 @@ function drivingEvents(
         add({
           category: "driving", kind: `${kind}_activation`, severity: "info",
           laps, numbers: withRange(laps, { avg_m: r(avg, 0), n_laps: laps.length, n_traced: n, ...(vsBest ? { best_m: r(vsBest.best, 0), others_m: r(vsBest.others, 0), n_best: bestSet!.size } : {}) }),
-          say: (nn) => `${label} was active for ${nn.avg_m.toFixed(0)} m a lap on average at ${c.name} (${nn.n_laps} of ${nn.n_traced} traced laps, ${range(nn)}).${vsBest ? ` On your ${nn.n_best} best laps it was ${nn.best_m.toFixed(0)} m there, on the other timed flying laps ${nn.others_m.toFixed(0)} m.` : ""}`,
+          say: (nn) => `${label} was active for ${nn.avg_m.toFixed(0)} m a lap on average at ${c.name} (${nn.n_laps} of ${nn.n_traced} traced laps, ${range(nn)}).${vsBest ? ` On your ${nn.n_best} best laps it was ${nn.best_m.toFixed(0)} m there, on the other timed laps ${nn.others_m.toFixed(0)} m.` : ""}`,
           corner: c, distance_m: c.apex_m, coincides,
         });
       });
   }
-  // Trend across the session: flying laps only, so pit and out laps do not skew it.
+  // Trend across the session: timed laps only, so pit and out laps do not skew it.
   for (const [key, label] of [["abs_m", "ABS"], ["tc_m", "Traction control"]] as const) {
     const pts = input.laps.filter((l) => l.kind === "flying" && input.aid_activation.has(l.lap_no)).map((l) => [l.lap_no, input.aid_activation.get(l.lap_no)![key]] as const);
     const fit = fitLine([...pts]);
@@ -523,7 +523,7 @@ function drivingEvents(
     add({
       category: "driving", kind: `${key === "abs_m" ? "abs" : "tc"}_trend`, severity: "info", laps,
       numbers: withRange(laps, { first_m: r(first, 0), last_m: r(last, 0) }),
-      say: (nn) => `${label} activation per flying lap ${change > 0 ? "rose" : "fell"} from about ${nn.first_m.toFixed(0)} m to ${nn.last_m.toFixed(0)} m across ${range(nn)}.`,
+      say: (nn) => `${label} activation per timed lap ${change > 0 ? "rose" : "fell"} from about ${nn.first_m.toFixed(0)} m to ${nn.last_m.toFixed(0)} m across ${range(nn)}.`,
     });
   }
 }
@@ -588,7 +588,7 @@ function paceEvents(input: ReportInput, nTimed: number, add: Add, range: Range, 
       category: "pace", kind: "invalid_laps", severity: invalid.length / Math.max(1, nTimed + invalid.length) > 0.3 ? "watch" : "info",
       laps: invalid.map((l) => l.lap_no), coincides: null,
       numbers: withRange(invalid.map((l) => l.lap_no), { n_laps: invalid.length }),
-      say: (n) => `${n.n_laps} flying ${n.n_laps === 1 ? "lap was" : "laps were"} invalid (${range(n)}).`,
+      say: (n) => `${n.n_laps} ${n.n_laps === 1 ? "lap was" : "laps were"} invalid (${range(n)}).`,
     });
   }
 }

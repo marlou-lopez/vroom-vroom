@@ -1,3 +1,4 @@
+import { LAP_KIND_TEXT } from "../lib/laps";
 import { http, HttpResponse } from "msw";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -93,7 +94,7 @@ describe("laps against the ideal (mock)", () => {
     for (const l of laps) {
       const row = rows().find((r) => within(r).getAllByRole("cell")[0].textContent === `L${l.lap_no}`)!;
       const tag = l.kind === "flying" && !(l.valid_override ?? l.valid) ? "invalid" : l.kind;
-      expect(within(row).getAllByRole("cell")[1].textContent).toContain(tag);
+      expect(within(row).getAllByRole("cell")[1].textContent).toContain(LAP_KIND_TEXT[tag]);
       expect(within(row).getByRole("link", { name: `Open lap ${l.lap_no}` })).toBeTruthy();
     }
     expect(laps.some((l) => l.kind === "out")).toBe(true);
@@ -101,7 +102,7 @@ describe("laps against the ideal (mock)", () => {
     await userEvent.click(screen.getByRole("link", { name: `Open lap ${inLap.lap_no}` }));
     expect(screen.getByTestId("where").textContent).toBe(`/?lap=${inLap.lap_id}`);
     await userEvent.click(screen.getByRole("checkbox", { name: /Hide laps with track-limit cuts/ }));
-    expect(rows().every((r) => within(r).getAllByRole("cell")[1].textContent === "flying")).toBe(true);
+    expect(rows().every((r) => within(r).getAllByRole("cell")[1].textContent === "timed lap")).toBe(true);
   });
 
   it("a lap without a trace is tagged numbers only, no replay and does not link", async () => {
