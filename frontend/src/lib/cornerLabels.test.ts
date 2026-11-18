@@ -37,3 +37,12 @@ describe("layoutCornerLabels", () => {
     expect(r.every((l) => l.mode !== "dot")).toBe(true);
   });
 });
+
+describe("layoutCornerLabels sizing", () => {
+  it("gives every label at least 24 px and widens with the font size", () => {
+    const mk = (id: string, name: string, frac: number) => ({ id, name, frac, priority: false });
+    const items = [mk("a", "Rettifilo 1", 0.1), mk("b", "Rettifilo 2", 0.18)];
+    expect(layoutCornerLabels(items, 1000, 11)[1].mode).toBe("full");
+    expect(layoutCornerLabels(items, 1000, 14)[1].mode).toBe("short");
+  });
+});

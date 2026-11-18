@@ -15,11 +15,11 @@ th.num { font-family: inherit; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap); }
 .toggle { color: var(--color-muted); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-.tag { color: var(--color-muted); font-size: 10px; border: 1px solid var(--color-border); border-radius: 4px; padding: 0 4px; }
+.tag { color: var(--color-muted); font-size: var(--font-size-small); border: 1px solid var(--color-border); border-radius: 4px; padding: 0 4px; }
 .tagInvalid { color: var(--color-off-track); }
 .noTrace td { opacity: 0.6; }
 .dim { color: var(--color-muted); }
-.segLegend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; font-size: 10px; color: var(--color-muted); }
+.segLegend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; font-size: var(--font-size-small); color: var(--color-muted); }
 .legendItem { display: inline-flex; align-items: center; gap: 4px; }
 .swatch { width: 10px; height: 10px; border-radius: 1px; display: inline-block; }
 .purple { background: var(--color-ideal); }

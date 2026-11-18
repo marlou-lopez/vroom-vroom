@@ -8,4 +8,4 @@
   align-items: baseline;
 }
 
-.tag { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--color-you); white-space: nowrap; }
+.tag { font-size: var(--font-size-small); font-weight: 700; letter-spacing: 0.08em; color: var(--color-you); white-space: nowrap; }

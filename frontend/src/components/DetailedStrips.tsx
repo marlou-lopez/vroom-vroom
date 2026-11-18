@@ -360,7 +360,7 @@ function drawShiftMarks(u: uPlot, shifts: Shift[], color: string, row: number) {
   ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
   ctx.clip();
   ctx.fillStyle = color;
-  ctx.font = `${10 * dpr}px ${fonts.mono}`;
+  ctx.font = `${11 * dpr}px ${fonts.mono}`;
   ctx.textBaseline = "top";
   // The lap's markers sit at the top, the comparison lap's on a second row below, so labels of the two do not overlap.
   const y0 = bbox.top + row * 12 * dpr;

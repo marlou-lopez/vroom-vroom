@@ -5,7 +5,7 @@ import type { TrackMap } from "../api/types";
 import { formatClock, formatDistance } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { CORNER_LEAD_M } from "../lib/annotations";
-import { layoutCornerLabels } from "../lib/cornerLabels";
+import { layoutCornerLabels, smallFontPx } from "../lib/cornerLabels";
 import { readoutCorner } from "../lib/trackmap";
 import { distanceAtTime, timeAtDistance } from "../lib/playback";
 import { RATES, usePlayback, usePlaybackStore, type Rate } from "../state/playback";
@@ -56,7 +56,7 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refN
       id: c.id, name: c.name, priority: priorityCornerIds?.has(c.id) ?? false,
       frac: duration > 0 ? timeAtDistance(cmp.lap.t, cmp.distance, c.apex_m) / duration : 0,
     }));
-    const labels = layoutCornerLabels(items, ticksW);
+    const labels = layoutCornerLabels(items, ticksW, smallFontPx());
     return (trackMap?.corners ?? []).map((c, i) => ({ c, frac: items[i].frac, label: labels[i] }));
   }, [trackMap, cmp, duration, ticksW, priorityCornerIds]);
 

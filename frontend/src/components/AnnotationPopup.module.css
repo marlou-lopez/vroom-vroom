@@ -20,13 +20,13 @@
 .corner { font-weight: 700; font-size: 13px; }
 .loss { font-family: var(--font-mono); font-weight: 600; }
 .spacer { flex: 1; }
-.tag { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; }
+.tag { font-size: var(--font-size-small); font-weight: 700; letter-spacing: 0.08em; }
 
 .what { color: var(--color-text-soft); line-height: 1.45; }
 .fix { line-height: 1.45; }
 .fixLabel { color: var(--color-you); font-weight: 600; }
 .cue {
-  font-size: 9px;
+  font-size: var(--font-size-small);
   font-weight: 700;
   letter-spacing: 0.06em;
   color: var(--color-muted);
@@ -34,10 +34,10 @@
   border-radius: 999px;
   padding: 1px 5px;
 }
-.evidence { font-family: var(--font-mono); font-size: 11px; color: var(--color-muted); }
+.evidence { font-family: var(--font-mono); font-size: var(--font-size-small); color: var(--color-muted); }
 
 .dive { border-top: 1px solid var(--color-border); padding-top: 6px; display: flex; flex-direction: column; gap: 4px; }
-.diveHead { font-size: 9px; font-weight: 700; letter-spacing: 0.08em; color: var(--color-muted); }
+.diveHead { font-size: var(--font-size-small); font-weight: 700; letter-spacing: 0.08em; color: var(--color-muted); }
 .diveHead span { font-family: var(--font-mono); }
 
 .error { color: var(--color-issue); }
