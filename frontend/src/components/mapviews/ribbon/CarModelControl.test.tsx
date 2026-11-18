@@ -40,7 +40,7 @@ describe("CarModelControl", () => {
   it("shows the box when there is nothing, and lists a shared car once", async () => {
     await open({ cars: [CARS[0], CARS[0]] });
     expect(await screen.findAllByTestId("car-source")).toHaveLength(1);
-    expect(screen.getByTestId("car-source").textContent).toContain("Box");
+    expect(screen.getByTestId("car-source").textContent).toContain("Plain box");
   });
 
   it("stores a valid file and shows it as the source", async () => {
@@ -66,10 +66,18 @@ describe("CarModelControl", () => {
     expect((await store.get("car_a"))?.fileName).toBe("mc.glb");
   });
 
+  it("keeps the command-line and file-format detail behind a More disclosure", async () => {
+    await open();
+    const more = screen.getByText("More").closest("details")!;
+    expect(more.open).toBe(false);
+    expect(more.textContent).toContain("optimize-car-model");
+    expect(screen.queryByText(/Sketchfab/)).toBeNull();
+  });
+
   it("warns about a large file but still stores it", async () => {
     const { store, user } = await open();
     await user.upload(screen.getByLabelText("Load .glb for McLaren 720S"), fileOf(glb(LARGE_MODEL_BYTES + 1), "big.glb"));
-    expect((await screen.findByRole("status")).textContent).toMatch(/optimize-car-model/);
+    expect((await screen.findByRole("status")).textContent).toMatch(/smaller one/);
     expect(await store.get("car_a")).not.toBeNull();
   });
 
@@ -85,7 +93,7 @@ describe("CarModelControl", () => {
     await waitFor(() => expect(screen.getAllByRole("button", { name: "Rotate 180°" })[0].getAttribute("aria-pressed")).toBe("true"));
     await user.click(screen.getAllByRole("button", { name: "Remove" })[0]);
     expect(remove).toHaveBeenCalledWith("car_a");
-    await waitFor(() => expect(screen.getAllByTestId("car-source")[0].textContent).toContain("Box"));
+    await waitFor(() => expect(screen.getAllByTestId("car-source")[0].textContent).toContain("Plain box"));
   });
 
   describe("conversion", () => {
