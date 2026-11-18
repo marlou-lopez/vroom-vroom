@@ -60,7 +60,7 @@ describe("AppShell", () => {
 describe("TrackPanel", () => {
   it("contains a track view throw so the rest of the panel still renders", () => {
     const model = {
-      cmp: { lap: { t: [0], gear: [2], speed_kmh: [100] }, ref: { t: [0] }, distance: [0], delta: [0] },
+      cmp: { lap: { t: [0], gear: [2], speed_kmh: [100] }, ref: { t: [0], speed_kmh: [100] }, distance: [0], delta: [0] },
     } as unknown as PlaybackModel;
     render(
       <PlaybackProvider>

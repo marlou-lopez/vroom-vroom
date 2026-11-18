@@ -1,5 +1,5 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import type { TrackGeometry, TrackMap } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import type { PlaybackModel } from "../lib/model";
@@ -45,12 +45,25 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
     saveTrackView(next.id);
   };
 
+  // The view's own overlays (legend, camera and display bars) sit under this row, however many lines it wraps to.
+  const panelRef = useRef<HTMLElement>(null);
+  const topRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const panel = panelRef.current, top = topRef.current;
+    if (!panel || !top || typeof ResizeObserver === "undefined") return;
+    const set = () => panel.style.setProperty("--top-h", `${Math.ceil(top.getBoundingClientRect().height)}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(top);
+    return () => ro.disconnect();
+  }, []);
+
   return (
-    <section aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
+    <section ref={panelRef} aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
       <ErrorBoundary label="track view" variant="panel" resetKeys={[model, active.id]}>
         <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} refName={refName ?? null} />
       </ErrorBoundary>
-      <div className={styles.top}>
+      <div ref={topRef} className={styles.top}>
       <Readout model={model} trackMap={trackMap} refName={refName ?? null} view={active.id} />
       <div className={styles.toolbar}>
         <ToggleGroup.Root
@@ -93,15 +106,16 @@ function Readout({ model, trackMap, refName, view }: { model: PlaybackModel; tra
   const corner = trackMap ? cornerAt(trackMap, dYou) : null;
   const delta = cmp.delta[iy] ?? 0;
   const gap = Math.round(dRef - dYou);
+  const understeer = corner !== null && (cmp.lap_understeer_runs ?? []).some((r) => dYou >= r.start_m && dYou <= r.end_m);
   const who = refName ?? "the comparison";
   const standing = standingLabel(delta, who);
   const gapLabel = gap > 0 ? `${who} ${gap} m ahead` : gap < 0 ? `${who} ${-gap} m behind` : standing ? null : `level with ${who}`;
     return (
     <Fragment>
       <div className={styles.readout} data-view={view}>
-        <div className={styles.corner}>{corner ? corner.name : "Straight"}</div>
+        <div className={styles.corner}>{corner ? corner.name : "Straight"}{understeer && <span className={styles.balance}>understeer</span>}</div>
         <div className={cx(styles.mono, styles.muted)}>
-          {Math.round(dYou).toLocaleString("en-US")} m · gear {gearLabel(cmp.lap.gear[iy])} · {Math.round(cmp.lap.speed_kmh[iy])} km/h
+          {Math.round(dYou).toLocaleString("en-US")} m · gear {gearLabel(cmp.lap.gear[iy])} · {Math.round(cmp.lap.speed_kmh[iy])} / {Math.round(cmp.ref.speed_kmh[indexAtTime(cmp.ref.t, tau)])} km/h
         </div>
       </div>
       <div className={styles.deltaBox} data-view={view}>

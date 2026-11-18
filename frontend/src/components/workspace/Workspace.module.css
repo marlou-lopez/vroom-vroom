@@ -1,4 +1,4 @@
-/* Telemetry page layout: the lap rail beside the centre. Theme tokens only. The rail never stacks under the centre. */
+/* Telemetry page layout: the lap rail beside the centre. Theme tokens only. Below 700 px the rails stack around the centre. */
 
 .layout {
   flex: 1;
@@ -111,3 +111,13 @@
 .comparison { color: var(--color-comparison); font-family: var(--font-mono); }
 .invalid { color: var(--color-issue); }
 .badge { color: var(--color-minor); font-size: 10px; font-family: var(--font-mono); }
+
+/* Split screen next to the sim (about 700 px and below): three columns would leave the centre ~190 px wide, so the rails stack
+   above and below it instead (the lap rail first, the corner rail last) and the whole page scrolls. */
+@media (max-width: 700px) {
+  .layout { display: flex; flex-direction: column; overflow-y: auto; padding-bottom: var(--pad); }
+  .center { flex: none; overflow: visible; }
+  .rail, .cornerRail { width: auto; max-height: 260px; flex: none; }
+  .railCollapsed { flex-direction: row; justify-content: flex-start; padding: 4px 6px; max-height: none; }
+  .vertical { writing-mode: horizontal-tb; }
+}
