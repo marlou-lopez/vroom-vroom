@@ -204,9 +204,9 @@ export function SessionsPage() {
             SELECTED SESSION · {formatShortDate(shownRow.session.started_at)} · {shownRow.session.session_type}
           </div>
           {/* Every lap is listed; laps without a trace are tagged "stats only" and do not link. */}
-          <LapGaugeTable key={shownRow.session.session_id} sessionId={shownRow.session.session_id} />
+          <LapGaugeTable key={`laps-${shownRow.session.session_id}`} sessionId={shownRow.session.session_id} />
           {/* Per-lap stint stats of the selected session (the panel renders nothing without). */}
-          <StintPanel key={shownRow.session.session_id} session={shownRow.session} />
+          <StintPanel key={`stint-${shownRow.session.session_id}`} session={shownRow.session} />
         </>
       )}
     </div>
