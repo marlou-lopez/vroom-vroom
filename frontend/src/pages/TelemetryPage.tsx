@@ -22,6 +22,8 @@ import { effectiveValid, type Corner } from "../api/types";
 import { CORNER_LEAD_M } from "../lib/annotations";
 import { comparisonName, lapGap } from "../lib/compareName";
 import { timeAtDistance } from "../lib/playback";
+import { playbackKeyAction, stepTime } from "../lib/shortcuts";
+import { MIN_DELTA_S } from "../lib/cornerRail";
 import { buildModel } from "../lib/model";
 import { invalidHint } from "../lib/offTrack";
 import { PlaybackProvider, usePlayback, usePlaybackStore, type PlaybackView } from "../state/playback";
@@ -123,6 +125,35 @@ function Telemetry() {
     [cmp, store],
   );
   const seekToCorner = useCallback((c: Corner) => seekToCornerStart(c.start_m), [seekToCornerStart]);
+
+  // Page-wide playback keys. Corner steps use every corner's lead-in time; issue steps use corners with a finding or a loss.
+  const cornerStarts = useMemo(() => (cmp && trackMap ? trackMap.corners.map((c) => leadInTime(cmp, { startM: c.start_m })) : []), [cmp, trackMap]);
+  const issueStarts = useMemo(() => {
+    if (!cmp || !trackMap) return [];
+    const ids = new Set(annotations.map((a) => a.cornerId));
+    for (const m of cmp.corners) if (m.delta_s >= MIN_DELTA_S) ids.add(m.corner_id);
+    return trackMap.corners.filter((c) => ids.has(c.id)).map((c) => leadInTime(cmp, { startM: c.start_m }));
+  }, [cmp, trackMap, annotations]);
+  const keyState = useRef({ cornerStarts, issueStarts });
+  useEffect(() => { keyState.current = { cornerStarts, issueStarts }; });
+  useEffect(() => {
+    if (!model) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const a = playbackKeyAction(e, e.target instanceof Element ? e.target : null);
+      if (!a) return;
+      if (a.kind === "toggle") store.toggle();
+      else if (a.kind === "seekBy") store.seekBy(a.seconds);
+      else {
+        const t = stepTime(a.kind === "corner" ? keyState.current.cornerStarts : keyState.current.issueStarts, store.get().tau, a.dir);
+        if (t !== null) { store.pause(); store.seek(t); }
+      }
+      e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [model, store]);
+
   const { deepDives, setReviewed, askCorner } = coach;
   const { setOpen } = popup;
   const onPlay = useCallback(
