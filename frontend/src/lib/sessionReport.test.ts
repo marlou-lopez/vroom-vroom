@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Corner, LapKind, StintLap, Wheels } from "../api/types";
 import type { AidRuns } from "./driverAids";
-import { GT3_WINDOWS } from "./reportWindows";
+import { GT3_WINDOWS, rangeFor } from "./reportWindows";
 import { buildSessionReport, type ReportInput, type ReportLapInput, type TraceFacts } from "./sessionReport";
 import { splitStints } from "../api/mock/stint";
 
@@ -48,6 +48,49 @@ describe("buildSessionReport", () => {
     expect(low.sentence).toContain("Rear tyre surface temperature averaged 71.0 °C");
     const hot = buildSessionReport(input([1, 2].map((n) => stat(n, { tyre_carcass_c: w(120) }))));
     expect(kinds(hot)).toEqual(["tyre_carcass_c_high", "tyre_carcass_c_high"]); // front and rear
+  });
+
+  describe("window tolerance and per-axle windows (vroom-bi4.13)", () => {
+    const tol = GT3_WINDOWS.tyre_pressure_kpa.tolerance; // 3 kPa
+    const rear = rangeFor(GT3_WINDOWS.tyre_pressure_kpa, "rear"), front = rangeFor(GT3_WINDOWS.tyre_pressure_kpa, "front");
+    // Rear pressure p kPa, front pressure inside its own window, on n laps.
+    const rearP = (p: number, n = 3) => buildSessionReport(input(Array.from({ length: n }, (_, i) => stat(i + 1, { tyre_pressure_kpa: { fl: 171, fr: 171, rl: p, rr: p } }))));
+    it("stays quiet within the tolerance of the window edge, fires just outside it", () => {
+      expect(kinds(rearP(rear.min - tol))).toEqual([]); // exactly the tolerance below: inside
+      expect(kinds(rearP(rear.min - tol + 0.5))).toEqual([]);
+      const e = rearP(rear.min - tol - 0.5).events[0];
+      expect(e).toMatchObject({ kind: "tyre_pressure_kpa_low", severity: expect.not.stringMatching(/problem/) });
+      expect(e.numbers).toMatchObject({ window_min: rear.min, window_max: rear.max });
+    });
+    it("needs at least twice the tolerance for a problem", () => {
+      expect(rearP(rear.min - 2 * tol + 0.2).events[0].severity).not.toBe("problem"); // 1.9x: a watch at most
+      expect(rearP(rear.min - 2 * tol - 0.2).events[0].severity).toBe("problem"); // all laps outside, more than twice
+    });
+    it("judges front and rear against their own range", () => {
+      const both = (p: number) => buildSessionReport(input([1, 2, 3].map((n) => stat(n, { tyre_pressure_kpa: w(p) }))));
+      expect(kinds(both(front.min - tol - 0.5))).toEqual(["tyre_pressure_kpa_low"]); // 165.9: only the front is low
+      expect(both(front.min - tol - 0.5).events[0].sentence).toContain("Front tyre pressure");
+      expect(kinds(both(rear.max + tol + 0.5)).length).toBe(1); // 173.6: the rear is high, the front is inside its 174.3
+      expect(both(rear.max + tol + 0.5).events[0].sentence).toContain("Rear tyre pressure");
+    });
+    it("keeps the published tyre surface window for both axles, with the tolerance", () => {
+      expect("min" in GT3_WINDOWS.tyre_surface_c && GT3_WINDOWS.tyre_surface_c.min).toBe(80);
+      const surface = (t: number) => kinds(buildSessionReport(input([1, 2, 3].map((n) => stat(n, { tyre_surface_c: w(t) })))));
+      expect(surface(77)).toEqual([]); // 3 °C below the published 80: inside the tolerance
+      expect(surface(76.9)).toEqual(["tyre_surface_c_low", "tyre_surface_c_low"]); // front and rear
+    });
+    it("applies the tolerance to spread, brake temperature and the brake ratio", () => {
+      const zones = (d: number) => ({ left: w(90 + d / 2), centre: w(90), right: w(90 - d / 2) });
+      const spread = (d: number) => buildSessionReport(input([1, 2, 3].map((n) => stat(n, { tyre_zones_c: zones(d) }))));
+      expect(kinds(spread(11))).toEqual([]); // rear window 9.2 + 2 = 11.2, front 11.3 + 2 = 13.3
+      expect(spread(12).events.map((e) => e.sentence.slice(0, 4))).toEqual(["Rear"]);
+      expect(kinds(spread(13.5))).toEqual(["tyre_spread", "tyre_spread"]);
+      const brake = (f: number, rr: number) => kinds(buildSessionReport(input([1, 2, 3].map((n) => stat(n, { brake_c: { fl: f, fr: f, rl: rr, rr } })))));
+      expect(brake(478, 370)).toEqual([]); // front window 389-468, tolerance 10
+      expect(brake(479, 370)).toContain("brake_high");
+      expect(brake(420, 320)).toEqual([]); // ratio 1.3125: 1.27 + 0.05 = 1.32
+      expect(brake(420, 315)).toEqual(["brake_imbalance_high"]); // 1.333
+    });
   });
 
   it("needs two laps for a tyre event and ignores out laps for a cold value", () => {
@@ -155,11 +198,29 @@ describe("buildSessionReport", () => {
     ]);
     const laps = [1, 2].map((n) => ({ lap_id: `l${n}`, lap_no: n, kind: "flying" as const, lap_time_s: 100 + n, valid: true, has_trace: true }));
     const r = buildSessionReport(input(null, { traces, laps }));
-    expect(kinds(r)).toEqual(expect.arrayContaining(["lockups", "wheelspins", "abs_activation", "tc_activation"]));
+    expect(kinds(r)).toEqual(expect.arrayContaining(["lockups", "wheelspins", "abs_activation"]));
     const lock = r.events.find((e) => e.kind === "lockups")!;
     expect(lock).toMatchObject({ corner: { name: "Beta" }, distance_m: 350, numbers: { n_laps: 2, runs: 2 }, coincides: { scope: "corner", lost_s: 0.5 } });
     expect(lock.sentence).toContain("Beta");
     expect(r.unavailable.map((u) => u.category)).not.toContain("driving");
+    // TC at Alpha lost no time there and there are too few laps to compare with the best laps: a bare description, so it is dropped (vroom-bi4.13).
+    expect(kinds(r)).not.toContain("tc_activation");
+  });
+
+  it("keeps an ABS activation that differs from the best laps without time lost, drops a smaller difference (vroom-bi4.13)", () => {
+    const run = (m: number) => ({ start: 300, end: 300 + m - 1 });
+    // 5 timed flying laps, equal corner times (nothing lost); laps 1 to 3 are the best set.
+    const build = (best: number, other: number) => {
+      const traces = new Map<number, TraceFacts>([1, 2, 3, 4, 5].map((n) => [n, { aids: { ...none, abs: [run(n <= 3 ? best : other)] }, corner_times_s: [5, 6] }]));
+      const laps = [1, 2, 3, 4, 5].map((n) => ({ lap_id: `l${n}`, lap_no: n, kind: "flying" as const, lap_time_s: 100 + n * 0.001, valid: true, has_trace: true }));
+      return buildSessionReport(input(null, { traces, laps })).events.find((e) => e.kind === "abs_activation");
+    };
+    const e = build(40, 20)!; // best 40 m, others 20 m: 20 m and 50 % apart
+    expect(e.coincides).toBeNull();
+    expect(e.numbers).toMatchObject({ best_m: 40, others_m: 20, n_best: 3 });
+    expect(e.sentence).toContain("On your 3 best laps it was 40 m");
+    expect(build(40, 36)).toBeUndefined(); // 4 m apart: under aidBestDiffM
+    expect(build(100, 80)).toBeUndefined(); // 20 m apart but only 20 %: under aidBestDiffShare
   });
 
   describe("lock-up and wheelspin trend per corner", () => {
@@ -220,11 +281,14 @@ describe("buildSessionReport", () => {
   });
 
   it("reports an ABS trend across the flying laps", () => {
-    const aid = new Map([1, 2, 3, 4].map((n) => [n, { abs_m: 100 + n * 30, tc_m: 50 }] as const));
-    const traces = new Map<number, TraceFacts>([1, 2, 3, 4].map((n) => [n, { aids: none, corner_times_s: [5, 6] }]));
-    const laps = [1, 2, 3, 4].map((n) => ({ lap_id: `l${n}`, lap_no: n, kind: "flying" as const, lap_time_s: 100, valid: true, has_trace: true }));
-    const e = buildSessionReport(input(null, { aid_activation: aid, traces, laps })).events.find((x) => x.kind === "abs_trend")!;
-    expect(e.numbers).toMatchObject({ first_m: 130, last_m: 220 });
+    const trend = (nums: number[]) => {
+      const aid = new Map(nums.map((n) => [n, { abs_m: 100 + n * 30, tc_m: 50 }] as const));
+      const traces = new Map<number, TraceFacts>(nums.map((n) => [n, { aids: none, corner_times_s: [5, 6] }]));
+      const laps = nums.map((n) => ({ lap_id: `l${n}`, lap_no: n, kind: "flying" as const, lap_time_s: 100, valid: true, has_trace: true }));
+      return buildSessionReport(input(null, { aid_activation: aid, traces, laps })).events.find((x) => x.kind === "abs_trend");
+    };
+    expect(trend([1, 2, 3, 4, 5, 6])!.numbers).toMatchObject({ first_m: 130, last_m: 280 });
+    expect(trend([1, 2, 3, 4, 5])).toBeUndefined(); // a trend needs at least 6 flying laps (vroom-bi4.13)
   });
 
   it("reports in-car setting changes with before and after, and the setting values on each lap", () => {
@@ -278,7 +342,8 @@ describe("buildSessionReport", () => {
 
   it("returns the windows it used with their source", () => {
     const r = buildSessionReport(input([stat(1)]));
-    expect(r.windows.find((x) => x.key === "tyre_surface_c")).toMatchObject({ min: GT3_WINDOWS.tyre_surface_c.min, unit: "°C" });
+    expect(r.windows.find((x) => x.key === "tyre_surface_c")).toMatchObject({ min: 80, max: 100, unit: "°C", axle: "both", tolerance: 3 });
+    expect(r.windows.filter((x) => x.key === "tyre_pressure_kpa").map((x) => [x.axle, x.min, x.max])).toEqual([["front", 169.4, 174.3], ["rear", 166.3, 170.1]]);
     expect(r.windows.every((x) => x.source.length > 0)).toBe(true);
   });
 });

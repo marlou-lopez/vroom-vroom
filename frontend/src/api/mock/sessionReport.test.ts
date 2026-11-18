@@ -41,7 +41,7 @@ describe("session report (mock, vroom-bi4.11)", () => {
     await expect(api.sessionReport("nope")).rejects.toBeInstanceOf(ApiError);
   });
 
-  it("has an event in tyres, brakes, driving, settings and pace on the Spa race, each with laps, numbers and a sentence", async () => {
+  it("has an event in brakes, driving, settings and pace on the Spa race, each with laps, numbers and a sentence", async () => {
     const api = engine();
     const race = (await api.sessions()).find((s) => s.started_at.startsWith("2026-11-10"))!;
     const r = await api.sessionReport(race.session_id);
@@ -51,7 +51,9 @@ describe("session report (mock, vroom-bi4.11)", () => {
       "brakes: Too few timed flying laps to compare with your best laps (4, need at least 5).",
     ]);
     expect(r.events.some((e) => e.kind.startsWith("vs_best_"))).toBe(false);
-    for (const c of ["tyres", "brakes", "driving", "settings", "pace"] as const) {
+    // The race's tyres stay within the windows plus tolerance (vroom-bi4.13), so there is no tyre event.
+    expect(r.events.some((e) => e.category === "tyres")).toBe(false);
+    for (const c of ["brakes", "driving", "settings", "pace"] as const) {
       const e = r.events.filter((x) => x.category === c);
       expect(e.length, c).toBeGreaterThan(0);
       for (const x of e) {
@@ -70,6 +72,40 @@ describe("session report (mock, vroom-bi4.11)", () => {
     expect(setting.distance_m).toBe(6885);
     expect(r.laps.map((l) => l.settings?.TCLevel)).toEqual(Array(9).fill(6));
     expect(r.laps[1].tyre_surface_c!.front).toBeGreaterThan(0);
+  });
+
+  it("no tyre or brake window event sits within its tolerance of the window edge, and every activation event has a reason (vroom-bi4.13)", async () => {
+    const api = engine();
+    let windowEvents = 0, activations = 0;
+    for (const s of await api.sessions()) {
+      const r = await api.sessionReport(s.session_id);
+      for (const e of r.events) {
+        if ((e.category === "tyres" || e.category === "brakes") && !e.kind.startsWith("vs_best_") && e.kind !== "brake_pit_cooling") {
+          const dir = e.kind.endsWith("_low") ? "low" : "high";
+          const key = e.kind === "tyre_spread" ? "tyre_spread_c" : e.kind.startsWith("brake_imbalance") ? "brake_front_rear_ratio" : e.kind.startsWith("brake_") ? "brake_c" : e.kind.replace(/_(low|high)$/, "");
+          const v = e.kind.startsWith("brake_imbalance") ? e.numbers.ratio : e.numbers.mean;
+          const edge = e.kind === "tyre_spread" ? e.numbers.window_max : dir === "low" ? e.numbers.window_min : e.numbers.window_max;
+          const win = r.windows.find((x) => x.key === key && (x.min === e.numbers.window_min || e.kind === "tyre_spread") && x.max === e.numbers.window_max);
+          expect(win, e.sentence).toBeDefined();
+          expect(Math.abs(v - edge), e.sentence).toBeGreaterThan(win!.tolerance);
+          if (e.severity === "problem") expect(Math.abs(v - edge), e.sentence).toBeGreaterThanOrEqual(2 * win!.tolerance);
+          windowEvents++;
+        }
+        if (e.kind === "abs_activation" || e.kind === "tc_activation") {
+          activations++;
+          expect(e.coincides?.scope === "corner" || e.numbers.best_m !== undefined, e.sentence).toBe(true);
+        }
+      }
+    }
+    expect(windowEvents).toBeGreaterThan(0);
+    expect(activations).toBeGreaterThan(0);
+  });
+
+  it("the Monza race no longer flags rear pressure 165 kPa or the brake ratio 1.28", async () => {
+    const api = engine();
+    const monza = (await api.sessions()).find((s) => s.started_at.startsWith("2026-11-09"))!;
+    const r = await api.sessionReport(monza.session_id);
+    expect(r.events.filter((e) => e.kind === "tyre_pressure_kpa_low" || e.kind === "brake_imbalance_high")).toEqual([]);
   });
 
   it("states every number in an event's numbers, avoids causes, tyre load, grip and brake bias, for every session", async () => {

@@ -25,8 +25,9 @@ export const CHARTS: { metric: ChartMetric; title: string; unit: string; pick: (
   { metric: "brake_c", title: "Brake disc temperature", unit: "°C", pick: (l) => l.brake_c },
 ];
 
-export function windowFor(windows: ReportWindow[], key: string): ReportWindow | null {
-  return windows.find((w) => w.key === key) ?? null;
+/** The window rows of one metric: one for both axles, or one per axle. */
+export function windowsOf(windows: ReportWindow[], key: string): ReportWindow[] {
+  return windows.filter((w) => w.key === key);
 }
 
 /** Y range covering the values and the window, padded by 8 %. null when there is nothing to scale. */
