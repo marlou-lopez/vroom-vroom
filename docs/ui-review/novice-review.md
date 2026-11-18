@@ -243,3 +243,21 @@ A 4-step tour over today's page: (1) your lap and what it is compared with; (2) 
 | task | Full view: fewer default strips, one Key, corner rail open on laptops | Default strips are Time vs best (top, captioned), Speed, Brake & throttle; Choose strips has descriptions in Basics/Advanced groups. One Key popover is always present and covers map, strips and coach marks. The corner rail is open by default down to 1280 px and offers "Biggest first". Tests. |
 | task | Coach output: no duplicate answers, page never grows past the window | Corner answers collapse to one line with "more". The corner rail scrolls inside its own panel. After Ask or Average the transport stays visible at 1600×900. Coach badges never cover the map's delta readout. |
 | task | Stint and Tracks for newcomers | The Stint view leads with one sentence of conclusions, with the formula behind "How is this worked out" and a 2×2 tyre key. The Tracks landmark editor moves behind an "Advanced" control; the default Tracks page is a labelled map. |
+
+## Decision (autopilot)
+
+**Change** (Opus judge, 2026-11-18): keep direction B, but as a remembered mode, not the default landing. The full view stays dense, with a legibility floor.
+
+Reasons:
+- B is the only direction that answers "where am I slow, and what do I try" on the first screen without a paid call. At 1366 px it does this where today's page hides the corner rail (novice-24 against novice-02). It reuses data the page already loads and needs no contract change, so it fits v1 and doesn't delay Analysis features or the backend.
+- The app runs locally for one driver. With a Simple/Full switch remembered per browser, which view opens first hardly matters. Keeping the full view as the first-visit default avoids touching the spec's "dark-only and dense" non-goal, which only the owner can reword.
+- The computed tips look canned: in the prototype all three corners get the same "Release the brake a little earlier…" tip. They must vary by cause and metric, and be checked by the owner, before anyone relies on them.
+- A's full token jump (14 px base, 8 px spacing) would undo "dense" in the full view. A legibility floor fixes the worst of N6 and N7 without that.
+- Stint and Tracks for newcomers (N17, N18) can wait. They are parked as an idea (vroom-xg2).
+
+Changes to the direction:
+- Simple is a mode of the Telemetry page, picked with a remembered Simple/Full switch in the header. The full view opens on a first visit, with the switch visible. Simple keeps its own roomier local tokens.
+- The full view keeps its 12 px base and 6 px spacing, with a floor: no text under 11 px, controls at least 24 px, muted #9AA3AE, and a font clamp above 1920 px.
+- The corner rail stays open down to 1280 px. This reverses the "collapsed below 1400 px" part of the vroom-pnw.30 decision.
+
+Follow-up issues filed under vroom-pnw: vroom-pnw.52 (corner click names the wrong corner), .56 (Simple view as a remembered mode, after .52), .53 (legibility floor), .54 (plain-language pass, after .56), .57 (three default strips, one Key, rail open on laptops, after .53), .55 (coach output never grows the page or covers the readout, after .57). Idea parked: vroom-xg2 (Stint and Tracks for newcomers). Earlier during the review: vroom-pnw.51 (stale Sessions tables, shipped).
