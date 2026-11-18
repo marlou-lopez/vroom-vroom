@@ -19,6 +19,9 @@ import { LapRail } from "../components/workspace/LapRail";
 import { HeaderSlot } from "../components/AppShell";
 import { loadUiMode, saveUiMode, type UiMode } from "../lib/uiMode";
 import { SimpleView } from "../components/simple/SimpleView";
+import { OneLapView, OneSessionView } from "../components/oneapp/OneApp";
+import oneStyles from "../components/oneapp/OneApp.module.css";
+import { oneUiEnabled } from "../lib/oneUi";
 import { SessionTab, type OpenLap } from "../components/session/SessionTab";
 import { TracelessSession } from "../components/session/TracelessSession";
 import wsStyles from "../components/workspace/Workspace.module.css";
@@ -44,6 +47,8 @@ export function TelemetryPage() {
   // `?session=<id>` without a lap: a session recorded without traces, which has only its Session tab (vroom-bi4.12).
   const [params] = useSearchParams();
   const sessionParam = params.get("session");
+  // EXPERIMENTAL overhaul prototype (vroom-pnw.58): `?ui=one&scope=session` is the session scope.
+  if (oneUiEnabled(params) && params.get("scope") === "session") return <OneSessionView />;
   if (sessionParam && !params.get("lap")) return <TracelessSession key={sessionParam} sessionId={sessionParam} />;
   return (
     <PlaybackProvider>
@@ -256,6 +261,38 @@ function Telemetry() {
       </ToggleGroup.Root>
     </HeaderSlot>
   );
+  // EXPERIMENTAL overhaul prototype (vroom-pnw.58, ?ui=one): the lap scope, with no Simple/Full switch, lap rail or corner rail.
+  if (oneUiEnabled(params)) {
+    if (!(ctx && cmp && model)) return <Message>{error ? `${error.code}: ${error.message}` : "Loading…"}</Message>;
+    return (
+      <AnnotationCardProvider value={cardActions}>
+        <OneLapView
+          session={ctx.session} laps={ctx.laps} lap={ctx.lap} cmp={cmp} trackMap={trackMap} candidates={candidates} coach={coach}
+          onSelectLap={selectLap} onSelectRef={selectRef} onSeek={seekToCorner}
+          onReplay={(c) => { seekToCorner(c); store.play(); }}
+          stage={
+            <div className={oneStyles.stageGrid}>
+              <TrackPanel
+                model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers}
+                lapTimes={lapTimes} lapValid={lapValid} refName={refShort}
+                expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
+              />
+              <section aria-label="Inputs" className={oneStyles.strips}>
+                <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} focusCorner={focusCorner} lapValid={lapValid} youName={youName} refName={refName} />
+              </section>
+            </div>
+          }
+          transport={
+            <Transport
+              model={model} trackMap={trackMap} refName={refShort ?? undefined} priorityCornerIds={priorityCorners}
+              scrubberLayer={<><ScrubberOffTrack model={model} valid={lapValid} /><ScrubberSections annotations={annotations} duration={model.duration} /></>}
+              scrubberBadges={<ScrubberBadges annotations={annotations} duration={model.duration} h={handlers} />}
+            />
+          }
+        />
+      </AnnotationCardProvider>
+    );
+  }
   if (mode === "simple" && !(ctx && cmp && model) && !error) return <>{modeSwitch}<Message>Loading…</Message></>;
   if (mode === "simple" && ctx && cmp && model) {
     return (
