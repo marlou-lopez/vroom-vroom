@@ -280,5 +280,5 @@ Applied: the lap kind tags (flying, out, in, incomplete) now read "timed lap", "
 
 The scrubber zero label reads "0 · same pace". Already plain before this pass (found on checking): the map readout ("0.005 s behind your best lap", "your best lap is 2 m ahead"), and the lap rail key hint ("● your lap · ○ the lap you compare with").
 
-Kept, with reasons: the Tracks page ("Re-calibrate from ★ reference", Stint rows: vroom-xg2); the category names in the Session tab filters (tyres, brakes, driving, settings, pace, conditions: already plain); internal and API names (`is_reference`, `kind: "flying"`, `ref`); "your best lap" in the full against the Simple view (product decision, above). The cockpit dash is a WebGL texture, so it has no screenshot from `npm run shots`; `cockpitPaint.test.ts` pins its text.
+Kept, with reasons: ("Re-calibrate from ★ reference" and the Stint rows, now done in vroom-xg2, behind Advanced and in plain words); the category names in the Session tab filters (tyres, brakes, driving, settings, pace, conditions: already plain); internal and API names (`is_reference`, `kind: "flying"`, `ref`); "your best lap" in the full against the Simple view (product decision, above). The cockpit dash is a WebGL texture, so it has no screenshot from `npm run shots`; `cockpitPaint.test.ts` pins its text.
 
