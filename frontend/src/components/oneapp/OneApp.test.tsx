@@ -68,9 +68,9 @@ describe("one-app prototype (?ui=one)", () => {
     renderAt("/?ui=one");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     const where = screen.getByRole("navigation", { name: "Where you are" });
-    await userEvent.click(within(where).getAllByRole("button")[0]);
+    await userEvent.click(within(where).getByRole("button", { name: /·/ }));
     await screen.findByText(/timed and valid/, undefined, { timeout: 5000 });
-    expect(loc.search).toMatch(/scope=session/);
+    await waitFor(() => expect(loc.search).toMatch(/scope=session/));
     expect(loc.search).toMatch(/ui=one/);
   });
 

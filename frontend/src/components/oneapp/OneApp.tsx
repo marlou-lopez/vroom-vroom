@@ -155,7 +155,6 @@ export function OneLapView(p: OneLapProps) {
 /** The left column: the lap's answer, then every corner, losses first, with a plain tip and Replay on the big ones. */
 function Story({ lap, cmp, trackMap, coach, refName, gap, self, onReplay, onSeek }: OneLapProps & { refName: string; gap: number | null; self: boolean }) {
   const [showAll, setShowAll] = useState(false);
-  const corners = trackMap?.corners ?? [];
   const rows = useMemo(() => (trackMap ? cornerRailRows(cmp, trackMap.corners) : []), [cmp, trackMap]);
   const losses = rows.filter((r) => r.deltaS >= PLAIN_MIN_S).sort((a, b) => b.deltaS - a.deltaS);
   const top = losses.slice(0, 3);
@@ -216,7 +215,7 @@ function Story({ lap, cmp, trackMap, coach, refName, gap, self, onReplay, onSeek
             )}
           </div>
           <button type="button" className={styles.disclosure} aria-expanded={showAll} onClick={() => setShowAll((x) => !x)}>
-            {showAll ? "▾" : "▸"} Every corner ({corners.length}) · {plainSeconds(sumLoss)} lost in total
+            {showAll ? "▾" : "▸"} The other {rest.length} corners · {plainSeconds(sumLoss)} lost across all losing corners
           </button>
           {showAll && (
             <ul className={styles.all}>

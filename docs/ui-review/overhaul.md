@@ -7,7 +7,7 @@
 ## How the review was done
 
 - **Tools.** Playwright 1.65 (the repo's devDependency) scripted headless Chromium with software WebGL against `npm run dev` with the mock API, on a separate port (5258) so it didn't collide with other worktrees' servers. The setup is the same as `npm run shots`, but with clicks between shots. All shots use `?debug=0` (the production view) and locale en-US. One script walked the rendered page to count controls, control sizes and text sizes.
-- **Window sizes.** 1366×768, 1600×900 and 2560×1440 for the Telemetry page and the prototype; 1600×900 (full-page) for the other pages.
+- **Window sizes.** 1366×768, 1600×900 and 2560×1440 for the Telemetry page, Tracks and the prototype. Sessions (with the Stint and Ideal lap sections) was shot at 1600×900 full-page and at 1366×768. Its 2560 shot timed out in headless Chromium twice and was left out: the page is a plain table layout, and the 1366 and 1600 shots show the same structure.
 - **Pages and flows.** First open on the default lap (Spa race, lap 5 against the ★ best lap from 3 Nov); a corner click in "Where the time goes"; Analyze and the coach marks; the Key; the Corners tab; the Session tab; Wheel & pedals; Close-up and 3D views; the Simple view; Sessions (history, session list, lap table, best possible lap, race run); Tracks. The flows were: open the app, pick a session and lap, find where the time goes, replay a corner, read the session report.
 - **Reading.** I read both earlier reviews first ([ui-review.md](ui-review.md), vroom-pnw.30, and [novice-review.md](novice-review.md), vroom-pnw.50), and this review doesn't re-list their findings. It judges the whole: what competes for attention, hierarchy, density and tokens, how pages relate, and what can go. I reviewed every area in this session rather than with per-area subagents. The two earlier reviews had already covered each panel in detail, so the remaining question was about the whole, and that is best judged in one place.
 - **Data.** The mock serves Spa (practice 3 Nov, race 10 Nov with traces), Monza (practice 5 Nov, race 9 Nov with stint stats only) and two older Spa sessions. The mock's driver is "Driver", and no real name appears in any screenshot.
@@ -21,7 +21,8 @@
 | Tracks | [07](img/overhaul-07-tracks.png) |
 | Simple view (to be removed) | [08](img/overhaul-08-simple.png) |
 | Corners tab, Key | [09](img/overhaul-09-corners-tab.png), [10](img/overhaul-10-key.png) |
-| Close-up, 3D, Wheel & pedals | not added: unchanged since novice-13/14 and 15–17 in the earlier reviews |
+| Close-up, 3D, Wheel & pedals | [11](img/overhaul-11-closeup.png), [12](img/overhaul-12-3d.png), [13](img/overhaul-13-wheels.png) |
+| Sessions at 1366 (Ideal lap breakdown, race run); Tracks at 1366 and 2560 | [14](img/overhaul-14-sessions-1366.png), [15](img/overhaul-15-tracks-1366.png), [16](img/overhaul-16-tracks-2560.png) |
 
 ## Measured
 
@@ -61,7 +62,7 @@ At 1600×900 on the first open (Spa race, lap 5), counting what is on screen:
 | Lap and gap in one sentence | Top of the Lap view's story column: "Lap 5 · 2:22.234. This lap was 0.71 s slower than … The 3 biggest losses are La Source, Paul Frère and Bus Stop." | Replaces the Analysis bar's "Plain telemetry…" hint | Page title of the lap report |
 | Three biggest losses with a plain sentence and a computed tip | The story column's three cards; the coach's fix replaces the tip once Analyze has run | The corner rail's top three rows grow a sentence and a tip | One card per corner |
 | "Replay this corner" | A button on each card: seek to the corner's lead-in and play in the stage beside it, with no mode switch | A button on the rail's top three rows | An inline replay inside the card |
-| "Already quick" | "Every corner (15) · 0.80 s lost in total" disclosure: all corners with bars, gains in green | Unchanged rail | A line under the cards |
+| "Already quick" | "The other 12 corners" disclosure: the remaining corners with bars, gains in green | Unchanged rail | A line under the cards |
 | Mini map with numbered losses | The main map already numbers the coach's corners. The numbers follow the story's ranking once the coach has run; before that the map stays plain (follow-up) | — | The inline replay's map |
 | Session summary (vroom-34t) | Top of the Session view: 2–3 sentences from the report (`lib/sessionSummary.ts`) | Top of Sessions' selected session | Top of the session report |
 
@@ -164,7 +165,7 @@ The issue puts the tokens in scope, and the spec's non-goal says the UI is "dark
 - **Where:** `npm run dev`, then `http://localhost:5173/?ui=one`. Every screen carries a dashed **"Experimental UI"** tag in the scope line. Remove `ui=one` from the address to get the current app. The session crumb opens `?ui=one&scope=session`. A click on a lap or an event there opens that lap back in the Lap view, keeping the flag.
 - **Code:** `frontend/src/components/oneapp/OneApp.tsx` (scope line, story column, Session view) and `OneApp.module.css` (the proposed tokens, kept local), `frontend/src/lib/oneUi.ts` (the flag) and `frontend/src/lib/sessionSummary.ts` (the vroom-34t summary, pure). `TelemetryPage.tsx` branches on the flag before its current layout, so without the flag nothing renders differently.
 - **Tests:** `lib/sessionSummary.test.ts` (counts, best and spread, headline event order, empty sessions) and `components/oneapp/OneApp.test.tsx` (the flag shows the labelled Lap view without the switch or the lap rail, the session crumb opens the summary, and without the flag the current UI renders with no "Experimental" tag).
-- **Not done:** the Track and car view (the first crumb links to today's Sessions page, whose "Open →" links drop the flag); "⋯" on the stage (Key, Hide notes, Average are not reachable in the prototype); ↑/↓ lap stepping; map numbers following the story's ranking; the token change outside the prototype's own CSS; the strips' own controls are unchanged.
+- **Not done:** the Track and car view (the first crumb links to today's Sessions page, which keeps the flag on its "Open →" links); a way back from the Session view to the lap you came from (the browser's Back works); keeping the page mounted while the next lap loads (the prototype shows "Loading…" on every lap switch); "⋯" on the stage (Key, Hide notes, Average are not reachable in the prototype); ↑/↓ lap stepping; map numbers following the story's ranking; the token change outside the prototype's own CSS; the strips' own controls are unchanged.
 
 ## Decision question
 
@@ -186,3 +187,26 @@ The issue puts the tokens in scope, and the spec's non-goal says the UI is "dark
 | task | Replay stage: map and strips without tabs or panel borders | The inputs tabs are removed. Strips are always on, and Wheel & pedals moves into the strip menu, together with zoom and Choose strips. Playback speeds move into a menu on Play. Map and strips sit side by side down to 1100 px. Screenshots at 1366, 1600 and 2560 show no clipping. |
 | task | Theme tokens: one step up, surfaces instead of borders | `theme.ts` gains `fontTitle`, `lineHeight`, `surface`, `surface2`; base 13 px, floor 12 px outside strips and canvas, pad and gap 8 px, radius 6 px, controls 28 px. Section titles become sentence case. Cyan is only for your trace and the primary action. The legibility test covers the new floor. Screenshots at the three sizes. |
 | bug | Lap rail gap overlaps "Compare"; gear labels overprint on the pedal strip | The lap-row gap no longer overlaps "Compare" at 1366, 1600 and 2560 px. Gear-shift labels on the Brake & throttle strip don't overprint in braking zones. Filed now as vroom-jny, independent of the decision. |
+
+## Decision (autopilot)
+
+**Change** (Opus judge, 2026-11-19). Keep direction B, with five changes. The spec's goals and non-goals stay as they are.
+
+Reasons:
+- B is the only direction that deals with the top causes: no main answer, three scopes mixed, and six views of one answer. A and C only treat symptoms. Measured: controls drop from 76 to 47 and small targets from 39 to 9. Spec goal 1 (lap and reference played together on map, strips and scrubber) stays on the first screen. C puts it one click deeper, and A leaves the dashboard as it is ([20](img/overhaul-20-attention.png)).
+- It follows the user's 2026-11-19 decisions. There is no Simple mode. The Simple view's losses, tips and Replay become the Lap view's lead ([33](img/overhaul-33-one-after-coach.png), [31](img/overhaul-31-one-lap-1366.png)). The cramped Session tab ([05](img/overhaul-05-session-tab.png)) becomes a full-width Session view ([35](img/overhaul-35-one-session.png)).
+- It is cheap and fits v1. There is no contract change, and the prototype reuses the existing components. It does not delay Analysis features or v2.
+- "Dark-only and dense" holds. The theme stays dark, and the stage, strips and tables keep their density. A 13 px base for prose is a reading of "dense", not a change to it. If the owner disagrees, only the token issue is affected.
+- The prototype still has defects to fix before it ships. The coach's fix repeats across cards. The lap and gap sentence scrolls out of view. At 1366 px the third card is cut off and the Experimental tag wraps. The Session view leads with a "Not judged" box, and its event list reads as a wall.
+
+Changes to B:
+- **a.** The lap title and gap sentence stay pinned at the top of the story column; only the cards scroll.
+- **b.** No fix or tip text appears twice across cards, and computed tips vary by cause and metric.
+- **c.** Session view order: summary, lap-time chart, events (grouped, collapsible past 5), tyre and brake charts, race run. "Not judged" becomes a one-line note.
+- **d.** Lap switching must not be slower than today:
+  - ↑/↓ steps through laps;
+  - the scope line's lap select shows each lap's gap;
+  - ‹ › buttons sit next to it.
+- **e.** The build happens behind `?ui=one`. One issue then switches the default and deletes the old layout, so the default UI never ships half-converted.
+
+Follow-up issues filed under vroom-pnw: vroom-pnw.59 (remove the Simple/Full switch), .60 (Lap view story column), .61 (scope line with lap stepping), .62 (Session view), .63 (replay stage), .64 (make the one app the default and delete the old layout, after .60–.63), .65 (Track and car view), .66 (theme tokens app-wide). Already filed: vroom-jny (lap rail gap overlaps "Compare"; gear labels overprint).
