@@ -195,9 +195,7 @@ describe("pages", () => {
     const names = Array.from(svg.querySelectorAll("text"));
     expect(names.length).toBeGreaterThan(2);
     const altClick = (el: Element) => {
-      const x = Number(el.getAttribute("x")), y = Number(el.getAttribute("y"));
-      const anchor = el.getAttribute("text-anchor");
-      fireEvent.click(svg, { altKey: true, clientX: x + (anchor === "start" ? -8 : 8), clientY: y - 2 });
+      fireEvent.click(svg, { altKey: true, clientX: Number(el.getAttribute("data-ax")), clientY: Number(el.getAttribute("data-ay")) });
     };
     const first = names[0], second = names[Math.floor(names.length / 2)];
     altClick(first);
@@ -249,5 +247,20 @@ describe("pages", () => {
     await waitFor(() => expect(screen.queryByRole("form", { name: "Add landmark" })).toBeNull());
     await waitFor(() => expect(panel.getByText("kbd board")).toBeTruthy());
     expect(panel.getByText(new RegExp(`${apex + 5} m`))).toBeTruthy();
+  });
+  it("Tracks deletes a landmark with an undo toast that restores it, and groups landmarks under corner names", async () => {
+    renderApp("/tracks");
+    const panel = within(await screen.findByRole("region", { name: "Landmarks" }));
+    const del = (await panel.findAllByRole("button", { name: /^Delete / }))[0];
+    const label = del.getAttribute("aria-label")!.replace("Delete ", "");
+    const before = panel.getAllByRole("button", { name: /^Delete / }).length;
+    expect(panel.getAllByRole("group").length).toBeGreaterThan(0);
+    expect(panel.queryByText(/brake_board|kerb_entry/)).toBeNull();
+    fireEvent.click(del);
+    const toast = await screen.findByText(`Deleted ${label}`);
+    await waitFor(() => expect(panel.getAllByRole("button", { name: /^Delete / }).length).toBe(before - 1));
+    fireEvent.click(within(toast.parentElement!).getByRole("button", { name: "Undo" }));
+    await waitFor(() => expect(panel.getAllByRole("button", { name: /^Delete / }).length).toBe(before));
+    expect(screen.queryByText(`Deleted ${label}`)).toBeNull();
   });
 });

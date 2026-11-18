@@ -37,3 +37,6 @@
 .field:hover { border-color: var(--color-muted); }
 .formActions { display: flex; gap: 6px; }
 button.add { padding: 3px 10px; }
+
+.group { padding-top: 6px; }
+.groupName { font-size: 11px; font-weight: 600; color: var(--color-text); padding-bottom: 2px; }

@@ -1,17 +1,19 @@
 import { useState, type CSSProperties } from "react";
 import type { Corner, Landmark, LandmarkKind } from "../api/types";
 import { cx } from "../lib/cx";
-import { landmarkFill, landmarkStroke } from "../lib/landmarks";
+import { groupLandmarks, KIND_NAMES, landmarkFill, landmarkStroke } from "../lib/landmarks";
 import styles from "./LandmarkEditor.module.css";
 import ui from "./ui.module.css";
 
-const KINDS: LandmarkKind[] = ["brake_board", "kerb_entry", "kerb_apex", "kerb_exit", "custom"];
+const KINDS = Object.keys(KIND_NAMES) as LandmarkKind[];
 
 export const ADD_LANDMARK_BTN_ID = "add-landmark-btn";
 
 export interface LandmarkEditorProps {
   title: string;
   landmarks: Landmark[];
+  /** The track's corners, in track order: landmarks are grouped under them. */
+  corners: Corner[];
   busy: boolean;
   onConfirm(id: string): void;
   onDelete(id: string): void;
@@ -19,8 +21,8 @@ export interface LandmarkEditorProps {
   onAdd?(): void;
 }
 
-/** The selected corner's landmarks: Confirm (low confidence only) and Delete. */
-export function LandmarkEditor({ title, landmarks, busy, onConfirm, onDelete, onAdd }: LandmarkEditorProps) {
+/** The landmarks grouped by corner and sorted by distance: Confirm (low confidence only) and Delete. */
+export function LandmarkEditor({ title, landmarks, corners, busy, onConfirm, onDelete, onAdd }: LandmarkEditorProps) {
   return (
     <section aria-label="Landmarks" className={styles.editor}>
       <div className={styles.head}>
@@ -31,17 +33,22 @@ export function LandmarkEditor({ title, landmarks, busy, onConfirm, onDelete, on
       {landmarks.length === 0 ? (
         <div className={styles.empty}>No landmarks here yet. Alt-click the map or use Add landmark.</div>
       ) : (
-        landmarks.map((l) => (
-          <div key={l.id} className={styles.row}>
-            <span aria-hidden className={styles.dot} style={{ background: landmarkFill(l.confidence), borderColor: landmarkStroke(l.confidence) }} />
-            <div className={styles.body}>
-              <div className={styles.label}>{l.label}</div>
-              <div className={styles.meta}>{l.kind} · {Math.round(l.distance_m)} m · {l.confidence}</div>
-            </div>
-            {l.confidence === "low" && (
-              <button type="button" disabled={busy} onClick={() => onConfirm(l.id)} className={cx(styles.small, styles.confirm)}>Confirm</button>
-            )}
-            <button type="button" disabled={busy} aria-label={`Delete ${l.label}`} onClick={() => onDelete(l.id)} className={styles.small}>Delete</button>
+        groupLandmarks(landmarks, corners).map((g) => (
+          <div key={g.cornerId ?? "none"} role="group" aria-label={g.name} className={styles.group}>
+            <div className={styles.groupName}>{g.name}</div>
+            {g.landmarks.map((l) => (
+              <div key={l.id} className={styles.row}>
+                <span aria-hidden className={styles.dot} style={{ background: landmarkFill(l.confidence), borderColor: landmarkStroke(l.confidence) }} />
+                <div className={styles.body}>
+                  <div className={styles.label}>{l.label}</div>
+                  <div className={styles.meta}>{KIND_NAMES[l.kind]} · {Math.round(l.distance_m)} m · {l.confidence}</div>
+                </div>
+                {l.confidence === "low" && (
+                  <button type="button" disabled={busy} onClick={() => onConfirm(l.id)} className={cx(styles.small, styles.confirm)}>Confirm</button>
+                )}
+                <button type="button" disabled={busy} aria-label={`Delete ${l.label}`} onClick={() => onDelete(l.id)} className={styles.small}>Delete</button>
+              </div>
+            ))}
           </div>
         ))
       )}
@@ -86,7 +93,7 @@ export function AddLandmarkForm({ distanceM, corners, defaultCornerId, style, in
       <input autoFocus aria-label="Label" placeholder="Label (e.g. 100 board)" value={label} onChange={(e) => setLabel(e.target.value)} className={styles.field} />
       <input type="number" min={0} max={maxM === undefined ? undefined : Math.floor(maxM)} step={1} aria-label="Distance (m)" value={distance} onChange={(e) => setDistance(e.target.value)} className={styles.field} />
       <select aria-label="Kind" value={kind} onChange={(e) => setKind(e.target.value as LandmarkKind)} className={styles.field}>
-        {KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
+        {KINDS.map((k) => <option key={k} value={k}>{KIND_NAMES[k]}</option>)}
       </select>
       <select aria-label="Corner" value={cornerId} onChange={(e) => setCornerId(e.target.value)} className={styles.field}>
         <option value="">No corner</option>

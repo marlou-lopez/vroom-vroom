@@ -1,19 +1,21 @@
-import { useMemo, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { useQueries, type QueryObserverResult } from "@tanstack/react-query";
 import { sessionLapsOptions, useCalibrate, useLandmarkMutation, useLapTrace, useSessions, useTrackMap } from "../api/queries";
-import { errorInfo, type CalibrationResult, type GridChannel, type LapWithRef, type LandmarkKind, type NewLandmark, type SessionMeta } from "../api/types";
+import { errorInfo, type CalibrationResult, type GridChannel, type LapWithRef, type Landmark, type LandmarkKind, type NewLandmark, type SessionMeta } from "../api/types";
 import { ADD_LANDMARK_BTN_ID, AddLandmarkForm, LandmarkEditor } from "../components/LandmarkEditor";
 import { landmarkFill, landmarkStroke } from "../lib/landmarks";
 import { bestValidLap } from "../lib/laps";
 import { nearestCorner, nearestPoint, pointAtDistance, polylinePath, cornerSegmentPath, type Projection } from "../lib/trackmap";
-import { buildProjection, MAP_H, MAP_W } from "../lib/model";
+import { buildProjection } from "../lib/model";
+import { boundsOf, placeMapLabels } from "../lib/mapLabels";
 import { cx } from "../lib/cx";
 import ui from "../components/ui.module.css";
 import styles from "./TracksPage.module.css";
 
-const PAD = 14;
+const PAD = 6;
+const FONT_FRAC = 0.03; // label font size as a share of the track's longer side
+const TOAST_MS = 8000;
 const GEO_CHANNELS: GridChannel[] = ["lat", "lon"];
-const VIEWBOX = `${-PAD} ${-PAD} ${MAP_W + 2 * PAD} ${MAP_H + 2 * PAD}`;
 
 // Stable reference: useQueries re-runs a combine only when the results change, so geoLapId's memo can hold.
 function combineLaps(rs: QueryObserverResult<LapWithRef[], Error>[]) {
@@ -39,6 +41,13 @@ export function TracksPage() {
   const [calResult, setCalResult] = useState<CalibrationResult | null>(null);
   const [adding, setAdding] = useState<{ seq: number; distanceM: number; cornerId: string | null; left?: number; top?: number; inline?: boolean } | null>(null);
   const addSeq = useRef(0);
+  // A delete is held back for TOAST_MS so Undo restores the landmark exactly (the contract can't re-add one with its confidence).
+  const [pending, setPending] = useState<Landmark | null>(null);
+  const pendingRef = useRef<Landmark | null>(null);
+  useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+  const commitRef = useRef<() => void>(() => {});
   // The side-panel form is prefilled from the selected corner: close it when the selection changes so it can't go stale.
   const selectCorner = (id: string | null) => {
     setSelectedCorner(id);
@@ -65,6 +74,21 @@ export function TracksPage() {
   const map = mapQ.data ?? null;
   const landmarkM = useLandmarkMutation(activeId);
   const calibrateM = useCalibrate();
+  useEffect(() => {
+    commitRef.current = () => {
+      const l = pendingRef.current;
+      if (!l) return;
+      pendingRef.current = null;
+      setPending(null);
+      landmarkM.mutate({ op: "delete", landmarkId: l.id });
+    };
+  });
+  useEffect(() => {
+    if (!pending) return;
+    const t = setTimeout(() => commitRef.current(), TOAST_MS);
+    return () => clearTimeout(t);
+  }, [pending]);
+  useEffect(() => () => commitRef.current(), []); // leaving the page commits the delete
 
   // Geometry: GPS of the best valid lap (else any lap) of the newest session on this track that has one.
   const trackSessions = useMemo(
@@ -98,6 +122,7 @@ export function TracksPage() {
   const calibrating = calibrateM.isPending;
 
   const selectTrack = (id: string) => {
+    commitRef.current();
     setTrackId(id);
     setSelectedCorner(null);
     setCalResult(null);
@@ -105,6 +130,14 @@ export function TracksPage() {
     landmarkM.reset();
     calibrateM.reset();
   };
+
+  const deleteLandmark = (id: string) => {
+    const landmark = map?.landmarks.find((l) => l.id === id);
+    if (!landmark) return;
+    commitRef.current(); // an earlier held delete is final once another starts
+    setPending(landmark);
+  };
+  const undoDelete = () => setPending(null);
 
   const cornerSegs = useMemo(() => {
     if (!map || !geo) return [];
@@ -114,6 +147,19 @@ export function TracksPage() {
       label: pointAtDistance(geo.proj, geo.distance, c.apex_m),
     }));
   }, [map, geo]);
+
+  // Corner labels placed so none overlap, and a viewBox that fits the track plus its labels to the panel.
+  const layout = useMemo(() => {
+    if (!geo) return null;
+    const xs = geo.proj.x, ys = geo.proj.y;
+    const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) || 1;
+    const fontSize = span * FONT_FRAC;
+    const obstacles = xs.map((x, i) => ({ x, y: ys[i] })).filter((_, i) => i % 3 === 0);
+    const labels = placeMapLabels(cornerSegs.map(({ c, label }) => ({ id: c.id, text: c.name, x: label.x, y: label.y })), { fontSize, obstacles });
+    const b = boundsOf(geo.proj, labels);
+    const w = b.maxX - b.minX + 2 * PAD, h = b.maxY - b.minY + 2 * PAD;
+    return { labels, fontSize, viewBox: `${b.minX - PAD} ${b.minY - PAD} ${w} ${h}`, aspect: w / h };
+  }, [geo, cornerSegs]);
 
   const calibrate = () => {
     if (!activeId) return;
@@ -170,7 +216,7 @@ export function TracksPage() {
   if (sessions === null && !error) return <div className={styles.status}>Loading…</div>;
   if (tracks.length === 0) return <div className={styles.status}>{error ? `${error.code}: ${error.message}` : "No tracks yet. Import a recording first."}</div>;
 
-  const visibleLandmarks = (map?.landmarks ?? []).filter((l) => !selectedCorner || l.corner_id === selectedCorner);
+  const visibleLandmarks = (map?.landmarks ?? []).filter((l) => l.id !== pending?.id && (!selectedCorner || l.corner_id === selectedCorner));
   const selectedName = map?.corners.find((c) => c.id === selectedCorner)?.name ?? "all corners";
   const matched = calResult ? calResult.map.corners.length - calResult.missing.length : 0;
 
@@ -183,7 +229,7 @@ export function TracksPage() {
           </button>
         ))}
         <div className={styles.spacer} />
-        <button type="button" disabled={calibrating || !map} onClick={calibrate} className={cx(ui.btnPrimary, styles.calibrate)}>
+        <button type="button" disabled={calibrating || !map} onClick={calibrate} className={cx(ui.btn, styles.calibrate)}>
           {calibrating ? "Calibrating…" : "Re-calibrate from ★ reference"}
         </button>
       </div>
@@ -203,10 +249,10 @@ export function TracksPage() {
               <span className={styles.confirmed}>●</span> confirmed <span className={styles.detected}>●</span> detected <span>○</span> low (not used by coach)
             </div>
           </div>
-          <div ref={mapBoxRef} className={styles.mapBox}>
-            {geo && map ? (
+          <div ref={mapBoxRef} className={styles.mapBox} style={layout ? ({ aspectRatio: layout.aspect, "--aspect": layout.aspect } as CSSProperties) : undefined}>
+            {geo && map && layout ? (
               // oxlint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- Alt-click is the fast path; the keyboard path is the Add landmark button in the Landmarks panel
-              <svg ref={svgRef} viewBox={VIEWBOX} onClick={onMapClick} role="img" aria-label="Track map" className={styles.map}>
+              <svg ref={svgRef} viewBox={layout.viewBox} onClick={onMapClick} role="img" aria-label="Track map" className={styles.map}>
                 <path d={geo.basePath} className={styles.base} />
                 {cornerSegs.map(({ c, d }) =>
                   d ? (
@@ -221,18 +267,25 @@ export function TracksPage() {
                     />
                   ) : null,
                 )}
-                {cornerSegs.map(({ c, label }) => (
+                {layout.labels.map((l) =>
+                  l.leader ? <line key={`${l.id}-leader`} x1={l.anchor.x} y1={l.anchor.y} x2={l.edge.x} y2={l.edge.y} className={styles.leader} /> : null,
+                )}
+                {layout.labels.map((l) => (
                   <text
-                    key={c.id}
-                    x={label.x + (label.x > MAP_W / 2 ? 8 : -8)}
-                    y={label.y + 2}
-                    textAnchor={label.x > MAP_W / 2 ? "start" : "end"}
-                    className={cx(styles.cornerName, c.id === selectedCorner && styles.selected)}
+                    key={l.id}
+                    x={l.x}
+                    y={l.y}
+                    data-ax={l.anchor.x}
+                    data-ay={l.anchor.y}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontSize={layout.fontSize}
+                    className={cx(styles.cornerName, l.id === selectedCorner && styles.selected)}
                   >
-                    {c.name}
+                    {l.text}
                   </text>
                 ))}
-                {map.landmarks.map((l) => {
+                {map.landmarks.filter((l) => l.id !== pending?.id).map((l) => {
                   const p = pointAtDistance(geo.proj, geo.distance, l.distance_m);
                   return (
                     <circle key={l.id} cx={p.x} cy={p.y} r={2.4} className={styles.landmark} style={{ fill: landmarkFill(l.confidence), stroke: landmarkStroke(l.confidence) }}>
@@ -288,14 +341,21 @@ export function TracksPage() {
           <LandmarkEditor
             title={selectedName}
             landmarks={visibleLandmarks}
+            corners={map?.corners ?? []}
             busy={busy}
             onConfirm={(id) => landmarkM.mutate({ op: "patch", landmarkId: id, patch: { confirm: true } })}
-            onDelete={(id) => landmarkM.mutate({ op: "delete", landmarkId: id })}
+            onDelete={deleteLandmark}
             onAdd={openAddForm}
           />
           {adding?.inline && addForm}
         </div>
       </div>
+      {pending && (
+        <div role="status" className={styles.toast}>
+          <span>Deleted {pending.label}</span>
+          <button type="button" onClick={undoDelete} className={ui.btn}>Undo</button>
+        </div>
+      )}
     </div>
   );
 }

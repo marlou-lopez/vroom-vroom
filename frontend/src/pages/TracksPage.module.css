@@ -10,13 +10,13 @@ button.calibrate { padding: 5px 12px; }
 .statusBar.mono { font-family: var(--font-mono); }
 
 .columns { display: flex; gap: var(--gap); flex-wrap: wrap; }
-.mapPanel { flex: 1 1 420px; min-width: 0; }
+.mapPanel { flex: 1 1 380px; min-width: 0; }
 .mapHead { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .legend { font-size: 11px; color: var(--color-muted); }
 .confirmed { color: var(--color-you); }
 .detected { color: var(--color-strength); }
 
-.mapBox { position: relative; width: 100%; height: 520px; margin-top: 8px; }
+.mapBox { position: relative; width: min(100%, calc(min(72vh, 680px) * var(--aspect, 1))); margin: 8px auto 0; }
 .loadingMap { color: var(--color-muted); padding: 8px; }
 .map { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
 
@@ -33,11 +33,11 @@ button.calibrate { padding: 5px 12px; }
 }
 .seg:hover { stroke-opacity: 0.6; }
 .seg.selected { stroke: var(--color-you); stroke-width: 7; stroke-opacity: 0.9; }
-.cornerName { font-size: 6px; fill: var(--color-muted); font-family: var(--font-sans); pointer-events: none; }
+.cornerName { fill: var(--color-muted); font-family: var(--font-sans); pointer-events: none; }
 .cornerName.selected { fill: var(--color-text); }
 .landmark { pointer-events: none; stroke-width: 0.8; }
 
-.side { flex: 1 1 480px; display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+.side { flex: 2 1 480px; display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
 .tableWrap { max-height: 260px; overflow: auto; }
 .table { width: 100%; border-collapse: collapse; }
 .table th { color: var(--color-muted); font-weight: 500; padding: 4px 6px; text-align: right; }
@@ -61,3 +61,20 @@ button.calibrate { padding: 5px 12px; }
 .nameBtn:hover { color: var(--color-you); }
 .nameBtn[aria-pressed="true"] { color: var(--color-you); }
 .cornersHead { padding-bottom: 6px; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--color-popup);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  padding: 8px 12px;
+}
+.leader { stroke: var(--color-muted); stroke-width: 0.5; stroke-opacity: 0.8; pointer-events: none; }
