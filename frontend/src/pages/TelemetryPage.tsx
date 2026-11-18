@@ -13,6 +13,7 @@ import { EngineerLine } from "../components/EngineerLine";
 import { SimplifiedWheels } from "../components/SimplifiedWheels";
 import { TrackPanel } from "../components/TrackPanel";
 import { Transport } from "../components/Transport";
+import { cornerRailRows } from "../lib/cornerRail";
 import { CornerRail } from "../components/workspace/CornerRail";
 import { LapRail } from "../components/workspace/LapRail";
 import wsStyles from "../components/workspace/Workspace.module.css";
@@ -154,8 +155,13 @@ function Telemetry() {
   const ideal = candidates.find((c) => c.is_ideal) ?? null;
   const refCand = candidates.find((c) => c.lap_id === cmp?.ref_lap_id) ?? null;
   const priorityCorners = useMemo(
-    () => new Set([...annotations.map((a) => a.cornerId), ...(losses?.losses.map((l) => l.cornerId) ?? [])]),
-    [annotations, losses],
+    () => {
+      const top = cmp && trackMap
+        ? cornerRailRows(cmp, trackMap.corners).filter((r) => r.kind === "loss").sort((a, b) => b.deltaS - a.deltaS).slice(0, 5)
+        : [];
+      return new Set([...annotations.map((a) => a.cornerId), ...top.map((r) => r.corner.id)]);
+    },
+    [annotations, cmp, trackMap],
   );
   const youName = ctx ? `You · L${ctx.lap.lap_no}` : "You";
   const refShort = comparisonName(refCand, ctx?.laps ?? []);
