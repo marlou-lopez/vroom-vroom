@@ -63,7 +63,7 @@ describe("pages", () => {
     await waitFor(() => expect(screen.queryByText(/unknown_lap|no_laps|Loading…/)).toBeNull());
   });
 
-  it("Telemetry opens a lap at ?at=<metres> (from the ideal lap's breakdown)", async () => {
+  it("Telemetry opens a lap at ?at=<metres> (from the best possible lap's breakdown)", async () => {
     const { best } = await newestBest(mock.engine());
     renderApp(`/?lap=${best.lap_id}&at=3000`);
     const thumb = await screen.findByRole("slider", { name: "Lap position" });
@@ -74,10 +74,10 @@ describe("pages", () => {
     expect(t).toBeLessThan(best.lap_time_s!);
   });
 
-  it("Sessions lists each valid lap against the ideal lap", async () => {
+  it("Sessions lists each valid lap against the best possible lap", async () => {
     renderApp("/sessions");
-    expect(await screen.findByRole("region", { name: "Laps against the ideal" }, { timeout: 5000 })).toBeTruthy();
-    expect(await screen.findByRole("region", { name: "Ideal lap breakdown" })).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "Laps against the best possible lap" }, { timeout: 5000 })).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "Best possible lap breakdown" })).toBeTruthy();
   });
 
   it("Telemetry keeps the Analysis bar counts when notes are hidden", async () => {
@@ -88,7 +88,7 @@ describe("pages", () => {
     await waitFor(() => expect((analyze as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(analyze);
     const hide = await screen.findByRole("button", { name: "Hide notes" }, { timeout: 5000 });
-    const countRe = /\d+ (issues?|minor|strengths?|inconsistent)/;
+    const countRe = /\d+ (big loss(es)?|small loss(es)?|good corners?|corners? you drive)/;
     const before = (await screen.findAllByText(countRe, {}, { timeout: 5000 })).map((e) => e.textContent);
     expect(before.length).toBeGreaterThan(0);
     fireEvent.click(hide);
@@ -123,16 +123,16 @@ describe("pages", () => {
     const rail = await screen.findByRole("complementary", { name: "Laps" });
     await waitFor(() => expect(rail.querySelector("button[aria-current]")?.textContent).toContain(`L${best.lap_no}`));
     expect(screen.queryByRole("note")).toBeNull();
-    if (ref) expect(await screen.findByText(/vs reference/)).toBeTruthy();
+    if (ref) expect(await screen.findByText(/compared with your best lap/)).toBeTruthy();
   });
 
-  it("Telemetry notes a self-comparison and offers the ideal lap", async () => {
+  it("Telemetry notes a self-comparison and offers the best possible lap", async () => {
     const { laps } = await newestBest(mock.engine());
     const ref = laps.find((l) => l.is_reference)!;
     renderApp(`/?lap=${ref.lap_id}&ref=${ref.lap_id}`);
     const note = await screen.findByRole("note");
-    expect(note.textContent).toMatch(/comparison lap/);
-    fireEvent.click(within(note).getByRole("button", { name: "Compare with the ideal lap" }));
+    expect(note.textContent).toMatch(/comparing with/);
+    fireEvent.click(within(note).getByRole("button", { name: "Compare with the best possible lap" }));
     await waitFor(() => expect(screen.queryByRole("note")).toBeNull());
   });
 
@@ -150,7 +150,7 @@ describe("pages", () => {
     const list = await screen.findByRole("region", { name: "Session list" });
     await within(list).findByRole("table");
     expect(screen.queryByRole("group", { name: "Session for the lap table" })).toBeNull();
-    expect(await screen.findByRole("region", { name: "Laps against the ideal" }, { timeout: 5000 })).toBeTruthy();
+    expect(await screen.findByRole("region", { name: "Laps against the best possible lap" }, { timeout: 5000 })).toBeTruthy();
     expect(within(screen.getByRole("region", { name: "Summary" })).getAllByText(/session/i).length).toBeGreaterThan(1);
   });
 
@@ -163,10 +163,10 @@ describe("pages", () => {
     }));
     renderApp("/sessions");
     const list = await screen.findByRole("region", { name: "Session list" });
-    const tags = await within(list).findAllByText("stats only");
+    const tags = await within(list).findAllByText("numbers only, no replay");
     expect(tags.length).toBeGreaterThan(0);
-    const laps = await screen.findByRole("region", { name: "Laps against the ideal" }, { timeout: 5000 });
-    expect(within(laps).getAllByText("stats only").length).toBeGreaterThan(0);
+    const laps = await screen.findByRole("region", { name: "Laps against the best possible lap" }, { timeout: 5000 });
+    expect(within(laps).getAllByText("numbers only, no replay").length).toBeGreaterThan(0);
     expect(within(laps).queryAllByRole("link", { name: /Open lap/ })).toHaveLength(0);
   });
 
@@ -174,20 +174,20 @@ describe("pages", () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     onTestFinished(() => errors.mockRestore());
     renderApp("/sessions");
-    await screen.findByRole("region", { name: "Laps against the ideal" }, { timeout: 5000 });
-    await screen.findByRole("region", { name: "Ideal lap breakdown" });
+    await screen.findByRole("region", { name: "Laps against the best possible lap" }, { timeout: 5000 });
+    await screen.findByRole("region", { name: "Best possible lap breakdown" });
     const group = screen.getByRole("group", { name: "Track and car" });
     const chips = within(group).getAllByRole("button");
     expect(chips.length).toBeGreaterThan(1);
     const first = chips.find((b) => b.getAttribute("aria-pressed") === "true")!;
     const other = chips.find((b) => b.getAttribute("aria-pressed") === "false")!;
     const settle = async () => {
-      await screen.findByRole("region", { name: "Laps against the ideal" }, { timeout: 5000 });
-      await screen.findByRole("region", { name: "Ideal lap breakdown" }, { timeout: 5000 });
+      await screen.findByRole("region", { name: "Laps against the best possible lap" }, { timeout: 5000 });
+      await screen.findByRole("region", { name: "Best possible lap breakdown" }, { timeout: 5000 });
     };
     const onlyOne = () => {
-      expect(screen.getAllByRole("region", { name: "Laps against the ideal" })).toHaveLength(1);
-      expect(screen.getAllByRole("region", { name: "Ideal lap breakdown" })).toHaveLength(1);
+      expect(screen.getAllByRole("region", { name: "Laps against the best possible lap" })).toHaveLength(1);
+      expect(screen.getAllByRole("region", { name: "Best possible lap breakdown" })).toHaveLength(1);
       expect(screen.getAllByText(/SELECTED SESSION/)).toHaveLength(1);
     };
     // Go to the other combo and back: the second visit is served from the query cache, so the tables swap within one render.
@@ -206,8 +206,8 @@ describe("pages", () => {
     if (target) {
       fireEvent.click(target);
       // Not cached yet: the old tables are gone at once (never two of either), then the new ones load.
-      expect(screen.queryAllByRole("region", { name: "Laps against the ideal" }).length).toBeLessThanOrEqual(1);
-      expect(screen.queryAllByRole("region", { name: "Ideal lap breakdown" }).length).toBeLessThanOrEqual(1);
+      expect(screen.queryAllByRole("region", { name: "Laps against the best possible lap" }).length).toBeLessThanOrEqual(1);
+      expect(screen.queryAllByRole("region", { name: "Best possible lap breakdown" }).length).toBeLessThanOrEqual(1);
       await settle();
       onlyOne();
       expect(screen.getByText(/SELECTED SESSION/).textContent).not.toBe(headingBefore);

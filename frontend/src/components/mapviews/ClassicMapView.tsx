@@ -185,8 +185,8 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
       <MapBadges annotations={annotations} model={model} h={handlers} />
     </svg>
     <ul className={styles.legend} aria-label="Map marks" data-testid="map-legend">
-      {balancePaths && <li title={BALANCE_HINT}><i className={styles.swUnder} />understeer{oversteerOn && <> · exp: <i className={styles.swOver} />oversteer</>}</li>}
-      <li>{lapValid === false ? <><i className={styles.swOff} />off track</> : <><i className={styles.swClose} />close call</>}</li>
+      {balancePaths && <li title={BALANCE_HINT}><i className={styles.swUnder} />car pushing wide{oversteerOn && <> · exp: <i className={styles.swOver} />oversteer</>}</li>}
+      <li>{lapValid === false ? <><i className={styles.swOff} />off track</> : <><i className={styles.swClose} />nearly off track</>}</li>
       <li><i className={styles.swLock} />lockup</li>
       <li><i className={styles.swSpin} />wheelspin</li>
     </ul>

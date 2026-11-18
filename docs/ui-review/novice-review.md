@@ -261,3 +261,15 @@ Changes to the direction:
 - The corner rail stays open down to 1280 px. This reverses the "collapsed below 1400 px" part of the vroom-pnw.30 decision.
 
 Follow-up issues filed under vroom-pnw: vroom-pnw.52 (corner click names the wrong corner), .56 (Simple view as a remembered mode, after .52), .53 (legibility floor), .54 (plain-language pass, after .56), .57 (three default strips, one Key, rail open on laptops, after .53), .55 (coach output never grows the page or covers the readout, after .57). Idea parked: vroom-xg2 (Stint and Tracks for newcomers). Earlier during the review: vroom-pnw.51 (stale Sessions tables, shipped).
+
+## Jargon pass (vroom-pnw.54)
+
+The jargon table above is applied to both views, with "best possible lap" as the one term for ideal/theoretical in the UI (rail, Sessions table, cards, chart, mock labels, Simple view). Applied after review: the finding kinds (big loss, small loss, good corner, different each lap) in the bar, Key and card tags; "Check consistency across laps"; strip titles and menu entries; the Corners table headers; the lap rail wording; "Zoom: 700 m"; "Race run".
+
+Kept or left for follow-ups, with reasons:
+
+- **ABS / TC:** the short chips stay; their hover text spells them out (vroom-pnw.49). Visible labels belong to the strips follow-up (N9).
+- **Strip legend "Compared with · ★5 Nov · L2 1:52.308":** keeps the lap label, which carries the date and time of another day's lap.
+- **"Your best lap" in the two views:** the full view's ★ button means the track and car reference lap (it can be another day's or a pinned lap); the Simple view's button means the fastest valid lap of this session. They coincide in the common case. Unifying them needs a product decision on what the reference is.
+- **Map readout "0.05 s slower here", lap rail key hint, out/in/flying tags, Tracks page wording, Stint FALL-OFF / LIMIT / WEAR rows, the 3D cockpit dash text, and coach prose in `mockApi.ts` / `coachFacts.ts` that says "the reference":** not done in this pass. The coach prose is the backend's job to phrase (the LLM only phrases facts); the others are filed as a follow-up.
+- **Internal names** (`is_ideal`, `theoretical_best_s`, `IdealBreakdown`): API contract and code names, not UI text.

@@ -266,8 +266,8 @@ export function narrate(c: CornerComparison, kind: "issue" | "minor" | "strength
       const fix = brakeRef
         ? `Brake ${brakeRef} and hold that reference every lap.`
         : earlier
-          ? "Brake a little later and pick one fixed trackside reference for the braking point."
-          : "Brake a little earlier and pick one fixed trackside reference for the braking point.";
+          ? "Brake a little later and pick one fixed trackside marker for the braking point."
+          : "Brake a little earlier and pick one fixed trackside marker for the braking point.";
       return {
         what: `You start braking ${earlier ? "earlier" : "later"} than the reference${cmp}${speedClause}.`,
         fix, cue: brakeRef ? "landmark" : "feel", evidence: pack("brake"), cause,
@@ -316,8 +316,8 @@ export function narrateInconsistent(corner: Corner, st: SpreadStats, anchors: La
   return {
     what: `Your time through ${corner.name} varies by ${st.sd.toFixed(3)} s from lap to lap, from ${st.min.toFixed(3)} to ${st.max.toFixed(3)} s.`,
     fix: board
-      ? `Use the ${board.label} as your braking reference here and repeat it every lap.`
-      : "Pick one braking reference and one turn-in reference here and repeat them every lap.",
+      ? `Use the ${board.label} as your braking marker here and repeat it every lap.`
+      : "Pick one braking marker and one turn-in marker here and repeat them every lap.",
     cue: board ? "landmark" : "feel",
     evidence: [`sd ${st.sd.toFixed(3)} s over ${st.n} laps`, `corner time ${st.min.toFixed(3)} to ${st.max.toFixed(3)} s`],
     cause: "brake",

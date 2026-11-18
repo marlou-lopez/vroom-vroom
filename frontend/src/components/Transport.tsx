@@ -126,7 +126,7 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refN
               <path d="M0 17 L1000 17" className={styles.baseline} />
               <path d={model.scrubPath} className={styles.delta} />
             </svg>
-            <span className={styles.deltaLabel} data-testid="scrubber-delta-label">Δ to {refName ?? "comparison"}</span>
+            <span className={styles.deltaLabel} data-testid="scrubber-delta-label">Time gained or lost vs {refName ?? "the comparison lap"}</span>
             <span className={styles.zeroLabel}>0 · level</span>
           </div>
           <Slider.Thumb className={styles.thumb} aria-label="Lap position" aria-valuetext={formatClock(tau)} />

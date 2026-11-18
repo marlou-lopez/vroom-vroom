@@ -110,7 +110,7 @@ export function LapRail({ session, laps, lap, refLapId, candidates, warning, inv
       <div className={styles.railHead}>
         <span className={styles.heading}>Laps</span>
         <label className={styles.check}>
-          <input type="checkbox" checked={validOnly} onChange={(e) => setValidOnly(e.target.checked)} /> valid only
+          <input type="checkbox" checked={validOnly} onChange={(e) => setValidOnly(e.target.checked)} /> Hide laps with track-limit cuts
         </label>
         <button type="button" className={styles.collapseBtn} aria-expanded aria-label="Hide the lap list" title="Hide the lap list" onClick={() => toggle("collapsed")}>
           ◂
@@ -136,11 +136,11 @@ export function LapRail({ session, laps, lap, refLapId, candidates, warning, inv
           )}
         </span>
         <DropdownMenu.Root>
-          <DropdownMenu.Trigger className={styles.collapseBtn} aria-label={`Actions for L${lap.lap_no}`} title="Pin as reference, mark valid or invalid">⋯</DropdownMenu.Trigger>
+          <DropdownMenu.Trigger className={styles.collapseBtn} aria-label={`Actions for L${lap.lap_no}`} title="Pin as your best lap, mark valid or invalid">⋯</DropdownMenu.Trigger>
           <DropdownMenu.Portal>
             <DropdownMenu.Content align="start" sideOffset={4} collisionPadding={8} className={ui.menuContent}>
               <DropdownMenu.Item className={ui.menuItem} onSelect={(e) => { keepOpen(e); patchLap({ lapId, patch: { pinned_reference: !lap.pinned_reference } }); }}>
-                {lap.pinned_reference ? `Unpin L${lap.lap_no} as reference` : `Pin L${lap.lap_no} as reference`}
+                {lap.pinned_reference ? `Unpin L${lap.lap_no} as your best lap` : `Pin L${lap.lap_no} as your best lap`}
               </DropdownMenu.Item>
               {lap.kind === "flying" && (
                 <DropdownMenu.Item className={ui.menuItem} onSelect={(e) => { keepOpen(e); patchLap({ lapId, patch: { valid_override: !effectiveValid(lap) } }); }}>
@@ -157,31 +157,31 @@ export function LapRail({ session, laps, lap, refLapId, candidates, warning, inv
         </DropdownMenu.Root>
       </div>
       <div className={styles.versus}>
-        <span className={styles.comparison}>○ vs {refName ?? (refLapId ? "…" : "choose")}</span>
+        <span className={styles.comparison}>○ compared with {refName ?? (refLapId ? "…" : "choose")}</span>
         {warning ? <span className={styles.badge} title={warning}>DIFFERENT CAR</span> : <SetupChip lapSessionId={session.session_id} laps={laps} refLapId={refLapId} refName={refName} />}
       </div>
       {self && (
         <p className={styles.hint} role="status">
-          This lap is its own reference, so there is nothing to compare. Pick another lap, or compare with the ideal lap.
+          This lap is the one you are comparing with, so there is nothing to compare. Pick another lap, or compare with the best possible lap.
         </p>
       )}
       <div className={styles.quick} role="group" aria-label="Compare with">
         <button type="button" className={styles.quickBtn} aria-pressed={reference !== null && refLapId === reference.lap_id} onClick={() => onSelectRef(null)}>
-          ★ Reference
+          ★ Your best lap
         </button>
         {ideal && (
           <button type="button" className={cx(styles.quickBtn, styles.idealBtn)} aria-pressed={refLapId === ideal.lap_id} onClick={() => onSelectRef(ideal.lap_id)}>
-            Ideal {ideal.lap_time_s === null ? "" : formatLapTime(ideal.lap_time_s)}
+            Best possible lap {ideal.lap_time_s === null ? "" : formatLapTime(ideal.lap_time_s)}
           </button>
         )}
       </div>
       {otherCands.length > 0 && (
         <select
-          className={styles.sessionSelect} aria-label="Other comparison lap" value=""
+          className={styles.sessionSelect} aria-label="Compare with another day" value=""
           title="Compare with a lap from another session on this track"
           onChange={(e) => e.target.value && onSelectRef(e.target.value)}
         >
-          <option value="">Other session's lap…</option>
+          <option value="">Compare with another day…</option>
           {otherCands.map((c) => (
             <option key={c.lap_id} value={c.lap_id}>{c.label}{c.other_car ? " (different car)" : ""}</option>
           ))}
@@ -200,7 +200,7 @@ export function LapRail({ session, laps, lap, refLapId, candidates, warning, inv
                 <span className={styles.lapTime}>{l.lap_time_s === null ? "—" : formatLapTime(l.lap_time_s)}</span>
                 <span className={styles.lapGap}>
                   {l.kind !== "flying" ? l.kind.toUpperCase() : !effectiveValid(l) ? "invalid" : gap === 0 ? "best" : gap === null ? "" : formatGap(gap)}
-                  {l.is_reference && <span title="Reference for this track and car"> ★</span>}
+                  {l.is_reference && <span title="Your best lap on this track and car"> ★</span>}
                 </span>
               </button>
               {!isYou && candidateIds.has(l.lap_id) && (
@@ -209,7 +209,7 @@ export function LapRail({ session, laps, lap, refLapId, candidates, warning, inv
                   aria-label={`Compare with L${l.lap_no}`} title="Use as the comparison lap (R)"
                   onClick={() => onSelectRef(l.lap_id)}
                 >
-                  ref
+                  Compare
                 </button>
               )}
             </li>
@@ -217,7 +217,7 @@ export function LapRail({ session, laps, lap, refLapId, candidates, warning, inv
         })}
       </ul>
       <p className={styles.legend}>
-        <span className={styles.you}>●</span> studied · <span className={styles.ref}>○</span> comparison. ↑↓ move, Enter studies, R compares.
+        <span className={styles.you}>●</span> your lap · <span className={styles.ref}>○</span> the lap you compare with
       </p>
     </aside>
   );

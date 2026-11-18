@@ -18,7 +18,7 @@ const bar = (c: CoachState, extra: Partial<Parameters<typeof AnalysisBar>[0]> = 
 describe("AnalysisBar", () => {
   it("labels the total and names the comparison", () => {
     bar(coach());
-    expect(screen.getByText("Lap Δ")).toBeTruthy();
+    expect(screen.getByText("Lap time gap")).toBeTruthy();
     expect(screen.getByText("+0.051 s")).toBeTruthy();
     expect(screen.getByText(/behind ideal/)).toBeTruthy();
   });
@@ -37,8 +37,8 @@ describe("AnalysisBar", () => {
   it("explains the marks in a key", async () => {
     bar(coach());
     await userEvent.setup().click(screen.getByRole("button", { name: "What the marks mean" }));
-    expect(screen.getByText(/Inconsistent/)).toBeTruthy();
-    expect(screen.getByText("FEEL")).toBeTruthy();
+    expect(screen.getByText(/Drive differently each lap/)).toBeTruthy();
+    expect(screen.getByText("Tip")).toBeTruthy();
   });
 
   it("shows progress and a Cancel while running", async () => {

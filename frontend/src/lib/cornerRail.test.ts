@@ -9,15 +9,15 @@ const cmp = (corners: CornerMetrics[], ref = "b") => ({ lap_id: "a", ref_lap_id:
 
 describe("causeDirection", () => {
   it("gives a direction for losses", () => {
-    expect(causeDirection(m("1", 0.2, { min_speed_kmh: 90 }))).toBe("lower min speed");
-    expect(causeDirection(m("1", 0.2, { brake_onset_m: 70 }))).toBe("earlier braking");
-    expect(causeDirection(m("1", 0.2, { brake_onset_m: 130 }))).toBe("later braking");
-    expect(causeDirection(m("1", 0.2, { throttle_pickup_m: 170 }))).toBe("later throttle");
-    expect(causeDirection(m("1", 0.2, { steer_corrections: 4 }))).toBe("more steering corrections");
+    expect(causeDirection(m("1", 0.2, { min_speed_kmh: 90 }))).toBe("slower at the slowest point");
+    expect(causeDirection(m("1", 0.2, { brake_onset_m: 70 }))).toBe("braked earlier");
+    expect(causeDirection(m("1", 0.2, { brake_onset_m: 130 }))).toBe("braked later");
+    expect(causeDirection(m("1", 0.2, { throttle_pickup_m: 170 }))).toBe("back on the throttle later");
+    expect(causeDirection(m("1", 0.2, { steer_corrections: 4 }))).toBe("more sawing at the wheel");
   });
   it("scores a gain with the laps swapped", () => {
-    expect(causeDirection(m("1", -0.1, { min_speed_kmh: 110 }))).toBe("higher min speed");
-    expect(causeDirection(m("1", -0.1, { throttle_pickup_m: 100 }))).toBe("earlier throttle");
+    expect(causeDirection(m("1", -0.1, { min_speed_kmh: 110 }))).toBe("faster at the slowest point");
+    expect(causeDirection(m("1", -0.1, { throttle_pickup_m: 100 }))).toBe("back on the throttle earlier");
   });
   it("shows no direction when nothing stands out", () => {
     expect(causeDirection(m("1", 0.2))).toBeNull();
