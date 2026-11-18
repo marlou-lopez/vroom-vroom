@@ -71,6 +71,7 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
           type="button" className={cx(ui.btn, ui.btnMuted, styles.expand)}
           aria-pressed={expanded}
           aria-label={expanded ? "Collapse track view" : "Expand track view"}
+          title={expanded ? "Collapse track view" : "Expand track view"}
           onClick={onToggleExpanded}
         >
           {expanded ? "⤡" : "⤢"}
