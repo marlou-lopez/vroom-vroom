@@ -4,6 +4,7 @@
   position: relative;
   min-height: 360px;
   overflow: hidden;
+  container: track / inline-size;
 }
 
 /* The three overlays share one row at the top of the panel and wrap instead of colliding when the panel is narrow (1280 px windows give it about 540 px). */
@@ -12,7 +13,9 @@
   display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 4px 8px;
 }
 .readout { display: flex; flex-direction: column; gap: 2px; min-width: 0; order: 1; }
-.corner { font-size: 18px; font-weight: 700; }
+.corner { font-size: 18px; font-weight: 700; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+/* Understeer verdict: only inside a corner, much smaller than the corner name. */
+.balance { font-size: 11px; font-weight: 600; color: var(--color-you); }
 .mono { font-family: var(--font-mono); }
 .muted { color: var(--color-muted); }
 
@@ -33,3 +36,11 @@
 .expand { padding: 1px 6px; background: var(--color-bg); line-height: 1; }
 
 .panel[data-expanded="true"] { min-height: 0; }
+
+/* Narrow panel (split screen next to the sim): smaller type, the toolbar takes its own full row and the numbers stay on one line each. */
+@container track (max-width: 520px) {
+  .corner { font-size: 15px; }
+  .delta { font-size: 18px; }
+  .toolbar { order: 4; margin: 0; flex: 1 0 100%; }
+  .viewToggle { flex-wrap: wrap; }
+}

@@ -4,7 +4,7 @@
 
 /* Right column below the panel toolbar and the delta box, clear of the readout (left) and footer (bottom). */
 .side {
-  position: absolute; right: 8px; top: 58px; max-width: min(520px, calc(100% - 16px));
+  position: absolute; right: 8px; top: calc(var(--top-h, 52px) + 6px); max-width: min(520px, calc(100% - 16px));
   display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; z-index: 1;
 }
 .side > * { pointer-events: auto; }

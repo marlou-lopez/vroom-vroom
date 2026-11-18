@@ -19,7 +19,8 @@ vi.mock("./mapviews/registry", () => {
 const model = {
   cmp: {
     lap: { t: [0, 1, 2], gear: [2, 3, 4], speed_kmh: [100, 150, 200] },
-    ref: { t: [0, 1, 2] },
+    ref: { t: [0, 1, 2], speed_kmh: [101, 151, 201] },
+    lap_understeer_runs: [{ start_m: 40, end_m: 60 }],
     distance: [0, 50, 100],
     delta: [0, 0.1, 0.2],
   },
@@ -53,6 +54,41 @@ describe("TrackPanel", () => {
     act(() => store.seek(2));
     expect(screen.getByText(/gear 4/)).toBeTruthy();
     expect(renders.view).toBe(before);
+  });
+
+  const mountAt = (trackMap: unknown) => {
+    render(
+      <PlaybackProvider>
+        <Grab />
+        <TrackPanel model={model} trackMap={trackMap as never} geometry={null} annotations={[]} handlers={{ onSeek: () => {} }} expanded={false} onToggleExpanded={() => {}} />
+      </PlaybackProvider>,
+    );
+    act(() => grabbed.store!.setDuration(2));
+  };
+  const corner = (start_m: number, end_m: number) => ({ corners: [{ name: "T1", start_m, end_m, apex_m: (start_m + end_m) / 2 }] });
+
+  it("shows your speed and the comparison's, 'you / ref'", () => {
+    mountAt(null);
+    act(() => grabbed.store!.seek(1));
+    expect(screen.getByText(/150 \/ 151 km\/h/)).toBeTruthy();
+  });
+
+  it("shows the understeer verdict only inside a corner", () => {
+    mountAt(corner(30, 70));
+    act(() => grabbed.store!.seek(1));
+    expect(screen.getByText("understeer")).toBeTruthy();
+  });
+
+  it("does not show the verdict on a straight, even inside a run", () => {
+    mountAt(corner(80, 99));
+    act(() => grabbed.store!.seek(1));
+    expect(screen.queryByText("understeer")).toBeNull();
+  });
+
+  it("does not show the verdict in a corner outside the runs", () => {
+    mountAt(corner(0, 45));
+    act(() => grabbed.store!.seek(0));
+    expect(screen.queryByText("understeer")).toBeNull();
   });
 });
 
