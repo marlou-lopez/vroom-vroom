@@ -19,9 +19,11 @@ import { LapRail } from "../components/workspace/LapRail";
 import { HeaderSlot } from "../components/AppShell";
 import { loadUiMode, saveUiMode, type UiMode } from "../lib/uiMode";
 import { SimpleView } from "../components/simple/SimpleView";
+import { SessionTab, type OpenLap } from "../components/session/SessionTab";
+import { TracelessSession } from "../components/session/TracelessSession";
 import wsStyles from "../components/workspace/Workspace.module.css";
 import { leadInTime, toAnnotations, type Annotation } from "../lib/annotations";
-import { effectiveValid, type Corner } from "../api/types";
+import { effectiveValid, type Corner, type ReportCategory } from "../api/types";
 import { CORNER_LEAD_M } from "../lib/annotations";
 import { comparisonName, lapGap } from "../lib/compareName";
 import { timeAtDistance } from "../lib/playback";
@@ -39,6 +41,10 @@ import ui from "../components/ui.module.css";
 const EMPTY_ANNOTATIONS: Annotation[] = [];
 
 export function TelemetryPage() {
+  // `?session=<id>` without a lap: a session recorded without traces, which has only its Session tab (vroom-bi4.12).
+  const [params] = useSearchParams();
+  const sessionParam = params.get("session");
+  if (sessionParam && !params.get("lap")) return <TracelessSession key={sessionParam} sessionId={sessionParam} />;
   return (
     <PlaybackProvider>
       <Telemetry />
@@ -65,6 +71,7 @@ function Telemetry() {
   if (cmp && cmp !== keptCmp) setKeptCmp(cmp);
   const [mode, setModeState] = useState<UiMode>(() => loadUiMode());
   const changeMode = (m: UiMode) => { setModeState(m); saveUiMode(m); };
+  const [sessionCats, setSessionCats] = useState<ReadonlySet<ReportCategory>>(new Set());
   const [tab, setTabState] = useState<InputsTab>(() => loadInputsTab());
   const setTab = (t: InputsTab) => { setTabState(t); saveInputsTab(t); };
 
@@ -203,6 +210,19 @@ function Telemetry() {
   const lapTimes = useMemo(() => (cmp ? { lap: lapTime, ref: refTime } : undefined), [cmp, lapTime, refTime]);
 
   const selectLap = (id: string) => setParams((p) => withParams(p, { lap: id, ref: null, at: null }));
+  // From the Session tab: open a lap against the session's best lap, and move the playhead when an event has a distance.
+  const openFromSession = useCallback(
+    (t: OpenLap) => {
+      seekedAt.current = null;
+      setParams((p) => withParams(p, { lap: t.lapId, ref: t.refLapId, at: t.distanceM === null ? null : String(Math.round(t.distanceM)) }));
+      // Already on that lap and reference: the URL effect does not run again, so seek here.
+      if (model && t.distanceM !== null && model.cmp.lap_id === t.lapId && (t.refLapId === null || model.cmp.ref_lap_id === t.refLapId)) {
+        store.pause();
+        store.seek(timeAtDistance(model.cmp.lap.t, model.cmp.distance, t.distanceM - CORNER_LEAD_M));
+      }
+    },
+    [model, setParams, store],
+  );
   const selectRef = (id: string | null) => setParams((p) => withParams(p, { lap: ctx!.lap.lap_id, ref: id, at: null }));
 
   // Whether the lap counts as valid (the manual override wins); decides whether its wheels-off marks are red or grey.
@@ -308,6 +328,7 @@ function Telemetry() {
                   <Tabs.List aria-label="Inputs" className={styles.tabList}>
                     <Tabs.Trigger value="strips" className={styles.tabTrigger}>Strips</Tabs.Trigger>
                     <Tabs.Trigger value="corners" className={styles.tabTrigger}>Corners</Tabs.Trigger>
+                    <Tabs.Trigger value="session" className={styles.tabTrigger}>Session</Tabs.Trigger>
                   </Tabs.List>
                   {tab === "strips" && (
                     <ToggleGroup.Root
@@ -321,7 +342,9 @@ function Telemetry() {
                   )}
                 </div>
                 <Tabs.Content value={tab} className={styles.tabContent}>
-                {tab === "corners" ? (
+                {tab === "session" ? (
+                  ctx && <SessionTab sessionId={ctx.session.session_id} onOpen={openFromSession} filter={{ value: sessionCats, set: setSessionCats }} />
+                ) : tab === "corners" ? (
                   <CornersTable corners={model.cmp.corners} trackMap={trackMap} onSeek={seekToCorner} refName={refShort} />
                 ) : view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} focusCorner={focusCorner} lapValid={lapValid} youName={youName} refName={refName} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
                 </Tabs.Content>
@@ -340,6 +363,7 @@ function Telemetry() {
               session={railCtx.session} laps={railCtx.laps} lap={railCtx.lap} refLapId={cmp?.ref_lap_id ?? null}
               candidates={candidates} warning={cmp?.warning ?? null} invalidHint={offTrackHint}
               onSelectLap={selectLap} onSelectRef={selectRef}
+              onOpenSession={(id) => setParams((p) => withParams(p, { session: id, lap: null, ref: null, at: null }))}
             />
             <div className={wsStyles.center}>{body}</div>
             {(cmp ?? keptCmp) && (

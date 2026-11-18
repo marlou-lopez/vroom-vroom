@@ -6,6 +6,7 @@ describe("inputsTab", () => {
     expect(parseInputsTab(null)).toBe("strips");
     expect(parseInputsTab("x")).toBe("strips");
     expect(parseInputsTab("corners")).toBe("corners");
+    expect(parseInputsTab("session")).toBe("session");
   });
   it("round-trips through storage and survives a throwing one", () => {
     const m = new Map<string, string>();

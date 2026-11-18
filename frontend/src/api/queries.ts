@@ -16,6 +16,7 @@ export const qk = {
   coachResults: (lap: string, ref: string | null) => ["coachResults", lap, ref] as const,
   summary: (sessionId: string) => ["summary", sessionId] as const,
   stints: (sessionId: string) => ["stints", sessionId] as const,
+  report: (sessionId: string) => ["report", sessionId] as const,
   ideal: (sessionId: string) => ["ideal", sessionId] as const,
   segmentTimes: (sessionId: string) => ["segmentTimes", sessionId] as const,
   setup: (sessionId: string) => ["setup", sessionId] as const,
@@ -33,6 +34,8 @@ export const sessionSummaryOptions = (sessionId: string) =>
 
 export const sessionStintsOptions = (sessionId: string) =>
   queryOptions({ queryKey: qk.stints(sessionId), queryFn: () => api.sessionStints(sessionId), staleTime: Infinity });
+export const sessionReportOptions = (sessionId: string) =>
+  queryOptions({ queryKey: qk.report(sessionId), queryFn: () => api.sessionReport(sessionId), staleTime: Infinity });
 export const idealOptions = (sessionId: string) => queryOptions({ queryKey: qk.ideal(sessionId), queryFn: () => api.idealLap(sessionId, "session") });
 export const segmentTimesOptions = (sessionId: string) =>
   queryOptions({ queryKey: qk.segmentTimes(sessionId), queryFn: () => api.segmentTimes(sessionId) });
@@ -78,6 +81,10 @@ export const useCoachResults = (lap: string | null, ref: string | null) =>
     enabled: lap !== null && ref !== null,
   });
 
+/** The session report (vroom-bi4.12); refetched after a lap patch, since validity feeds the pace events. */
+export const useSessionReport = (sessionId: string | null) =>
+  useQuery({ ...sessionReportOptions(sessionId ?? ""), enabled: sessionId !== null });
+
 /** A session's setup never changes once recorded. */
 export const useSessionSetup = (sessionId: string | null) =>
   useQuery({
@@ -109,6 +116,7 @@ export function usePatchLap() {
         qc.invalidateQueries({ queryKey: ["ideal"] }),
         qc.invalidateQueries({ queryKey: ["segmentTimes"] }),
         qc.invalidateQueries({ queryKey: ["summary"] }),
+        qc.invalidateQueries({ queryKey: ["report"] }),
       ]),
   });
 }

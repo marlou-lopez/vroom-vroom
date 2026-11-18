@@ -1,8 +1,8 @@
-export type InputsTab = "strips" | "corners";
+export type InputsTab = "strips" | "corners" | "session";
 export const INPUTS_TAB_KEY = "vroom.inputsTab";
 
 export function parseInputsTab(raw: string | null | undefined): InputsTab {
-  return raw === "corners" ? "corners" : "strips";
+  return raw === "corners" || raw === "session" ? raw : "strips";
 }
 
 function defaultStorage(): Storage | null {
