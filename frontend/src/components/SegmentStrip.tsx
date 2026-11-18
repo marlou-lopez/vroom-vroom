@@ -5,7 +5,7 @@ import { type SegmentCell } from "../lib/idealGauge";
 import { cx } from "../lib/cx";
 import styles from "./SegmentStrip.module.css";
 
-const TONE_NAME = { purple: "holds the ideal", green: "close", yellow: "slow", red: "lost time" } as const;
+const TONE_NAME = { purple: "holds the best possible time", green: "close", yellow: "slow", red: "lost time" } as const;
 
 const cellTitle = (c: SegmentCell) =>
   `${c.label}: ${c.time_s.toFixed(3)} s, ${c.tone === "purple" ? TONE_NAME.purple : `+${c.loss_s.toFixed(3)} s (${TONE_NAME[c.tone]})`}`;
@@ -20,7 +20,7 @@ export function SegmentStrip({ cells, lapId, label }: { cells: SegmentCell[]; la
   if (!lapId) {
     const held = cells.filter((c) => c.tone === "purple").length;
     return (
-      <span role="img" className={styles.strip} aria-label={`${label}: holds ${held} of ${cells.length} ideal segments`}>
+      <span role="img" className={styles.strip} aria-label={`${label}: holds ${held} of ${cells.length} best possible lap segments`}>
         {cells.map((c, i) => <span key={i} className={cx(styles.cell, styles[c.tone])} title={cellTitle(c)} />)}
       </span>
     );

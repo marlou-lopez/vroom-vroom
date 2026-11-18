@@ -13,6 +13,6 @@ export interface TrackViewDef {
 
 export const TRACK_VIEWS: readonly TrackViewDef[] = [
   { id: "2d", label: "2D", experimental: false, Component: memo(ClassicMapView) },
-  { id: "2d-detailed", label: "2D detailed", experimental: false, Component: memo(DetailedMapView) },
+  { id: "2d-detailed", label: "Close-up", experimental: false, Component: memo(DetailedMapView) },
   { id: "3d", label: "3D", experimental: true, Component: memo(RibbonView) },
 ];

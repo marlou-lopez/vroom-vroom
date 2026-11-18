@@ -9,8 +9,8 @@ const cand = (over: Partial<CompareCandidate>): CompareCandidate => ({
 describe("comparisonName", () => {
   const laps = [{ lap_id: "a", lap_no: 7 }];
   it("names the ideal, the reference, a lap of the session, and another session's lap", () => {
-    expect(comparisonName(cand({ is_ideal: true }), laps)).toBe("ideal");
-    expect(comparisonName(cand({ is_reference: true }), laps)).toBe("reference");
+    expect(comparisonName(cand({ is_ideal: true }), laps)).toBe("best possible lap");
+    expect(comparisonName(cand({ is_reference: true }), laps)).toBe("your best lap");
     expect(comparisonName(cand({ lap_id: "a" }), laps)).toBe("L7");
     expect(comparisonName(cand({ lap_id: "z" }), laps)).toBe("3 Nov · L9 1:23.456");
     expect(comparisonName(null, laps)).toBeNull();

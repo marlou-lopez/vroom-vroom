@@ -49,7 +49,7 @@ export function SetupChip({ lapSessionId, laps, refLapId, refName }: SetupChipPr
       </HoverCard.Trigger>
       <HoverCard.Portal>
         <HoverCard.Content align="end" sideOffset={6} collisionPadding={8} className={styles.card}>
-          <div className={styles.title}>{refName ? refName[0].toUpperCase() + refName.slice(1) : "Comparison"} → this lap</div>
+          <div className={styles.title}>{refName ? refName[0].toUpperCase() + refName.slice(1) : "Comparison lap"} → this lap</div>
           <ul className={styles.list} aria-label="Setup changes">
             {changes.map((c) => (
               <li key={c.key} className={styles.row}>

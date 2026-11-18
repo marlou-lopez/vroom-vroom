@@ -221,11 +221,11 @@ function Telemetry() {
   );
   const youName = ctx ? `You · L${ctx.lap.lap_no}` : "You";
   const refShort = comparisonName(refCand, ctx?.laps ?? []);
-  const refName = refCand ? `Comparison · ${refCand.is_reference ? "★" : ""}${refCand.label}` : "Comparison";
+  const refName = refCand ? `Compared with · ${refCand.is_reference ? "★" : ""}${refCand.label}` : "Compared with";
 
   const views: { id: PlaybackView; label: string }[] = [
-    { id: "detailed", label: "Detailed" },
-    { id: "simplified", label: "Simplified" },
+    { id: "detailed", label: "Graphs" },
+    { id: "simplified", label: "Wheel & pedals" },
   ];
 
   const modeSwitch = (
@@ -288,8 +288,8 @@ function Telemetry() {
             {cmp?.warning && <div className={styles.warning}>{cmp.warning}</div>}
             {cmp && cmp.lap_id === cmp.ref_lap_id && (
               <div className={styles.warning} role="note">
-                This lap is the comparison lap, so every delta is zero.
-                {ideal && <> <button type="button" className={ui.btn} onClick={() => selectRef(ideal.lap_id)}>Compare with the ideal lap</button></>}
+                This lap is the one you are comparing with, so every time gap is zero.
+                {ideal && <> <button type="button" className={ui.btn} onClick={() => selectRef(ideal.lap_id)}>Compare with the best possible lap</button></>}
               </div>
             )}
             <div className={styles.grid} data-expanded={expanded || undefined}>

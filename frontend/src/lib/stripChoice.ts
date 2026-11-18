@@ -5,15 +5,15 @@ export const STRIP_OPTIONS = [
   { id: "pedals", label: "Throttle · brake" },
   { id: "gear", label: "Gear" },
   { id: "steering", label: "Steering" },
-  { id: "delta", label: "Delta" },
+  { id: "delta", label: "Time vs best" },
   { id: "elevation", label: "Elevation (if the track has it)" },
   { id: "rpm", label: "RPM" },
-  { id: "g_lat", label: "Lateral g" },
-  { id: "g_long", label: "Longitudinal g" },
-  { id: "suspension", label: "Suspension" },
-  { id: "slip", label: "Tyre slip" },
+  { id: "g_lat", label: "Cornering force" },
+  { id: "g_long", label: "Braking & acceleration force" },
+  { id: "suspension", label: "Suspension travel" },
+  { id: "slip", label: "Wheel slip" },
   /** Offered when the lap has a balance (API `lap_balance`, vroom-bi4.6). */
-  { id: "balance", label: "Balance (understeer, exp)" },
+  { id: "balance", label: "Car pushing wide (experimental)" },
 ] as const;
 
 export type StripId = (typeof STRIP_OPTIONS)[number]["id"];

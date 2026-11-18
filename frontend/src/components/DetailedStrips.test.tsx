@@ -62,20 +62,20 @@ describe("DetailedStrips picker", () => {
   it("adds, reorders and removes strips and remembers the choice", async () => {
     localStorage.clear();
     await setup();
-    expect(labels()).toEqual(["SPEED", "THROTTLE · BRAKE", "GEAR", "STEERING", "DELTA"]);
+    expect(labels()).toEqual(["SPEED", "THROTTLE · BRAKE", "GEAR", "STEERING", "TIME VS BEST (RISING = LOSING TIME)"]);
     fireEvent.click(screen.getByRole("button", { name: "Choose strips" }));
     fireEvent.click(screen.getByRole("button", { name: "Add RPM" }));
     expect(labels()).toContain("RPM");
     fireEvent.click(screen.getByRole("button", { name: "Move RPM up" }));
     fireEvent.click(screen.getByRole("button", { name: "Remove Speed" }));
-    expect(labels()).toEqual(["THROTTLE · BRAKE", "GEAR", "STEERING", "RPM", "DELTA"]);
+    expect(labels()).toEqual(["THROTTLE · BRAKE", "GEAR", "STEERING", "RPM", "TIME VS BEST (RISING = LOSING TIME)"]);
     expect(JSON.parse(localStorage.getItem("vroom.strips")!)).toEqual(["pedals", "gear", "steering", "rpm", "delta", "elevation"]);
   });
 
   it("starts from the default set when the stored choice names an unknown channel", async () => {
     localStorage.setItem("vroom.strips", '["speed","bogus"]');
     await setup();
-    expect(labels()).toEqual(["SPEED", "THROTTLE · BRAKE", "GEAR", "STEERING", "DELTA"]);
+    expect(labels()).toEqual(["SPEED", "THROTTLE · BRAKE", "GEAR", "STEERING", "TIME VS BEST (RISING = LOSING TIME)"]);
   });
 });
 
@@ -126,9 +126,9 @@ describe("DetailedStrips legend, zoom, pan and axis (vroom-pnw.35, vroom-pnw.48)
   it("explains the wheels-off and corner bands in the legend", async () => {
     await setup({ lapValid: false, annotations: [{ startM: 100, apexM: 150, endM: 200, color: "#fff", label: "1", kind: "issue", finding: { corner: "T1" } }] });
     // Wheels-off item appears only when the lap has such runs; its tooltip names both colours.
-    expect(screen.queryAllByText(/Wheels off/).length).toBeGreaterThan(0);
-    for (const el of screen.queryAllByText(/Wheels off/)) expect(el.getAttribute("title")).toMatch(/close call.*invalid/i);
-    expect(screen.getByText("Coach corner").getAttribute("title")).toMatch(/corner/i);
+    expect(screen.queryAllByText(/Off track/).length).toBeGreaterThan(0);
+    for (const el of screen.queryAllByText(/Off track/)) expect(el.getAttribute("title")).toMatch(/nearly off track.*invalid/i);
+    expect(screen.getByText("Corner the coach commented on").getAttribute("title")).toMatch(/corner/i);
   });
 
   const scales = () => (globalThis as unknown as { __scales: Array<{ min: number; max: number }> }).__scales;
@@ -183,8 +183,8 @@ describe("DetailedStrips legend, zoom, pan and axis (vroom-pnw.35, vroom-pnw.48)
     await setup();
     expect(screen.queryByRole("button", { name: "Corner" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Lap" })).toBeNull();
-    expect(screen.getByText(/Shift-drag to pan/)).toBeTruthy();
-    expect(widthButton().textContent).toBe("700 m");
+    expect(screen.getByText(/Drag to move along the lap/)).toBeTruthy();
+    expect(widthButton().textContent).toBe("Zoom: 700 m");
   });
 
   it("zooms with the wheel, the + and - keys and the whole lap, remembers the width and resets on double-click", async () => {
@@ -203,14 +203,14 @@ describe("DetailedStrips legend, zoom, pan and axis (vroom-pnw.35, vroom-pnw.48)
     for (let i = 0; i < 60; i++) fireEvent.wheel(group(), { deltaY: 300 });
     expect(widthButton().textContent).toBe("Whole lap");
     fireEvent.click(group(), { detail: 2 });
-    expect(widthButton().textContent).toBe("700 m");
+    expect(widthButton().textContent).toBe("Zoom: 700 m");
     expect(localStorage.getItem("vroom.stripWidth")).toBe("700");
   });
 
   it("restores the stored width", async () => {
     localStorage.setItem("vroom.stripWidth", "420");
     await setup();
-    expect(widthButton().textContent).toBe("420 m");
+    expect(widthButton().textContent).toBe("Zoom: 420 m");
   });
 
   it("pans with Shift-drag and middle-drag without moving the playhead; a plain drag moves it", async () => {

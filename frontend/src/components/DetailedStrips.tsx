@@ -141,7 +141,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       value: (c, _t, iy) => [formatSteering(c.lap.steering[iy], c.lap_steering_range_deg)],
     },
     {
-      id: "delta", label: "DELTA", off, joins, yRange: r.delta,
+      id: "delta", label: "TIME VS BEST (RISING = LOSING TIME)", off, joins, yRange: r.delta,
       data: [cmp.delta],
       series: [line(colors.textSoft, 1.6)],
       zeroLine: true, deltaFill: true,
@@ -175,12 +175,12 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       value: (c, tau, iy) => [`${Math.round(c.lap.rpm[iy])}`, `${Math.round(c.ref.rpm[indexAtTime(c.ref.t, tau)])}`],
     },
     {
-      id: "g_lat", label: "LATERAL G", off, joins, yRange: symmetricRange(0.5, lap.g_lat, ref.g_lat), zeroLine: true,
+      id: "g_lat", label: "CORNERING FORCE", off, joins, yRange: symmetricRange(0.5, lap.g_lat, ref.g_lat), zeroLine: true,
       data: [ref.g_lat, lap.g_lat], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       value: (c, tau, iy) => [c.lap.g_lat[iy].toFixed(2), c.ref.g_lat[indexAtTime(c.ref.t, tau)].toFixed(2)],
     },
     {
-      id: "g_long", label: "LONGITUDINAL G", off, joins, yRange: symmetricRange(0.5, lap.g_long, ref.g_long), zeroLine: true,
+      id: "g_long", label: "BRAKING & ACCELERATION FORCE", off, joins, yRange: symmetricRange(0.5, lap.g_long, ref.g_long), zeroLine: true,
       data: [ref.g_long, lap.g_long], series: [line(refStroke, 1.2), line(colors.you, 1.6)],
       value: (c, tau, iy) => [c.lap.g_long[iy].toFixed(2), c.ref.g_long[indexAtTime(c.ref.t, tau)].toFixed(2)],
     },
@@ -191,7 +191,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       value: (_c, _t, iy) => [wheelValues(susp, iy, 3)],
     },
     {
-      id: "slip", label: "TYRE SLIP", off, joins, yRange: paddedRange(0.05, 0.4, ...slip, [1]),
+      id: "slip", label: "WHEEL SLIP", off, joins, yRange: paddedRange(0.05, 0.4, ...slip, [1]),
       data: slip, series: wheelColors.map((c) => line(dimmer(c), 1.4)),
       value: (_c, _t, iy) => [wheelValues(slip, iy, 2)],
     },
@@ -524,7 +524,7 @@ function StripPicker({ choice: stored, available, onChange }: { choice: StripId[
  * Five uPlot strips (six when the track has an elevation capture). React renders this once per comparison / annotation set. Per frame, an effect subscribed to
  * the playback store moves each chart's x scale synchronously, the chip layer and the value read-outs imperatively.
  */
-export function DetailedStrips({ model, geometry, annotations, handlers, focusCorner = null, lapValid = true, youName = "You", refName = "Comparison" }: DetailedStripsProps) {
+export function DetailedStrips({ model, geometry, annotations, handlers, focusCorner = null, lapValid = true, youName = "You", refName = "Compared with" }: DetailedStripsProps) {
   const store = usePlaybackStore();
   const { cmp } = model;
   const [choice, setChoice] = useState<StripId[]>(() => loadStrips());
@@ -787,7 +787,7 @@ export function DetailedStrips({ model, geometry, annotations, handlers, focusCo
       // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable, keyboard-operated group
       tabIndex={0}
       role="group"
-      aria-label="Telemetry strips: drag or arrow keys to scrub, Shift-drag to pan, wheel or plus and minus to zoom, Space to play or pause"
+      aria-label="Telemetry strips: drag or arrow keys to move along the lap, Shift-drag to slide the view, wheel or plus and minus to zoom, Space to play or pause"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endGesture}
@@ -801,20 +801,20 @@ export function DetailedStrips({ model, geometry, annotations, handlers, focusCo
           <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.you }} />{youName}</span>
           <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.comparison }} />{refName}</span>
           {offRuns > 0 && (
-            <span className={styles.legendItem} title="Full-height band where two or more wheels were off the track. Tan: a close call on a valid lap. Red: the lap is invalid.">
-              <i className={styles.swatchBox} style={{ background: withAlpha(lapValid ? colors.closeCall : colors.offTrack, 0.5) }} />{lapValid ? "Wheels off" : "Wheels off (invalid lap)"}
+            <span className={styles.legendItem} title="Full-height band where two or more wheels were off the track. Tan: nearly off track, on a valid lap. Red: the lap is invalid.">
+              <i className={styles.swatchBox} style={{ background: withAlpha(lapValid ? colors.closeCall : colors.offTrack, 0.5) }} />{lapValid ? "Off track" : "Off track (invalid lap)"}
             </span>
           )}
           {annotations.length > 0 && (
-            <span className={styles.legendItem} title="Faint band over each corner the coach has a finding for, from its entry to its exit. The colour shows the kind of finding (issue, minor, strength or reviewed).">
-              <i className={styles.swatchBox} style={{ background: withAlpha(annotationColors.issue, 0.4) }} />Coach corner
+            <span className={styles.legendItem} title="Faint band over each corner the coach has a finding for, from its entry to its exit. The colour shows the kind of finding (big loss, small loss, good corner or reviewed).">
+              <i className={styles.swatchBox} style={{ background: withAlpha(annotationColors.issue, 0.4) }} />Corner the coach commented on
             </span>
           )}
         </div>
         <div className={styles.windowGroup}>
-          <span className={styles.hint}>Shift-drag to pan · wheel to zoom</span>
+          <span className={styles.hint}>Drag to move along the lap · scroll to zoom</span>
           <button type="button" className={styles.windowButton} title="Window width: click to reset to 700 m (double-clicking the strips does the same)" onClick={() => { panRef.current = null; applyWidth(DEFAULT_WINDOW_M); }}>
-            {width >= lapSpan() ? "Whole lap" : `${Math.round(width)} m`}
+            {width >= lapSpan() ? "Whole lap" : `Zoom: ${Math.round(width)} m`}
           </button>
         </div>
         <StripPicker choice={choice} available={allSpecs.map((x) => x.id)} onChange={changeChoice} />

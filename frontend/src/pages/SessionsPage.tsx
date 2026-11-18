@@ -87,9 +87,9 @@ export function SessionsPage() {
       tone: h.change === null ? undefined : h.change < 0 ? styles.gain : styles.loss,
     },
     {
-      k: "GAP TO THEORETICAL",
+      k: "TIME LEFT ON THE TABLE",
       v: h.gap === null ? "—" : `${h.gap.toFixed(2)} s`,
-      from: h.gapFrom ? `${h.gapFrom.type}, ${dateOf(h.gapFrom)}` : "no session with a theoretical lap",
+      from: h.gapFrom ? `${h.gapFrom.type}, ${dateOf(h.gapFrom)}` : "no session with a best possible lap",
     },
   ];
 
@@ -110,7 +110,7 @@ export function SessionsPage() {
             <div className={styles.pb}>PB <span className={styles.pbValue}>{formatLapTime(pb)}</span></div>
           </div>
           <div className={styles.plot}>
-            <svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label="Best and theoretical lap per session, oldest to newest">
+            <svg viewBox="0 0 1000 200" preserveAspectRatio="none" role="img" aria-label="Best and best possible lap per session, oldest to newest">
               <path d="M0 50 L1000 50 M0 100 L1000 100 M0 150 L1000 150" className={styles.grid} />
               <path d={trend.theo} className={styles.theo} />
               <path d={trend.best} className={styles.best} />
@@ -129,7 +129,7 @@ export function SessionsPage() {
           </div>
           <div className={styles.legend}>
             <span><span className={styles.legendBest}>━</span> best lap</span>
-            <span>┄ theoretical best</span>
+            <span>┄ best possible lap</span>
             <span>higher is faster</span>
           </div>
         </section>
@@ -155,8 +155,8 @@ export function SessionsPage() {
                 <th scope="col">Type</th>
                 <th scope="col" className={styles.num}>Laps (valid)</th>
                 <th scope="col" className={styles.num}>Best</th>
-                <th scope="col" className={styles.num}>Δ to PB</th>
-                <th scope="col" className={styles.num}>Theoretical</th>
+                <th scope="col" className={styles.num}>Slower than your best by</th>
+                <th scope="col" className={styles.num}>Best possible lap</th>
                 <th scope="col" className={styles.num}>Track</th>
                 <th scope="col">Focus</th>
                 <th scope="col"><span className={styles.srOnly}>Open</span></th>
@@ -174,7 +174,7 @@ export function SessionsPage() {
                         {formatShortDate(session.started_at)}
                       </button>
                     </td>
-                    <td>{session.session_type}{!hasTraces && <span className={styles.statsOnly} title="Recorded without lap traces: only the stint stats are available"> stats only</span>}</td>
+                    <td>{session.session_type}{!hasTraces && <span className={styles.statsOnly} title="Recorded without lap traces: only the stint stats are available"> numbers only, no replay</span>}</td>
                     <td className={styles.num}>{summary.n_laps} ({summary.n_valid})</td>
                     <td className={cx(styles.num, best !== null && best === pb && styles.pbCell)}>{formatLapTime(best)}</td>
                     <td className={cx(styles.num, styles.dim)}>{best === null || pb === null ? "—" : best === pb ? "PB" : `+${(best - pb).toFixed(3)}`}</td>

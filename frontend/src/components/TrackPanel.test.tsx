@@ -76,19 +76,19 @@ describe("TrackPanel", () => {
   it("shows the understeer verdict only inside a corner", () => {
     mountAt(corner(30, 70));
     act(() => grabbed.store!.seek(1));
-    expect(screen.getByText("understeer")).toBeTruthy();
+    expect(screen.getByText("car pushing wide")).toBeTruthy();
   });
 
   it("does not show the verdict on a straight, even inside a run", () => {
     mountAt(corner(80, 99));
     act(() => grabbed.store!.seek(1));
-    expect(screen.queryByText("understeer")).toBeNull();
+    expect(screen.queryByText("car pushing wide")).toBeNull();
   });
 
   it("does not show the verdict in a corner outside the runs", () => {
     mountAt(corner(0, 45));
     act(() => grabbed.store!.seek(0));
-    expect(screen.queryByText("understeer")).toBeNull();
+    expect(screen.queryByText("car pushing wide")).toBeNull();
   });
 
   it("names the clicked corner in its lead-in, even while still inside the previous corner", () => {
@@ -111,6 +111,6 @@ describe("TrackPanel", () => {
       { id: "b", name: "Lesmo 1", start_m: 130, end_m: 200, apex_m: 160 },
     ] });
     act(() => grabbed.store!.seek(1, "b"));
-    expect(screen.getByText("understeer")).toBeTruthy();
+    expect(screen.getByText("car pushing wide")).toBeTruthy();
   });
 });

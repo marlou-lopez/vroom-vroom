@@ -611,7 +611,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
   };
 
   const label = (r: LapRec) => {
-    if (r.joins) return `Ideal lap (session) ${formatLapTime(r.meta.lap_time_s!)}`;
+    if (r.joins) return `Best possible lap ${formatLapTime(r.meta.lap_time_s!)}`;
     const tag = r.meta.kind === "flying" ? "" : ` (${r.meta.kind})`;
     const time = r.meta.lap_time_s === null ? "—" : formatLapTime(r.meta.lap_time_s);
     return `${dateLabel.get(r.meta.session_id)} · L${r.meta.lap_no} ${time}${tag}`;
@@ -749,7 +749,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
 
     if (req.command === "average") {
       const valid = sortedSessionLaps(session.session_id).filter(isTimed);
-      if (valid.length < 2) throw new ApiError("not_enough_laps", "Average needs at least 2 valid flying laps in the session.");
+      if (valid.length < 2) throw new ApiError("not_enough_laps", "Checking consistency needs at least 2 valid flying laps in the session.");
       const ref = req.ref_lap_id ? refOf(req.ref_lap_id, lap) : referenceFor(lap.meta.track_id, lap.meta.car_id);
       await delay(coachDelayMs);
       const times = valid.map(lapTime);
@@ -889,7 +889,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
         try {
           const ir = idealRec(lap.meta.session_id);
           return [{
-            lap_id: ir.meta.lap_id, label: `Ideal lap (session) ${formatLapTime(ir.meta.lap_time_s!)}`, lap_time_s: ir.meta.lap_time_s,
+            lap_id: ir.meta.lap_id, label: `Best possible lap ${formatLapTime(ir.meta.lap_time_s!)}`, lap_time_s: ir.meta.lap_time_s,
             car_name: sessionOf(lap.meta.session_id).car_name, is_reference: false, is_previous: false, other_car: false, is_ideal: true,
           }];
         } catch (e) {

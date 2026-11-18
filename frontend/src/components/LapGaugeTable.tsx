@@ -35,16 +35,16 @@ export function LapGaugeTable({ sessionId }: { sessionId: string }) {
 
   return (
     <div className={styles.row}>
-      <section aria-label="Laps against the ideal" className={cx(ui.panel, styles.laps)}>
+      <section aria-label="Laps against the best possible lap" className={cx(ui.panel, styles.laps)}>
         <div className={styles.head}>
-          <div className={ui.heading}>{hasIdeal ? `LAPS AGAINST THE IDEAL · ${formatLapTime(ideal.time_s)}` : "LAPS · NO VALID FLYING LAP FOR AN IDEAL LAP"}</div>
+          <div className={ui.heading}>{hasIdeal ? `LAPS AGAINST THE BEST POSSIBLE LAP · ${formatLapTime(ideal.time_s)}` : "LAPS · NO VALID FLYING LAP FOR A BEST POSSIBLE LAP"}</div>
           <label className={styles.toggle}>
-            <input type="checkbox" checked={validOnly} onChange={(e) => setValidOnly(e.target.checked)} /> valid only
+            <input type="checkbox" checked={validOnly} onChange={(e) => setValidOnly(e.target.checked)} /> Hide laps with track-limit cuts
           </label>
         </div>
         <div className={styles.segLegend} aria-label="Segments legend">
-          Segments, one cell per ideal-lap segment:
-          <span className={styles.legendItem}><span className={cx(styles.swatch, styles.purple)} /> holds the ideal</span>
+          Segments, one cell per part of the best possible lap:
+          <span className={styles.legendItem}><span className={cx(styles.swatch, styles.purple)} /> holds the best possible time</span>
           <span className={styles.legendItem}><span className={cx(styles.swatch, styles.green)} /> close</span>
           <span className={styles.legendItem}><span className={cx(styles.swatch, styles.yellow)} /> slow</span>
           <span className={styles.legendItem}><span className={cx(styles.swatch, styles.red)} /> lost time</span>
@@ -55,8 +55,8 @@ export function LapGaugeTable({ sessionId }: { sessionId: string }) {
               <th scope="col">Lap</th>
               <th scope="col">Kind</th>
               <th scope="col" className={styles.num}>Time</th>
-              <th scope="col" className={styles.num}>Δ ideal</th>
-              <th scope="col" className={styles.num}>Δ best</th>
+              <th scope="col" className={styles.num}>Slower than best possible by</th>
+              <th scope="col" className={styles.num}>Slower than your best by</th>
               <th scope="col">Segments</th>
               <th scope="col"><span className={styles.srOnly}>Open</span></th>
             </tr>
@@ -70,7 +70,7 @@ export function LapGaugeTable({ sessionId }: { sessionId: string }) {
                   <td className={styles.mono}>L{l.lap_no}</td>
                   <td>
                     <span className={cx(styles.tag, tag === "invalid" && styles.tagInvalid)}>{tag}</span>
-                    {!l.has_trace && <span className={styles.tag} title="Recorded without a lap trace: only the stint stats are available"> stats only</span>}
+                    {!l.has_trace && <span className={styles.tag} title="Recorded without a lap trace: only the stint stats are available"> numbers only, no replay</span>}
                   </td>
                   <td className={styles.num}>{g ? formatLapTime(g.lapTimeS) : l.lap_time_s ? formatLapTime(l.lap_time_s) : "—"}</td>
                   <td className={styles.num}>{g ? formatGap(g.gapToIdealS) : "—"}</td>

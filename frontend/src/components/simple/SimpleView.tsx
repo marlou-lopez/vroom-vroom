@@ -32,7 +32,7 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
   const best = fastestValidLap(laps);
   const ideal = candidates.find((c) => c.is_ideal) ?? null;
   const refName = plainRefName(refCand, laps);
-  const refShort = refCand?.is_ideal ? "ideal lap" : refName.startsWith("your best") ? "best lap" : refName;
+  const refShort = refCand?.is_ideal ? "best possible lap" : refName.startsWith("your best") ? "best lap" : refName;
   const lapTime = lap?.lap_time_s ?? null;
   const gap = lapGap(lapTime, refCand?.lap_time_s ?? null, cmp.delta[cmp.delta.length - 1] ?? null);
   const self = cmp.lap_id === cmp.ref_lap_id;
@@ -55,7 +55,7 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
 
   // Timed laps, plus the lap on screen even when it is not one (an invalid or out lap opened from the full view).
   const flying = laps.filter((l) => (l.kind === "flying" && l.lap_time_s) || l.lap_id === lapId);
-  const plainRef = refShort === "ideal lap" ? "the ideal lap" : refName.replace(/ \(lap \d+\)$/, "");
+  const plainRef = refShort === "best possible lap" ? "your best possible lap" : refName.replace(/ \(lap \d+\)$/, "");
   const plains = plainCorners(losses.map((m) => ({ metrics: m, name: cornerById.get(m.corner_id)!.name })), plainRef);
 
   return (
@@ -86,8 +86,8 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
               <button type="button" aria-pressed={!!best && cmp.ref_lap_id === best.lap_id} onClick={() => best && onSelectRef(best.lap_id)} disabled={!best || best.lap_id === lapId} title="Your fastest valid lap of this session">
                 Your best lap
               </button>
-              <button type="button" aria-pressed={!!refCand?.is_ideal} onClick={() => ideal && onSelectRef(ideal.lap_id)} disabled={!ideal} title="Your best part of every corner from this session, stitched into one lap">
-                Ideal lap
+              <button type="button" aria-pressed={!!refCand?.is_ideal} onClick={() => ideal && onSelectRef(ideal.lap_id)} disabled={!ideal} title="Your best corners from this session joined into one lap">
+                Best possible lap
               </button>
             </div>
           </div>
@@ -161,10 +161,10 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
           {selected && selectedMetrics && (
             <section className={`${styles.card} ${styles.wide}`} aria-label={`${selected.name} in detail`}>
               <div className={styles.detailHead}>
-                <h2 className={styles.h2}>{selected.name}: you against {refShort === "ideal lap" ? "the ideal lap" : refName}</h2>
+                <h2 className={styles.h2}>{selected.name}: you against {refShort === "best possible lap" ? "your best possible lap" : refName}</h2>
                 <button type="button" className={styles.linkBtn} onClick={() => onReplayCorner(selected)}>Replay this corner in the full view</button>
               </div>
-              <CornerChart cmp={cmp} corner={selected} refLabel={refShort === "ideal lap" ? "Ideal lap" : refName.replace(/^your /, "Your ")} />
+              <CornerChart cmp={cmp} corner={selected} refLabel={refShort === "best possible lap" ? "Best possible lap" : refName.replace(/^your /, "Your ")} />
             </section>
           )}
         </div>
