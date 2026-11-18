@@ -153,6 +153,10 @@ function Telemetry() {
   const offTrackHint = useMemo(() => (cmp && !lapValid ? invalidHint(cmp.lap, trackMap) : null), [cmp, trackMap, lapValid]);
   const ideal = candidates.find((c) => c.is_ideal) ?? null;
   const refCand = candidates.find((c) => c.lap_id === cmp?.ref_lap_id) ?? null;
+  const priorityCorners = useMemo(
+    () => new Set([...annotations.map((a) => a.cornerId), ...(losses?.losses.map((l) => l.cornerId) ?? [])]),
+    [annotations, losses],
+  );
   const youName = ctx ? `You · L${ctx.lap.lap_no}` : "You";
   const refShort = comparisonName(refCand, ctx?.laps ?? []);
   const refName = refCand ? `Comparison · ${refCand.is_reference ? "★" : ""}${refCand.label}` : "Comparison";
@@ -254,7 +258,7 @@ function Telemetry() {
       })()}
       {model && (
         <Transport
-          model={model} trackMap={trackMap}
+          model={model} trackMap={trackMap} refName={refShort ?? undefined} priorityCornerIds={priorityCorners}
           scrubberLayer={<><ScrubberOffTrack model={model} valid={lapValid} /><ScrubberSections annotations={annotations} duration={model.duration} /></>}
           scrubberBadges={<ScrubberBadges annotations={annotations} duration={model.duration} h={handlers} />}
         />
