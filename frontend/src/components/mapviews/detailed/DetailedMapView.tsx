@@ -7,6 +7,8 @@ import {
 import { cx } from "../../../lib/cx";
 import { debugEnabled } from "../../../lib/debugFlag";
 import { pointAt } from "../../../lib/geo";
+import { scaleBar, scaleLabel } from "../../../lib/scaleBar";
+import { nextCorner } from "../../../lib/trackmap";
 import { distanceAtTime, timeAtDistance } from "../../../lib/playback";
 import { usePlaybackStore } from "../../../state/playback";
 import ui from "../../ui.module.css";
@@ -43,7 +45,7 @@ const EDGES_KEY = "vroom.edges";
 const EDGE_SOURCES: readonly EdgeSource[] = ["stand-in", "telemetry"];
 const loadEdgeSource = (): EdgeSource => loadSetting(EDGES_KEY, EDGE_SOURCES, "stand-in");
 
-export function DetailedMapView({ model, geometry, annotations, handlers, lapValid }: TrackViewProps) {
+export function DetailedMapView({ model, trackMap, geometry, annotations, handlers, lapValid }: TrackViewProps) {
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
@@ -78,6 +80,9 @@ export function DetailedMapView({ model, geometry, annotations, handlers, lapVal
   const raf = useRef(0);
   const lastDrawT = useRef(0);
   const badgeEls = useRef(new Map<string, HTMLButtonElement>());
+  const scaleBarEl = useRef<HTMLSpanElement>(null), scaleTextEl = useRef<HTMLSpanElement>(null), cornerEl = useRef<HTMLDivElement>(null);
+  const trackMapRef = useRef(trackMap);
+  const shownCorner = useRef("");
 
   const { hostRef, rendererRef, lostRef, vp, requestDrawRef, gpu, retry } = useGpuRenderer({
     load: loadRenderer,
@@ -133,6 +138,17 @@ export function DetailedMapView({ model, geometry, annotations, handlers, lapVal
     }
     lastDrawT.current = now;
 
+    // Scale bar and the corner the lap car is in or approaching (DOM written directly: no React render per frame).
+    const sb = scaleBar(v.w / cam.widthM);
+    if (scaleBarEl.current) scaleBarEl.current.style.width = `${sb.px.toFixed(1)}px`;
+    if (scaleTextEl.current) scaleTextEl.current.textContent = scaleLabel(sb.metres);
+    const nc = trackMapRef.current ? nextCorner(trackMapRef.current, cars.dLap) : null;
+    const label = nc ? (nc.inside ? nc.corner.name : `${nc.corner.name} in ${Math.max(10, Math.round(nc.aheadM / 10) * 10)} m`) : "";
+    if (cornerEl.current && label !== shownCorner.current) {
+      shownCorner.current = label;
+      cornerEl.current.textContent = label;
+      cornerEl.current.hidden = !label;
+    }
     for (const a of annRef.current) {
       const el = badgeEls.current.get(a.findingId);
       if (!el) continue;
@@ -149,6 +165,7 @@ export function DetailedMapView({ model, geometry, annotations, handlers, lapVal
   useLayoutEffect(() => {
     requestDrawRef.current = requestDraw;
   }, [requestDrawRef, requestDraw]);
+  useLayoutEffect(() => { trackMapRef.current = trackMap; requestDraw(); }, [trackMap, requestDraw]);
 
   /** Sets the free camera where its rotation may change; pan and zoom keep the rotation and write the ref directly. */
   const setFreeCam = useCallback((c: Camera) => {
@@ -320,6 +337,10 @@ export function DetailedMapView({ model, geometry, annotations, handlers, lapVal
       {...gestures.handlers}
     >
       <div ref={hostRef} className={styles.host} aria-hidden="true" />
+      <div className={styles.scale} aria-hidden="true">
+        <div className={styles.corner} ref={cornerEl} data-testid="next-corner" hidden />
+        <div className={styles.scaleRow}><span className={styles.scaleBar} ref={scaleBarEl} /><span ref={scaleTextEl} /></div>
+      </div>
       <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} />
       {gpu !== "ok" && (
         <div className={styles.gpu} data-controls="" role="status">

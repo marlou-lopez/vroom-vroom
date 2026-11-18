@@ -11,7 +11,7 @@ import type { CarDims } from "../../../api/types";
 import type { Viewport } from "../../../lib/camera";
 import type { XY } from "../../../lib/geo";
 import { AHEAD_DIM, EDGE_PX, KERB_RED, KERB_WHITE, LAP_PX, LINE_DIM, REF_PX, mixSrgb, readColors } from "../detailed/renderer";
-import { CockpitRig, DEFAULT_FOV, OrbitFollowRig, OrbitRig, ChaseRig, TopRig, type CameraFrame, type CameraRig, type ViewMode } from "./cameraRigs";
+import { CockpitRig, DEFAULT_FOV, minCarScale, OrbitFollowRig, OrbitRig, ChaseRig, TopRig, type CameraFrame, type CameraRig, type ViewMode } from "./cameraRigs";
 import { createCockpitDash, type CockpitDash } from "./cockpitDash";
 import { MIRROR_PX } from "./cockpitLayout";
 import { createCockpitMirror, type CockpitMirror } from "./cockpitMirror";
@@ -204,6 +204,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
     }
     return envTexture;
   };
+  let lapDims: CarDims = { length_m: 4.7, width_m: 2 }, refDims = lapDims;
   let lapForward = 0, refForward = 0; // each car's visual centre ahead of the recorded point (m); the cockpit eye is measured from the visual centre
   let sceneMeshes: (Mesh | Line2)[] = [];
   let lastStats = { calls: 0, triangles: 0 };
@@ -261,9 +262,10 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
     events.onNeedsDraw();
   });
 
-  const makeCar = (dims: CarDims, color: string): Group => {
+  const makeCar = (dims: CarDims, color: string, ghost = false): Group => {
     const g = new Group();
-    const mat = new MeshLambertMaterial({ color: new Color(color) });
+    // The reference car is a translucent ghost, so it stays readable when it sits inside or behind the lap car.
+    const mat = new MeshLambertMaterial(ghost ? { color: new Color(color), transparent: true, opacity: 0.5, depthWrite: false } : { color: new Color(color) });
     const body = new Mesh(new BoxGeometry(dims.width_m, CAR_BODY_H, dims.length_m), mat);
     // The recorded point is the physics point; the box is centred on the visual centre, ahead of it (+z is the nose).
     const shift = visualForwardM(dims);
@@ -364,10 +366,11 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       mark(marks.offTrack, marks.invalid ? colors.offTrack : colors.closeCall, LAP_PX + 5, MARK_LIFT);
       mark(marks.wheelspin, colors.wheelspin, LAP_PX + 1.5, MARK_LIFT + 0.01);
       mark(marks.lockup, colors.lockup, LAP_PX + 1.5, MARK_LIFT + 0.02);
+      lapDims = sc.lapDims; refDims = sc.refDims;
       lapForward = visualForwardM(sc.lapDims);
       refForward = visualForwardM(sc.refDims);
       lapCar = makeCar(sc.lapDims, colors.you);
-      refCar = makeCar(sc.refDims, colors.comparison);
+      refCar = makeCar(sc.refDims, colors.comparison, true);
       cars.add(lapCar, refCar);
       sceneToken++;
       slots = [
@@ -448,6 +451,10 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
         pane.camera.updateProjectionMatrix();
         // Each pane draws only its own cockpit; in the cockpit view the pane's own car is the camera (hide it) and the other car stays visible as the ghost.
         panes.forEach((q) => { q.dash.root.visible = q === pane && cockpit; });
+        // Top view: keep each car at least MIN_CAR_PX long, however high the camera is.
+        const carScale = (d: CarDims) => (mode === "top" ? minCarScale(d.length_m, pane.rigs.top.distance(pane.camera), pane.camera.fov, h) : 1);
+        if (lapCar) lapCar.scale.setScalar(carScale(lapDims));
+        if (refCar) refCar.scale.setScalar(carScale(refDims));
         if (lapCar) lapCar.visible = !(cockpit && i === 0);
         if (refCar) refCar.visible = !(cockpit && i === 1);
         if (cockpit) {
