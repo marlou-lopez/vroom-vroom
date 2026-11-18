@@ -1,4 +1,4 @@
-/* EXPERIMENTAL Simple view (spike vroom-pnw.50). Uses the proposed "comfortable" tokens locally:
+/* Simple view (vroom-pnw.50, vroom-pnw.56). Uses the proposed "comfortable" tokens locally:
    14 px body, 12 px minimum, 32 px controls, 8/16 px spacing, 6 px radius, a lighter muted grey. */
 .root {
   --s-font: 14px;
@@ -20,19 +20,6 @@
   overflow: auto;
   min-height: 0;
 }
-
-.banner {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s-gap);
-  padding: 6px 12px;
-  border: 1px dashed var(--color-minor);
-  border-radius: var(--s-radius);
-  color: var(--color-text-soft);
-  font-size: var(--s-small);
-}
-.banner strong { color: var(--color-minor); text-transform: uppercase; letter-spacing: 0.06em; }
 
 .summary {
   display: flex;
