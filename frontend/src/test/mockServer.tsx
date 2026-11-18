@@ -17,16 +17,26 @@ const RECORDING = JSON.parse(
   readFileSync(resolve(import.meta.dirname, "../../public/mock/spa-2026-11-03.json"), "utf8"),
 ) as Recording;
 
+const readMock = (name: string) => JSON.parse(readFileSync(resolve(import.meta.dirname, `../../public/mock/${name}`), "utf8"));
+/** Loaders for the other mock sessions (Monza, the Monza race's stint stats, the Spa race), for tests that need them (`allSessions`). */
+const ALL_SESSIONS = {
+  loadMonza: async () => readMock("monza-2026-11-05.json"),
+  loadStint: async () => readMock("monza-stint-2026-11-09.json"),
+  loadSpaRace: async () => readMock("spa-race-2026-11-10.json"),
+  loadSpaRaceStint: async () => readMock("spa-race-stint-2026-11-10.json"),
+};
+
 /**
  * Starts an MSW server for the test file. Every test gets a fresh in-memory engine (so mutations don't leak)
  * and the default handlers; use `server.use(...)` inside a test to force errors.
  */
-export function setupMockServer() {
+export function setupMockServer(opts: { allSessions?: boolean } = {}) {
   const server = setupServer();
-  const state = { engine: createMockApi({ coachDelayMs: 0, loadSpa: async () => RECORDING }) as Api };
+  const make = () => createMockApi({ coachDelayMs: 0, loadSpa: async () => RECORDING, ...(opts.allSessions ? ALL_SESSIONS : {}) }) as Api;
+  const state = { engine: make() };
   beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
   beforeEach(() => {
-    state.engine = createMockApi({ coachDelayMs: 0, loadSpa: async () => RECORDING });
+    state.engine = make();
     server.resetHandlers(...createHandlers(state.engine));
   });
   afterEach(() => server.resetHandlers());

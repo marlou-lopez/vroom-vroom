@@ -1,0 +1,67 @@
+/* The Session tab (vroom-bi4.12). Self-contained: the tab may move in a later UI overhaul. */
+.root { display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow-y: auto; min-height: 0; flex: 1; container: session / inline-size; }
+.note { margin: 0; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: var(--radius); color: var(--color-muted); }
+.noteWarn { color: var(--color-minor); }
+.state { padding: 16px; text-align: center; color: var(--color-muted); }
+.stateError { color: var(--color-issue); display: flex; flex-direction: column; gap: 6px; align-items: center; }
+
+.chart { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.chartTitle { font-size: var(--font-size-small); font-weight: 600; letter-spacing: 0.04em; color: var(--color-muted); }
+.windowNote { font-weight: 400; letter-spacing: 0; }
+.plot { position: relative; margin-left: 52px; }
+.plot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.gridLine { stroke: var(--color-line); stroke-width: 1; vector-effect: non-scaling-stroke; fill: none; }
+.settingLine { stroke: var(--color-ideal); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; }
+.windowBand { fill: var(--color-strength); opacity: 0.16; }
+.lineFront { fill: none; stroke: var(--color-you); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.lineRear { fill: none; stroke: var(--color-minor); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.axis { position: absolute; left: -50px; font-family: var(--font-mono); font-size: var(--font-size-small); color: var(--color-muted); pointer-events: none; }
+.axisTop { top: 0; }
+.axisBottom { bottom: 0; }
+.lapAxis { position: relative; height: 14px; margin-left: 52px; font-family: var(--font-mono); font-size: var(--font-size-small); color: var(--color-muted); }
+.lapAxis span { position: absolute; transform: translateX(-50%); }
+
+.dot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; padding: 0; border-radius: 50%; background: var(--color-you); border: 1px solid var(--color-you); cursor: pointer; box-sizing: border-box; }
+.dot:hover, .dot:focus-visible { outline: 2px solid var(--color-text); outline-offset: 1px; }
+.dotOut { background: transparent; border-color: var(--color-muted); }
+.dotInvalid { border-color: var(--color-off-track); }
+.dotNoTrace { cursor: default; opacity: 0.7; }
+.mark { position: absolute; left: 50%; top: -9px; width: 6px; height: 6px; margin-left: -3px; transform: rotate(45deg); background: var(--color-muted); }
+.sev_info { background: var(--color-muted); }
+.sev_watch { background: var(--color-minor); }
+.sev_problem { background: var(--color-issue); }
+.hit { position: absolute; top: 0; bottom: 0; width: 14px; margin-left: -7px; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.hit:hover { background: var(--color-hover); opacity: 0.6; }
+.hit:focus-visible { outline: 2px solid var(--color-you); outline-offset: -2px; }
+
+.legend { display: flex; gap: 12px; flex-wrap: wrap; color: var(--color-muted); align-items: center; }
+.key { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--color-you); border: 1px solid var(--color-you); box-sizing: border-box; vertical-align: middle; }
+.keyMark { position: static; display: inline-block; vertical-align: middle; margin: 0 2px 0 0; }
+.settingKey { display: inline-block; width: 14px; border-top: 1px dashed var(--color-ideal); vertical-align: middle; }
+.swatch { display: inline-block; width: 12px; height: 3px; vertical-align: middle; }
+.swatchFront { background: var(--color-you); }
+.swatchRear { background: var(--color-minor); }
+.swatchWindow { background: var(--color-strength); opacity: 0.4; height: 8px; }
+.miniCharts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+
+.events { display: flex; flex-direction: column; gap: 8px; }
+.filters { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.count { color: var(--color-muted); margin-left: 4px; }
+.group { display: flex; flex-direction: column; gap: 2px; }
+.groupLabel { font-size: var(--font-size-small); font-weight: 600; letter-spacing: 0.08em; color: var(--color-muted); }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.event { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; width: 100%; text-align: left; font: inherit; color: var(--color-text); background: transparent; border: 1px solid var(--color-border); border-left-width: 3px; border-radius: var(--radius); padding: 4px 8px; cursor: pointer; }
+.event:hover { background: var(--color-hover); }
+.event:focus-visible { outline: 2px solid var(--color-you); outline-offset: -2px; }
+.event[data-severity="info"] { border-left-color: var(--color-muted); }
+.event[data-severity="watch"] { border-left-color: var(--color-minor); }
+.event[data-severity="problem"] { border-left-color: var(--color-issue); }
+.badges { display: flex; gap: 4px; align-items: baseline; flex-wrap: wrap; }
+.badge { font-size: var(--font-size-small); letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+.sentence { min-width: 0; overflow-wrap: anywhere; }
+.where { grid-column: 2; color: var(--color-muted); font-size: var(--font-size-small); }
+
+/* Standalone page for a session without traces. */
+.page { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: var(--pad); min-height: 0; max-width: 960px; width: 100%; box-sizing: border-box; margin: 0 auto; }
+.pageHead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.sessionPick { background: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border-strong); border-radius: var(--radius); font: inherit; padding: 3px 6px; max-width: 100%; }

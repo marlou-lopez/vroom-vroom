@@ -32,12 +32,14 @@ export interface LapRailProps {
   onSelectLap(lapId: string): void;
   /** `null` selects the track/car reference. */
   onSelectRef(lapId: string | null): void;
+  /** A session with no lap that can be replayed (recorded without traces): open it as a session report instead of a lap. */
+  onOpenSession?(sessionId: string): void;
 }
 
 const KEY = "vroom.lapRail";
 const STATES = ["open", "collapsed"] as const;
 
-export function LapRail({ session, laps, lap, refLapId, candidates, warning, invalidHint, onSelectLap, onSelectRef }: LapRailProps) {
+export function LapRail({ session, laps, lap, refLapId, candidates, warning, invalidHint, onSelectLap, onSelectRef, onOpenSession }: LapRailProps) {
   const [state, setState] = useState<(typeof STATES)[number]>(() => loadSetting(KEY, STATES, "open"));
   const [validOnly, setValidOnly] = useState(true);
   const [sessionNote, setSessionNote] = useState<string | null>(null);
@@ -80,8 +82,10 @@ export function LapRail({ session, laps, lap, refLapId, candidates, warning, inv
     if (id === session.session_id) return;
     setSessionNote(null);
     try {
-      const target = defaultLap(await qc.fetchQuery(sessionLapsOptions(id)));
+      const sessionLaps = await qc.fetchQuery(sessionLapsOptions(id));
+      const target = defaultLap(sessionLaps);
       if (target) onSelectLap(target.lap_id);
+      else if (onOpenSession && !sessionLaps.some((l) => l.has_trace)) onOpenSession(id);
       else setSessionNote("That session has no valid lap to open.");
     } catch {
       setSessionNote("Could not load that session.");
