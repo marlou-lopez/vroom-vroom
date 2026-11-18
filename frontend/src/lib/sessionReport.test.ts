@@ -162,6 +162,63 @@ describe("buildSessionReport", () => {
     expect(r.unavailable.map((u) => u.category)).not.toContain("driving");
   });
 
+  describe("lock-up and wheelspin trend per corner", () => {
+    /** Nine flying laps; `perLap[n-1]` is the number of lock-ups in Beta (c2) on lap n, wheelspin in Alpha (c1) when `kind` is wheelspin. */
+    const session = (perLap: number[], kind: "lockup" | "wheelspin" = "lockup", beta = (n: number) => 6 + n * 0.1) => {
+      const at = kind === "lockup" ? 310 : 110;
+      const traces = new Map<number, TraceFacts>(perLap.map((k, i) => [i + 1, {
+        aids: { ...none, [kind]: Array.from({ length: k }, (_, j) => ({ start: at + j * 20, end: at + j * 20 + 2 })) }, corner_times_s: [5, beta(i + 1)],
+      }]));
+      const laps = perLap.map((_, i) => ({ lap_id: `l${i + 1}`, lap_no: i + 1, kind: "flying" as const, lap_time_s: 100 + i, valid: true, has_trace: true }));
+      return buildSessionReport(input(null, { traces, laps }));
+    };
+    const trend = (r: ReturnType<typeof buildSessionReport>, kind = "lockup_trend") => r.events.filter((e) => e.kind === kind);
+
+    it("reports a rising lock-up count in a corner, with the corner and the time lost on those laps", () => {
+      const r = session([0, 0, 0, 1, 1, 1, 2, 2, 2]);
+      const [e] = trend(r);
+      expect(trend(r)).toHaveLength(1);
+      expect(e).toMatchObject({
+        category: "driving", corner: { name: "Beta" }, distance_m: 350, lap_from: 7, lap_to: 9,
+        numbers: { first_runs: 0, last_runs: 6, n_window: 3, first_lap_from: 1, first_lap_to: 3, last_lap_from: 7, last_lap_to: 9 },
+        coincides: { scope: "corner", lost_s: 0.7 },
+      });
+      expect(e.sentence).toBe("Lock-ups at Beta rose from 0 in the first 3 flying laps (laps 1 to 3) to 6 in the last 3 (laps 7 to 9). It coincides with 0.70 s lost in that corner on those laps.");
+      expect(e.sentence).not.toMatch(/because|grip|load|bias/i);
+    });
+
+    it("reports a falling count, pointing at the early laps where it happened", () => {
+      const [e] = trend(session([2, 2, 2, 1, 0, 0, 0, 0, 0]));
+      expect(e.sentence).toContain("Lock-ups at Beta fell from 6");
+      expect(e).toMatchObject({ lap_from: 1, lap_to: 3, numbers: { first_runs: 6, last_runs: 0 } });
+    });
+
+    it("reports wheelspin the same way", () => {
+      const r = session([0, 0, 0, 0, 0, 0, 2, 2, 2], "wheelspin");
+      expect(trend(r, "wheelspin_trend")[0]).toMatchObject({ corner: { name: "Alpha" }, numbers: { last_runs: 6 } });
+      expect(trend(r)).toHaveLength(0);
+    });
+
+    it("reports nothing when the count is flat", () => {
+      expect(trend(session([1, 1, 1, 1, 1, 1, 1, 1, 1]))).toHaveLength(0);
+      expect(trend(session([2, 0, 1, 1, 1, 1, 0, 2, 1]))).toHaveLength(0);
+    });
+
+    it("reports nothing below the minimum count or change, or with too few laps", () => {
+      expect(trend(session([0, 0, 0, 0, 0, 0, 1, 1, 0]))).toHaveLength(0); // 2 runs: under cornerTrendMinCount
+      expect(trend(session([2, 1, 0, 1, 1, 1, 2, 1, 1]))).toHaveLength(0); // 3 against 4: change under cornerTrendMinChange
+      expect(trend(session([0, 0, 0, 3, 3]))).toHaveLength(0); // five laps
+    });
+
+    it("leaves out and in laps out of the thirds", () => {
+      const counts = [0, 0, 0, 1, 1, 1, 2, 2, 2];
+      const traces = new Map<number, TraceFacts>(counts.map((k, i) => [i + 1, { aids: { ...none, lockup: Array.from({ length: k }, (_, j) => ({ start: 310 + j * 20, end: 312 + j * 20 })) }, corner_times_s: [5, 6] }]));
+      const laps = counts.map((_, i) => ({ lap_id: `l${i + 1}`, lap_no: i + 1, kind: i === 8 ? ("in" as const) : ("flying" as const), lap_time_s: 100, valid: true, has_trace: true }));
+      const [e] = buildSessionReport(input(null, { traces, laps })).events.filter((x) => x.kind === "lockup_trend");
+      expect(e.numbers).toMatchObject({ n_window: 2, last_lap_from: 7, last_lap_to: 8, last_runs: 4 });
+    });
+  });
+
   it("reports an ABS trend across the flying laps", () => {
     const aid = new Map([1, 2, 3, 4].map((n) => [n, { abs_m: 100 + n * 30, tc_m: 50 }] as const));
     const traces = new Map<number, TraceFacts>([1, 2, 3, 4].map((n) => [n, { aids: none, corner_times_s: [5, 6] }]));
