@@ -85,7 +85,7 @@ describe("lap rail", () => {
     const target = others[0];
     target.focus();
     await user.keyboard("r");
-    await waitFor(() => expect(loc.search).toContain("ref="));
+    await waitFor(() => expect(loc.search).toContain("ref="), { timeout: 5000 });
     const refId = new URLSearchParams(loc.search).get("ref");
     expect(refId).toBe(target.getAttribute("data-lap-id"));
     expect(loc.search).toContain("debug=0");

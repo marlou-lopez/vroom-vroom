@@ -3,7 +3,8 @@ import type { Annotation } from "../lib/annotations";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime } from "../lib/playback";
 import { isAdvice, nextFinding } from "../lib/nextFinding";
-import { cornerAt } from "../lib/trackmap";
+import { readoutCorner } from "../lib/trackmap";
+import { CORNER_LEAD_M } from "../lib/annotations";
 import { usePlayback } from "../state/playback";
 import styles from "./EngineerLine.module.css";
 
@@ -14,9 +15,10 @@ import styles from "./EngineerLine.module.css";
 export function EngineerLine({ annotations, trackMap, model }: { annotations: Annotation[]; trackMap: TrackMap | null; model: PlaybackModel }) {
   const tau = usePlayback((s) => s.tau);
   const playing = usePlayback((s) => s.playing);
+  const leadInId = usePlayback((s) => s.leadInCornerId);
   if (!trackMap || annotations.length === 0) return null;
   const d = distanceAtTime(model.cmp.lap.t, model.cmp.distance, tau);
-  const corner = cornerAt(trackMap, d);
+  const corner = readoutCorner(trackMap, d, leadInId, CORNER_LEAD_M)?.corner ?? null;
   const here = corner && annotations.find((x) => x.cornerId === corner.id && isAdvice(x));
   const a = here || (playing ? null : nextFinding(annotations, d));
   if (!a) return null;

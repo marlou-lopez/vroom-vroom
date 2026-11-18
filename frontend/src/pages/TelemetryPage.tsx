@@ -120,7 +120,7 @@ function Telemetry() {
   const seekTo = useCallback(
     (a: Annotation) => {
       if (!cmp) return;
-      store.seek(leadInTime(cmp, a));
+      store.seek(leadInTime(cmp, a), a.cornerId);
       focusCornerSpan(a.startM, a.endM);
     },
     [cmp, store, focusCornerSpan],
@@ -131,8 +131,8 @@ function Telemetry() {
     (startM: number) => {
       if (!cmp) return;
       store.pause();
-      store.seek(leadInTime(cmp, { startM }));
       const c = trackMap?.corners.find((k) => k.start_m === startM);
+      store.seek(leadInTime(cmp, { startM }), c?.id ?? null);
       if (c) focusCornerSpan(c.start_m, c.end_m);
     },
     [cmp, trackMap, store, focusCornerSpan],
@@ -141,14 +141,17 @@ function Telemetry() {
 
   // Page-wide playback keys. Corner steps use every corner's lead-in time; issue steps use corners with a finding or a loss.
   const cornerStarts = useMemo(() => (cmp && trackMap ? trackMap.corners.map((c) => leadInTime(cmp, { startM: c.start_m })) : []), [cmp, trackMap]);
-  const issueStarts = useMemo(() => {
+  const issueCorners = useMemo(() => {
     if (!cmp || !trackMap) return [];
     const ids = new Set(annotations.map((a) => a.cornerId));
     for (const m of cmp.corners) if (m.delta_s >= MIN_DELTA_S) ids.add(m.corner_id);
-    return trackMap.corners.filter((c) => ids.has(c.id)).map((c) => leadInTime(cmp, { startM: c.start_m }));
+    return trackMap.corners.filter((c) => ids.has(c.id));
   }, [cmp, trackMap, annotations]);
-  const keyState = useRef({ cornerStarts, issueStarts });
-  useEffect(() => { keyState.current = { cornerStarts, issueStarts }; });
+  const issueStarts = useMemo(() => (cmp ? issueCorners.map((c) => leadInTime(cmp, { startM: c.start_m })) : []), [cmp, issueCorners]);
+  const issueIds = useMemo(() => issueCorners.map((c) => c.id), [issueCorners]);
+  const cornerIds = useMemo(() => trackMap?.corners.map((c) => c.id) ?? [], [trackMap]);
+  const keyState = useRef({ cornerStarts, issueStarts, cornerIds, issueIds });
+  useEffect(() => { keyState.current = { cornerStarts, issueStarts, cornerIds, issueIds }; });
   useEffect(() => {
     if (!model) return;
     const onKey = (e: KeyboardEvent) => {
@@ -159,7 +162,12 @@ function Telemetry() {
       else if (a.kind === "seekBy") store.seekBy(a.seconds);
       else {
         const t = stepTime(a.kind === "corner" ? keyState.current.cornerStarts : keyState.current.issueStarts, store.get().tau, a.dir);
-        if (t !== null) { store.pause(); store.seek(t); }
+        if (t !== null) {
+          store.pause();
+          const { cornerStarts: cs, cornerIds, issueStarts: is, issueIds } = keyState.current;
+          const i = (a.kind === "corner" ? cs : is).indexOf(t);
+          store.seek(t, (a.kind === "corner" ? cornerIds : issueIds)[i] ?? null);
+        }
       }
       e.preventDefault();
     };

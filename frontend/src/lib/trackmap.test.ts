@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { TrackMap } from "../api/types";
-import { cornerAt, nextCorner, nearestCorner, nearestPoint, nearestPointInWindow, pointAtDistance, polylinePath, projectLatLon, scrubTarget, segmentPath, cornerSegmentPath, smoothClosed, splitWrapping } from "./trackmap";
+import { cornerAt, readoutCorner, nextCorner, nearestCorner, nearestPoint, nearestPointInWindow, pointAtDistance, polylinePath, projectLatLon, scrubTarget, segmentPath, cornerSegmentPath, smoothClosed, splitWrapping } from "./trackmap";
+import { monzaCorners } from "../api/mock/monzaTrack";
 
 const map: TrackMap = {
   track_id: "x",
@@ -188,5 +189,38 @@ describe("nextCorner", () => {
   });
   it("is null without corners", () => {
     expect(nextCorner({ ...(map as object), corners: [] } as never, 5)).toBeNull();
+  });
+});
+
+describe("readoutCorner", () => {
+  // Like Ascari 2 / Ascari 3: lead-ins (150 m) reach back past other corners' starts and into the previous corner.
+  const map = { track_id: "t", length_m: 1000, landmarks: [], corners: [
+    { id: "a2", name: "Ascari 2", start_m: 300, apex_m: 350, end_m: 420, complex: null, approx: false },
+    { id: "a3", name: "Ascari 3", start_m: 450, apex_m: 480, end_m: 560, complex: null, approx: false },
+  ] } as never;
+  it("names the clicked corner in its lead-in even when another corner starts nearer", () => {
+    expect(readoutCorner(map, 450 - 150, "a3", 150)).toMatchObject({ approaching: true, corner: { id: "a3" } });
+    expect(readoutCorner(map, 450 - 150 - 0.2, "a3", 150)).toMatchObject({ approaching: true, corner: { id: "a3" } });
+  });
+  it("names the corner the car is in when no corner was clicked, so a complex is never renamed in normal playback", () => {
+    expect(readoutCorner(map, 350, null, 150)).toMatchObject({ approaching: false, corner: { id: "a2" } });
+  });
+  it("names the clicked corner itself once inside it, and not after its lead-in window", () => {
+    expect(readoutCorner(map, 480, "a3", 150)).toMatchObject({ approaching: false, corner: { id: "a3" } });
+    expect(readoutCorner(map, 100, "a3", 150)).toBeNull();
+  });
+});
+
+describe("readoutCorner on the Monza corner map", () => {
+  const map = { track_id: "monza-grand-prix", length_m: 5778, landmarks: [], corners: monzaCorners() } as never;
+  for (const id of ["lesmo1", "ascari3", "roggia2", "ascari2"]) {
+    it(`names ${id} at its lead-in point`, () => {
+      const c = monzaCorners().find((k) => k.id === id)!;
+      expect(readoutCorner(map, c.start_m - 150, id, 150)).toMatchObject({ approaching: true, corner: { id } });
+    });
+  }
+  it("without a click, the lead-in point of Lesmo 1 still reads as the corner the car is in (Roggia 2)", () => {
+    const c = monzaCorners().find((k) => k.id === "lesmo1")!;
+    expect(readoutCorner(map, c.start_m - 150, null, 150)?.corner.id).toBe("roggia2");
   });
 });
