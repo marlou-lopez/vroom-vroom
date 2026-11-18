@@ -60,3 +60,5 @@
   height: 18px;
   padding: 0;
 }
+
+.offLegend { position: absolute; right: 4px; bottom: 2px; font-size: 9px; line-height: 1; color: var(--color-muted); pointer-events: none; }

@@ -1,10 +1,11 @@
 import * as Slider from "@radix-ui/react-slider";
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import type { Corner, TrackMap } from "../api/types";
-import { formatClock } from "../lib/format";
+import type { TrackMap } from "../api/types";
+import { formatClock, formatDistance } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { CORNER_LEAD_M } from "../lib/annotations";
+import { layoutCornerLabels } from "../lib/cornerLabels";
 import { cornerAt } from "../lib/trackmap";
 import { distanceAtTime, timeAtDistance } from "../lib/playback";
 import { RATES, usePlayback, usePlaybackStore, type Rate } from "../state/playback";
@@ -21,16 +22,17 @@ export interface TransportProps {
    */
   scrubberLayer?: ReactNode;
   scrubberBadges?: ReactNode;
+  /** Name of the comparison lap, for the delta trace's label. */
+  refName?: string;
+  /** Corners that have a finding or are among the biggest losses: their labels are never dropped. */
+  priorityCornerIds?: ReadonlySet<string>;
 }
 
 /** Slider resolution, and the PageUp/PageDown jump. */
 const SEEK_STEP_S = 0.05;
 const PAGE_SEEK_S = 5;
 
-const LABEL_CHAR_PX = 5.6; // 10 px Inter, average glyph width
-const LABEL_PAD_PX = 4 + 4;
-
-export function Transport({ model, trackMap, scrubberLayer, scrubberBadges }: TransportProps) {
+export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refName, priorityCornerIds }: TransportProps) {
   const store = usePlaybackStore();
   const tau = usePlayback((s) => s.tau);
   const playing = usePlayback((s) => s.playing);
@@ -49,21 +51,13 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges }: Tr
     return () => ro.disconnect();
   }, []);
   const ticks = useMemo(() => {
-    const all = (trackMap?.corners ?? [])
-      .map((c) => ({ c, frac: duration > 0 ? timeAtDistance(cmp.lap.t, cmp.distance, c.apex_m) / duration : 0 }))
-      .sort((a, b) => a.frac - b.frac);
-    // Greedy label culling: a tick is visible when its label clears the previous visible one.
-    const out: { c: Corner; frac: number; visible: boolean }[] = [];
-    let prevRight = -Infinity;
-    for (const { c, frac } of all) {
-      const half = (c.name.length * LABEL_CHAR_PX + LABEL_PAD_PX) / 2;
-      const x = frac * ticksW;
-      const visible = x - half >= prevRight;
-      if (visible) prevRight = x + half;
-      out.push({ c, frac, visible });
-    }
-    return out;
-  }, [trackMap, cmp, duration, ticksW]);
+    const items = (trackMap?.corners ?? []).map((c) => ({
+      id: c.id, name: c.name, priority: priorityCornerIds?.has(c.id) ?? false,
+      frac: duration > 0 ? timeAtDistance(cmp.lap.t, cmp.distance, c.apex_m) / duration : 0,
+    }));
+    const labels = layoutCornerLabels(items, ticksW);
+    return (trackMap?.corners ?? []).map((c, i) => ({ c, frac: items[i].frac, label: labels[i] }));
+  }, [trackMap, cmp, duration, ticksW, priorityCornerIds]);
 
   const dNow = distanceAtTime(cmp.lap.t, cmp.distance, tau);
   const currentCorner = trackMap ? cornerAt(trackMap, dNow) : null;
@@ -93,7 +87,10 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges }: Tr
           ))}
         </ToggleGroup.Root>
         <div className={styles.spacer} />
-        <div className={styles.clock}>{formatClock(tau)} / {formatClock(duration)}</div>
+        <div className={styles.clock}>
+          <span data-testid="transport-distance" title="Distance along the lap">{formatDistance(dNow)}</span>
+          {" · "}{formatClock(tau)} / {formatClock(duration)}
+        </div>
       </div>
       <div className={styles.scrubWrap}>
         <Slider.Root
@@ -112,25 +109,27 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges }: Tr
               <path d="M0 17 L1000 17" className={styles.baseline} />
               <path d={model.scrubPath} className={styles.delta} />
             </svg>
+            <span className={styles.deltaLabel} data-testid="scrubber-delta-label">Δ to {refName ?? "comparison"}</span>
+            <span className={styles.zeroLabel}>0 · level</span>
           </div>
           <Slider.Thumb className={styles.thumb} aria-label="Lap position" aria-valuetext={formatClock(tau)} />
         </Slider.Root>
         {scrubberBadges}
       </div>
       <div ref={ticksRef} className={styles.ticks}>
-        {ticks.map(({ c, frac, visible }) => (
+        {ticks.map(({ c, frac, label }) => (
           <button
             key={c.id}
             type="button"
             aria-label={c.name}
             title={c.name}
-            tabIndex={visible ? 0 : -1}
+            tabIndex={label.mode === "dot" ? -1 : 0}
             onClick={() => store.seek(timeAtDistance(cmp.lap.t, cmp.distance, c.start_m - CORNER_LEAD_M))}
             className={cx(styles.tick, currentCorner?.id === c.id && styles.current)}
             style={{ left: `${frac * 100}%` }}
           >
-            {/* A hidden label leaves a dot as its click target. */}
-            {visible ? c.name : "·"}
+            {/* A label that does not fit falls back to a short code, then to a dot as the click target. */}
+            {label.text}
           </button>
         ))}
       </div>

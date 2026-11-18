@@ -19,6 +19,13 @@ export function formatClock(s: number): string {
   return splitRounded(s, 10);
 }
 
+/** `842 m` below a kilometre, `1.23 km` from there. */
+export function formatDistance(m: number): string {
+  if (!Number.isFinite(m)) return "–";
+  const r = Math.max(0, m);
+  return r < 1000 ? `${Math.round(r)} m` : `${(r / 1000).toFixed(2)} km`;
+}
+
 /** `+0.841` / `−0.120` (true minus sign). */
 export function formatDelta(x: number): string {
   return `${x < 0 ? "−" : "+"}${Math.abs(x).toFixed(3)}`;
