@@ -17,3 +17,12 @@ export function standingLabel(delta: number, name: string | null): string | null
   if (!name || Math.abs(delta) <= 0.005) return null;
   return delta > 0 ? `behind ${name}` : `ahead of ${name}`;
 }
+
+/**
+ * The lap-time gap between the lap and the comparison (positive = the lap is slower): the recorded lap times when both
+ * are known, else the comparison's last delta sample (the two can differ by a few ms, so the times win).
+ */
+export function lapGap(lapTimeS: number | null, refTimeS: number | null, lastDelta: number | null): number | null {
+  if (lapTimeS != null && refTimeS != null && lapTimeS > 0 && refTimeS > 0) return lapTimeS - refTimeS;
+  return lastDelta;
+}

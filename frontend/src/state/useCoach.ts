@@ -1,5 +1,5 @@
 import { useMutationState } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCoachMutation, useCoachResults, useSetFindingReviewed } from "../api/queries";
 import { errorInfo, type CoachRequest, type CoachResults, type Finding } from "../api/types";
 
@@ -23,13 +23,26 @@ export function useCoach(lapId: string | null, refLapId: string | null) {
   const [dives, setDives] = useState<Record<string, Finding>>({});
   const resultsQ = useCoachResults(lapId, refLapId);
   // Success is handled on the mutation itself, so it still shows the notes after the user switched comparison mid-run.
-  const runM = useCoachMutation(RUN_KEY, () => setShowNotes(true));
+  // One AbortController per run in flight, keyed by pair and command, so Cancel aborts the request itself.
+  const controllers = useRef(new Map<string, AbortController>());
+  const runKey = (r: CoachRequest) => `${r.lap_id}|${r.ref_lap_id}|${r.command}`;
+  const signalFor = useCallback((r: CoachRequest) => {
+    const c = new AbortController();
+    controllers.current.set(runKey(r), c);
+    return c.signal;
+  }, []);
+  const runM = useCoachMutation(RUN_KEY, (r) => { controllers.current.delete(runKey(r)); setShowNotes(true); }, signalFor);
   // Runs in flight for any pair: switching the comparison must not forget them (a second paid call would start).
   const pending = useMutationState({ filters: { mutationKey: RUN_KEY, status: "pending" }, select: (m) => m.state.variables as CoachRequest });
   const inScope = pending.find((v) => v.lap_id === lapId && v.ref_lap_id === refLapId);
   const cornerM = useCoachMutation();
   const reviewM = useSetFindingReviewed(lapId, refLapId);
   const { mutate: startRun } = runM;
+  const cancel = useCallback(() => {
+    if (!inScope) return;
+    controllers.current.get(runKey(inScope))?.abort();
+    controllers.current.delete(runKey(inScope));
+  }, [inScope]);
   const { mutateAsync: askCornerAsync } = cornerM;
   const { reset: resetReview } = reviewM;
 
@@ -66,14 +79,19 @@ export function useCoach(lapId: string | null, refLapId: string | null) {
   }, [dives, scope]);
 
   const setReviewed = reviewM.mutate;
-  const runFailure = runM.error && runM.variables?.lap_id === lapId && runM.variables.ref_lap_id === refLapId ? runM.error : null;
+  const runFailure = runM.error && (runM.error as { code?: string }).code !== "cancelled" && runM.variables?.lap_id === lapId && runM.variables.ref_lap_id === refLapId ? runM.error : null;
   const failure = runFailure ?? reviewM.error ?? resultsQ.error;
+  // A run the user cancelled is not an error (and must not hide the others: it is dropped above).
   const error: CoachError | null = failure ? errorInfo(failure) : null;
+  const failedCommand = runFailure && error ? runM.variables?.command ?? null : null;
 
   return {
     results: resultsQ.data ?? NO_RESULTS,
     running: inScope ? inScope.command : null,
     error,
+    /** The command whose run failed, for Retry; null when the error came from elsewhere. */
+    failedCommand,
+    cancel,
     showNotes,
     setShowNotes,
     deepDives,

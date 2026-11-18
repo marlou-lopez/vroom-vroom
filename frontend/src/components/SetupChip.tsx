@@ -12,13 +12,15 @@ export interface SetupChipProps {
   laps: LapWithRef[];
   /** The lap compared against; null while the comparison loads. */
   refLapId: string | null;
+  /** Short name of the comparison ("ideal", "L7"); absent reads "Comparison". */
+  refName?: string | null;
 }
 
 /**
  * "Same setup" or "Setup: N changes" (with a hover card listing each one as "Rear wing: 6 → 8", reference → lap).
  * Nothing is shown while loading, when a load fails (not fatal) or when either session has no recorded setup.
  */
-export function SetupChip({ lapSessionId, laps, refLapId }: SetupChipProps) {
+export function SetupChip({ lapSessionId, laps, refLapId, refName }: SetupChipProps) {
   // The ideal lap is always the lap's own session's.
   const sameSessionRef = refLapId !== null && (idealRefSession(refLapId) !== null || laps.some((l) => l.lap_id === refLapId));
   // A comparison lap outside this session: fetch it to learn its session.
@@ -47,7 +49,7 @@ export function SetupChip({ lapSessionId, laps, refLapId }: SetupChipProps) {
       </HoverCard.Trigger>
       <HoverCard.Portal>
         <HoverCard.Content align="end" sideOffset={6} collisionPadding={8} className={styles.card}>
-          <div className={styles.title}>Reference → this lap</div>
+          <div className={styles.title}>{refName ? refName[0].toUpperCase() + refName.slice(1) : "Comparison"} → this lap</div>
           <ul className={styles.list} aria-label="Setup changes">
             {changes.map((c) => (
               <li key={c.key} className={styles.row}>

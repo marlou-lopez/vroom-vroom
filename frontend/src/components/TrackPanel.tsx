@@ -61,7 +61,7 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
   return (
     <section ref={panelRef} aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
       <ErrorBoundary label="track view" variant="panel" resetKeys={[model, active.id]}>
-        <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} />
+        <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} refName={refName ?? null} />
       </ErrorBoundary>
       <div ref={topRef} className={styles.top}>
       <Readout model={model} trackMap={trackMap} refName={refName ?? null} view={active.id} />
@@ -84,6 +84,7 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
           type="button" className={cx(ui.btn, ui.btnMuted, styles.expand)}
           aria-pressed={expanded}
           aria-label={expanded ? "Collapse track view" : "Expand track view"}
+          title={expanded ? "Collapse track view" : "Expand track view"}
           onClick={onToggleExpanded}
         >
           {expanded ? "⤡" : "⤢"}
@@ -106,8 +107,8 @@ function Readout({ model, trackMap, refName, view }: { model: PlaybackModel; tra
   const delta = cmp.delta[iy] ?? 0;
   const gap = Math.round(dRef - dYou);
   const understeer = corner !== null && (cmp.lap_understeer_runs ?? []).some((r) => dYou >= r.start_m && dYou <= r.end_m);
-  const standing = standingLabel(delta, refName);
-  const who = refName ?? "reference";
+  const who = refName ?? "the comparison";
+  const standing = standingLabel(delta, who);
   const gapLabel = gap > 0 ? `${who} ${gap} m ahead` : gap < 0 ? `${who} ${-gap} m behind` : standing ? null : `level with ${who}`;
     return (
     <Fragment>

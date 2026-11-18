@@ -11,6 +11,7 @@ import { usePlaybackStore } from "../../../state/playback";
 import ui from "../../ui.module.css";
 import { buildScene, carPositions, type CarSync } from "../detailed/scene";
 import { AnnotationBadges } from "../shared/AnnotationBadges";
+import { ExperimentalTag, OptionRow, ViewOptions } from "../shared/ViewOptions";
 import { useBenchHud } from "../shared/useBenchHud";
 import { useGpuRenderer } from "../shared/useGpuRenderer";
 import { loadSetting, loadString, saveString } from "../shared/storage";
@@ -64,7 +65,10 @@ function loadSplit(): boolean {
 }
 
 /** Experimental 3D view (#39): the track as a ribbon with elevation, both cars, and chase / cockpit (#100) / orbit / top-down cameras. */
-export function RibbonView({ model, geometry, annotations, handlers, lapTimes, lapValid }: TrackViewProps) {
+export function RibbonView({ model, geometry, annotations, handlers, lapTimes, lapValid, refName }: TrackViewProps) {
+  // A lap of another session is named by its full label, which already carries a time.
+  const cmpName = refName && !/\d:\d\d\.\d{3}/.test(refName) ? refName[0].toUpperCase() + refName.slice(1) : "Comparison";
+  const cmpLower = refName ?? "the comparison lap";
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
@@ -360,17 +364,17 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
       <div ref={hostRef} className={styles.host} aria-hidden="true" />
       <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} />
       {split && (
-        <div className={styles.panes} role="group" aria-label="Lap and reference lap, side by side">
+        <div className={styles.panes} role="group" aria-label={`Lap and ${cmpLower}, side by side`}>
           <div className={cx(styles.pane, styles.paneLap)}>
             <span className={styles.paneTitle}>{paneTitle("Lap", lapTimes?.lap ?? cmp.lap.t[cmp.lap.t.length - 1] ?? null)}</span>
             <span ref={(el) => { paneEls.current.lapInfo = el; }} className={styles.paneInfo} />
           </div>
           <div className={cx(styles.pane, styles.paneRef)}>
-            <span className={styles.paneTitle}>{paneTitle("Reference", lapTimes?.ref ?? cmp.ref.t[cmp.ref.t.length - 1] ?? null)}</span>
+            <span className={styles.paneTitle}>{paneTitle(cmpName, lapTimes?.ref ?? cmp.ref.t[cmp.ref.t.length - 1] ?? null)}</span>
             <span ref={(el) => { paneEls.current.refInfo = el; }} className={styles.paneInfo} />
           </div>
           <div className={styles.seam} />
-          <div className={styles.deltaPill} title="Lap minus reference at the lap car's metre; + means the lap is behind">
+          <div className={styles.deltaPill} title={`Lap minus ${cmpLower} at the lap car's metre; + means the lap is behind`}>
             <span className={styles.tag}>Δ</span>
             <span ref={(el) => { paneEls.current.delta = el; }} />
           </div>
@@ -392,60 +396,62 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
           >
             {VIEW_MODES.map((m) => <ToggleGroup.Item key={m} value={m} className={ui.toggleItem}>{MODE_LABEL[m]}</ToggleGroup.Item>)}
           </ToggleGroup.Root>
-          <span className={styles.tag}>Cars</span>
-          <ToggleGroup.Root
-            type="single" aria-label="Car sync" className={styles.group} value={sync} disabled={running}
-            onValueChange={selectSync}
-          >
-            <ToggleGroup.Item value="time" className={ui.toggleItem}>Time</ToggleGroup.Item>
-            <ToggleGroup.Item value="distance" className={ui.toggleItem}>Distance</ToggleGroup.Item>
-          </ToggleGroup.Root>
           <button
             type="button" className={cx(ui.btn, styles.small)} aria-pressed={split} disabled={running} onClick={selectSplit}
-            title="Two panes: the lap and the reference lap, each followed by its own camera"
+            title={`Two panes: the lap and ${cmpLower}, each followed by its own camera`}
           >
             Split
           </button>
-          <span className={styles.tag}>experimental</span>
-        </div>
-        <div className={styles.bar}>
-          {hasElevation ? (
-            <label className={styles.exag} title="Stretches the heights; 1x is the true shape">
-              <span className={styles.tag}>Elevation</span>
-              <Slider.Root
-                className={styles.sliderRoot} min={EXAGGERATION_MIN} max={EXAGGERATION_MAX} step={0.5} value={[exag]}
-                disabled={running}
-                onValueChange={([v]) => changeExaggeration(v)}
-                onValueCommit={([v]) => saveString(EXAGGERATION_KEY, String(v))}
-              >
-                <Slider.Track className={styles.sliderTrack}><Slider.Range className={styles.sliderRange} /></Slider.Track>
-                <Slider.Thumb className={styles.sliderThumb} aria-label="Elevation exaggeration" aria-valuetext={`${exag}x`} />
-              </Slider.Root>
-              <span className={styles.exagValue}>{`${exag.toFixed(1)}×`}</span>
-            </label>
-          ) : (
-            <span className={styles.note} role="note">No elevation for this track</span>
-          )}
           <Suspense fallback={<button type="button" className={cx(ui.btn, styles.small)} disabled>Car</button>}>
             <CarModelControl cars={carEntries} disabled={running} />
           </Suspense>
-          {debug && (
-            <>
-              <button
-                type="button" className={cx(ui.btn, styles.small)} aria-pressed={showHud}
-                onClick={() => setShowHud((v) => !v)}
+          <ExperimentalTag />
+          <ViewOptions disabled={running}>
+            <OptionRow label="Cars" hint="Time: both cars at the same moment. Distance: both cars at the same point of the track.">
+              <ToggleGroup.Root
+                type="single" aria-label="Car sync" className={styles.group} value={sync} disabled={running}
+                onValueChange={selectSync}
               >
-                HUD
-              </button>
-              <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={startBench}>
-                {running ? "Running (60 s)" : "Run benchmark"}
-              </button>
-              <button type="button" className={cx(ui.btn, styles.small)} disabled={running || gpu !== "ok"} onClick={loseContext}>
-                Lose GPU context
-              </button>
-            </>
-          )}
+                <ToggleGroup.Item value="time" className={ui.toggleItem}>Time</ToggleGroup.Item>
+                <ToggleGroup.Item value="distance" className={ui.toggleItem}>Distance</ToggleGroup.Item>
+              </ToggleGroup.Root>
+            </OptionRow>
+            {hasElevation ? (
+              <OptionRow label="Elevation" hint="Stretches the heights; 1x is the true shape.">
+                <label className={styles.exag}>
+                  <Slider.Root
+                    className={styles.sliderRoot} min={EXAGGERATION_MIN} max={EXAGGERATION_MAX} step={0.5} value={[exag]}
+                    disabled={running}
+                    onValueChange={([v]) => changeExaggeration(v)}
+                    onValueCommit={([v]) => saveString(EXAGGERATION_KEY, String(v))}
+                  >
+                    <Slider.Track className={styles.sliderTrack}><Slider.Range className={styles.sliderRange} /></Slider.Track>
+                    <Slider.Thumb className={styles.sliderThumb} aria-label="Elevation exaggeration" aria-valuetext={`${exag}x`} />
+                  </Slider.Root>
+                  <span className={styles.exagValue}>{`${exag.toFixed(1)}×`}</span>
+                </label>
+              </OptionRow>
+            ) : (
+              <span className={styles.note} role="note">No elevation for this track</span>
+            )}
+          </ViewOptions>
         </div>
+        {debug && (
+          <div className={styles.bar}>
+            <button
+              type="button" className={cx(ui.btn, styles.small)} aria-pressed={showHud}
+              onClick={() => setShowHud((v) => !v)}
+            >
+              HUD
+            </button>
+            <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={startBench}>
+              {running ? "Running (60 s)" : "Run benchmark"}
+            </button>
+            <button type="button" className={cx(ui.btn, styles.small)} disabled={running || gpu !== "ok"} onClick={loseContext}>
+              Lose GPU context
+            </button>
+          </div>
+        )}
         {debug && showHud && hudText && <div className={styles.hud}>{hudText}</div>}
         {debug && rows.length > 0 && (
           <div className={styles.results}>

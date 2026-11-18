@@ -23,3 +23,6 @@
 .hint { color: var(--color-muted); }
 .progress { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .drop { display: flex; flex-direction: column; gap: 4px; }
+.more { color: var(--color-muted); }
+.more summary { cursor: pointer; }
+.more[open] summary { margin-bottom: 4px; }
