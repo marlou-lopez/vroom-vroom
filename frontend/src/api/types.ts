@@ -582,3 +582,83 @@ export interface StintFalloffFuelCorrected {
     source: string;
   };
 }
+
+// ---- Session report (GET /sessions/{id}/report, vroom-bi4.11; windows in docs/session-report/windows.md) ----
+
+export type ReportCategory = "tyres" | "brakes" | "driving" | "settings" | "pace" | "conditions";
+export const REPORT_CATEGORIES: readonly ReportCategory[] = ["tyres", "brakes", "driving", "settings", "pace", "conditions"];
+export type ReportSeverity = "info" | "watch" | "problem";
+
+/** A value per axle (mean of the two wheels). */
+export interface Axles { front: number; rear: number }
+
+/** One lap of the session charts. Stat fields are null when the session has no stint stats. */
+export interface ReportLap {
+  lap_id: string;
+  lap_no: number;
+  kind: LapKind;
+  /** Official time; null when the lap has none. */
+  lap_time_s: number | null;
+  valid: boolean;
+  has_trace: boolean;
+  tyre_surface_c: Axles | null;
+  tyre_carcass_c: Axles | null;
+  tyre_pressure_kpa: Axles | null;
+  brake_c: Axles | null;
+  track_temp_c: number | null;
+  fuel_end_l: number | null;
+  energy_end_pct: number | null;
+  /** In-car setting values at the end of the lap (LMU's knob positions); null when the recording has no setting events. */
+  settings: Partial<Record<SettingName, number>> | null;
+}
+
+/** The in-car settings the recording logs (LMU event names). */
+export type SettingName = "ABSLevel" | "TCLevel" | "TCCut" | "TCSlipAngle" | "FuelMixtureMap";
+
+/** Time lost that an event coincides with: co-occurrence only, never a cause. */
+export interface ReportCoincidence {
+  /** `lap`: the laps' times against the session's best flying lap; `corner`: the corner's time against the same lap's corner time. */
+  scope: "lap" | "corner";
+  /** Mean seconds slower than the session's best, over the event's timed laps. */
+  lost_s: number;
+  laps: number[];
+}
+
+export interface ReportEvent {
+  id: string;
+  category: ReportCategory;
+  /** What the rule found, e.g. `tyre_surface_low`, `lockups`, `setting_changed`. */
+  kind: string;
+  severity: ReportSeverity;
+  lap_from: number;
+  lap_to: number;
+  /** On a traced lap: the corner and the lap distance in metres (a corner's apex, or where a setting changed). */
+  corner: { id: string; name: string } | null;
+  distance_m: number | null;
+  /** Every number the sentence uses, by name. */
+  numbers: Record<string, number>;
+  coincides: ReportCoincidence | null;
+  /** Template wording: states co-occurrence only. */
+  sentence: string;
+}
+
+/** One working window the rules used, with where it comes from. All values are editable assumptions. */
+export interface ReportWindow {
+  key: string;
+  unit: string;
+  min: number;
+  max: number;
+  source: string;
+}
+
+export interface SessionReport {
+  session_id: string;
+  car_class: string;
+  /** Tyre compound the windows are for; the recording does not name it, so the class's dry default. */
+  compound: string;
+  laps: ReportLap[];
+  events: ReportEvent[];
+  windows: ReportWindow[];
+  /** Categories that could not be judged, and why (e.g. no stint stats). */
+  unavailable: { category: ReportCategory; reason: string }[];
+}

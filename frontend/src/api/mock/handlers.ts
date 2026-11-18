@@ -85,6 +85,7 @@ export function createHandlers(engine: Api): HttpHandler[] {
     }),
     http.get("*/api/llm/usage", () => reply(() => engine.llmUsage())),
     http.get("*/api/sessions/:id/stints", ({ params }) => reply(() => engine.sessionStints(str(params.id)))),
+    http.get("*/api/sessions/:id/report", ({ params }) => reply(() => engine.sessionReport(str(params.id)))),
   ];
 }
 

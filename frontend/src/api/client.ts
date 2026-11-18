@@ -2,7 +2,7 @@ import {
   ApiError,
   type CalibrationResult, type CoachRequest, type CoachResult, type CoachResults, type CompareCandidate,
   type CarSetup, type CompareResponse, type Finding, type GridChannel, type IdealLap, type IdealScope, type ImportResult, type LandmarkPatch, type SegmentTimes, type NewLandmark,
-  type LapMeta, type LapPatch, type LapWithRef, type LlmUsage, type SessionMeta, type SessionSummary,
+  type LapMeta, type LapPatch, type LapWithRef, type LlmUsage, type SessionMeta, type SessionReport, type SessionSummary,
   type Stint, type TraceResponse, type TrackGeometry, type TrackMap,
 } from "./types";
 
@@ -43,6 +43,12 @@ export interface Api {
    * without a fuel-weight constant). Empty when the recording has no stint stats. Unknown session: `unknown_session`.
    */
   sessionStints(sessionId: string): Promise<Stint[]>;
+  /**
+   * What happened over the whole session, lap by lap (GET /sessions/{id}/report, vroom-bi4.11): per-lap series for charts, events
+   * found by fixed rules (each with the time lost it coincides with, never a cause) and the working windows used. A session without
+   * stint stats still gets a report; `unavailable` names the categories it could not judge. Unknown session: `unknown_session`.
+   */
+  sessionReport(sessionId: string): Promise<SessionReport>;
 }
 
 function query(params: Record<string, string | undefined>): string {
@@ -117,6 +123,7 @@ export function createRealApi(baseUrl = ""): Api {
     importFile: (path) => request("/import", { method: "POST", body: { path } }),
     llmUsage: () => request("/llm/usage"),
     sessionStints: (id) => request(`/sessions/${enc(id)}/stints`),
+    sessionReport: (id) => request(`/sessions/${enc(id)}/report`),
   };
 }
 

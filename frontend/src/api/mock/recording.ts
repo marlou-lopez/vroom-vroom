@@ -1,6 +1,7 @@
 // The real recordings served from /mock (Spa, Monza), and the conversion to the app's grid channels.
 // Each JSON is fetched on first use (never imported into the bundle) and every lap is converted once.
-import type { ChannelArrays } from "../types";
+import type { ChannelArrays, SettingName } from "../types";
+export type { SettingName };
 
 export interface RecordingLap {
   lap_no: number;
@@ -45,9 +46,6 @@ export interface AidActivation {
   abs_runs: number;
   tc_runs: number;
 }
-
-/** The in-car settings LMU records as change events (the recording's ABSLevel, TCLevel, TCCut, TCSlipAngle and FuelMixtureMap events). */
-export type SettingName = "ABSLevel" | "TCLevel" | "TCCut" | "TCSlipAngle" | "FuelMixtureMap";
 
 /**
  * One in-car setting change (vroom-bi4.10). `value` / `previous` are LMU's setting values (the knob position, unitless). `lap_no` is the
