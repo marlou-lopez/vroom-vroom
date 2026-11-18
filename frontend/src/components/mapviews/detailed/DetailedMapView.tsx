@@ -15,6 +15,7 @@ import { runBench, type BenchControl, type CameraMode } from "./bench";
 import { GAIN_STYLES, loadRenderer, type GainStyle } from "./renderer";
 import { buildScene, carPositions, type CarSync, type EdgeSource, type LineSource } from "./scene";
 import { AnnotationBadges } from "../shared/AnnotationBadges";
+import { ExperimentalTag, OptionRow, ViewOptions } from "../shared/ViewOptions";
 import { loadFlag, loadSetting, saveFlag, saveSetting } from "../shared/storage";
 import styles from "./DetailedMapView.module.css";
 import { useBenchHud } from "../shared/useBenchHud";
@@ -356,52 +357,57 @@ export function DetailedMapView({ model, geometry, annotations, handlers, lapVal
               North-up
             </button>
           )}
-          <button
-            type="button" className={cx(ui.btn, styles.small)} aria-pressed={lineAhead}
-            title="Show the part of each line the car has not reached yet" disabled={running} onClick={toggleLineAhead}
-          >
-            Line ahead
-          </button>
-          <span className={styles.tag} title="Green where you gain time on the comparison lap, red where you lose it">Gain/loss</span>
-          <ToggleGroup.Root
-            type="single" aria-label="Gain/loss" className={styles.group} value={gainStyle} disabled={running}
-            onValueChange={selectGainStyle}
-          >
-            <ToggleGroup.Item value="off" className={ui.toggleItem}>Off</ToggleGroup.Item>
-            <ToggleGroup.Item value="side" className={ui.toggleItem} title="A line left of the track">Beside</ToggleGroup.Item>
-            <ToggleGroup.Item value="track" className={ui.toggleItem} title="Experimental: the whole track width">Track</ToggleGroup.Item>
-          </ToggleGroup.Root>
-          <span className={styles.tag} title="Experimental: track edges and kerbs from a survey of the track or, without one, rebuilt from the laps' telemetry">Edges</span>
-          <ToggleGroup.Root
-            type="single" aria-label="Track edges" className={styles.group} value={edgeSource} disabled={running}
-            onValueChange={(v) => {
-              if (v !== "stand-in" && v !== "telemetry") return;
-              setEdgeSourceState(v);
-              saveSetting(EDGES_KEY, v);
-            }}
-          >
-            <ToggleGroup.Item value="stand-in" className={ui.toggleItem} title="The centreline plus and minus 7 m">Stand-in</ToggleGroup.Item>
-            <ToggleGroup.Item value="telemetry" className={ui.toggleItem} title={geometry?.survey ? "Edges and kerbs from a survey of the track (shared-memory capture)" : "Edges and kerbs from the laps' telemetry"}>{geometry?.survey ? "Survey" : "Telemetry"}</ToggleGroup.Item>
-          </ToggleGroup.Root>
-          <span className={styles.tag}>experimental</span>
           <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={fit}>Fit</button>
-          {debug && (
-            <>
+          <ExperimentalTag />
+          <ViewOptions disabled={running}>
+            <OptionRow label="Line ahead" hint="Show the part of each line the car has not reached yet.">
               <button
-                type="button" className={cx(ui.btn, styles.small)} aria-pressed={showHud}
-                onClick={() => setShowHud((v) => !v)}
+                type="button" className={cx(ui.btn, styles.small)} aria-pressed={lineAhead}
+                disabled={running} onClick={toggleLineAhead}
               >
-                HUD
+                {lineAhead ? "On" : "Off"}
               </button>
-              <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={startBench}>
-                {running ? "Running (30 s)" : "Run benchmark"}
-              </button>
-              <button type="button" className={cx(ui.btn, styles.small)} disabled={running || gpu !== "ok"} onClick={loseContext}>
-                Lose GPU context
-              </button>
-            </>
-          )}
+            </OptionRow>
+            <OptionRow label="Gain/loss" hint="Green where you gain time on the comparison lap, red where you lose it.">
+              <ToggleGroup.Root
+                type="single" aria-label="Gain/loss" className={styles.group} value={gainStyle} disabled={running}
+                onValueChange={selectGainStyle}
+              >
+                <ToggleGroup.Item value="off" className={ui.toggleItem}>Off</ToggleGroup.Item>
+                <ToggleGroup.Item value="side" className={ui.toggleItem} title="A line left of the track">Side line</ToggleGroup.Item>
+                <ToggleGroup.Item value="track" className={ui.toggleItem} title="Colours the whole track width">On track</ToggleGroup.Item>
+              </ToggleGroup.Root>
+            </OptionRow>
+            <OptionRow
+              label="Track edges"
+              hint={geometry?.survey
+                ? "Estimated: the track centreline plus and minus 7 m. Measured: edges and kerbs from a survey of the track."
+                : "Estimated: the track centreline plus and minus 7 m. From laps: edges and kerbs rebuilt from the laps' telemetry."}
+            >
+              <ToggleGroup.Root
+                type="single" aria-label="Track edges" className={styles.group} value={edgeSource} disabled={running}
+                onValueChange={(v) => {
+                  if (v !== "stand-in" && v !== "telemetry") return;
+                  setEdgeSourceState(v);
+                  saveSetting(EDGES_KEY, v);
+                }}
+              >
+                <ToggleGroup.Item value="stand-in" className={ui.toggleItem} title="The racing line plus and minus 7 m">Estimated</ToggleGroup.Item>
+                <ToggleGroup.Item value="telemetry" className={ui.toggleItem} title={geometry?.survey ? "Edges and kerbs from a survey of the track" : "Edges and kerbs rebuilt from the laps' telemetry"}>{geometry?.survey ? "Measured" : "From laps"}</ToggleGroup.Item>
+              </ToggleGroup.Root>
+            </OptionRow>
+            <OptionRow label="Cars" hint="Time: both cars at the same moment. Distance: both cars at the same point of the track.">
+              <ToggleGroup.Root
+                type="single" aria-label="Car sync" className={styles.group} value={sync} disabled={running}
+                onValueChange={selectSync}
+              >
+                <ToggleGroup.Item value="time" className={ui.toggleItem}>Time</ToggleGroup.Item>
+                <ToggleGroup.Item value="distance" className={ui.toggleItem}>Distance</ToggleGroup.Item>
+              </ToggleGroup.Root>
+            </OptionRow>
+          </ViewOptions>
         </div>
+        {debug && (
         <div className={styles.bar}>
           {debug && (
             <>
@@ -423,15 +429,24 @@ export function DetailedMapView({ model, geometry, annotations, handlers, lapVal
               )}
             </>
           )}
-          <span className={styles.tag}>Cars</span>
-          <ToggleGroup.Root
-            type="single" aria-label="Car sync" className={styles.group} value={sync} disabled={running}
-            onValueChange={selectSync}
-          >
-            <ToggleGroup.Item value="time" className={ui.toggleItem}>Time</ToggleGroup.Item>
-            <ToggleGroup.Item value="distance" className={ui.toggleItem}>Distance</ToggleGroup.Item>
-          </ToggleGroup.Root>
+          {debug && (
+            <>
+              <button
+                type="button" className={cx(ui.btn, styles.small)} aria-pressed={showHud}
+                onClick={() => setShowHud((v) => !v)}
+              >
+                HUD
+              </button>
+              <button type="button" className={cx(ui.btn, styles.small)} disabled={running} onClick={startBench}>
+                {running ? "Running (30 s)" : "Run benchmark"}
+              </button>
+              <button type="button" className={cx(ui.btn, styles.small)} disabled={running || gpu !== "ok"} onClick={loseContext}>
+                Lose GPU context
+              </button>
+            </>
+          )}
         </div>
+        )}
         {debug && showHud && hudText && <div className={styles.hud}>{hudText}</div>}
         {debug && rows.length > 0 && (
           <div className={styles.results}>

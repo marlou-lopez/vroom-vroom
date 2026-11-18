@@ -43,17 +43,26 @@ export function CarModelControl({ cars, disabled, store, validate = defaultValid
   const unique = cars.filter((c, i) => cars.findIndex((o) => o.carId === c.carId) === i);
   return (
     <Popover.Root>
-      <Popover.Trigger className={cx(ui.btn, styles.trigger)} disabled={disabled}>Car</Popover.Trigger>
+      <Popover.Trigger className={cx(ui.btn, styles.trigger)} disabled={disabled} title="Add your own 3D car model">Car</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content className={styles.content} align="end" sideOffset={6} collisionPadding={8} aria-label="Car models"
           onInteractOutside={(e) => { if (busy) e.preventDefault(); }} onEscapeKeyDown={(e) => { if (busy) e.preventDefault(); }}>
           {unique.map((c) => <CarSection key={c.carId} car={c} store={s} validate={validate} probe={probe} convert={convert} onBusy={(b) => setBusy((n) => n + (b ? 1 : -1))} />)}
           <p className={styles.help}>
-            Choose a .glb, a .zip, or a folder with a .gltf and its files (a raw Sketchfab download). Anything but a small compressed .glb
-            is converted here in your browser first: unneeded parts dropped, meshes simplified and textures shrunk, which can take a minute.
-            The same steps run on the command line with <code>node tools/optimize-car-model.mjs</code>.
+            Add a 3D model of your car and the 3D view shows it in place of the plain box. Load a file or folder, or drop one on a car below.
+            It stays in this browser and isn&apos;t uploaded. Only use a model you have the right to use.
           </p>
-          <p className={styles.help}>Stays in this browser; it isn&apos;t uploaded. Only use a model you have the right to use.</p>
+          <details className={styles.more}>
+            <summary>More</summary>
+            <p className={styles.help}>
+              Accepted: a .glb, a .zip, or a folder with a .gltf and its files (for example a glTF download from a model site).
+              Anything but a small compressed .glb is converted here in your browser first: unneeded parts dropped, meshes simplified
+              and textures shrunk, which can take a minute.
+            </p>
+            <p className={styles.help}>
+              The same steps run on the command line with <code>node tools/optimize-car-model.mjs</code>, which makes a smaller .glb.
+            </p>
+          </details>
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
@@ -113,7 +122,7 @@ function CarSection({ car, store, validate, probe, convert, onBusy }: {
       setError("This browser wouldn't store the file (storage is blocked or full). Nothing was saved.");
       return;
     }
-    const notes = [extra, bytes.byteLength > LARGE_MODEL_BYTES ? `${mb(bytes.byteLength)} is large and may draw slowly. node tools/optimize-car-model.mjs makes a smaller .glb.` : null];
+    const notes = [extra, bytes.byteLength > LARGE_MODEL_BYTES ? `${mb(bytes.byteLength)} is large and may draw slowly. Under More, below, is how to make a smaller one.` : null];
     setNote(notes.filter(Boolean).join(" ") || null);
   };
 
@@ -170,7 +179,7 @@ function CarSection({ car, store, validate, probe, convert, onBusy }: {
     await refresh();
   };
 
-  const source = meta ? `Your model: ${meta.fileName} (${formatBytes(meta.size)})` : local ? "Local file" : "Box";
+  const source = meta ? `Your model: ${meta.fileName} (${formatBytes(meta.size)})` : local ? "Local file" : "Plain box (no model added)";
 
   return (
     <section className={styles.section} aria-label={car.name}>
@@ -182,7 +191,7 @@ function CarSection({ car, store, validate, probe, convert, onBusy }: {
       >
       <div className={styles.name}>{car.name}</div>
       <div className={styles.source}>
-        <span className={styles.tag}>Source</span> <span data-testid="car-source">{source}</span>
+        <span className={styles.tag}>Model</span> <span data-testid="car-source">{source}</span>
       </div>
       <div className={styles.row}>
         <input
@@ -193,17 +202,16 @@ function CarSection({ car, store, validate, probe, convert, onBusy }: {
           ref={dirRef} type="file" multiple className={styles.file} tabIndex={-1} aria-label={`Load folder for ${car.name}`}
           {...{ webkitdirectory: "" }} onChange={(e) => void onPicked(filesFromInput(e.target.files))}
         />
-        <button type="button" className={cx(ui.btn, styles.small)} disabled={busy} onClick={() => fileRef.current?.click()}>Load file…</button>
-        <button type="button" className={cx(ui.btn, styles.small)} disabled={busy} onClick={() => dirRef.current?.click()}>Load folder…</button>
+        <button type="button" className={cx(ui.btn, styles.small)} disabled={busy} onClick={() => fileRef.current?.click()}>Choose file…</button>
+        <button type="button" className={cx(ui.btn, styles.small)} disabled={busy} onClick={() => dirRef.current?.click()}>Choose folder…</button>
         <button type="button" className={cx(ui.btn, styles.small)} disabled={!meta || busy} aria-pressed={meta?.rotate180 ?? false} onClick={() => void rotate()}>
           Rotate 180°
         </button>
         <button type="button" className={cx(ui.btn, ui.btnMuted, styles.small)} disabled={!meta || busy} onClick={() => void remove()}>Remove</button>
       </div>
-      <label className={styles.check} title="Drops unneeded parts, simplifies meshes and shrinks textures. Off: only packs the files into one .glb.">
+      <label className={styles.check} title="Makes the model smaller and quicker to draw. Off: the files are only packed into one .glb.">
         <input type="checkbox" checked={optimise} disabled={busy} onChange={(e) => setOptimise(e.target.checked)} /> Optimise
       </label>
-      <div className={styles.hint}>.glb, .zip or a folder; or drop one here.</div>
       {stage && (
         <div className={styles.progress} role="status">
           <span>{`Step ${STAGES.indexOf(stage) + 1} of ${STAGES.length}: ${STAGE_LABEL[stage]}…`}</span>
