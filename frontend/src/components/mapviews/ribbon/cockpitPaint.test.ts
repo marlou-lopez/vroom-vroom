@@ -116,9 +116,9 @@ describe("second display (delta to the reference)", () => {
   });
   it("paints the value and says behind, ahead or level", () => {
     const say = (d: number | null) => { const r = recorder(); paintDelta(r.ctx, SECOND_PX[0], SECOND_PX[1], v({ deltaS: d }), pal); return r.texts; };
-    expect(say(0.5)).toEqual(expect.arrayContaining(["+0.50", "BEHIND"]));
-    expect(say(-0.5)).toEqual(expect.arrayContaining(["-0.50", "AHEAD"]));
-    expect(say(0)).toContain("LEVEL");
-    expect(say(null)).toEqual(expect.arrayContaining(["--", "NO REFERENCE"]));
+    expect(say(0.5)).toEqual(expect.arrayContaining(["+0.50", "SLOWER"]));
+    expect(say(-0.5)).toEqual(expect.arrayContaining(["-0.50", "FASTER"]));
+    expect(say(0)).toContain("SAME PACE");
+    expect(say(null)).toEqual(expect.arrayContaining(["--", "NO LAP TO COMPARE"]));
   });
 });

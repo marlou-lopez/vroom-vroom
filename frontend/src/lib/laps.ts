@@ -28,3 +28,12 @@ export function defaultLap<T extends LapMeta & { is_reference: boolean }>(laps: 
 export function lapTag(l: Pick<LapMeta, "kind" | "valid" | "valid_override">): LapKind | "invalid" {
   return l.kind === "flying" && !effectiveValid(l) ? "invalid" : l.kind;
 }
+
+/** Plain-language tag for a lap kind (vroom-eso): what a first-time driver reads, not the recorder's term. */
+export const LAP_KIND_TEXT: Record<LapKind | "invalid", string> = {
+  flying: "timed lap",
+  out: "out lap (from the pits)",
+  in: "in lap (to the pits)",
+  incomplete: "incomplete lap",
+  invalid: "invalid lap",
+};

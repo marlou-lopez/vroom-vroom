@@ -346,7 +346,7 @@ export function paintDelta(ctx: Ctx2D, w: number, h: number, v: DashValues, pal:
   ctx.textAlign = "center";
   ctx.fillStyle = pal.muted;
   ctx.font = `600 20px ${FONT}`;
-  ctx.fillText("DELTA TO REFERENCE", w / 2, 36);
+  ctx.fillText("TIME VS YOUR BEST LAP", w / 2, 36);
   ctx.fillStyle = colour;
   ctx.font = `700 92px ${FONT}`;
   ctx.fillText(deltaLabel(d), w / 2, 118);
@@ -370,5 +370,5 @@ export function paintDelta(ctx: Ctx2D, w: number, h: number, v: DashValues, pal:
   ctx.fillRect(mid - 1.5, by - 6, 3, bh + 12);
   ctx.fillStyle = pal.muted;
   ctx.font = `600 18px ${FONT}`;
-  ctx.fillText(d == null ? "NO REFERENCE" : d > 0.005 ? "BEHIND" : d < -0.005 ? "AHEAD" : "LEVEL", w / 2, h - 30);
+  ctx.fillText(d == null ? "NO LAP TO COMPARE" : d > 0.005 ? "SLOWER" : d < -0.005 ? "FASTER" : "SAME PACE", w / 2, h - 30);
 }

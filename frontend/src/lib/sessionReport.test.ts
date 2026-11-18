@@ -244,7 +244,7 @@ describe("buildSessionReport", () => {
         numbers: { first_runs: 0, last_runs: 6, n_window: 3, first_lap_from: 1, first_lap_to: 3, last_lap_from: 7, last_lap_to: 9 },
         coincides: { scope: "corner", lost_s: 0.7 },
       });
-      expect(e.sentence).toBe("Lock-ups at Beta rose from 0 in the first 3 flying laps (laps 1 to 3) to 6 in the last 3 (laps 7 to 9). It coincides with 0.70 s lost in that corner on those laps.");
+      expect(e.sentence).toBe("Lock-ups at Beta rose from 0 in the first 3 timed laps (laps 1 to 3) to 6 in the last 3 (laps 7 to 9). It coincides with 0.70 s lost in that corner on those laps.");
       expect(e.sentence).not.toMatch(/because|grip|load|bias/i);
     });
 

@@ -7,7 +7,7 @@ import { comparisonName } from "../../lib/compareName";
 import { cx } from "../../lib/cx";
 import { formatLapTime, formatShortDate } from "../../lib/format";
 import { formatGap } from "../../lib/idealGauge";
-import { defaultLap } from "../../lib/laps";
+import { defaultLap, LAP_KIND_TEXT } from "../../lib/laps";
 import { loadSetting, saveSetting } from "../mapviews/shared/storage";
 import { SetupChip } from "../SetupChip";
 import ui from "../ui.module.css";
@@ -203,7 +203,7 @@ export function LapRail({ session, laps, lap, refLapId, candidates, warning, inv
                 <span className={styles.lapNo}>L{l.lap_no}</span>
                 <span className={styles.lapTime}>{l.lap_time_s === null ? "—" : formatLapTime(l.lap_time_s)}</span>
                 <span className={styles.lapGap}>
-                  {l.kind !== "flying" ? l.kind.toUpperCase() : !effectiveValid(l) ? "invalid" : gap === 0 ? "best" : gap === null ? "" : formatGap(gap)}
+                  {l.kind !== "flying" ? <span title={LAP_KIND_TEXT[l.kind]}>{l.kind} lap</span> : !effectiveValid(l) ? "invalid" : gap === 0 ? "best" : gap === null ? "" : formatGap(gap)}
                   {l.is_reference && <span title="Your best lap on this track and car"> ★</span>}
                 </span>
               </button>

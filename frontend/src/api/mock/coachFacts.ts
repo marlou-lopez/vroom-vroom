@@ -214,7 +214,7 @@ export function narrate(c: CornerComparison, kind: "issue" | "minor" | "strength
   const where = (side: CornerSide) => (Math.abs(side.minIdx - corner.apex_m) <= 100 ? apexDesc(side.minIdx, corner.apex_m) : null);
   const [whereLap, whereRef] = [where(lap), where(ref)];
   const [speedA, speedB] = pair(lap.minSpeed, ref.minSpeed).split(" / ");
-  const speeds = `${speedA} km/h against ${speedB} on the reference`;
+  const speeds = `${speedA} km/h against ${speedB} on your best lap`;
   const steerDiff = lap.steerExtrema - ref.steerExtrema;
   const braked = lap.peakBrake >= 0.05 || ref.peakBrake >= 0.05;
 
@@ -226,8 +226,8 @@ export function narrate(c: CornerComparison, kind: "issue" | "minor" | "strength
       ? `brake onset ${brakeLap} / ${brakeRef}`
       : braked ? `peak brake ${(lap.peakBrake * 100).toFixed(0)}% / ${(ref.peakBrake * 100).toFixed(0)}%` : null,
     throttle: thrLap && thrRef ? `throttle pickup ${thrLap} / ${thrRef}` : null,
-    steering: steerDiff !== 0 ? `${Math.abs(steerDiff)} ${steerDiff > 0 ? "more" : "fewer"} steering corrections than the reference` : null,
-    // Understeer only, and only when this lap clearly understeers more than the reference. Oversteer is never a coach fact.
+    steering: steerDiff !== 0 ? `${Math.abs(steerDiff)} ${steerDiff > 0 ? "more" : "fewer"} steering corrections than your best lap` : null,
+    // Understeer only, and only when this lap clearly understeers more than your best lap. Oversteer is never a coach fact.
     understeer: lap.understeer && ref.understeer && lap.understeer.peak >= BALANCE_MARK_DEG_S && lap.understeer.peak - ref.understeer.peak >= 3
       ? `understeer peak ${n0(lap.understeer.peak)} deg/s / ${n0(ref.understeer.peak)} deg/s`
       : null,
@@ -242,14 +242,14 @@ export function narrate(c: CornerComparison, kind: "issue" | "minor" | "strength
     const faster = lap.minSpeed - ref.minSpeed >= 1;
     const parts: string[] = [];
     if (faster) parts.push(`minimum speed ${speeds}`);
-    if (steerDiff <= -2) parts.push(`${-steerDiff} fewer steering corrections than the reference`);
-    if (thrLap && thrRef && lap.throttlePickup! < ref.throttlePickup! - 15) parts.push(`throttle pickup ${thrLap} (the reference ${thrRef})`);
+    if (steerDiff <= -2) parts.push(`${-steerDiff} fewer steering corrections than your best lap`);
+    if (thrLap && thrRef && lap.throttlePickup! < ref.throttlePickup! - 15) parts.push(`throttle pickup ${thrLap} (your best lap ${thrRef})`);
     if (!parts.length) {
       const [a, b] = pair(lap.exitSpeed, ref.exitSpeed).split(" / ");
-      parts.push(`exit speed ${a} km/h against ${b} on the reference`);
+      parts.push(`exit speed ${a} km/h against ${b} on your best lap`);
     };
     return {
-      what: `Quicker than the reference through ${corner.name}: ${parts.join(", ")}.`,
+      what: `Quicker than your best lap through ${corner.name}: ${parts.join(", ")}.`,
       fix: "Keep it.", cue: "none", evidence: pack(faster ? "speed" : "exit"), cause: "speed",
     };
   }
@@ -262,28 +262,28 @@ export function narrate(c: CornerComparison, kind: "issue" | "minor" | "strength
   switch (cause) {
     case "brake": {
       const earlier = lap.brakeOnset! < ref.brakeOnset!;
-      const cmp = brakeLap && brakeRef ? ` (${brakeLap}; the reference brakes ${brakeRef})` : "";
+      const cmp = brakeLap && brakeRef ? ` (${brakeLap}; your best lap brakes ${brakeRef})` : "";
       const fix = brakeRef
-        ? `Brake ${brakeRef} and hold that reference every lap.`
+        ? `Brake ${brakeRef} and hold that marker every lap.`
         : earlier
           ? "Brake a little later and pick one fixed trackside marker for the braking point."
           : "Brake a little earlier and pick one fixed trackside marker for the braking point.";
       return {
-        what: `You start braking ${earlier ? "earlier" : "later"} than the reference${cmp}${speedClause}.`,
+        what: `You start braking ${earlier ? "earlier" : "later"} than your best lap${cmp}${speedClause}.`,
         fix, cue: brakeRef ? "landmark" : "feel", evidence: pack("brake"), cause,
       };
     }
     case "throttle": {
-      const cmp = thrLap && thrRef ? ` ${thrLap} (the reference ${thrRef})` : "";
+      const cmp = thrLap && thrRef ? ` ${thrLap} (your best lap ${thrRef})` : "";
       return {
-        what: `You pick up the throttle later than the reference${cmp}, and leave ${corner.name} at ${n0(lap.exitSpeed)} km/h against ${n0(ref.exitSpeed)}.`,
+        what: `You pick up the throttle later than your best lap${cmp}, and leave ${corner.name} at ${n0(lap.exitSpeed)} km/h against ${n0(ref.exitSpeed)}.`,
         fix: thrRef ? `Get back on the throttle ${thrRef}.` : "Get back on the throttle earlier, as soon as the car is pointing at the exit.",
         cue: apexKerb.length ? "landmark" : "feel", evidence: pack("throttle"), cause,
       };
     }
     case "steering":
       return {
-        what: `You make ${steerDiff} more steering corrections through ${corner.name} than the reference${speedClause}.`,
+        what: `You make ${steerDiff} more steering corrections through ${corner.name} than your best lap${speedClause}.`,
         fix: "Turn in once and hold one steady steering input to the apex, without correcting.",
         cue: "feel", evidence: pack("steering"), cause,
       };
