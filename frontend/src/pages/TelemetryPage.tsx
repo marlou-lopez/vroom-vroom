@@ -16,6 +16,7 @@ import { Transport } from "../components/Transport";
 import { cornerRailRows } from "../lib/cornerRail";
 import { CornerRail } from "../components/workspace/CornerRail";
 import { LapRail } from "../components/workspace/LapRail";
+import { SimpleView } from "../components/simple/SimpleView";
 import wsStyles from "../components/workspace/Workspace.module.css";
 import { leadInTime, toAnnotations, type Annotation } from "../lib/annotations";
 import { effectiveValid, type Corner } from "../api/types";
@@ -214,6 +215,16 @@ function Telemetry() {
     { id: "detailed", label: "Detailed" },
     { id: "simplified", label: "Simplified" },
   ];
+
+  // EXPERIMENTAL (spike vroom-pnw.50): `?ui=simple` swaps the page for the plain-language Simple view prototype.
+  if (params.get("ui") === "simple" && ctx && cmp && model) {
+    return (
+      <SimpleView
+        laps={ctx.laps} lapId={ctx.lap.lap_id} cmp={cmp} model={model} trackMap={trackMap} candidates={candidates}
+        coach={coach} onSelectLap={selectLap} onSelectRef={selectRef}
+      />
+    );
+  }
 
   return (
     <AnnotationCardProvider value={cardActions}>
