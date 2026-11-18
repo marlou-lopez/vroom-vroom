@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState, type PointerEvent } from "react";
 import { aidRuns, mapSpan } from "../../lib/driverAids";
 import { BALANCE_HINT, balanceEnabled, balanceFromContract } from "../../lib/carBalance";
+import { CORNER_LEAD_M } from "../../lib/annotations";
 import { offTrackRuns } from "../../lib/offTrack";
 import { MAP_H, MAP_PAD, MAP_W } from "../../lib/model";
 import { distanceAtTime, timeAtDistance } from "../../lib/playback";
-import { cornerAt, MAP_HIT_PX, pointAtDistance, SCRUB_WINDOW_M, scrubTarget, cornerSegmentPath, segmentPath } from "../../lib/trackmap";
+import { cornerAt, readoutCorner, MAP_HIT_PX, pointAtDistance, SCRUB_WINDOW_M, scrubTarget, cornerSegmentPath, segmentPath } from "../../lib/trackmap";
 import { usePlayback, usePlaybackStore } from "../../state/playback";
 import { MapBadges, MapSegments } from "../AnnotationOverlays";
 import type { TrackViewProps } from "./types";
@@ -42,7 +43,8 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
   const dRef = distanceAtTime(cmp.ref.t, cmp.distance, tau);
   const you = pointAtDistance(proj, cmp.distance, dYou);
   const ref = pointAtDistance(proj, cmp.distance, dRef);
-  const corner = trackMap ? cornerAt(trackMap, dYou) : null;
+  const leadInId = usePlayback((s) => s.leadInCornerId);
+  const corner = trackMap ? (readoutCorner(trackMap, dYou, leadInId, CORNER_LEAD_M)?.corner ?? null) : null;
 
   // The tinted segment only changes when the corner does.
   const cornerId = corner?.id ?? null;

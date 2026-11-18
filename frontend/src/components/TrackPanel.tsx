@@ -7,7 +7,8 @@ import { distanceAtTime, indexAtTime } from "../lib/playback";
 import { formatDelta, gearLabel } from "../lib/format";
 import { cx } from "../lib/cx";
 import { standingLabel } from "../lib/compareName";
-import { cornerAt } from "../lib/trackmap";
+import { cornerAt, readoutCorner } from "../lib/trackmap";
+import { CORNER_LEAD_M } from "../lib/annotations";
 import { usePlayback } from "../state/playback";
 import { loadTrackView, saveTrackView } from "../state/mapViewPref";
 import type { BadgeHandlers } from "./AnnotationOverlays";
@@ -103,6 +104,8 @@ function Readout({ model, trackMap, refName, view }: { model: PlaybackModel; tra
   const iy = indexAtTime(cmp.lap.t, tau);
   const dYou = distanceAtTime(cmp.lap.t, cmp.distance, tau);
   const dRef = distanceAtTime(cmp.ref.t, cmp.distance, tau);
+  const leadInId = usePlayback((s) => s.leadInCornerId);
+  const named = trackMap ? readoutCorner(trackMap, dYou, leadInId, CORNER_LEAD_M) : null;
   const corner = trackMap ? cornerAt(trackMap, dYou) : null;
   const delta = cmp.delta[iy] ?? 0;
   const gap = Math.round(dRef - dYou);
@@ -113,7 +116,7 @@ function Readout({ model, trackMap, refName, view }: { model: PlaybackModel; tra
     return (
     <Fragment>
       <div className={styles.readout} data-view={view}>
-        <div className={styles.corner}>{corner ? corner.name : "Straight"}{understeer && <span className={styles.balance}>understeer</span>}</div>
+        <div className={styles.corner}>{named ? (named.approaching ? `Approaching ${named.corner.name}` : named.corner.name) : "Straight"}{understeer && <span className={styles.balance}>understeer</span>}</div>
         <div className={cx(styles.mono, styles.muted)}>
           {Math.round(dYou).toLocaleString("en-US")} m · gear {gearLabel(cmp.lap.gear[iy])} · {Math.round(cmp.lap.speed_kmh[iy])} / {Math.round(cmp.ref.speed_kmh[indexAtTime(cmp.ref.t, tau)])} km/h
         </div>

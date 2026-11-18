@@ -49,3 +49,21 @@ describe("playback store", () => {
     expect(fn).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("leadInCornerId", () => {
+  it("is set by a corner seek and cleared by any other seek, a lap change or a wrap", () => {
+    const s = createPlaybackStore({ duration: 10 });
+    s.seek(3, "c1");
+    expect(s.getState().leadInCornerId).toBe("c1");
+    s.tick(0.5);
+    expect(s.getState().leadInCornerId).toBe("c1");
+    s.seek(4);
+    expect(s.getState().leadInCornerId).toBeNull();
+    s.seek(9, "c1");
+    s.tick(2);
+    expect(s.getState().leadInCornerId).toBeNull();
+    s.seek(3, "c1");
+    s.setLaps("x", "y");
+    expect(s.getState().leadInCornerId).toBeNull();
+  });
+});
