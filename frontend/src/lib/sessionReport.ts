@@ -55,6 +55,14 @@ export const RULES = {
   minCornerLostS: 0.03,
   lockupMinLaps: 2,
   wheelspinMinLaps: 2,
+  /**
+   * Lock-up and wheelspin trend per corner (vroom-bij): traced flying laps, first third against last third (at least `cornerTrendMinLaps`
+   * laps in all). Reported when one third has at least `cornerTrendMinCount` runs in the corner and the two differ by `cornerTrendMinChange`.
+   * The 'repeated' event is the per-corner `lockups` / `wheelspins` event above (`lockupMinLaps`, `wheelspinMinLaps`).
+   */
+  cornerTrendMinLaps: 6,
+  cornerTrendMinCount: 3,
+  cornerTrendMinChange: 2,
   /** Mean metres per lap with ABS / TC active in one corner before it is reported, and at most this many corners of each. */
   absCornerMinM: 15,
   tcCornerMinM: 10,
@@ -384,6 +392,31 @@ function drivingEvents(
         say: (nn) => `The car ${word} at ${c.name} on ${nn.n_laps} of ${nn.n_traced} traced laps (${nn.runs} times, ${range(nn)}).`,
         corner: c, distance_m: c.apex_m, coincides: cornerLoss(laps, i),
       });
+    }
+  }
+  // Trend per corner: the same runs, first third of the traced flying laps against the last third.
+  const flying = traced.filter(([lap]) => input.laps.some((l) => l.lap_no === lap && l.kind === "flying")).sort((a, b) => a[0] - b[0]);
+  const third = Math.floor(flying.length / 3);
+  if (flying.length >= RULES.cornerTrendMinLaps && third >= 2) {
+    for (const [kind, label] of [["lockup", "Lock-ups"], ["wheelspin", "Wheelspin"]] as const) {
+      for (const { c, i, perLap } of perCorner(kind)) {
+        const byLap = new Map(perLap.map((x) => [x.lap, x.runs]));
+        const head = flying.slice(0, third).map(([lap]) => lap), tail = flying.slice(-third).map(([lap]) => lap);
+        const count = (ls: number[]) => ls.reduce((a, l) => a + (byLap.get(l) ?? 0), 0);
+        const first = count(head), last = count(tail);
+        if (Math.max(first, last) < RULES.cornerTrendMinCount || Math.abs(last - first) < RULES.cornerTrendMinChange) continue;
+        const rising = last > first;
+        const laps = (rising ? tail : head).filter((l) => (byLap.get(l) ?? 0) > 0);
+        add({
+          category: "driving", kind: `${kind}_trend`, severity: "watch",
+          laps, numbers: {
+            ...withRange(laps, {}), n_window: third, first_runs: first, last_runs: last,
+            first_lap_from: head[0], first_lap_to: head[third - 1], last_lap_from: tail[0], last_lap_to: tail[third - 1],
+          },
+          say: (nn) => `${label} at ${c.name} ${rising ? "rose" : "fell"} from ${nn.first_runs} in the first ${nn.n_window} flying laps (laps ${nn.first_lap_from} to ${nn.first_lap_to}) to ${nn.last_runs} in the last ${nn.n_window} (laps ${nn.last_lap_from} to ${nn.last_lap_to}).`,
+          corner: c, distance_m: c.apex_m, coincides: cornerLoss(laps, i),
+        });
+      }
     }
   }
   for (const [kind, label, minM] of [["abs", "ABS", RULES.absCornerMinM], ["tc", "Traction control", RULES.tcCornerMinM]] as const) {
