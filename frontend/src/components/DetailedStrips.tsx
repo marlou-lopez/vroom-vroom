@@ -486,9 +486,9 @@ function StripPicker({ choice: stored, available, onChange }: { choice: StripId[
   return (
     <div className={styles.pickerBar}>
       <Popover.Root>
-        <Popover.Trigger className={styles.pickerButton} aria-label="Choose strips">Strips</Popover.Trigger>
+        <Popover.Trigger className={styles.pickerButton} aria-label="Choose strips">Choose strips</Popover.Trigger>
         <Popover.Portal>
-          <Popover.Content className={styles.picker} align="end" sideOffset={4} aria-label="Strips">
+          <Popover.Content className={styles.picker} align="end" sideOffset={4} aria-label="Choose strips">
             <ul className={styles.pickerList} aria-label="Shown strips">
               {choice.map((id, i) => (
                 <li key={id} className={styles.pickerRow}>
