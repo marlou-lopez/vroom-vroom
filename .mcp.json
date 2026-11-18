@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@0.0.85", "--config", "frontend/scripts/playwright-mcp.json"],
+      "env": { "DBUS_SESSION_BUS_ADDRESS": "disabled:" }
+    }
+  }
+}
