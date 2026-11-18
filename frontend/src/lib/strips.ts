@@ -144,41 +144,47 @@ export function symmetricRange(minHalf: number, ...arrs: ArrayLike<number>[]): R
   return [-m, m];
 }
 
-// ---- Window control (vroom-pnw.35) ----
+// ---- Window: follows the playhead, zoom sets only its width (vroom-pnw.48) ----
 
-export type WindowMode = "corner" | "700" | "lap";
-export const WINDOW_MODES: ReadonlyArray<{ id: WindowMode; label: string }> = [
-  { id: "corner", label: "Corner" },
-  { id: "700", label: "700 m" },
-  { id: "lap", label: "Lap" },
-];
-export const WINDOW_MODE_KEY = "vroom.stripWindow";
-/** Half of the default 700 m window. */
-export const DEFAULT_HALF_M = 350;
+export const WINDOW_WIDTH_KEY = "vroom.stripWidth";
+/** Default window width (m), and the narrowest zoom. */
+export const DEFAULT_WINDOW_M = 700;
+export const MIN_WINDOW_M = 100;
 /** Corner fit: padding as a fraction of the corner's length, at least `CORNER_MIN_PAD_M` either side, and a floor on the half-window. */
 export const CORNER_PAD_FRAC = 0.25;
 export const CORNER_MIN_PAD_M = 40;
 export const CORNER_MIN_HALF_M = 60;
 
-export function parseWindowMode(v: unknown): WindowMode {
-  return v === "corner" || v === "lap" || v === "700" ? v : "700";
-}
-
 export interface CornerSpan { startM: number; endM: number }
 export interface StripView { min: number; max: number; playhead: number }
 
-/** The corner a corner-fit window shows at playhead `d`: the one containing it (also over the start line), else the next one ahead, else the first. */
-export function pickCorner<T extends CornerSpan>(corners: readonly T[], d: number): T | null {
-  if (corners.length === 0) return null;
-  const inside = corners.find((c) => (c.startM <= c.endM ? d >= c.startM && d <= c.endM : d >= c.startM || d <= c.endM));
-  if (inside) return inside;
-  let next: T | null = null;
-  let first = corners[0];
-  for (const c of corners) {
-    if (c.startM < first.startM) first = c;
-    if (c.startM > d && (!next || c.startM < next.startM)) next = c;
-  }
-  return next ?? first;
+/** A window width kept between `MIN_WINDOW_M` and the whole lap (`lapSpan` m); a lap shorter than the minimum is always shown whole. */
+export function clampWidth(width: number, lapSpan: number): number {
+  const w = Number.isFinite(width) ? width : DEFAULT_WINDOW_M;
+  return Math.min(Math.max(w, MIN_WINDOW_M), Math.max(lapSpan, 1));
+}
+
+/** A stored window width: a finite number of at least `MIN_WINDOW_M`, else the default. */
+export function parseWidth(v: unknown): number {
+  const n = typeof v === "string" && v.trim() !== "" ? Number(v) : typeof v === "number" ? v : NaN;
+  return Number.isFinite(n) && n >= MIN_WINDOW_M ? n : DEFAULT_WINDOW_M;
+}
+
+/** The width after a zoom step: `factor` > 1 zooms out (wider), < 1 zooms in. */
+export function zoomWidth(width: number, factor: number, lapSpan: number): number {
+  return clampWidth(width * factor, lapSpan);
+}
+
+/** Zoom factor for a wheel event: continuous, wheel down (deltaY > 0) zooms out; a pinch (ctrlKey) sends smaller deltas. */
+export function wheelFactor(deltaY: number, pinch: boolean): number {
+  return Math.exp(Math.max(-100, Math.min(100, deltaY)) * (pinch ? 0.01 : 0.0015));
+}
+
+/** Window centre after panning the trace by `dxPx` from `startCentre`: the trace follows the pointer. Kept inside the lap. */
+export function stripPanCentre(startCentre: number, dxPx: number, plotPx: number, width: number, minM: number, maxM: number): number {
+  if (plotPx <= 0) return startCentre;
+  const half = Math.min(width, maxM - minM) / 2;
+  return Math.min(Math.max(startCentre - dxPx * (width / plotPx), minM + half), maxM - half);
 }
 
 /** Centre and half-width (m) of a window fitted to a corner with padding; a corner over the start line fits the half that holds `d` (else the first half). */
@@ -189,21 +195,23 @@ export function fitCorner(c: CornerSpan, d: number, lapEnd: number): { centre: n
   return { centre: (a + b) / 2, half: Math.max((b - a) / 2 + pad, CORNER_MIN_HALF_M) };
 }
 
+/** Window width that shows the whole corner when the window is centred on the playhead `d` (a click seeks a little before the corner). */
+export function cornerFitWidth(c: CornerSpan, d: number, lapEnd: number, lapSpan: number): number {
+  const { centre, half } = fitCorner(c, d, lapEnd);
+  return clampWidth(2 * (Math.abs(centre - d) + half), lapSpan);
+}
+
 /**
- * The x window for a mode. "700": ±350 m around the playhead. "lap": the whole lap. "corner": fitted to `corner` (fixed, so the
- * playhead moves through it); no corner falls back to 700. `playhead` is where `d` sits in the window and can lie outside 0..1.
+ * The x window: `width` metres around the playhead `d`, or around `panCentre` after a Shift-drag pan (null: follow the playhead).
+ * Clamped to the lap; at the whole lap it does not move and only the playhead does. `playhead` is where `d` sits in the window
+ * and lies outside 0..1 when a pan has moved the window away from it.
  */
-export function stripView(mode: WindowMode, d: number, minM: number, maxM: number, corner: CornerSpan | null): StripView {
-  if (mode === "lap") {
-    const span = maxM - minM || 1;
-    return { min: minM, max: maxM, playhead: (d - minM) / span };
-  }
-  if (mode === "corner" && corner) {
-    const { centre, half } = fitCorner(corner, d, maxM);
-    const w = stripWindow(centre, Math.min(half, (maxM - minM) / 2), minM, maxM);
-    return { min: w.min, max: w.max, playhead: (d - w.min) / (w.max - w.min || 1) };
-  }
-  return stripWindow(d, DEFAULT_HALF_M, minM, maxM);
+export function stripView(width: number, d: number, minM: number, maxM: number, panCentre: number | null = null): StripView {
+  const span = maxM - minM || 1;
+  const w = clampWidth(width, span);
+  if (w >= span) return { min: minM, max: maxM, playhead: (d - minM) / span };
+  const win = stripWindow(panCentre ?? d, w / 2, minM, maxM);
+  return { min: win.min, max: win.max, playhead: (d - win.min) / w };
 }
 
 /** Tick positions (whole metres, 1/2/5 × 10^k steps) inside `[min, max]`, about `target` of them. */

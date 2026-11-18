@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chipFraction, chipLayerGeometry, clipBand, cornerBands, distanceTicks, elevationRange, fitCorner, parseWindowMode, pickCorner, stripDistanceAt, stripRanges, stripScrubTarget, stripView, stripWindow, valueToPx, withAlpha } from "./strips";
+import { chipFraction, chipLayerGeometry, clipBand, cornerBands, distanceTicks, elevationRange, clampWidth, cornerFitWidth, fitCorner, parseWidth, stripPanCentre, wheelFactor, zoomWidth, stripDistanceAt, stripRanges, stripScrubTarget, stripView, stripWindow, valueToPx, withAlpha } from "./strips";
 
 describe("stripRanges", () => {
   const c = {
@@ -133,21 +133,59 @@ describe("cornerBands", () => {
   });
 });
 
-describe("strip window modes (vroom-pnw.35)", () => {
-  const corners = [{ startM: 100, endM: 200 }, { startM: 500, endM: 560 }, { startM: 6900, endM: 40 }];
-  it("parses a stored mode, defaulting to 700", () => {
-    expect(parseWindowMode("lap")).toBe("lap");
-    expect(parseWindowMode("corner")).toBe("corner");
-    expect(parseWindowMode("bogus")).toBe("700");
-    expect(parseWindowMode(null)).toBe("700");
+describe("strip window: follow, pan and zoom (vroom-pnw.48)", () => {
+  it("parses a stored width, defaulting to 700", () => {
+    expect(parseWidth("350")).toBe(350);
+    expect(parseWidth("bogus")).toBe(700);
+    expect(parseWidth("20")).toBe(700);
+    expect(parseWidth(null)).toBe(700);
+    expect(parseWidth("")).toBe(700);
   });
-  it("picks the corner under the playhead, else the next ahead, wrapping to the first", () => {
-    expect(pickCorner(corners, 150)).toBe(corners[0]);
-    expect(pickCorner(corners, 300)).toBe(corners[1]);
-    expect(pickCorner(corners, 6950)).toBe(corners[2]);
-    expect(pickCorner(corners, 20)).toBe(corners[2]);
-    expect(pickCorner(corners.slice(0, 2), 700)).toBe(corners[0]);
-    expect(pickCorner([], 5)).toBeNull();
+  it("clamps the width between 100 m and the whole lap", () => {
+    expect(clampWidth(30, 7000)).toBe(100);
+    expect(clampWidth(9000, 7000)).toBe(7000);
+    expect(clampWidth(500, 7000)).toBe(500);
+    expect(clampWidth(500, 60)).toBe(60);
+    expect(zoomWidth(700, 0.5, 7000)).toBe(350);
+    expect(zoomWidth(700, 100, 7000)).toBe(7000);
+    expect(zoomWidth(120, 0.1, 7000)).toBe(100);
+  });
+  it("zooms continuously: wheel down widens, up narrows, a pinch is more sensitive", () => {
+    expect(wheelFactor(0, false)).toBe(1);
+    expect(wheelFactor(100, false)).toBeGreaterThan(1);
+    expect(wheelFactor(-100, false)).toBeLessThan(1);
+    expect(wheelFactor(10, true)).toBeGreaterThan(wheelFactor(10, false));
+  });
+  it("centres the window on the playhead at every width short of the whole lap", () => {
+    for (const w of [100, 350, 700, 2000]) {
+      const v = stripView(w, 3000, 0, 7000);
+      expect((v.min + v.max) / 2).toBe(3000);
+      expect(v.max - v.min).toBe(w);
+      expect(v.playhead).toBe(0.5);
+    }
+    // After a drag moves the playhead the window centre follows it.
+    expect((stripView(700, 3400, 0, 7000).min + 350)).toBe(3400);
+  });
+  it("clamps to the lap ends and shows the whole lap, which does not move", () => {
+    expect(stripView(700, 100, 0, 7000)).toEqual({ min: 0, max: 700, playhead: 100 / 700 });
+    expect(stripView(7000, 1750, 0, 7000)).toEqual({ min: 0, max: 7000, playhead: 0.25 });
+    expect(stripView(9000, 6000, 0, 7000)).toEqual({ min: 0, max: 7000, playhead: 6000 / 7000 });
+  });
+  it("holds a panned window and reports the playhead off to the side", () => {
+    const v = stripView(700, 1000, 0, 7000, 3000);
+    expect(v.min).toBe(2650);
+    expect(v.max).toBe(3350);
+    expect(v.playhead).toBeLessThan(0);
+    // Whole lap: a pan has nothing to move.
+    expect(stripView(7000, 1000, 0, 7000, 3000).min).toBe(0);
+  });
+  it("pans the trace with the pointer and keeps the window inside the lap", () => {
+    // 700 m over 700 px: 1 px = 1 m; dragging left (negative dx) moves the window forward.
+    expect(stripPanCentre(1000, -100, 700, 700, 0, 7000)).toBe(1100);
+    expect(stripPanCentre(1000, 100, 700, 700, 0, 7000)).toBe(900);
+    expect(stripPanCentre(1000, 5000, 700, 700, 0, 7000)).toBe(350);
+    expect(stripPanCentre(6900, -5000, 700, 700, 0, 7000)).toBe(6650);
+    expect(stripPanCentre(1000, 10, 0, 700, 0, 7000)).toBe(1000);
   });
   it("fits a corner with padding and a floor", () => {
     expect(fitCorner({ startM: 100, endM: 300 }, 150, 7000)).toEqual({ centre: 200, half: 100 + 50 });
@@ -156,28 +194,27 @@ describe("strip window modes (vroom-pnw.35)", () => {
     expect(fitCorner({ startM: 6900, endM: 40 }, 6950, 7000).centre).toBe(6950);
     expect(fitCorner({ startM: 6900, endM: 40 }, 10, 7000).centre).toBe(20);
   });
-  it("builds the window per mode", () => {
-    expect(stripView("700", 1000, 0, 7000, null)).toEqual({ min: 650, max: 1350, playhead: 0.5 });
-    expect(stripView("lap", 1750, 0, 7000, null)).toEqual({ min: 0, max: 7000, playhead: 0.25 });
-    const w = stripView("corner", 150, 0, 7000, corners[0]);
-    expect(w.min).toBeCloseTo(100 - 40 - 0, 5);
-    expect(w.max).toBeCloseTo(200 + 40, 5);
-    expect(w.min).toBeGreaterThanOrEqual(0);
-    expect(w.playhead).toBeCloseTo((150 - w.min) / (w.max - w.min), 9);
-    // Playhead outside the fitted corner window is reported, not clamped.
-    expect(stripView("corner", 400, 0, 7000, corners[0]).playhead).toBeGreaterThan(1);
-    // No corner: falls back to 700.
-    expect(stripView("corner", 1000, 0, 7000, null)).toEqual(stripView("700", 1000, 0, 7000, null));
-  });
-  it("clamps a corner window to the lap and a tiny lap", () => {
-    const w = stripView("corner", 5, 0, 7000, { startM: 0, endM: 30 });
-    expect(w.min).toBe(0);
-    expect(w.max - w.min).toBe(2 * 60);
+  it("fits the whole corner around a playhead that sits before it", () => {
+    const c = { startM: 500, endM: 560 };
+    const w = cornerFitWidth(c, 470, 7000, 7000);
+    const v = stripView(w, 470, 0, 7000);
+    expect(v.min).toBeLessThanOrEqual(500);
+    expect(v.max).toBeGreaterThanOrEqual(560);
+    expect(cornerFitWidth(c, 530, 7000, 7000)).toBe(140);
+    expect(cornerFitWidth(c, 530, 7000, 90)).toBe(90);
+    // The next playhead move goes back to following: the view is the same function of d at the same width.
+    expect((stripView(w, 800, 0, 7000).min + stripView(w, 800, 0, 7000).max) / 2).toBe(800);
   });
   it("makes 1/2/5 distance ticks inside the window", () => {
     expect(distanceTicks(0, 700)).toEqual([0, 100, 200, 300, 400, 500, 600, 700]);
     expect(distanceTicks(0, 7000, 7)).toEqual([0, 1000, 2000, 3000, 4000, 5000, 6000, 7000]);
     expect(distanceTicks(95, 245, 5)).toEqual([100, 150, 200]);
     expect(distanceTicks(5, 5)).toEqual([]);
+    // Readable at every zoom: 3 to 12 ticks from 100 m to the whole lap.
+    for (const w of [100, 150, 300, 700, 1500, 3000, 7000]) {
+      const n = distanceTicks(1000, 1000 + w).length;
+      expect(n).toBeGreaterThanOrEqual(3);
+      expect(n).toBeLessThanOrEqual(12);
+    }
   });
 });

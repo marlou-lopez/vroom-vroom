@@ -109,6 +109,9 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     rows: [
       { keys: ["←", "→"], what: "Scrub 10 m (Shift: 100 m)" },
       { keys: ["Space"], what: "Play or pause" },
+      { keys: ["+", "−"], what: "Zoom the window in or out (100 m to the whole lap)" },
+      { keys: ["Shift", "drag"], what: "Pan the traces; the playhead stays (middle-drag too)" },
+      { keys: ["Wheel", "pinch"], what: "Zoom the window; double-click resets to 700 m" },
     ],
   },
   {
