@@ -12,7 +12,7 @@ button.calibrate { padding: 5px 12px; }
 .columns { display: flex; gap: var(--gap); flex-wrap: wrap; }
 .mapPanel { flex: 1 1 380px; min-width: 0; }
 .mapHead { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
-.legend { font-size: 11px; color: var(--color-muted); }
+.legend { font-size: var(--font-size-small); color: var(--color-muted); }
 .confirmed { color: var(--color-you); }
 .detected { color: var(--color-strength); }
 

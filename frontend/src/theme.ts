@@ -5,7 +5,7 @@ export const colors = {
   hover: "#1A1D22",
   selected: "#1A1D22",
   text: "#D8DCE2",
-  muted: "#868E99",
+  muted: "#9AA3AE",
   you: "#3DD6F5",
   comparison: "#B9C0CA",
   issue: "#FF7A59",
@@ -63,6 +63,10 @@ export const fonts = {
 
 export const sizes = {
   fontBase: 12,
+  /** Smallest text anywhere (vroom-pnw.53): nothing is drawn under this. */
+  fontSmall: 11,
+  /** Smallest hit target in px (WCAG 2.2 2.5.8). */
+  control: 24,
   radius: 4,
   pad: 6,
   gap: 6,
@@ -81,6 +85,8 @@ export function themeVariables(): Record<string, string> {
   for (const [k, v] of Object.entries(annotationColors)) vars[`--color-annotation-${kebab(k)}`] = v;
   for (const [k, v] of Object.entries(fonts)) vars[`--font-${kebab(k)}`] = v;
   vars["--font-size-base"] = `${sizes.fontBase}px`;
+  vars["--font-size-small"] = `${sizes.fontSmall}px`;
+  vars["--control"] = `${sizes.control}px`;
   vars["--radius"] = `${sizes.radius}px`;
   vars["--pad"] = `${sizes.pad}px`;
   vars["--gap"] = `${sizes.gap}px`;

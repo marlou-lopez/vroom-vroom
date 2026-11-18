@@ -26,7 +26,7 @@
 }
 .name { font-weight: 600; }
 .sortBtn { display: inline-flex; gap: 3px; align-items: center; }
-.arrow { opacity: 0.45; font-size: 10px; }
+.arrow { opacity: 0.45; font-size: var(--font-size-small); }
 .arrow[data-on] { opacity: 1; color: var(--color-you); }
 .sortBtn[aria-pressed="true"] { color: var(--color-you); }
 .name:focus-visible, .sortBtn:focus-visible { outline: 2px solid var(--color-you); outline-offset: 1px; }

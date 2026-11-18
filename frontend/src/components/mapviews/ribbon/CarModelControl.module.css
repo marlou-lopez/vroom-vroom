@@ -9,7 +9,7 @@
 .name { font-weight: 600; }
 .source { color: var(--color-muted); overflow-wrap: anywhere; }
 .source [data-testid] { color: var(--color-text); }
-.tag { font-size: 9px; text-transform: uppercase; letter-spacing: 0.04em; }
+.tag { font-size: var(--font-size-small); text-transform: uppercase; letter-spacing: 0.04em; }
 .row { display: flex; flex-wrap: wrap; gap: 6px; }
 .small { padding: 2px 8px; }
 .small[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-you); }
