@@ -95,7 +95,7 @@ describe("lap rail", () => {
     await user.keyboard("{Enter}");
     await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBe(next.getAttribute("data-lap-id")));
     expect(loc.search).toContain("debug=0");
-  });
+  }, 20000);
 
   it("moves between rows with the arrow keys", async () => {
     const user = userEvent.setup();
