@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { TrackMap } from "../api/types";
-import { cornerAt, nearestCorner, nearestPoint, nearestPointInWindow, pointAtDistance, polylinePath, projectLatLon, scrubTarget, segmentPath, cornerSegmentPath, smoothClosed, splitWrapping } from "./trackmap";
+import { cornerAt, nextCorner, nearestCorner, nearestPoint, nearestPointInWindow, pointAtDistance, polylinePath, projectLatLon, scrubTarget, segmentPath, cornerSegmentPath, smoothClosed, splitWrapping } from "./trackmap";
 
 const map: TrackMap = {
   track_id: "x",
@@ -171,5 +171,22 @@ describe("cornerSegmentPath", () => {
     const d = cornerSegmentPath(proj, distance, 90, 10);
     expect(d.match(/M/g)).toHaveLength(2);
     expect(d).toBe(segmentPath(proj, distance, 90, 100) + segmentPath(proj, distance, 0, 10));
+  });
+});
+
+describe("nextCorner", () => {
+  const map = { track_id: "t", length_m: 1000, landmarks: [], corners: [
+    { id: "a", name: "Alpha", start_m: 100, apex_m: 150, end_m: 200, complex: null, approx: false },
+    { id: "b", name: "Bravo", start_m: 900, apex_m: 950, end_m: 20, complex: null, approx: false },
+  ] } as never;
+  it("names the corner the car is in", () => {
+    expect(nextCorner(map, 150)).toMatchObject({ aheadM: 0, inside: true, corner: { id: "a" } });
+  });
+  it("names the next corner ahead, wrapping over the start line", () => {
+    expect(nextCorner(map, 300)).toMatchObject({ aheadM: 600, inside: false, corner: { id: "b" } });
+    expect(nextCorner(map, 50)).toMatchObject({ aheadM: 50, corner: { id: "a" } });
+  });
+  it("is null without corners", () => {
+    expect(nextCorner({ ...(map as object), corners: [] } as never, 5)).toBeNull();
   });
 });

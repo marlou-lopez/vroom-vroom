@@ -202,3 +202,12 @@ export class OrbitFollowRig implements CameraRig {
     return cam.position.distanceTo(this.target);
   }
 }
+
+/** A car is never drawn shorter than this many px on screen (the Top view's far camera would shrink it to a dot). */
+export const MIN_CAR_PX = 14;
+
+/** Scale for a car `lengthM` long seen from `distM` through a camera with vertical field of view `fovDeg` and a pane `paneH` px tall: 1 unless it would come out below `minPx` long. */
+export function minCarScale(lengthM: number, distM: number, fovDeg: number, paneH: number, minPx = MIN_CAR_PX): number {
+  const px = (lengthM * paneH) / (2 * distM * Math.tan((fovDeg * Math.PI) / 360));
+  return px >= minPx || px <= 0 ? 1 : minPx / px;
+}

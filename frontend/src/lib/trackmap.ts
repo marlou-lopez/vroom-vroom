@@ -172,3 +172,18 @@ export function splitWrapping(start: number, end: number, length: number): Array
 export function cornerSegmentPath(proj: Projection, distance: number[], start: number, end: number): string {
   return splitWrapping(start, end, distance[distance.length - 1]).map(([d0, d1]) => segmentPath(proj, distance, d0, d1)).join("");
 }
+
+/**
+ * The corner to name for a car at `d`: the one it is in, else the next one ahead (wrapping over the start line), with the
+ * metres to its start (0 inside it). null when the map has no corners.
+ */
+export function nextCorner(map: TrackMap, d: number): { corner: Corner; aheadM: number; inside: boolean } | null {
+  const here = cornerAt(map, d);
+  if (here) return { corner: here, aheadM: 0, inside: true };
+  let best: Corner | null = null, bestGap = Infinity;
+  for (const c of map.corners) {
+    const gap = (((c.start_m - d) % map.length_m) + map.length_m) % map.length_m;
+    if (gap < bestGap) { best = c; bestGap = gap; }
+  }
+  return best ? { corner: best, aheadM: bestGap, inside: false } : null;
+}

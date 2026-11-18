@@ -1,7 +1,7 @@
 import { PerspectiveCamera, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { headingDir } from "./coords";
-import { CHASE_DEFAULT, CHASE_LOOK_LIFT_M, CHASE_ZOOM_MAX, ChaseRig, OrbitFollowRig, OrbitRig, TOP_MAX_M, TopRig, chasePlacement, type CameraFrame } from "./cameraRigs";
+import { CHASE_DEFAULT, CHASE_LOOK_LIFT_M, CHASE_ZOOM_MAX, ChaseRig, MIN_CAR_PX, minCarScale, OrbitFollowRig, OrbitRig, TOP_MAX_M, TopRig, chasePlacement, type CameraFrame } from "./cameraRigs";
 
 const frame = (over: Partial<CameraFrame> = {}): CameraFrame => ({
   car: { x: 100, y: 10, z: -50 }, heading: 0, ahead: { x: 130, y: 12, z: -50 }, jumped: false, ...over,
@@ -104,5 +104,17 @@ describe("rigs", () => {
     expect(cam.position.y).toBeCloseTo(4);
     expect(cam.position.z).toBeCloseTo(80);
     expect(cam.getWorldDirection(new Vector3()).x).toBeGreaterThan(0.99); // looks at its car
+  });
+});
+
+describe("minCarScale", () => {
+  it("leaves a car that is big enough alone", () => {
+    expect(minCarScale(4.7, 12, 55, 600)).toBe(1);
+  });
+  it("grows a car that would be a dot so it is MIN_CAR_PX long", () => {
+    const k = minCarScale(4.7, 600, 55, 600);
+    expect(k).toBeGreaterThan(1);
+    const px = (4.7 * k * 600) / (2 * 600 * Math.tan((55 * Math.PI) / 360));
+    expect(px).toBeCloseTo(MIN_CAR_PX, 5);
   });
 });
