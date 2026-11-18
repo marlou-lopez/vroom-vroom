@@ -113,11 +113,11 @@ describe("lap rail", () => {
     const user = userEvent.setup();
     renderAt("/");
     const laps = await screen.findByRole("complementary", { name: "Laps" });
-    await user.click(await within(laps).findByRole("button", { name: /^Ideal/ }));
+    await user.click(await within(laps).findByRole("button", { name: /^Best possible lap/ }));
     await waitFor(() => expect(new URLSearchParams(loc.search).get("ref")).toMatch(/^ideal:/));
-    expect(await within(laps).findByText(/vs ideal/)).toBeTruthy();
+    expect(await within(laps).findByText(/compared with best possible lap/)).toBeTruthy();
     // The map read-out says where you stand against it.
-    expect(await screen.findAllByText(/(behind|ahead of) ideal/)).not.toHaveLength(0);
+    expect(await screen.findAllByText(/(behind|ahead of) best possible lap/)).not.toHaveLength(0);
   });
 
   it("changes session from the selector and opens that session's lap", async () => {
@@ -170,7 +170,7 @@ describe("lap rail props", () => {
     expect(names.some((t) => t?.includes("L2"))).toBe(true);
     expect(names.some((t) => t?.includes("L3"))).toBe(true);
     expect(names.some((t) => t?.includes("L4"))).toBe(false);
-    fireEvent.click(screen.getByRole("checkbox", { name: /valid only/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Hide laps with track-limit cuts/ }));
     expect(within(list).getAllByRole("button", { name: /^L\d/ })).toHaveLength(4);
   });
 
@@ -194,7 +194,7 @@ describe("lap rail props", () => {
       <LapRail session={session} laps={laps} lap={laps[0]} refLapId={null} candidates={[cand("a"), cand("z")]} warning={null} onSelectLap={() => {}} onSelectRef={(id) => picked.push(id)} />,
       wrapper(),
     );
-    fireEvent.change(screen.getByRole("combobox", { name: "Other comparison lap" }), { target: { value: "z" } });
+    fireEvent.change(screen.getByRole("combobox", { name: "Compare with another day" }), { target: { value: "z" } });
     expect(picked).toEqual(["z"]);
   });
 
@@ -205,7 +205,7 @@ describe("lap rail props", () => {
       wrapper(),
     );
     expect(screen.getByText("DIFFERENT CAR")).toBeTruthy();
-    expect(screen.getByText(/vs L7/)).toBeTruthy();
+    expect(screen.getByText(/compared with L7/)).toBeTruthy();
   });
 });
 

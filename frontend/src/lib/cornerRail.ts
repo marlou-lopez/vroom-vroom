@@ -9,7 +9,7 @@ export interface CornerRailRow {
   /** Lap minus reference over the corner: positive = lost. */
   deltaS: number;
   kind: "loss" | "gain" | "even";
-  /** Why, as a direction ("lower min speed", "later throttle"); null for an even corner. */
+  /** Why, as a direction ("slower at the slowest point", "later throttle"); null for an even corner. */
   direction: string | null;
 }
 
@@ -25,16 +25,16 @@ export function causeDirection(m: CornerMetrics): string | null {
   switch (cause) {
     case "speed":
       // `causeOf` falls back to speed when nothing stands out: then only a direction that explains the delta is shown.
-      if (gain) return lap.min_speed_kmh > ref.min_speed_kmh ? "higher min speed" : null;
-      return lap.min_speed_kmh < ref.min_speed_kmh ? "lower min speed" : null;
+      if (gain) return lap.min_speed_kmh > ref.min_speed_kmh ? "faster at the slowest point" : null;
+      return lap.min_speed_kmh < ref.min_speed_kmh ? "slower at the slowest point" : null;
     case "brake":
       if (lap.brake_onset_m === null || ref.brake_onset_m === null) return "braking";
-      return lap.brake_onset_m < ref.brake_onset_m ? "earlier braking" : "later braking";
+      return lap.brake_onset_m < ref.brake_onset_m ? "braked earlier" : "braked later";
     case "throttle":
       if (lap.throttle_pickup_m === null || ref.throttle_pickup_m === null) return "throttle";
-      return lap.throttle_pickup_m > ref.throttle_pickup_m ? "later throttle" : "earlier throttle";
+      return lap.throttle_pickup_m > ref.throttle_pickup_m ? "back on the throttle later" : "back on the throttle earlier";
     case "steering":
-      return lap.steer_corrections >= ref.steer_corrections ? "more steering corrections" : "fewer steering corrections";
+      return lap.steer_corrections >= ref.steer_corrections ? "more sawing at the wheel" : "less sawing at the wheel";
   }
 }
 

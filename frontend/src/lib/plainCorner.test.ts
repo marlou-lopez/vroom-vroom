@@ -79,7 +79,7 @@ describe("ranking and wording", () => {
     const cand = (o: Partial<CompareCandidate>) => ({ lap_id: "x2", label: "L2", lap_time_s: 99, car_name: "", is_reference: true, is_previous: false, other_car: false, is_ideal: false, ...o }) as CompareCandidate;
     expect(plainRefName(cand({}), laps)).toBe("your best lap (lap 2)");
     expect(plainRefName(cand({ lap_id: "x1" }), laps)).toBe("lap 1");
-    expect(plainRefName(cand({ lap_id: "ideal:s", is_ideal: true }), laps)).toBe("your ideal lap");
+    expect(plainRefName(cand({ lap_id: "ideal:s", is_ideal: true }), laps)).toBe("your best possible lap");
     expect(plainRefName(cand({ lap_id: "other", label: "26 Oct · L4" }), laps)).toBe("26 Oct · L4");
     expect(plainRefName(null, laps)).toBe("the comparison lap");
     expect(fastestValidLap(laps)?.lap_id).toBe("x2");

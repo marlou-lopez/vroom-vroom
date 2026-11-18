@@ -31,8 +31,8 @@ describe("CornersTable", () => {
     render(<CornersTable corners={metrics} trackMap={map} onSeek={() => {}} />);
     const row = screen.getAllByRole("row")[1];
     expect(within(row).queryByText("98")).toBeNull();
-    expect(row.querySelectorAll("td")[3].getAttribute("title")).toBe("You 98 · Reference 100");
-    fireEvent.click(screen.getByRole("button", { name: "Show you / reference" }));
+    expect(row.querySelectorAll("td")[3].getAttribute("title")).toBe("You 98 · The comparison lap 100");
+    fireEvent.click(screen.getByRole("button", { name: "Show you / the comparison lap" }));
     expect(within(screen.getAllByRole("row")[1]).getByText("98")).toBeTruthy();
   });
   it("never prints −0 and shows the apex instead of a bogus distance", () => {

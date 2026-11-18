@@ -146,7 +146,7 @@ export function StintPanel({ session }: { session: SessionMeta }) {
   return (
     <section aria-label="Stint" className={cx(ui.panel, styles.panel)}>
       <div className={styles.head}>
-        <span className={ui.heading}>STINT</span>
+        <span className={ui.heading}>RACE RUN</span>
       </div>
       {stints.map((s) => <StintBody key={s.stint_no} stint={s} session={session} multi={stints.length > 1} />)}
     </section>

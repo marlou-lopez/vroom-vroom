@@ -51,13 +51,13 @@ describe("Telemetry page render stability", () => {
     const before = renders.count;
     expect(before).toBeGreaterThan(0);
 
-    const simplified = screen.getByRole("radio", { name: "Simplified" });
+    const simplified = screen.getByRole("radio", { name: "Wheel & pedals" });
     fireEvent.click(simplified);
-    await screen.findByRole("radio", { name: "Simplified", checked: true });
+    await screen.findByRole("radio", { name: "Wheel & pedals", checked: true });
     expect(renders.count).toBe(before);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Detailed" }));
-    await screen.findByRole("radio", { name: "Detailed", checked: true });
+    fireEvent.click(screen.getByRole("radio", { name: "Graphs" }));
+    await screen.findByRole("radio", { name: "Graphs", checked: true });
     expect(renders.count).toBe(before);
   });
 
@@ -72,7 +72,7 @@ describe("Telemetry page render stability", () => {
     await screen.findByRole("button", { name: /Analyze lap/ });
     expect(await screen.findByRole("tab", { name: "Strips", selected: true })).toBeTruthy();
     expect(await screen.findByRole("button", { name: "Choose strips" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("radio", { name: "Simplified" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Wheel & pedals" }));
     expect((await screen.findAllByText("BRK")).length).toBe(2);
     expect(document.querySelectorAll('[class*="barValue"]').length).toBe(4);
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Corners" }));

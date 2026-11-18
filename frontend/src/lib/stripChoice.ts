@@ -10,12 +10,12 @@ export const STRIP_OPTIONS = [
   { id: "gear", label: "Gear", group: "advanced", desc: "Which gear you are in, with the shifts." },
   { id: "elevation", label: "Elevation (if the track has it)", group: "advanced", desc: "Hills and crests along the lap." },
   { id: "rpm", label: "RPM", group: "advanced", desc: "Engine speed, to see shift points." },
-  { id: "g_lat", label: "Lateral g", group: "advanced", desc: "Cornering force: how hard the car is turning." },
-  { id: "g_long", label: "Longitudinal g", group: "advanced", desc: "Braking and acceleration force." },
-  { id: "suspension", label: "Suspension", group: "advanced", desc: "How far the suspension is compressed." },
-  { id: "slip", label: "Tyre slip", group: "advanced", desc: "How much the tyres are sliding." },
+  { id: "g_lat", label: "Cornering force", group: "advanced", desc: "Cornering force: how hard the car is turning." },
+  { id: "g_long", label: "Braking & acceleration force", group: "advanced", desc: "Braking and acceleration force." },
+  { id: "suspension", label: "Suspension travel", group: "advanced", desc: "How far the suspension is compressed." },
+  { id: "slip", label: "Wheel slip", group: "advanced", desc: "How much the tyres are sliding." },
   /** Offered when the lap has a balance (API `lap_balance`, vroom-bi4.6). */
-  { id: "balance", label: "Balance (understeer, exp)", group: "advanced", desc: "Understeer through the corners (experimental)." },
+  { id: "balance", label: "Car pushing wide (experimental)", group: "advanced", desc: "Understeer through the corners (experimental)." },
 ] as const;
 
 export type StripId = (typeof STRIP_OPTIONS)[number]["id"];

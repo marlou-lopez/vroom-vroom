@@ -28,8 +28,8 @@ describe("CornerRail", () => {
     const rows = Array.from(container.querySelectorAll("li"));
     expect(rows.map((r) => r.getAttribute("data-kind"))).toEqual(["gain", "loss"]);
     expect(rows[0]!.textContent).toContain("Early");
-    expect(screen.getByText("lower min speed")).toBeTruthy();
-    expect(screen.getByText("higher min speed")).toBeTruthy();
+    expect(screen.getByText("slower at the slowest point")).toBeTruthy();
+    expect(screen.getByText("faster at the slowest point")).toBeTruthy();
   });
   it("seeks to the corner on click", () => {
     const onSeek = vi.fn();

@@ -44,7 +44,7 @@ describe("AnnotationHoverCard keyboard access", () => {
     await user.keyboard("{Enter}");
     expect(actions.onToggleReviewed).toHaveBeenCalledWith(ann);
     await user.tab();
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Ask about this corner" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Explain this corner in more detail" }));
     await user.keyboard("{Enter}");
     expect(actions.onAsk).toHaveBeenCalledWith(ann);
   });

@@ -29,7 +29,7 @@ describe("SegmentStrip", () => {
   ];
   it("is a single labelled picture without a lap", () => {
     render(wrap(<SegmentStrip cells={cells} label="L3 segments" />));
-    expect(screen.getByRole("img", { name: "L3 segments: holds 1 of 2 ideal segments" })).toBeTruthy();
+    expect(screen.getByRole("img", { name: "L3 segments: holds 1 of 2 best possible lap segments" })).toBeTruthy();
   });
   it("makes each cell a keyboard-reachable link to the lap at that segment", async () => {
     const user = userEvent.setup();
@@ -53,7 +53,7 @@ describe("IdealBreakdown", () => {
     };
     const user = userEvent.setup();
     render(wrap(<IdealBreakdown ideal={ideal} />));
-    const rows = within(screen.getByRole("region", { name: "Ideal lap breakdown" })).getAllByRole("link");
+    const rows = within(screen.getByRole("region", { name: "Best possible lap breakdown" })).getAllByRole("link");
     expect(rows).toHaveLength(2);
     rows.forEach((r) => expect(r.textContent).toContain("→")); // link rows show an arrow
     await user.tab();
@@ -71,7 +71,7 @@ describe("laps against the ideal (mock)", () => {
     const valid = laps.filter((l) => l.kind === "flying" && l.valid && l.lap_time_s !== null && l.lap_time_s > 0);
     render(wrap(<LapGaugeTable sessionId={session.session_id} />));
     const table = await screen.findByRole("table");
-    await userEvent.click(screen.getByRole("checkbox", { name: /valid only/ }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /Hide laps with track-limit cuts/ }));
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(valid.length);
     for (const r of rows) {
@@ -81,7 +81,7 @@ describe("laps against the ideal (mock)", () => {
       expect(within(r).getAllByRole("link").length).toBe(ideal.segments.length + 1);
     }
     expect(within(table).getAllByText("best")).toHaveLength(1);
-    expect(within(screen.getByRole("region", { name: "Ideal lap breakdown" })).getAllByRole("link")).toHaveLength(ideal.segments.length);
+    expect(within(screen.getByRole("region", { name: "Best possible lap breakdown" })).getAllByRole("link")).toHaveLength(ideal.segments.length);
   });
 
   it("lists every lap tagged by kind, each traced lap opens at that lap, valid only hides out, in and invalid laps", async () => {
@@ -100,16 +100,16 @@ describe("laps against the ideal (mock)", () => {
     const inLap = laps.find((l) => l.kind === "in")!;
     await userEvent.click(screen.getByRole("link", { name: `Open lap ${inLap.lap_no}` }));
     expect(screen.getByTestId("where").textContent).toBe(`/?lap=${inLap.lap_id}`);
-    await userEvent.click(screen.getByRole("checkbox", { name: /valid only/ }));
+    await userEvent.click(screen.getByRole("checkbox", { name: /Hide laps with track-limit cuts/ }));
     expect(rows().every((r) => within(r).getAllByRole("cell")[1].textContent === "flying")).toBe(true);
   });
 
-  it("a lap without a trace is tagged stats only and does not link", async () => {
+  it("a lap without a trace is tagged numbers only, no replay and does not link", async () => {
     const { session, laps } = await newestBest(mock.engine());
     mock.server.use(http.get("*/api/sessions/:id/laps", () => HttpResponse.json(laps.map((l) => ({ ...l, has_trace: false })))));
     render(wrap(<LapGaugeTable sessionId={session.session_id} />));
     const table = await screen.findByRole("table");
-    expect(within(table).getAllByText("stats only")).toHaveLength(laps.length);
+    expect(within(table).getAllByText("numbers only, no replay")).toHaveLength(laps.length);
     expect(within(table).queryAllByRole("link", { name: /Open lap/ })).toHaveLength(0);
   });
 });

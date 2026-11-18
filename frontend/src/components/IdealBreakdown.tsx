@@ -14,9 +14,9 @@ import styles from "./IdealBreakdown.module.css";
 export function IdealBreakdown({ ideal }: { ideal: IdealLap }) {
   const { search } = useLocation();
   return (
-    <section aria-label="Ideal lap breakdown" className={cx(ui.panel, styles.panel)}>
+    <section aria-label="Best possible lap breakdown" className={cx(ui.panel, styles.panel)}>
       <div className={styles.head}>
-        <div className={ui.heading}>IDEAL LAP BREAKDOWN</div>
+        <div className={ui.heading}>BEST POSSIBLE LAP · BREAKDOWN</div>
         <div className={styles.total}>{formatLapTime(ideal.time_s)}</div>
       </div>
       <ol className={styles.list}>

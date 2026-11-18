@@ -74,10 +74,10 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
           {TRACK_VIEWS.map((v) => (
             <ToggleGroup.Item
               key={v.id} value={v.id} className={ui.toggleItem}
-              title={v.experimental ? "Experimental" : undefined}
+              title={v.experimental ? "Beta: still being tested" : undefined}
             >
               {v.label}
-              {v.experimental && <span className={styles.exp}>exp</span>}
+              {v.experimental && <span className={styles.exp}>beta</span>}
             </ToggleGroup.Item>
           ))}
         </ToggleGroup.Root>
@@ -112,11 +112,11 @@ function Readout({ model, trackMap, refName, view }: { model: PlaybackModel; tra
   const understeer = corner !== null && (cmp.lap_understeer_runs ?? []).some((r) => dYou >= r.start_m && dYou <= r.end_m);
   const who = refName ?? "the comparison";
   const standing = standingLabel(delta, who);
-  const gapLabel = gap > 0 ? `${who} ${gap} m ahead` : gap < 0 ? `${who} ${-gap} m behind` : standing ? null : `level with ${who}`;
+  const gapLabel = gap > 0 ? `${who} ${gap} m ahead` : gap < 0 ? `${who} ${-gap} m behind` : standing ? null : `same pace as ${who}`;
     return (
     <Fragment>
       <div className={styles.readout} data-view={view}>
-        <div className={styles.corner}>{named ? (named.approaching ? `Approaching ${named.corner.name}` : named.corner.name) : "Straight"}{understeer && <span className={styles.balance}>understeer</span>}</div>
+        <div className={styles.corner}>{named ? (named.approaching ? `Approaching ${named.corner.name}` : named.corner.name) : "Straight"}{understeer && <span className={styles.balance}>car pushing wide</span>}</div>
         <div className={cx(styles.mono, styles.muted)}>
           {Math.round(dYou).toLocaleString("en-US")} m · gear {gearLabel(cmp.lap.gear[iy])} · {Math.round(cmp.lap.speed_kmh[iy])} / {Math.round(cmp.ref.speed_kmh[indexAtTime(cmp.ref.t, tau)])} km/h
         </div>

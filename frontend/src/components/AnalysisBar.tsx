@@ -22,10 +22,10 @@ export interface AnalysisBarProps {
 }
 
 const KINDS = [
-  { kind: "issue", one: "issue", many: "issues", color: annotationColors.issue },
-  { kind: "minor", one: "minor", many: "minor", color: annotationColors.minor },
-  { kind: "strength", one: "strength", many: "strengths", color: annotationColors.strength },
-  { kind: "inconsistent", one: "inconsistent", many: "inconsistent", color: annotationColors.inconsistent },
+  { kind: "issue", one: "big loss", many: "big losses", color: annotationColors.issue },
+  { kind: "minor", one: "small loss", many: "small losses", color: annotationColors.minor },
+  { kind: "strength", one: "good corner", many: "good corners", color: annotationColors.strength },
+  { kind: "inconsistent", one: "corner you drive differently each lap", many: "corners you drive differently each lap", color: annotationColors.inconsistent },
 ] as const;
 
 function AverageMenu({ onAverage, disabled, attached }: { onAverage(): void; disabled: boolean; attached?: boolean }) {
@@ -43,7 +43,7 @@ function AverageMenu({ onAverage, disabled, attached }: { onAverage(): void; dis
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={4} collisionPadding={8} className={ui.menuContent}>
-          <DropdownMenu.Item className={ui.menuItem} onSelect={onAverage}>Average (session consistency)</DropdownMenu.Item>
+          <DropdownMenu.Item className={ui.menuItem} onSelect={onAverage}>Check consistency across laps</DropdownMenu.Item>
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
@@ -51,21 +51,21 @@ function AverageMenu({ onAverage, disabled, attached }: { onAverage(): void; dis
 }
 
 const LEGEND: { glyph: string; color: string; text: string }[] = [
-  { glyph: "1 2 3", color: annotationColors.issue, text: "Issues that cost time, numbered biggest first" },
-  { glyph: "!", color: annotationColors.minor, text: "Minor: a small loss worth a look" },
-  { glyph: "✓", color: annotationColors.strength, text: "Strength, or a finding you marked reviewed" },
-  { glyph: "~", color: annotationColors.inconsistent, text: "Inconsistent: this corner varies between your laps (Average)" },
+  { glyph: "1 2 3", color: annotationColors.issue, text: "Big losses that cost time, numbered biggest first" },
+  { glyph: "!", color: annotationColors.minor, text: "Small loss worth a look" },
+  { glyph: "✓", color: annotationColors.strength, text: "Good corner, or a finding you marked reviewed" },
+  { glyph: "~", color: annotationColors.inconsistent, text: "Drive differently each lap: this corner varies between your laps (Check consistency)" },
 ];
 const TAGS: [string, string][] = [
-  ["LANDMARK", "the fix points at a trackside landmark"],
-  ["FEEL", "the fix is a feel cue (no landmark nearby)"],
-  ["OWN LAP", "the fix points at your own better lap"],
+  ["Use a trackside marker", "the fix points at a trackside marker"],
+  ["Tip", "the fix is a feel cue (no marker nearby)"],
+  ["Copy your better lap", "the fix points at your own better lap"],
 ];
 
 /** Section titles over the key's rows; the swatch colours match the map, the strips and the coach marks. */
 const MAP_KEY: { color: string; text: string }[] = [
-  { color: colors.understeer, text: "Understeer: the car pushed wide (map line and steering strip)" },
-  { color: colors.closeCall, text: "Close call: two wheels off the track on a valid lap (red when the lap is invalid)" },
+  { color: colors.understeer, text: "Car pushing wide (understeer): map line and steering strip" },
+  { color: colors.closeCall, text: "Nearly off track: two wheels off on a valid lap (red when the lap is invalid)" },
   { color: colors.lockup, text: "Lockup: a wheel locked under braking" },
   { color: colors.wheelspin, text: "Wheelspin: a driven wheel spun on exit" },
   { color: colors.oversteer, text: "Oversteer (experimental, only with ?balance)" },
@@ -158,7 +158,7 @@ export function AnalysisBar({ coach, annotations, totalDelta, refName = null, di
               className={styles.totalWrap}
               title="Lap time minus the comparison's lap time. + means this lap is slower."
             >
-              <span className={styles.muted}>Lap Δ</span>{" "}
+              <span className={styles.muted}>Lap time gap</span>{" "}
               <span className={cx(styles.delta, totalDelta > 0.005 && styles.deltaLoss, totalDelta < -0.005 && styles.deltaGain)}>
                 {formatDelta(totalDelta)} s
               </span>
@@ -186,7 +186,7 @@ export function AnalysisBar({ coach, annotations, totalDelta, refName = null, di
             {showNotes ? "Hide notes" : "Show notes"}
           </button>
           <span className={styles.groupGap}>
-            <button type="button" disabled={disabled} onClick={() => void run("analyze")} className={cx(ui.btn, ui.btnMuted)}>Re-analyze</button>
+            <button type="button" disabled={disabled} onClick={() => void run("analyze")} className={cx(ui.btn, ui.btnMuted)}>Ask again</button>
             <AverageMenu attached onAverage={() => void run("average")} disabled={disabled} />
           </span>
         </>

@@ -22,17 +22,17 @@ export interface AnnotationCardActions {
 const Ctx = createContext<AnnotationCardActions | null>(null);
 export const AnnotationCardProvider = Ctx.Provider;
 
-const TAG: Record<Finding["kind"], string> = { issue: "COSTING TIME", minor: "MINOR", strength: "STRENGTH", inconsistent: "INCONSISTENT" };
+const TAG: Record<Finding["kind"], string> = { issue: "COSTING TIME", minor: "SMALL LOSS", strength: "GOOD CORNER", inconsistent: "DIFFERENT EACH LAP" };
 const TAG_HELP: Record<Finding["kind"], string> = {
   issue: "This corner costs time against the comparison.",
   minor: "A small loss, worth a look.",
   strength: "You are faster than the comparison here.",
   inconsistent: "This corner varies a lot between your laps.",
 };
-const CUE: Record<Finding["cue_type"], string | null> = { landmark: "LANDMARK", feel: "FEEL", own_lap: "OWN LAP", none: null };
+const CUE: Record<Finding["cue_type"], string | null> = { landmark: "USE A TRACKSIDE MARKER", feel: "TIP", own_lap: "COPY YOUR BETTER LAP", none: null };
 const CUE_HELP: Record<Finding["cue_type"], string> = {
-  landmark: "The fix points at a trackside landmark.",
-  feel: "The fix is a feel cue: no landmark is close to this corner.",
+  landmark: "The fix points at a trackside marker.",
+  feel: "The fix is a feel tip: no trackside marker is close to this corner.",
   own_lap: "The fix points at what you did on one of your own laps.",
   none: "",
 };
@@ -213,7 +213,7 @@ function CardBody({ annotation: a, actions, onPlay }: { annotation: Annotation; 
       <div className={styles.actions}>
         <button type="button" onClick={onPlay} className={cx(ui.btnPrimary, styles.primary)}>Play from here</button>
         <button type="button" onClick={() => actions.onToggleReviewed(a)} className={ui.btn}>{a.reviewed ? "Mark unreviewed" : "Mark reviewed"}</button>
-        <button type="button" onClick={() => void ask()} disabled={asking} className={ui.btn}>{asking ? "Asking…" : "Ask about this corner"}</button>
+        <button type="button" onClick={() => void ask()} disabled={asking} className={ui.btn}>{asking ? "Asking…" : "Explain this corner in more detail"}</button>
       </div>
     </>
   );

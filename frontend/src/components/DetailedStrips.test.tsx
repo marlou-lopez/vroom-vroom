@@ -190,8 +190,8 @@ describe("DetailedStrips legend, zoom, pan and axis (vroom-pnw.35, vroom-pnw.48)
     await setup();
     expect(screen.queryByRole("button", { name: "Corner" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Lap" })).toBeNull();
-    expect(screen.getByText(/Shift-drag to pan/)).toBeTruthy();
-    expect(widthButton().textContent).toBe("700 m");
+    expect(screen.getByText(/Drag to move along the lap/)).toBeTruthy();
+    expect(widthButton().textContent).toBe("Zoom: 700 m");
   });
 
   it("zooms with the wheel, the + and - keys and the whole lap, remembers the width and resets on double-click", async () => {
@@ -210,14 +210,14 @@ describe("DetailedStrips legend, zoom, pan and axis (vroom-pnw.35, vroom-pnw.48)
     for (let i = 0; i < 60; i++) fireEvent.wheel(group(), { deltaY: 300 });
     expect(widthButton().textContent).toBe("Whole lap");
     fireEvent.click(group(), { detail: 2 });
-    expect(widthButton().textContent).toBe("700 m");
+    expect(widthButton().textContent).toBe("Zoom: 700 m");
     expect(localStorage.getItem("vroom.stripWidth")).toBe("700");
   });
 
   it("restores the stored width", async () => {
     localStorage.setItem("vroom.stripWidth", "420");
     await setup();
-    expect(widthButton().textContent).toBe("420 m");
+    expect(widthButton().textContent).toBe("Zoom: 420 m");
   });
 
   it("pans with Shift-drag and middle-drag without moving the playhead; a plain drag moves it", async () => {

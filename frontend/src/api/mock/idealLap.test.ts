@@ -286,7 +286,7 @@ describe("compare against the ideal lap (vroom-bi4.3)", () => {
     const cands = await engine.compareCandidates(lap.lap_id);
     expect(cands[0]).toMatchObject({ lap_id: idealRefId(s.session_id), is_ideal: true, other_car: false });
     expect(cands[0].lap_time_s).toBe((await engine.idealLap(s.session_id)).time_s);
-    expect(cands[0].label).toContain("Ideal lap (session)");
+    expect(cands[0].label).toContain("Best possible lap");
     expect(cands.filter((c) => c.is_ideal)).toHaveLength(1);
   });
 

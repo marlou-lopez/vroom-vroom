@@ -108,17 +108,17 @@ export function plainSeconds(s: number): string {
   return `${Math.abs(s).toFixed(2)} s`;
 }
 
-/** "0.04 s slower than your best lap", "0.12 s faster than the ideal lap", or "the same time as …". */
+/** "0.04 s slower than your best lap", "0.12 s faster than your best possible lap", or "the same time as …". */
 export function plainGap(gapS: number | null, refName: string): string | null {
   if (gapS === null) return null;
   if (Math.abs(gapS) < 0.005) return `the same time as ${refName}`;
   return `${plainSeconds(gapS)} ${gapS > 0 ? "slower" : "faster"} than ${refName}`;
 }
 
-/** How the comparison is named in a sentence: "your best lap (lap 2)", "the ideal lap", "lap 7". */
+/** How the comparison is named in a sentence: "your best lap (lap 2)", "your best possible lap", "lap 7". */
 export function plainRefName(refCand: CompareCandidate | null, laps: LapWithRef[]): string {
   if (!refCand) return "the comparison lap";
-  if (refCand.is_ideal) return "your ideal lap";
+  if (refCand.is_ideal) return "your best possible lap";
   const own = laps.find((l) => l.lap_id === refCand.lap_id);
   if (!own) return refCand.label;
   const fastest = fastestValidLap(laps);
