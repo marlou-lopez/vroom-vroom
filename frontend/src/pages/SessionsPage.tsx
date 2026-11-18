@@ -6,7 +6,7 @@ import { sessionLapsOptions, sessionSummaryOptions, useSessions } from "../api/q
 import type { SessionMeta, SessionSummary } from "../api/types";
 import { formatDelta, formatLapTime, formatShortDate } from "../lib/format";
 import { bestValidLap } from "../lib/laps";
-import { comboKey, focusOutcome, groupCombos, trendPaths, type FocusTone } from "../lib/sessions";
+import { comboKey, focusOutcome, groupCombos, headline, trendPaths, type FocusTone } from "../lib/sessions";
 import { cx } from "../lib/cx";
 import { LapGaugeTable } from "../components/LapGaugeTable";
 import { StintPanel } from "../components/StintPanel";
@@ -68,20 +68,29 @@ export function SessionsPage() {
   const bests = (rows ?? []).map((r) => r.summary.best_lap_s).filter((v): v is number => v !== null);
   const pb = bests.length ? Math.min(...bests) : null;
   const trend = trendPaths((rows ?? []).map((r) => ({ best: r.summary.best_lap_s, theo: r.summary.theoretical_best_s })), 1000, 200);
-  const last = rows?.[rows.length - 1];
-  const gained = bests.length >= 2 ? bests[bests.length - 1] - bests[0] : null;
-  const gapTheo = last?.summary.best_lap_s != null && last.summary.theoretical_best_s != null ? last.summary.best_lap_s - last.summary.theoretical_best_s : null;
-  const totalValid = (rows ?? []).reduce((n, r) => n + r.summary.n_valid, 0);
 
-  const withBest = (rows ?? []).filter((r) => r.summary.best_lap_s !== null);
-  const first = withBest[0];
-  const lastBest = withBest[withBest.length - 1];
-  const dateOf = (r?: Row) => (r ? formatShortDate(r.session.started_at) : "");
+  const dateOf = (r?: { startedAt: string } | null) => (r ? formatShortDate(r.startedAt) : "");
+  const h = headline((rows ?? []).map((r) => ({ type: r.session.session_type, startedAt: r.session.started_at, best: r.summary.best_lap_s, theo: r.summary.theoretical_best_s })));
+  // Ticks under the chart: one per session, thinned to at most 8 so the dates don't collide.
+  const nRows = rows?.length ?? 0;
+  const tickStep = Math.max(1, Math.ceil(nRows / 8));
+  const ticks = (rows ?? []).map((r, i) => ({ i, label: formatShortDate(r.session.started_at), x: nRows === 1 ? 50 : (i / (nRows - 1)) * 100 })).filter((t) => t.i % tickStep === 0 && (t.i === nRows - 1 || nRows - 1 - t.i >= tickStep)).concat(nRows > 1 && (nRows - 1) % tickStep !== 0 ? [{ i: nRows - 1, label: formatShortDate(rows![nRows - 1].session.started_at), x: 100 }] : []);
+  const totalValid = (rows ?? []).reduce((n, r) => n + r.summary.n_valid, 0);
+  // Cards compare like with like: the change is between sessions of one type, and each value names the session it comes from.
   const cards: { k: string; v: string; from: string; tone?: string }[] = [
     { k: "SESSIONS", v: String(combo.count), from: "this track and car" },
     { k: "VALID LAPS", v: String(totalValid), from: `all ${combo.count} sessions` },
-    { k: "CHANGE SINCE FIRST", v: gained === null ? "—" : `${formatDelta(gained)} s`, from: gained === null ? "needs 2 sessions" : `best of ${dateOf(first)} → ${dateOf(lastBest)}`, tone: gained === null ? undefined : gained < 0 ? styles.gain : styles.loss },
-    { k: "GAP TO THEORETICAL", v: gapTheo === null ? "—" : `${gapTheo.toFixed(2)} s`, from: last ? `latest session, ${dateOf(last)}` : "" },
+    {
+      k: h.changeType ? `CHANGE SINCE FIRST ${h.changeType.toUpperCase()}` : "CHANGE SINCE FIRST",
+      v: h.change === null ? "—" : `${formatDelta(h.change)} s`,
+      from: h.change === null ? (h.changeType ? `needs 2 ${h.changeType} sessions` : "needs 2 sessions") : `${h.changeType} best, ${dateOf(h.changeFrom)} → ${dateOf(h.changeTo)}`,
+      tone: h.change === null ? undefined : h.change < 0 ? styles.gain : styles.loss,
+    },
+    {
+      k: "GAP TO THEORETICAL",
+      v: h.gap === null ? "—" : `${h.gap.toFixed(2)} s`,
+      from: h.gapFrom ? `${h.gapFrom.type}, ${dateOf(h.gapFrom)}` : "no session with a theoretical lap",
+    },
   ];
 
   return (
@@ -108,14 +117,20 @@ export function SessionsPage() {
             </svg>
             {trend.best && (
               <>
-                <div className={cx(styles.axis, styles.axisTop)}>{formatLapTime(trend.lo)}</div>
+                <div className={cx(styles.axis, styles.axisTop)}>{formatLapTime(trend.lo)} · faster ↑</div>
                 <div className={cx(styles.axis, styles.axisBottom)}>{formatLapTime(trend.hi)}</div>
               </>
             )}
           </div>
+          <div className={styles.xTicks} aria-label="Session dates">
+            {ticks.map((t) => (
+              <span key={t.i} className={styles.xTick} style={{ left: `${t.x}%` }}>{t.label}</span>
+            ))}
+          </div>
           <div className={styles.legend}>
             <span><span className={styles.legendBest}>━</span> best lap</span>
             <span>┄ theoretical best</span>
+            <span>higher is faster</span>
           </div>
         </section>
         <section aria-label="Summary" className={styles.cards}>

@@ -20,6 +20,10 @@
 .axisTop { top: 0; }
 .axisBottom { bottom: 0; }
 
+.xTicks { position: relative; height: 14px; margin-top: 2px; font-family: var(--font-mono); font-size: 10px; color: var(--color-muted); }
+.xTick { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.xTick:first-child { transform: none; }
+.xTick:last-child { transform: translateX(-100%); }
 .legend { display: flex; gap: 16px; color: var(--color-muted); padding-top: 6px; }
 .legendBest { color: var(--color-you); }
 

@@ -42,6 +42,13 @@ export function LapGaugeTable({ sessionId }: { sessionId: string }) {
             <input type="checkbox" checked={validOnly} onChange={(e) => setValidOnly(e.target.checked)} /> valid only
           </label>
         </div>
+        <div className={styles.segLegend} aria-label="Segments legend">
+          Segments, one cell per ideal-lap segment:
+          <span className={styles.legendItem}><span className={cx(styles.swatch, styles.purple)} /> holds the ideal</span>
+          <span className={styles.legendItem}><span className={cx(styles.swatch, styles.green)} /> close</span>
+          <span className={styles.legendItem}><span className={cx(styles.swatch, styles.yellow)} /> slow</span>
+          <span className={styles.legendItem}><span className={cx(styles.swatch, styles.red)} /> lost time</span>
+        </div>
         <table className={styles.table}>
           <thead>
             <tr>

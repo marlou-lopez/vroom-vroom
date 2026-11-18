@@ -70,3 +70,42 @@ export function trendPaths(points: TrendPoint[], w: number, h: number, pad = 12)
   };
   return { best: build((p) => p.best), theo: build((p) => p.theo), lo, hi };
 }
+
+export interface HeadlineRow {
+  type: string;
+  startedAt: string;
+  best: number | null;
+  theo: number | null;
+}
+
+export interface Headline {
+  /** Seconds, best − first best (negative = faster). Null without two comparable sessions. */
+  change: number | null;
+  /** Session type both ends of `change` come from. */
+  changeType: string | null;
+  changeFrom: HeadlineRow | null;
+  changeTo: HeadlineRow | null;
+  /** Best − theoretical of the newest session that has both, and the session it comes from. */
+  gap: number | null;
+  gapFrom: HeadlineRow | null;
+}
+
+/**
+ * Headline numbers over rows oldest first. A change in best lap is only taken between sessions of one type (a race best
+ * against a practice best says nothing about pace): the type of the newest session with a best lap that has a second session of that type, else the newest type.
+ * The gap to theoretical comes from the newest session that has both values, so a race without a theoretical lap doesn't blank it.
+ */
+export function headline(rows: HeadlineRow[]): Headline {
+  const withBest = rows.filter((r) => r.best !== null);
+  // The newest type with two sessions to compare, else the newest type (so the card can say what it needs).
+  const counts = new Map<string, number>();
+  for (const r of withBest) counts.set(r.type, (counts.get(r.type) ?? 0) + 1);
+  const type = [...withBest].reverse().find((r) => (counts.get(r.type) ?? 0) >= 2)?.type ?? (withBest.length ? withBest[withBest.length - 1].type : null);
+  const same = withBest.filter((r) => r.type === type);
+  const changeFrom = same.length >= 2 ? same[0] : null;
+  const changeTo = same.length >= 2 ? same[same.length - 1] : null;
+  const change = changeFrom && changeTo ? (changeTo.best as number) - (changeFrom.best as number) : null;
+  const gapFrom = [...rows].reverse().find((r) => r.best !== null && r.theo !== null) ?? null;
+  const gap = gapFrom ? (gapFrom.best as number) - (gapFrom.theo as number) : null;
+  return { change, changeType: type, changeFrom, changeTo, gap, gapFrom };
+}

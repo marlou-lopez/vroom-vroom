@@ -19,3 +19,10 @@ th.num { font-family: inherit; }
 .tagInvalid { color: var(--color-off-track); }
 .noTrace td { opacity: 0.6; }
 .dim { color: var(--color-muted); }
+.segLegend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; font-size: 10px; color: var(--color-muted); }
+.legendItem { display: inline-flex; align-items: center; gap: 4px; }
+.swatch { width: 10px; height: 10px; border-radius: 1px; display: inline-block; }
+.purple { background: var(--color-ideal); }
+.green { background: var(--color-strength); opacity: 0.85; }
+.yellow { background: var(--color-minor); opacity: 0.85; }
+.red { background: var(--color-issue); }
