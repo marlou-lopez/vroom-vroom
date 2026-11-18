@@ -1,14 +1,22 @@
 // Screenshots of the running app for agents (vroom-pnw.47). Not a test: nothing in vitest or CI runs it.
 //   npm run shots -- '/?debug=0' /sessions [--width 1600x900] [--out shots]
-// Reuses a dev server on :5173, else starts Vite with the mock API and stops it afterwards.
+// Reuses a dev server on :5173 only if it serves THIS frontend folder (vroom-pnw.67); otherwise starts Vite with the
+// mock API on a free port and stops it afterwards. SHOTS_PORT names a server explicitly: it must serve this folder
+// too, unless --any-server is given.
 import { spawn } from 'node:child_process'
-import { mkdirSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { mkdirSync, realpathSync } from 'node:fs'
+import { createServer } from 'node:net'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { chromium } from '@playwright/test'
 
 const environment = process['env']
-const PORT = Number(environment.SHOTS_PORT) || 5173
-const BASE = `http://localhost:${PORT}`
+const OWN_ROOT = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), '..'))
+// Served by the devRootEndpoint plugin in vite.config.ts (dev only). Keep in sync with vite-dev-root.ts.
+const ROOT_PATH = '/__vroom-root'
+const EXPLICIT_PORT = Number(environment.SHOTS_PORT) || 0
+let PORT = EXPLICIT_PORT || 5173
+let BASE = `http://localhost:${PORT}`
 
 // Headless Chromium hangs before rendering without this on WSL.
 environment.DBUS_SESSION_BUS_ADDRESS ??= 'disabled:'
@@ -17,16 +25,18 @@ const args = process.argv.slice(2)
 const targets = []
 let size = '1600x900'
 let out = 'shots'
+let anyServer = false
 for (let i = 0; i < args.length; i++) {
   const a = args[i]
   if (a === '--width') size = args[++i]
   else if (a.startsWith('--width=')) size = a.slice(8)
   else if (a === '--out') out = args[++i]
   else if (a.startsWith('--out=')) out = a.slice(6)
+  else if (a === '--any-server') anyServer = true
   else targets.push(a)
 }
 if (!targets.length) {
-  console.error('usage: npm run shots -- <path|url>... [--width 1600[x900]] [--out dir]')
+  console.error('usage: npm run shots -- <path|url>... [--width 1600[x900]] [--out dir] [--any-server]')
   process.exit(2)
 }
 const m = /^(\d+)(?:x(\d+))?$/.exec(size)
@@ -44,6 +54,28 @@ async function up() {
   }
 }
 
+// The frontend folder the server on BASE serves: null when it doesn't answer or is a Vite without the endpoint.
+async function serverRoot() {
+  try {
+    const res = await fetch(BASE + ROOT_PATH)
+    const text = (await res.text()).trim()
+    return res.ok && text.startsWith('/') ? text : null
+  } catch {
+    return null
+  }
+}
+
+function freePort() {
+  return new Promise((ok, fail) => {
+    const s = createServer()
+    s.once('error', fail)
+    s.listen(0, '127.0.0.1', () => {
+      const { port } = s.address()
+      s.close(() => ok(port))
+    })
+  })
+}
+
 let server = null
 function stop() {
   if (server) {
@@ -54,7 +86,22 @@ function stop() {
   }
 }
 
-if (!(await up())) {
+let reuse = false
+if (await up()) {
+  const root = await serverRoot()
+  if (root === OWN_ROOT || anyServer) reuse = true
+  else if (EXPLICIT_PORT) {
+    console.error(
+      `the dev server on port ${PORT} serves ${root ?? 'an unknown folder (no /__vroom-root endpoint)'}, not ${OWN_ROOT}. ` +
+        'Its code is not this checkout\'s. Stop it, unset SHOTS_PORT, or pass --any-server to screenshot it anyway.',
+    )
+    process.exit(2)
+  }
+}
+if (!reuse) {
+  // Nothing of ours to reuse: start our own on a free port, never on someone else's 5173.
+  PORT = EXPLICIT_PORT && !(await up()) ? EXPLICIT_PORT : await freePort()
+  BASE = `http://localhost:${PORT}`
   server = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], {
     stdio: 'ignore',
     env: { ...environment, VITE_API: 'mock' },
@@ -68,6 +115,7 @@ if (!(await up())) {
   }
 }
 
+console.error(`${server ? 'started own dev server' : 'reusing dev server'} on ${BASE} (${OWN_ROOT})`)
 const dir = resolve(out)
 mkdirSync(dir, { recursive: true })
 let code = 0

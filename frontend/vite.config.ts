@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vitest/config'
+import { devRootEndpoint } from './vite-dev-root.ts'
 
 /**
  * Vite copies all of public/ into dist/. Two folders there are for development only: the mock API's recordings with
@@ -26,7 +27,7 @@ function stripDevOnlyPublicFiles(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), stripDevOnlyPublicFiles()],
+  plugins: [react(), stripDevOnlyPublicFiles(), devRootEndpoint()],
   // The model converter is a module worker that imports its heavy parts lazily, which needs the ES worker format.
   worker: { format: 'es' },
   server: {
