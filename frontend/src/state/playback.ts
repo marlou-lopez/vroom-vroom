@@ -18,12 +18,14 @@ export interface PlaybackState {
   view: PlaybackView;
   /** Length of the "you" lap in seconds (the wrap point). */
   duration: number;
+  /** The corner a corner click seeked to the lead-in of; the readout names it while the playhead is in that lead-in. Cleared by any other seek. */
+  leadInCornerId: string | null;
 }
 
 export interface PlaybackActions {
   setLaps(lapId: string | null, refLapId: string | null): void;
   setDuration(duration: number): void;
-  seek(tau: number): void;
+  seek(tau: number, leadInCornerId?: string | null): void;
   seekBy(dt: number): void;
   play(): void;
   pause(): void;
@@ -41,7 +43,7 @@ export interface PlaybackStore extends Pick<StoreApi<PlaybackState>, "getState" 
 
 export function createPlaybackStore(initial?: Partial<PlaybackState>): PlaybackStore {
   const store = createStore<PlaybackState>(() => ({
-    lapId: null, refLapId: null, tau: 0, playing: false, rate: 1, view: "detailed", duration: 0, ...initial,
+    lapId: null, refLapId: null, tau: 0, playing: false, rate: 1, view: "detailed", duration: 0, leadInCornerId: null, ...initial,
   }));
   const { getState, setState } = store;
   const clamp = (tau: number) => Math.min(Math.max(0, tau), getState().duration);
@@ -52,11 +54,11 @@ export function createPlaybackStore(initial?: Partial<PlaybackState>): PlaybackS
     subscribe: store.subscribe,
     setLaps(lapId, refLapId) {
       const s = getState();
-      if (lapId !== s.lapId || refLapId !== s.refLapId) setState({ lapId, refLapId, tau: 0 });
+      if (lapId !== s.lapId || refLapId !== s.refLapId) setState({ lapId, refLapId, tau: 0, leadInCornerId: null });
     },
     setDuration: (duration) => setState({ duration }),
-    seek: (tau) => setState({ tau: clamp(tau) }),
-    seekBy: (dt) => setState({ tau: clamp(getState().tau + dt) }),
+    seek: (tau, leadInCornerId = null) => setState({ tau: clamp(tau), leadInCornerId }),
+    seekBy: (dt) => setState({ tau: clamp(getState().tau + dt), leadInCornerId: null }),
     play: () => setState({ playing: true }),
     pause: () => setState({ playing: false }),
     toggle: () => setState({ playing: !getState().playing }),
@@ -64,7 +66,10 @@ export function createPlaybackStore(initial?: Partial<PlaybackState>): PlaybackS
     setView: (view) => setState({ view }),
     tick(dt) {
       const s = getState();
-      if (s.duration > 0) setState({ tau: advanceTau(s.tau, dt, s.rate, s.duration) });
+      if (s.duration > 0) {
+        const tau = advanceTau(s.tau, dt, s.rate, s.duration);
+        setState(tau < s.tau ? { tau, leadInCornerId: null } : { tau });
+      }
     },
   };
 }

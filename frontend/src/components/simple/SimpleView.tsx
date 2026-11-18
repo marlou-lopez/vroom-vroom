@@ -1,16 +1,14 @@
-// EXPERIMENTAL (spike vroom-pnw.50): a "Simple view" of the Telemetry page for a first-time user with no telemetry
-// background, behind `?ui=simple`. It answers "where am I slow, and what should I do?" in plain words at larger sizes,
+// The "Simple view" mode of the Telemetry page (vroom-pnw.50 prototype, vroom-pnw.56), for a user with no telemetry
+// background; the Simple/Full switch in the header chooses it. It answers "where am I slow, and what should I do?" in plain words at larger sizes,
 // and links to the full view for everything else. Data comes only through the props the Telemetry page already loads.
 import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
 import type { CompareCandidate, CompareResponse, Corner, LapWithRef, TrackMap } from "../../api/types";
 import { effectiveValid } from "../../api/types";
 import { formatLapTime } from "../../lib/format";
 import { lapGap } from "../../lib/compareName";
 import { MAP_H, MAP_W, type PlaybackModel } from "../../lib/model";
-import { biggestGains, biggestLosses, fastestValidLap, plainCorner, plainGap, plainRefName, plainSeconds } from "../../lib/plainCorner";
+import { biggestGains, biggestLosses, fastestValidLap, plainCorners, plainGap, plainRefName, plainSeconds } from "../../lib/plainCorner";
 import { cornerSegmentPath, pointAtDistance } from "../../lib/trackmap";
-import { withParams } from "../../lib/urlParams";
 import type { CoachState } from "../../state/useCoach";
 import styles from "./Simple.module.css";
 
@@ -24,10 +22,11 @@ export interface SimpleViewProps {
   coach: CoachState;
   onSelectLap(id: string): void;
   onSelectRef(id: string | null): void;
+  /** Switch to the full view with the playhead at the start of this corner. */
+  onReplayCorner(corner: Corner): void;
 }
 
-export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coach, onSelectLap, onSelectRef }: SimpleViewProps) {
-  const [params] = useSearchParams();
+export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coach, onSelectLap, onSelectRef, onReplayCorner }: SimpleViewProps) {
   const lap = laps.find((l) => l.lap_id === lapId) ?? null;
   const refCand = candidates.find((c) => c.lap_id === cmp.ref_lap_id) ?? null;
   const best = fastestValidLap(laps);
@@ -56,16 +55,11 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
 
   // Timed laps, plus the lap on screen even when it is not one (an invalid or out lap opened from the full view).
   const flying = laps.filter((l) => (l.kind === "flying" && l.lap_time_s) || l.lap_id === lapId);
-  const fullView = `/?${withParams(params, { ui: null }).toString()}`;
-  const fullAt = (c: Corner) => `/?${withParams(params, { ui: null, at: String(Math.round(c.start_m)) }).toString()}`;
+  const plainRef = refShort === "ideal lap" ? "the ideal lap" : refName.replace(/ \(lap \d+\)$/, "");
+  const plains = plainCorners(losses.map((m) => ({ metrics: m, name: cornerById.get(m.corner_id)!.name })), plainRef);
 
   return (
     <div className={styles.root}>
-      <div className={styles.banner} role="note">
-        <strong>Experimental</strong> Simple view, a prototype for first-time users (spike vroom-pnw.50).
-        <Link to={fullView} className={styles.linkBtn}>Open the full view</Link>
-      </div>
-
       <section className={styles.summary} aria-label="Your lap">
         <div>
           <h1 className={styles.title}>
@@ -110,7 +104,7 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
             <ol className={styles.losses}>
               {losses.map((m, i) => {
                 const c = cornerById.get(m.corner_id)!;
-                const p = plainCorner(m, refShort === "ideal lap" ? "the ideal lap" : refName.replace(/ \(lap \d+\)$/, ""));
+                const p = plains[i];
                 const fix = coachFix.get(m.corner_id);
                 return (
                   <li key={m.corner_id}>
@@ -168,7 +162,7 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
             <section className={`${styles.card} ${styles.wide}`} aria-label={`${selected.name} in detail`}>
               <div className={styles.detailHead}>
                 <h2 className={styles.h2}>{selected.name}: you against {refShort === "ideal lap" ? "the ideal lap" : refName}</h2>
-                <Link to={fullAt(selected)} className={styles.linkBtn}>Replay this corner in the full view</Link>
+                <button type="button" className={styles.linkBtn} onClick={() => onReplayCorner(selected)}>Replay this corner in the full view</button>
               </div>
               <CornerChart cmp={cmp} corner={selected} refLabel={refShort === "ideal lap" ? "Ideal lap" : refName.replace(/^your /, "Your ")} />
             </section>

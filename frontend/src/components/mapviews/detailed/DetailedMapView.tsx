@@ -8,7 +8,8 @@ import { cx } from "../../../lib/cx";
 import { debugEnabled } from "../../../lib/debugFlag";
 import { pointAt } from "../../../lib/geo";
 import { scaleBar, scaleLabel } from "../../../lib/scaleBar";
-import { nextCorner } from "../../../lib/trackmap";
+import { nextCorner, readoutCorner } from "../../../lib/trackmap";
+import { CORNER_LEAD_M } from "../../../lib/annotations";
 import { distanceAtTime, timeAtDistance } from "../../../lib/playback";
 import { usePlaybackStore } from "../../../state/playback";
 import ui from "../../ui.module.css";
@@ -142,7 +143,11 @@ export function DetailedMapView({ model, trackMap, geometry, annotations, handle
     const sb = scaleBar(v.w / cam.widthM);
     if (scaleBarEl.current) scaleBarEl.current.style.width = `${sb.px.toFixed(1)}px`;
     if (scaleTextEl.current) scaleTextEl.current.textContent = scaleLabel(sb.metres);
-    const nc = trackMapRef.current ? nextCorner(trackMapRef.current, cars.dLap) : null;
+    const tm = trackMapRef.current;
+    const lead = tm ? readoutCorner(tm, cars.dLap, store.get().leadInCornerId, CORNER_LEAD_M) : null;
+    const nc = lead?.approaching
+      ? { corner: lead.corner, inside: false, aheadM: (((lead.corner.start_m - cars.dLap) % tm!.length_m) + tm!.length_m) % tm!.length_m }
+      : tm ? nextCorner(tm, cars.dLap) : null;
     const label = nc ? (nc.inside ? nc.corner.name : `${nc.corner.name} in ${Math.max(10, Math.round(nc.aheadM / 10) * 10)} m`) : "";
     if (cornerEl.current && label !== shownCorner.current) {
       shownCorner.current = label;

@@ -187,3 +187,22 @@ export function nextCorner(map: TrackMap, d: number): { corner: Corner; aheadM: 
   }
   return best ? { corner: best, aheadM: bestGap, inside: false } : null;
 }
+
+/** Slack for the float round trip distance -> lap time -> distance when a seek lands on a lead-in point. */
+const LEAD_IN_TOLERANCE_M = 0.5;
+
+/**
+ * The corner to name for the playhead at `d` in the readout, map and engineer line. Normally the corner containing `d`.
+ * But a corner click seeks to that corner's lead-in (`leadM` before its start), which can lie inside the previous corner:
+ * while the playhead stays in the lead-in of the clicked corner (`leadInId`), that corner is named, `approaching` true.
+ * null on a straight.
+ */
+export function readoutCorner(map: TrackMap, d: number, leadInId: string | null, leadM: number): { corner: Corner; approaching: boolean } | null {
+  const clicked = leadInId ? map.corners.find((c) => c.id === leadInId) : undefined;
+  if (clicked) {
+    const gap = (((clicked.start_m - d) % map.length_m) + map.length_m) % map.length_m;
+    if (gap > 0 && gap <= leadM + LEAD_IN_TOLERANCE_M) return { corner: clicked, approaching: true };
+  }
+  const here = cornerAt(map, d);
+  return here ? { corner: here, approaching: false } : null;
+}

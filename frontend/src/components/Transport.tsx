@@ -6,7 +6,7 @@ import { formatClock, formatDistance } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { CORNER_LEAD_M } from "../lib/annotations";
 import { layoutCornerLabels, smallFontPx } from "../lib/cornerLabels";
-import { cornerAt } from "../lib/trackmap";
+import { readoutCorner } from "../lib/trackmap";
 import { distanceAtTime, timeAtDistance } from "../lib/playback";
 import { RATES, usePlayback, usePlaybackStore, type Rate } from "../state/playback";
 import { cx } from "../lib/cx";
@@ -61,7 +61,8 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refN
   }, [trackMap, cmp, duration, ticksW, priorityCornerIds]);
 
   const dNow = distanceAtTime(cmp.lap.t, cmp.distance, tau);
-  const currentCorner = trackMap ? cornerAt(trackMap, dNow) : null;
+  const leadInId = usePlayback((s) => s.leadInCornerId);
+  const currentCorner = trackMap ? (readoutCorner(trackMap, dNow, leadInId, CORNER_LEAD_M)?.corner ?? null) : null;
 
   // The ticks are one tab stop (a roving tabindex): arrows, Home and End move between all of them, hidden labels included.
   const tickEls = useRef<(HTMLButtonElement | null)[]>([]);
@@ -143,7 +144,7 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refN
             tabIndex={i === tabStop ? 0 : -1}
             onFocus={() => setActiveTick(i)}
             onKeyDown={(e) => onTickKeyDown(e, i)}
-            onClick={() => store.seek(timeAtDistance(cmp.lap.t, cmp.distance, c.start_m - CORNER_LEAD_M))}
+            onClick={() => store.seek(timeAtDistance(cmp.lap.t, cmp.distance, c.start_m - CORNER_LEAD_M), c.id)}
             className={cx(styles.tick, currentCorner?.id === c.id && styles.current)}
             style={{ left: `${frac * 100}%` }}
           >
