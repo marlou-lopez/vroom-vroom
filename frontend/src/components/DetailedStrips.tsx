@@ -12,7 +12,7 @@ import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
 import { DEFAULT_WINDOW_M, WINDOW_WIDTH_KEY, chipLayerGeometry, clampWidth, cornerBands, cornerFitWidth, clipBand, distanceTicks, elevationRange, paddedRange, parseWidth, stripDistanceAt, stripPanCentre, stripRanges, symmetricRange, stripScrubTarget, stripView, wheelFactor, withAlpha, zoomWidth, type Range } from "../lib/strips";
 import { usePlaybackStore } from "../state/playback";
-import { annotationColors, colors, fonts } from "../theme";
+import { colors, fonts } from "../theme";
 import styles from "./DetailedStrips.module.css";
 import * as Popover from "@radix-ui/react-popover";
 import { loadStrips, moveStrip, saveStrips, STRIP_OPTIONS, toggleStrip, type StripId } from "../lib/stripChoice";
@@ -63,6 +63,8 @@ interface Spec {
   experimental?: boolean;
   /** Tooltip on the label. */
   hint?: string;
+  /** Always-visible note beside the label. */
+  caption?: string;
   yRange: Range;
   data: Num[];
   series: uPlot.Series[];
@@ -114,7 +116,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       value: (c, tau, iy) => [`${Math.round(c.lap.speed_kmh[iy])}`, `${Math.round(c.ref.speed_kmh[indexAtTime(c.ref.t, tau)])}`],
     },
     {
-      id: "pedals", label: "THROTTLE · BRAKE", off, joins, yRange: r.pedals,
+      id: "pedals", label: "BRAKE & THROTTLE", off, joins, yRange: r.pedals,
       data: [cmp.ref.throttle, cmp.ref.brake, cmp.lap.throttle, cmp.lap.brake],
       series: [
         line(withAlpha(colors.throttle, 0.45), 1.2), line(withAlpha(colors.brake, 0.45), 1.2),
@@ -141,7 +143,7 @@ function buildSpecs(cmp: CompareResponse, geometry: TrackGeometry | null, lapVal
       value: (c, _t, iy) => [formatSteering(c.lap.steering[iy], c.lap_steering_range_deg)],
     },
     {
-      id: "delta", label: "DELTA", off, joins, yRange: r.delta,
+      id: "delta", label: "TIME VS BEST", hint: "Rising = losing time. Falling = gaining time.", caption: "rising = losing time", off, joins, yRange: r.delta,
       data: [cmp.delta],
       series: [line(colors.textSoft, 1.6)],
       zeroLine: true, deltaFill: true,
@@ -496,23 +498,28 @@ function StripPicker({ choice: stored, available, onChange }: { choice: StripId[
             <ul className={styles.pickerList} aria-label="Shown strips">
               {choice.map((id, i) => (
                 <li key={id} className={styles.pickerRow}>
-                  <span className={styles.pickerName}>{label(id)}</span>
+                  <span className={styles.pickerName}>{label(id)}<span className={styles.pickerDesc}>{STRIP_OPTIONS.find((o) => o.id === id)!.desc}</span></span>
                   <button type="button" aria-label={`Move ${label(id)} up`} disabled={i === 0} onClick={() => change(moveStrip(choice, id, -1))}>↑</button>
                   <button type="button" aria-label={`Move ${label(id)} down`} disabled={i === choice.length - 1} onClick={() => change(moveStrip(choice, id, 1))}>↓</button>
                   <button type="button" aria-label={`Remove ${label(id)}`} disabled={choice.length === 1} onClick={() => change(toggleStrip(choice, id))}>×</button>
                 </li>
               ))}
             </ul>
-            {rest.length > 0 && (
-              <ul className={styles.pickerList} aria-label="Available strips">
-                {rest.map((o) => (
-                  <li key={o.id} className={styles.pickerRow}>
-                    <span className={styles.pickerName}>{o.label}</span>
-                    <button type="button" aria-label={`Add ${o.label}`} onClick={() => change(toggleStrip(choice, o.id))}>+</button>
-                  </li>
-                ))}
-              </ul>
-            )}
+            {(["basics", "advanced"] as const).map((g) => {
+              const items = rest.filter((o) => o.group === g);
+              if (items.length === 0) return null;
+              return (
+                <ul key={g} className={styles.pickerList} aria-label={g === "basics" ? "Basics" : "Advanced"}>
+                  <li className={styles.pickerGroup}>{g === "basics" ? "Basics" : "Advanced"}</li>
+                  {items.map((o) => (
+                    <li key={o.id} className={styles.pickerRow}>
+                      <span className={styles.pickerName}>{o.label}<span className={styles.pickerDesc}>{o.desc}</span></span>
+                      <button type="button" aria-label={`Add ${o.label}`} onClick={() => change(toggleStrip(choice, o.id))}>+</button>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })}
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>
@@ -535,7 +542,6 @@ export function DetailedStrips({ model, geometry, annotations, handlers, focusCo
     const a = allSpecs.find((x) => x.id === "pedals")?.aids?.runs;
     return a && (a.abs.length > 0 || a.tc.length > 0) ? { abs: a.abs.length > 0, tc: a.tc.length > 0 } : null;
   }, [allSpecs]);
-  const offRuns = allSpecs[0]?.off.runs.length ?? 0;
   const specList = useMemo(() => {
     const picked = choice.flatMap((id) => allSpecs.filter((s) => s.id === id));
     return picked.length > 0 ? picked : allSpecs.slice(0, 1);
@@ -800,16 +806,6 @@ export function DetailedStrips({ model, geometry, annotations, handlers, focusCo
         <div className={styles.legend} aria-label="Legend">
           <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.you }} />{youName}</span>
           <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.comparison }} />{refName}</span>
-          {offRuns > 0 && (
-            <span className={styles.legendItem} title="Full-height band where two or more wheels were off the track. Tan: a close call on a valid lap. Red: the lap is invalid.">
-              <i className={styles.swatchBox} style={{ background: withAlpha(lapValid ? colors.closeCall : colors.offTrack, 0.5) }} />{lapValid ? "Wheels off" : "Wheels off (invalid lap)"}
-            </span>
-          )}
-          {annotations.length > 0 && (
-            <span className={styles.legendItem} title="Faint band over each corner the coach has a finding for, from its entry to its exit. The colour shows the kind of finding (issue, minor, strength or reviewed).">
-              <i className={styles.swatchBox} style={{ background: withAlpha(annotationColors.issue, 0.4) }} />Coach corner
-            </span>
-          )}
         </div>
         <div className={styles.windowGroup}>
           <span className={styles.hint}>Shift-drag to pan · wheel to zoom</span>
@@ -819,12 +815,13 @@ export function DetailedStrips({ model, geometry, annotations, handlers, focusCo
         </div>
         <StripPicker choice={choice} available={allSpecs.map((x) => x.id)} onChange={changeChoice} />
       </div>
-      {specList.map(({ id, label: name, experimental, hint }, i) => (
+      {specList.map(({ id, label: name, experimental, hint, caption }, i) => (
         <div key={id} className={styles.strip}>
           <div className={styles.header}>
             <div className={styles.label} title={hint}>
               {name}
               {experimental && <span className={styles.exp} title="Experimental">exp</span>}
+              {caption && <span className={styles.caption}>{caption}</span>}
             </div>
             {id === "pedals" && aidKey && (
               <span className={styles.aidKey} title="Light shading under the traces: ABS where the brake trace is shaded, traction control (TC) where the throttle trace is shaded. Your lap only.">

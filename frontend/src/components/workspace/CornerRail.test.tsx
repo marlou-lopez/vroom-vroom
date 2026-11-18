@@ -55,6 +55,16 @@ describe("CornerRail", () => {
     rerender(ui({ cmp: cmp("a") }));
     expect(screen.getByText(/Pick a comparison lap/)).toBeTruthy();
   });
+  it("sorts the biggest loss first on request, gains last", () => {
+    const { container } = render(ui());
+    fireEvent.click(screen.getByRole("checkbox", { name: "Biggest first" }));
+    expect(Array.from(container.querySelectorAll("li")).map((r) => r.getAttribute("data-kind"))).toEqual(["loss", "gain"]);
+  });
+  it("names the collapsed tab after the rail", () => {
+    localStorage.setItem(CORNER_RAIL_KEY, "collapsed");
+    const { container } = render(ui());
+    expect(container.textContent).toContain("Where the time goes");
+  });
   it("collapses, remembers it, and expands again", () => {
     render(ui());
     fireEvent.click(screen.getByRole("button", { name: "Hide the corner list" }));
@@ -62,14 +72,14 @@ describe("CornerRail", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show the corner list" }));
     expect(screen.getByRole("button", { name: /^Late/ })).toBeTruthy();
   });
-  it("is collapsed by default below 1400 px and open from 1400 px", () => {
+  it("is collapsed by default below 1280 px and open from 1280 px", () => {
     localStorage.removeItem(CORNER_RAIL_KEY);
     const w = window.innerWidth;
-    window.innerWidth = 1200;
+    window.innerWidth = 1279;
     const a = render(ui());
     expect(screen.getByRole("button", { name: "Show the corner list" })).toBeTruthy();
     a.unmount();
-    window.innerWidth = 1500;
+    window.innerWidth = 1280;
     render(ui());
     expect(screen.getByRole("button", { name: "Hide the corner list" })).toBeTruthy();
     window.innerWidth = w;

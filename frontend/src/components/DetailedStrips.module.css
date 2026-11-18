@@ -64,6 +64,7 @@
 .tick { position: absolute; top: 0; transform: translateX(-50%); padding-top: 3px; white-space: nowrap; }
 .tick::before { content: ""; position: absolute; top: 0; left: 50%; height: 3px; border-left: 1px solid var(--color-border-strong); }
 .axisUnit { position: absolute; right: 2px; top: 3px; opacity: 0.7; }
+.caption { margin-left: 6px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--color-muted); }
 .exp { margin-left: 4px; font-size: var(--font-size-small); font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; }
 
 .pickerBar { display: flex; flex: none; }
@@ -82,3 +83,5 @@
 .pickerList:last-child { margin-bottom: 0; }
 .pickerRow { display: flex; gap: 4px; align-items: center; }
 .pickerName { flex: 1; }
+.pickerDesc { display: block; color: var(--color-muted); font-size: var(--font-size-small); }
+.pickerGroup { font-size: var(--font-size-small); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-muted); font-weight: 600; margin-top: 4px; }

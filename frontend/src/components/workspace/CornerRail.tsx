@@ -11,7 +11,7 @@ import styles from "./Workspace.module.css";
 /**
  * "Where the time goes": every corner in track order with the time it cost or gained (free, from the comparison), a
  * direction for the cause, and the coach's findings and "ask about this corner" answers slotted under their corner.
- * The coach entry point stays in the Analysis bar. Collapsible; collapsed by default in windows narrower than
+ * The coach entry point stays in the Analysis bar. Collapsible; collapsed by default only in windows narrower than
  * `NARROW_PX`, and a choice made by the user is remembered.
  */
 export interface CornerRailProps {
@@ -26,7 +26,7 @@ export interface CornerRailProps {
 }
 
 export const CORNER_RAIL_KEY = "vroom.cornerRail";
-export const NARROW_PX = 1400;
+export const NARROW_PX = 1280;
 const STATES = ["open", "collapsed"] as const;
 
 function defaultState(): (typeof STATES)[number] {
@@ -36,6 +36,7 @@ function defaultState(): (typeof STATES)[number] {
 export function CornerRail({ cmp, trackMap, annotations, deepDives, onSeek }: CornerRailProps) {
   const [state, setState] = useState<(typeof STATES)[number]>(() => loadSetting(CORNER_RAIL_KEY, STATES, defaultState()));
   const [lossesOnly, setLossesOnly] = useState(false);
+  const [biggestFirst, setBiggestFirst] = useState(false);
   const toggle = (next: (typeof STATES)[number]) => {
     setState(next);
     saveSetting(CORNER_RAIL_KEY, next);
@@ -47,14 +48,16 @@ export function CornerRail({ cmp, trackMap, annotations, deepDives, onSeek }: Co
         <button type="button" className={styles.collapseBtn} aria-expanded={false} aria-label="Show the corner list" title="Show the corner list" onClick={() => toggle("open")}>
           ◂
         </button>
-        <span className={styles.vertical} aria-hidden="true">Corners</span>
+        <span className={styles.vertical} aria-hidden="true">Where the time goes</span>
       </aside>
     );
   }
 
   const self = cmp.lap_id === cmp.ref_lap_id;
   const all = cornerRailRows(cmp, trackMap?.corners ?? []);
-  const rows = lossesOnly ? all.filter((r) => r.kind === "loss") : all;
+  const filtered = lossesOnly ? all.filter((r) => r.kind === "loss") : all;
+  // "Biggest first": the biggest loss on top, then the smaller ones, gains last (the most gained at the very end).
+  const rows = biggestFirst ? [...filtered].sort((a, b) => b.deltaS - a.deltaS) : filtered;
   const maxAbs = Math.max(0.05, ...all.map((r) => Math.abs(r.deltaS)));
   const total = cmp.delta[cmp.delta.length - 1] ?? 0;
 
@@ -74,6 +77,10 @@ export function CornerRail({ cmp, trackMap, annotations, deepDives, onSeek }: Co
             <label className={styles.check}>
               <input type="checkbox" checked={lossesOnly} onChange={(e) => setLossesOnly(e.target.checked)} />
               Losses only
+            </label>
+            <label className={styles.check}>
+              <input type="checkbox" checked={biggestFirst} onChange={(e) => setBiggestFirst(e.target.checked)} />
+              Biggest first
             </label>
             <span className={cx(styles.total, total > 0.005 && styles.loss, total < -0.005 && styles.gain)}>{formatDelta(total)} s</span>
           </div>

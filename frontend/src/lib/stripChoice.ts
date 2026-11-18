@@ -1,27 +1,29 @@
 // Which telemetry strips the inputs panel shows and in what order, remembered per browser (vroom-pnw.13).
 
+export type StripGroup = "basics" | "advanced";
+
 export const STRIP_OPTIONS = [
-  { id: "speed", label: "Speed" },
-  { id: "pedals", label: "Throttle · brake" },
-  { id: "gear", label: "Gear" },
-  { id: "steering", label: "Steering" },
-  { id: "delta", label: "Delta" },
-  { id: "elevation", label: "Elevation (if the track has it)" },
-  { id: "rpm", label: "RPM" },
-  { id: "g_lat", label: "Lateral g" },
-  { id: "g_long", label: "Longitudinal g" },
-  { id: "suspension", label: "Suspension" },
-  { id: "slip", label: "Tyre slip" },
+  { id: "delta", label: "Time vs best", group: "basics", desc: "Where you gain or lose time on the comparison lap. Rising = losing." },
+  { id: "speed", label: "Speed", group: "basics", desc: "How fast you are at every point of the lap." },
+  { id: "pedals", label: "Brake & throttle", group: "basics", desc: "When you brake and get back on the power." },
+  { id: "steering", label: "Steering", group: "basics", desc: "How much and how early you turn the wheel." },
+  { id: "gear", label: "Gear", group: "advanced", desc: "Which gear you are in, with the shifts." },
+  { id: "elevation", label: "Elevation (if the track has it)", group: "advanced", desc: "Hills and crests along the lap." },
+  { id: "rpm", label: "RPM", group: "advanced", desc: "Engine speed, to see shift points." },
+  { id: "g_lat", label: "Lateral g", group: "advanced", desc: "Cornering force: how hard the car is turning." },
+  { id: "g_long", label: "Longitudinal g", group: "advanced", desc: "Braking and acceleration force." },
+  { id: "suspension", label: "Suspension", group: "advanced", desc: "How far the suspension is compressed." },
+  { id: "slip", label: "Tyre slip", group: "advanced", desc: "How much the tyres are sliding." },
   /** Offered when the lap has a balance (API `lap_balance`, vroom-bi4.6). */
-  { id: "balance", label: "Balance (understeer, exp)" },
+  { id: "balance", label: "Balance (understeer, exp)", group: "advanced", desc: "Understeer through the corners (experimental)." },
 ] as const;
 
 export type StripId = (typeof STRIP_OPTIONS)[number]["id"];
 
 export const STRIP_IDS: readonly StripId[] = STRIP_OPTIONS.map((o) => o.id);
 
-/** Today's strips, in today's order. */
-export const DEFAULT_STRIPS: readonly StripId[] = ["speed", "pedals", "gear", "steering", "delta", "elevation"];
+/** Three strips for a first visit: the answer to "where am I slow" on top (vroom-pnw.57). */
+export const DEFAULT_STRIPS: readonly StripId[] = ["delta", "speed", "pedals"];
 
 export const STRIPS_KEY = "vroom.strips";
 

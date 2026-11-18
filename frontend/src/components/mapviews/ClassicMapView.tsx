@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type PointerEvent } from "react";
 import { aidRuns, mapSpan } from "../../lib/driverAids";
-import { BALANCE_HINT, balanceEnabled, balanceFromContract } from "../../lib/carBalance";
+import { balanceEnabled, balanceFromContract } from "../../lib/carBalance";
 import { CORNER_LEAD_M } from "../../lib/annotations";
 import { offTrackRuns } from "../../lib/offTrack";
 import { MAP_H, MAP_PAD, MAP_W } from "../../lib/model";
@@ -184,12 +184,6 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
       <circle cx={you.x} cy={you.y} r={3.6} className={styles.youDot} />
       <MapBadges annotations={annotations} model={model} h={handlers} />
     </svg>
-    <ul className={styles.legend} aria-label="Map marks" data-testid="map-legend">
-      {balancePaths && <li title={BALANCE_HINT}><i className={styles.swUnder} />understeer{oversteerOn && <> · exp: <i className={styles.swOver} />oversteer</>}</li>}
-      <li>{lapValid === false ? <><i className={styles.swOff} />off track</> : <><i className={styles.swClose} />close call</>}</li>
-      <li><i className={styles.swLock} />lockup</li>
-      <li><i className={styles.swSpin} />wheelspin</li>
-    </ul>
     </>
   );
 }
