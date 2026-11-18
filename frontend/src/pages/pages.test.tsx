@@ -170,6 +170,52 @@ describe("pages", () => {
     expect(within(laps).queryAllByRole("link", { name: /Open lap/ })).toHaveLength(0);
   });
 
+  it("Sessions: switching combo or session leaves only the selected session's lap table and ideal breakdown (vroom-pnw.51)", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => errors.mockRestore());
+    renderApp("/sessions");
+    await screen.findByRole("region", { name: "Laps against the ideal" }, { timeout: 5000 });
+    await screen.findByRole("region", { name: "Ideal lap breakdown" });
+    const group = screen.getByRole("group", { name: "Track and car" });
+    const chips = within(group).getAllByRole("button");
+    expect(chips.length).toBeGreaterThan(1);
+    const first = chips.find((b) => b.getAttribute("aria-pressed") === "true")!;
+    const other = chips.find((b) => b.getAttribute("aria-pressed") === "false")!;
+    const settle = async () => {
+      await screen.findByRole("region", { name: "Laps against the ideal" }, { timeout: 5000 });
+      await screen.findByRole("region", { name: "Ideal lap breakdown" }, { timeout: 5000 });
+    };
+    const onlyOne = () => {
+      expect(screen.getAllByRole("region", { name: "Laps against the ideal" })).toHaveLength(1);
+      expect(screen.getAllByRole("region", { name: "Ideal lap breakdown" })).toHaveLength(1);
+      expect(screen.getAllByText(/SELECTED SESSION/)).toHaveLength(1);
+    };
+    // Go to the other combo and back: the second visit is served from the query cache, so the tables swap within one render.
+    fireEvent.click(other);
+    await settle();
+    onlyOne();
+    fireEvent.click(first);
+    onlyOne();
+    await settle();
+    onlyOne();
+    // Pick another session of the combo (a row of the session list): its tables replace the previous ones.
+    const list = screen.getByRole("region", { name: "Session list" });
+    const rows = within(within(list).getByRole("table")).getAllByRole("row").slice(1);
+    const headingBefore = screen.getByText(/SELECTED SESSION/).textContent;
+    const target = rows.find((r) => !r.className.includes("selected"));
+    if (target) {
+      fireEvent.click(target);
+      // Not cached yet: the old tables are gone at once (never two of either), then the new ones load.
+      expect(screen.queryAllByRole("region", { name: "Laps against the ideal" }).length).toBeLessThanOrEqual(1);
+      expect(screen.queryAllByRole("region", { name: "Ideal lap breakdown" }).length).toBeLessThanOrEqual(1);
+      await settle();
+      onlyOne();
+      expect(screen.getByText(/SELECTED SESSION/).textContent).not.toBe(headingBefore);
+    }
+    // The two tables of one selected session must never share a React key.
+    expect(errors.mock.calls.some((c) => String(c[0]).includes("same key"))).toBe(false);
+  });
+
   it("Tracks shows the corners table", async () => {
     renderApp("/tracks");
     const panel = await screen.findByRole("region", { name: "Corners" });
