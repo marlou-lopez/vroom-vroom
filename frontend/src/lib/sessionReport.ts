@@ -69,6 +69,16 @@ export const RULES = {
   trackTempDriftC: 2,
   /** An out lap's disc temperature this far below the flying laps before the stop is reported. */
   pitCoolingShare: 0.2,
+  /** 'Vs your best laps': the best laps are the fastest `bestShare` of the timed flying laps, at least `bestMinSet`; at least `bestMinOthers`
+   * other laps must exist to compare, otherwise the comparison is skipped and the report says so. */
+  bestShare: 0.2,
+  bestMinSet: 3,
+  bestMinOthers: 2,
+  /** A lap is compared when an axle value differs from the best laps' mean by this much (°C, kPa), and at least `bestMinLaps` laps must. */
+  bestTempDiffC: 5,
+  bestPressureDiffKpa: 5,
+  bestBrakeDiffC: 40,
+  bestMinLaps: 2,
 } as const;
 
 const r = (v: number, d = 2) => Math.round(v * 10 ** d) / 10 ** d;
@@ -170,6 +180,13 @@ export function buildSessionReport(input: ReportInput): SessionReport {
   } else {
     tyreEvents(stats, win, add, range, withRange);
     brakeEvents(stats, win, add, range, withRange);
+    const need = RULES.bestMinSet + RULES.bestMinOthers;
+    const bestSet = timed.length >= need ? [...timed].sort((a, b) => a.lap_time_s! - b.lap_time_s!).slice(0, Math.max(RULES.bestMinSet, Math.ceil(RULES.bestShare * timed.length))) : null;
+    if (!bestSet || timed.length - bestSet.length < RULES.bestMinOthers) {
+      for (const c of ["tyres", "brakes"] as const) unavailable.push({ category: c, reason: `Too few timed flying laps to compare with your best laps (${timed.length}, need at least ${need}).` });
+    } else {
+      vsBestEvents(stats, new Set(bestSet.map((l) => l.lap_no)), lapCoincidence, add, range, withRange);
+    }
   }
 
   // ---- driving (traces) ----
@@ -347,6 +364,37 @@ function brakeEvents(stats: StintLap[], win: ClassWindows, add: Add, range: Rang
       say: (n) => `Front to rear disc temperature ratio averaged ${n.ratio.toFixed(2)} over ${n.n_laps} laps (${range(n)}), ${dir === "low" ? "below" : "above"} the ${n.window_min}-${n.window_max} range.`,
       locate: true,
     });
+  }
+}
+
+/** Tyre and brake values on the laps outside the session's best laps against the best laps' mean, per axle. Reported only for laps that
+ * coincide with time lost against the best lap. */
+function vsBestEvents(stats: StintLap[], bestNos: Set<number>, coincidence: (laps: number[]) => ReportCoincidence | null, add: Add, range: Range, withRange: WithRange) {
+  const use = stats.filter(settled);
+  const best = use.filter((s) => bestNos.has(s.lap_no));
+  const others = use.filter((s) => !bestNos.has(s.lap_no));
+  if (!best.length || !others.length) return;
+  const metrics = [
+    ["tyre_surface_c", "tyres", "tyre surface temperature", "°C", 1, RULES.bestTempDiffC], ["tyre_carcass_c", "tyres", "tyre carcass temperature", "°C", 1, RULES.bestTempDiffC],
+    ["tyre_pressure_kpa", "tyres", "tyre pressure", "kPa", 0, RULES.bestPressureDiffKpa], ["brake_c", "brakes", "brake disc temperature", "°C", 0, RULES.bestBrakeDiffC],
+  ] as const;
+  for (const [key, category, label, unit, d, minDiff] of metrics) {
+    for (const axle of AXLES) {
+      const ref = mean(best.map((s) => wheelsOf(s, key)[axle]));
+      for (const dir of ["high", "low"] as const) {
+        const hit = others.filter((s) => { const diff = wheelsOf(s, key)[axle] - ref; return dir === "high" ? diff >= minDiff : diff <= -minDiff; });
+        if (hit.length < RULES.bestMinLaps) continue;
+        const laps = hit.map((s) => s.lap_no);
+        if (!coincidence(laps)) continue;
+        const diff = Math.abs(mean(hit.map((s) => wheelsOf(s, key)[axle])) - ref);
+        add({
+          category, kind: `vs_best_${key}_${dir}`, severity: gapSev(diff / (key === "brake_c" ? 100 : key === "tyre_pressure_kpa" ? 20 : 20)),
+          laps, numbers: withRange(laps, { diff: r(diff, d), n_laps: hit.length, n_best: best.length }),
+          say: (n) => `${axle[0].toUpperCase()}${axle.slice(1)} ${label} ran ${n.diff.toFixed(d)} ${unit} ${key === "tyre_pressure_kpa" ? (dir === "high" ? "higher" : "lower") : dir === "high" ? "hotter" : "colder"} than on your ${n.n_best} best laps, on ${n.n_laps} laps (${range(n)}).`,
+          locate: true,
+        });
+      }
+    }
   }
 }
 

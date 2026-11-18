@@ -45,7 +45,12 @@ describe("session report (mock, vroom-bi4.11)", () => {
     const api = engine();
     const race = (await api.sessions()).find((s) => s.started_at.startsWith("2026-11-10"))!;
     const r = await api.sessionReport(race.session_id);
-    expect(r.unavailable).toEqual([]);
+    // Only 4 of the race's 9 laps are timed flying laps: too few to compare with the best laps (vroom-0dg), and the report says so.
+    expect(r.unavailable.map((u) => `${u.category}: ${u.reason}`)).toEqual([
+      "tyres: Too few timed flying laps to compare with your best laps (4, need at least 5).",
+      "brakes: Too few timed flying laps to compare with your best laps (4, need at least 5).",
+    ]);
+    expect(r.events.some((e) => e.kind.startsWith("vs_best_"))).toBe(false);
     for (const c of ["tyres", "brakes", "driving", "settings", "pace"] as const) {
       const e = r.events.filter((x) => x.category === c);
       expect(e.length, c).toBeGreaterThan(0);

@@ -1,6 +1,6 @@
 // The working windows the session report judges against (vroom-bi4.11), one table for the code; the same values, with their
-// sources, are in docs/session-report/windows.md. Every value is an editable assumption: LMU publishes no window per car, so these
-// are community guidance and engineering rules of thumb, shown next to each event. Keep the doc and this table in step.
+// sources, are in docs/session-report/windows.md. Every value is an editable assumption: GT3 values without a published source are measured from the driver's recordings
+// (tools/measure-windows.py); the rest are community guidance and engineering rules of thumb, shown next to each event. Keep the doc and this table in step.
 import type { ReportWindow } from "../api/types";
 
 export interface Window { min: number; max: number; source: string }
@@ -19,16 +19,17 @@ export interface ClassWindows {
 }
 
 const SRC_TYRE_TEMP = "Community guidance for LMU: 80-100 C typical (clockwerkradio.com 'How to Heat Tyres Quickly During Qualifying in LMU'); TheTenths LMU GT3 setup guides give 85-100 C for grip and 80-95 C for a race stint";
+const SRC_MEASURED = "Measured with tools/measure-windows.py: 66 laps, 3 car entries (all Garage 59), 4 tracks, 2026-11-18 (10th to 90th percentile of the fastest 20 % of each car and track's flying laps)";
 const SRC_NO_FIGURE = "No published LMU figure found (searched 2026-11-18); engineering assumption, to be replaced with measured values";
 
 export const GT3_WINDOWS: ClassWindows = {
   compound: "dry (medium)",
-  tyre_surface_c: { min: 80, max: 100, source: SRC_TYRE_TEMP },
-  tyre_carcass_c: { min: 80, max: 110, source: `${SRC_NO_FIGURE}; carcass runs a little above the surface (LMU wiki, Tire management: low pressure raises carcass temperature)` },
-  tyre_pressure_kpa: { min: 160, max: 185, source: `${SRC_NO_FIGURE}; the mock's own GT3 recordings run 168-175 kPa hot (24.4-25.4 psi). TheTenths lists 27.1-27.3 psi as cold setup values, a different quantity` },
-  tyre_spread_c: { min: 0, max: 12, source: `${SRC_NO_FIGURE}; rule of thumb that a tread edge-to-edge spread beyond about 10-15 C means camber or pressure is off` },
-  brake_c: { min: 300, max: 650, source: `${SRC_NO_FIGURE}; the LMU brake display shows red while braking and asks for more duct when it stays red all lap (Simracing Arnout, 'More Tire Heat LMU')` },
-  brake_front_rear_ratio: { min: 1.0, max: 1.5, source: `${SRC_NO_FIGURE}; GT3 brake bias sits forward, so the front discs run hotter than the rear` },
+  tyre_surface_c: { min: 80, max: 100, source: `${SRC_TYRE_TEMP}. Measured on the driver's fastest GT3 laps (66 laps, 3 car entries (all Garage 59), 4 tracks, 2026-11-18) it was cooler, 74.9-84.7 C; the published range is kept` },
+  tyre_carcass_c: { min: 77.7, max: 86.3, source: `${SRC_MEASURED}; carcass runs a little above the surface (LMU wiki, Tire management: low pressure raises carcass temperature)` },
+  tyre_pressure_kpa: { min: 167.2, max: 173, source: `${SRC_MEASURED}; TheTenths lists 27.1-27.3 psi as cold setup values, a different quantity` },
+  tyre_spread_c: { min: 0, max: 11.1, source: `${SRC_MEASURED}; agrees with the rule of thumb of 10-15 C` },
+  brake_c: { min: 313, max: 455, source: `${SRC_MEASURED}; the LMU brake display shows red while braking and asks for more duct when it stays red all lap (Simracing Arnout, 'More Tire Heat LMU')` },
+  brake_front_rear_ratio: { min: 1.22, max: 1.27, source: SRC_MEASURED },
 };
 
 const HYPERCAR_WINDOWS: ClassWindows = {

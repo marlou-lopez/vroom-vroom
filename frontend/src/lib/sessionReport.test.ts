@@ -10,14 +10,15 @@ const CORNERS: Corner[] = [
   { id: "c1", name: "Alpha", start_m: 100, apex_m: 150, end_m: 200, complex: null, approx: false },
   { id: "c2", name: "Beta", start_m: 300, apex_m: 350, end_m: 400, complex: null, approx: false },
 ];
+const BRAKE: Wheels = { fl: 420, fr: 420, rl: 340, rr: 340 }; // inside the GT3 window and ratio (1.24)
 const none: AidRuns = { abs: [], tc: [], lockup: [], wheelspin: [] };
 
 function stat(n: number, o: Partial<StintLap> & { kind?: LapKind; time?: number } = {}): StintLap {
   return {
     lap_id: `l${n}`, lap_no: n, kind: o.kind ?? "flying", lap_time_s: o.time ?? 100, valid: true,
     fuel_start_l: 40 - n * 2, fuel_end_l: 38 - n * 2, energy_start_pct: null, energy_end_pct: null,
-    tyre_surface_c: w(90), tyre_zones_c: { left: w(90), centre: w(90), right: w(90) }, tyre_carcass_c: w(95), tyre_pressure_kpa: w(172),
-    tyre_wear_end_pct: w(100 - n), brake_c: w(450), track_temp_c: 30, air_temp_c: 20, ...o,
+    tyre_surface_c: w(90), tyre_zones_c: { left: w(90), centre: w(90), right: w(90) }, tyre_carcass_c: w(82), tyre_pressure_kpa: w(170),
+    tyre_wear_end_pct: w(100 - n), brake_c: BRAKE, track_temp_c: 30, air_temp_c: 20, ...o,
   };
 }
 const lapIn = (s: StintLap): ReportLapInput => ({ lap_id: s.lap_id, lap_no: s.lap_no, kind: s.kind, lap_time_s: s.lap_time_s, valid: s.valid, has_trace: false });
@@ -34,12 +35,12 @@ describe("buildSessionReport", () => {
   it("finds nothing in a clean stint", () => {
     const r = buildSessionReport(input([1, 2, 3, 4].map((n) => stat(n))));
     expect(r.events).toEqual([]);
-    expect(r.unavailable.map((u) => u.category)).toEqual(["driving", "settings"]);
+    expect(r.unavailable.map((u) => u.category)).toEqual(["tyres", "brakes", "driving", "settings"]); // 4 laps: too few to compare with the best laps
     expect(r.laps[0].tyre_surface_c).toEqual({ front: 90, rear: 90 });
   });
 
   it("flags tyre temperature below and above the window per axle, and pressure", () => {
-    const cold = (n: number) => stat(n, { tyre_surface_c: { fl: 90, fr: 90, rl: 70, rr: 72 }, tyre_pressure_kpa: { fl: 190, fr: 190, rl: 172, rr: 172 }, tyre_carcass_c: { fl: 95, fr: 95, rl: 95, rr: 95 } });
+    const cold = (n: number) => stat(n, { tyre_surface_c: { fl: 90, fr: 90, rl: 70, rr: 72 }, tyre_pressure_kpa: { fl: 190, fr: 190, rl: 170, rr: 170 }, tyre_carcass_c: { fl: 82, fr: 82, rl: 82, rr: 82 } });
     const r = buildSessionReport(input([1, 2, 3].map(cold)));
     expect(kinds(r)).toEqual(["tyre_surface_c_low", "tyre_pressure_kpa_high"]);
     const low = r.events[0];
@@ -58,7 +59,50 @@ describe("buildSessionReport", () => {
     const stats = [stat(1), stat(2), stat(3, { kind: "in", brake_c: w(150), tyre_pressure_kpa: w(100) }), stat(4, { kind: "out", brake_c: { fl: 300, fr: 300, rl: 250, rr: 250 } })];
     const r = buildSessionReport(input(stats));
     expect(kinds(r)).toEqual(["pit_laps", "brake_pit_cooling"]);
-    expect(r.events[1].numbers).toMatchObject({ front_c: 300, rear_c: 250, front_before_c: 450, rear_before_c: 450 });
+    expect(r.events[1].numbers).toMatchObject({ front_c: 300, rear_c: 250, front_before_c: 420, rear_before_c: 340 });
+  });
+
+  describe("vs your best laps", () => {
+    // 10 flying laps, best set = 2 fastest rounded up to 3; laps 6-9 run 8 C hotter at the rear (surface and carcass) and 0.4 s slower.
+    const laps = (hotRear: (n: number) => boolean, hotBrake = false) => [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+      const hot = hotRear(n);
+      return stat(n, {
+        time: hot ? 100.4 + n * 0.01 : 100 + n * 0.01,
+        tyre_surface_c: { fl: 90, fr: 90, rl: hot ? 92 : 84, rr: hot ? 92 : 84 }, tyre_carcass_c: w(82),
+        ...(hotBrake && hot ? { brake_c: { fl: 480, fr: 480, rl: 340, rr: 340 } } : {}),
+      });
+    });
+    const vs = (r: ReturnType<typeof buildSessionReport>) => r.events.filter((e) => e.kind.startsWith("vs_best_"));
+
+    it("reports a hotter axle on laps that lost time, with the amount, best-lap count and coincidence", () => {
+      const r = buildSessionReport(input(laps((n) => n >= 6 && n <= 9)));
+      const e = vs(r);
+      expect(e.map((x) => x.kind)).toEqual(["vs_best_tyre_surface_c_high"]);
+      expect(e[0]).toMatchObject({ category: "tyres", lap_from: 6, lap_to: 9, numbers: { diff: 8, n_laps: 4, n_best: 3 } });
+      expect(e[0].sentence).toContain("Rear tyre surface temperature ran 8.0 °C hotter than on your 3 best laps, on 4 laps (laps 6 to 9).");
+      expect(e[0].coincides).toMatchObject({ scope: "lap" });
+      expect(e[0].sentence).toContain("coincides with");
+      expect(e[0].sentence).not.toMatch(/because|grip|load|bias/i);
+      expect(r.unavailable.map((u) => u.category)).not.toContain("tyres");
+    });
+
+    it("covers brake discs", () => {
+      const e = vs(buildSessionReport(input(laps((n) => n >= 6 && n <= 9, true))));
+      expect(e.some((x) => x.category === "brakes" && x.kind === "vs_best_brake_c_high")).toBe(true);
+    });
+
+    it("stays quiet when the hotter laps did not lose time", () => {
+      // The hotter laps' times are within 0.05 s of the best lap: no coincidence, no event.
+      const s = laps((n) => n >= 6 && n <= 9).map((l) => ({ ...l, lap_time_s: 100 + l.lap_no * 0.001 }));
+      expect(vs(buildSessionReport(input(s)))).toEqual([]);
+    });
+
+    it("skips with a note when there are too few timed flying laps", () => {
+      const r = buildSessionReport(input(laps((n) => n >= 3).slice(0, 4)));
+      expect(vs(r)).toEqual([]);
+      expect(r.unavailable.filter((u) => /best laps/.test(u.reason)).map((u) => u.category)).toEqual(["tyres", "brakes"]);
+      expect(r.unavailable[0].reason).toContain("(4, need at least 5)");
+    });
   });
 
   it("reports a pace trend that improves", () => {
