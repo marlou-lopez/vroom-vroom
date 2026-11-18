@@ -155,6 +155,11 @@ export function ScrubberOffTrack({ model, valid }: { model: PlaybackModel; valid
   const last = cmp.distance.length - 1;
   return (
     <>
+      {runs.length > 0 && (
+        <span className={styles.offLegend} data-testid="scrubber-off-track-legend">
+          {valid ? "grey" : "red"}: wheels off track
+        </span>
+      )}
       {runs.map((r) => {
         const [a, b] = mapSpan(r, last);
         const t0 = timeAtDistance(cmp.lap.t, cmp.distance, cmp.distance[a]);
@@ -164,6 +169,7 @@ export function ScrubberOffTrack({ model, valid }: { model: PlaybackModel; valid
             key={r.start}
             data-testid="scrubber-off-track"
             data-valid={valid}
+            title={valid ? "Two or more wheels off the track (the lap still counts)" : "Two or more wheels off the track (invalid lap)"}
             className={styles.offTrack}
             style={{ left: `${(t0 / duration) * 100}%`, width: `${((t1 - t0) / duration) * 100}%` }}
           />

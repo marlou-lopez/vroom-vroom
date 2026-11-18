@@ -77,3 +77,12 @@ describe("gearLabel", () => {
     expect(gearLabel(undefined)).toBe("–");
   });
 });
+
+describe("formatDistance", () => {
+  it("uses metres below a kilometre and km from there", async () => {
+    const { formatDistance } = await import("./format");
+    expect(formatDistance(842.4)).toBe("842 m");
+    expect(formatDistance(1234)).toBe("1.23 km");
+    expect(formatDistance(-3)).toBe("0 m");
+  });
+});
