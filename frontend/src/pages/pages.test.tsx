@@ -7,6 +7,7 @@ import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { AppRoutes } from "../AppRoutes";
 import { createTestClient, newestBest, setupMockServer, spaPairs } from "../test/mockServer";
 import { formatLapTime } from "../lib/format";
+import { TRACKS_ADVANCED_KEY } from "../lib/tracksAdvanced";
 
 // uPlot draws on a canvas 2D context, which jsdom doesn't have. Stub just the chart class.
 vi.mock("uplot", () => ({
@@ -26,6 +27,12 @@ vi.mock("uplot", () => ({
 }));
 
 const mock = setupMockServer();
+
+// The landmark editor sits behind the Tracks page's Advanced control, closed by default and remembered in localStorage.
+function openAdvanced() {
+  localStorage.setItem(TRACKS_ADVANCED_KEY, "open");
+  onTestFinished(() => localStorage.removeItem(TRACKS_ADVANCED_KEY));
+}
 
 /** The real route table, with a MemoryRouter and a test QueryClient. */
 function renderApp(path: string) {
@@ -223,7 +230,40 @@ describe("pages", () => {
     expect(within(table).getByRole("columnheader", { name: "Name" })).toBeTruthy();
     expect(await within(table).findAllByRole("row")).not.toHaveLength(1);
   });
+  it("Tracks opens with the labelled map and a purpose line, and the landmark editor behind a closed Advanced control", async () => {
+    localStorage.removeItem(TRACKS_ADVANCED_KEY);
+    renderApp("/tracks");
+    const svg = await screen.findByRole("img", { name: "Track map" });
+    expect(svg.querySelectorAll("text").length).toBeGreaterThan(2); // corner names
+    expect(screen.getByText(/The corners of each track you have driven/)).toBeTruthy();
+    const adv = screen.getByRole("button", { name: /^Advanced/ });
+    expect(adv.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByRole("region", { name: "Landmarks" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Re-calibrate/ })).toBeNull();
+  });
+  it("Tracks opens Advanced on click, remembers it across a reload, and closes it again", async () => {
+    localStorage.removeItem(TRACKS_ADVANCED_KEY);
+    onTestFinished(() => localStorage.removeItem(TRACKS_ADVANCED_KEY));
+    const first = renderApp("/tracks");
+    fireEvent.click(await screen.findByRole("button", { name: /^Advanced/ }));
+    expect(await screen.findByRole("region", { name: "Landmarks" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Re-calibrate/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Advanced/ }).getAttribute("aria-expanded")).toBe("true");
+    first.unmount();
+    renderApp("/tracks"); // a reload
+    expect(await screen.findByRole("region", { name: "Landmarks" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^Advanced/ }));
+    expect(screen.queryByRole("region", { name: "Landmarks" })).toBeNull();
+    expect(localStorage.getItem(TRACKS_ADVANCED_KEY)).toBe("closed");
+  });
+  it("Tracks still opens, closed, when storage throws", async () => {
+    const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
+    onTestFinished(() => spy.mockRestore());
+    renderApp("/tracks");
+    expect((await screen.findByRole("button", { name: /^Advanced/ })).getAttribute("aria-expanded")).toBe("false");
+  });
   it("Tracks resets the Add landmark form on a second Alt-click without cancelling", async () => {
+    openAdvanced();
     // jsdom has no SVG screen matrix: make client coordinates equal map coordinates.
     const proto = SVGSVGElement.prototype as unknown as Record<string, unknown>;
     const orig = { ctm: proto.getScreenCTM, pt: proto.createSVGPoint };
@@ -268,6 +308,7 @@ describe("pages", () => {
     await waitFor(() => expect(inList()).toHaveLength(0));
   });
   it("Tracks adds a landmark by keyboard path: button, prefilled apex distance, editable distance", async () => {
+    openAdvanced();
     renderApp("/tracks");
     const svg = await screen.findByRole("img", { name: "Track map" });
     const names = Array.from(svg.querySelectorAll("text"));
@@ -295,6 +336,7 @@ describe("pages", () => {
     expect(panel.getByText(new RegExp(`${apex + 5} m`))).toBeTruthy();
   });
   it("Tracks deletes a landmark with an undo toast that restores it, and groups landmarks under corner names", async () => {
+    openAdvanced();
     renderApp("/tracks");
     const panel = within(await screen.findByRole("region", { name: "Landmarks" }));
     const del = (await panel.findAllByRole("button", { name: /^Delete / }))[0];

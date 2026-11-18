@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { StintLap, Wheels } from "../api/types";
 import type { StintFile } from "../api/mock/stint";
-import { falloff, falloffPlot, fuelCorrectedFalloff, GT3_FUEL_EFFECT, SLOW_LAP_FACTOR, stintRows, stintSummary } from "./stint";
+import { splitStints } from "../api/mock/stint";
+import { falloff, stintSentence, falloffPlot, fuelCorrectedFalloff, GT3_FUEL_EFFECT, SLOW_LAP_FACTOR, stintRows, stintSummary } from "./stint";
 
 const w = (v: number): Wheels => ({ fl: v, fr: v, rl: v, rr: v });
 function lap(lap_no: number, over: Partial<StintLap> = {}): StintLap {
@@ -138,5 +139,43 @@ describe("the real Monza race stint (9 Nov 2026)", () => {
     expect(f.fuelGainPerLap).toBeCloseTo(0.051, 2);
     expect(f.slope).toBeGreaterThan(0.09);
     expect(f.slope).toBeLessThan(0.11);
+  });
+});
+
+describe("stintSentence", () => {
+  const stintsOf = (file: string) => {
+    const f = JSON.parse(readFileSync(new URL(`../../public/mock/${file}`, import.meta.url), "utf8")) as StintFile;
+    return splitStints(f.laps.map((l, i) => ({ ...l, lap_id: `l${i}` })), f.car_class);
+  };
+  it("says the pace and what runs out first, for the Monza race (virtual energy)", () => {
+    const [st] = stintsOf("monza-stint-2026-11-09.json");
+    expect(stintSentence(st)).toBe("You slowed about 0.05 s a lap over the stint; virtual energy runs out first, after about 26 laps.");
+  });
+  it("uses only numbers from the stint: slope from the API, laps from starting load over mean use", () => {
+    const [st] = stintsOf("monza-stint-2026-11-09.json");
+    const sum = stintSummary(stintRows(st.laps));
+    const nums = stintSentence(st).match(/\d+(\.\d+)?/g)!.map(Number);
+    expect(nums).toEqual([Number(Math.abs(st.falloff!.slope_s_per_lap).toFixed(2)), Math.round(sum.energyRangeLaps!)]);
+  });
+  it("covers each stint of the Spa race, including the short one after the stop", () => {
+    const stints = stintsOf("spa-race-stint-2026-11-10.json");
+    expect(stints.length).toBe(2);
+    for (const st of stints) {
+      const t = stintSentence(st);
+      expect(t).toMatch(/^[A-Z][^;]*(; .*)?\.$/);
+      expect(t).not.toMatch(/NaN|Infinity|undefined|null/);
+    }
+  });
+  it("is fuel-limited without virtual energy, and says so", () => {
+    const laps = [0, 1, 2, 3].map((n) => lap(n, { energy_start_pct: null, energy_end_pct: null }));
+    const st = { stint_no: 1, laps, falloff: { slope_s_per_lap: 0.1, n_laps: 4 }, falloff_fuel_corrected: null };
+    expect(stintSentence(st)).toBe("You slowed about 0.10 s a lap over the stint; fuel runs out first, after about 30 laps.");
+  });
+  it("handles a quicker, steady or unfitted stint", () => {
+    const laps = [0, 1, 2].map((n) => lap(n));
+    const mk = (falloff: { slope_s_per_lap: number; n_laps: number } | null) => stintSentence({ stint_no: 1, laps, falloff, falloff_fuel_corrected: null });
+    expect(mk({ slope_s_per_lap: -0.2, n_laps: 3 })).toMatch(/^You got quicker about 0\.20 s a lap/);
+    expect(mk({ slope_s_per_lap: 0.001, n_laps: 3 })).toMatch(/^Your lap times stayed steady;/);
+    expect(mk(null)).toMatch(/^There are too few clean laps to say how your pace changed;/);
   });
 });

@@ -78,3 +78,7 @@ button.calibrate { padding: 5px 12px; }
   padding: 8px 12px;
 }
 .leader { stroke: var(--color-muted); stroke-width: 0.5; stroke-opacity: 0.8; pointer-events: none; }
+
+/* Day-one Tracks (vroom-xg2): a purpose line, with the landmark editor behind Advanced. */
+.purpose { margin: 0; color: var(--color-muted); }
+.advanced { display: flex; gap: var(--gap); flex-wrap: wrap; }

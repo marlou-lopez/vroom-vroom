@@ -1,11 +1,11 @@
 // The Stint view (spike vroom-pnw.26, built in vroom-bi4.4). Per lap: time, fuel and virtual energy used, tyre surface temperature
 // and wear per corner; plus the lap-time fall-off line (out, in, invalid and slow laps excluded). Data: api.sessionStints(sessionId).
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { sessionStintsOptions } from "../api/queries";
 import type { SessionMeta, Stint, Wheels } from "../api/types";
 import { formatLapTime, formatShortDate } from "../lib/format";
-import { falloff as fitFalloff, falloffPlot, stintRows, stintSummary, type FitExclusion } from "../lib/stint";
+import { falloff as fitFalloff, falloffPlot, stintRows, stintSentence, stintSummary, type FitExclusion } from "../lib/stint";
 import { cx } from "../lib/cx";
 import ui from "./ui.module.css";
 import styles from "./StintPanel.module.css";
@@ -26,6 +26,30 @@ function WheelGrid({ v, digits = 0, label }: { v: Wheels | null; digits?: number
   );
 }
 
+const WHEEL_LABELS = [["FL", "fl"], ["FR", "fr"], ["RL", "rl"], ["RR", "rr"]] as const;
+
+/** Four labelled wheel values in the same 2x2 layout as the table's cells: FL FR on top, RL RR below. */
+function LabelledWheels({ v, digits, unit }: { v: Wheels; digits: number; unit: string }) {
+  return (
+    <span className={styles.labelled}>
+      {WHEEL_LABELS.map(([name, key]) => (
+        <span key={key}><span className={styles.dim}>{name}</span> {v[key].toFixed(digits)}{unit}</span>
+      ))}
+    </span>
+  );
+}
+
+/** The key to the 2x2 wheel cells in the table: the car seen from above. */
+function TyreKey() {
+  return (
+    <div className={styles.tyreKey} aria-label="Tyre key">
+      <span className={styles.dim}>Tyre columns show:</span>
+      <span className={styles.keyGrid}>{WHEEL_LABELS.map(([name]) => <span key={name}>{name}</span>)}</span>
+      <span className={styles.dim}>front left, front right, rear left, rear right</span>
+    </div>
+  );
+}
+
 function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMeta; multi: boolean }) {
   const rows = useMemo(() => stintRows(stint.laps), [stint]);
   const sum = useMemo(() => stintSummary(rows), [rows]);
@@ -34,22 +58,23 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
   const raw = stint.falloff;
   const corrected = stint.falloff_fuel_corrected;
   const hasEnergy = stint.laps.some((l) => l.energy_start_pct !== null);
-  const cards: { k: string; v: string; title?: string }[] = [
-    { k: "FALL-OFF", v: raw ? `${signed(raw.slope_s_per_lap)} s/lap` : "—", title: raw ? `Least-squares fit over ${raw.n_laps} laps` : undefined },
-    { k: "FUEL / LAP", v: f2(sum.fuelPerLap, " L") },
-    { k: "ENERGY / LAP", v: hasEnergy ? f2(sum.energyPerLap, " %") : "n/a" },
+  const cards: { k: string; v: ReactNode; title?: string }[] = [
+    { k: "SLOWING PER LAP", v: raw ? `${signed(raw.slope_s_per_lap)} s/lap` : "—", title: raw ? `Least-squares fit over ${raw.n_laps} laps` : undefined },
+    { k: "FUEL PER LAP", v: f2(sum.fuelPerLap, " L") },
+    { k: "ENERGY PER LAP", v: hasEnergy ? f2(sum.energyPerLap, " %") : "n/a" },
     {
-      k: "RANGE", v: `${f1(sum.fuelRangeLaps, " laps")} on fuel · ${hasEnergy ? f1(sum.energyRangeLaps, " laps") : "—"} on energy`,
+      k: "LAPS THE LOAD LASTS", v: `${f1(sum.fuelRangeLaps, " laps")} on fuel · ${hasEnergy ? f1(sum.energyRangeLaps, " laps") : "—"} on energy`,
       title: "Laps the starting load lasts at the mean use per flying lap",
     },
-    { k: "LIMIT", v: sum.limit === null ? "—" : sum.limit === "energy" ? "virtual energy" : "fuel" },
-    { k: "WEAR / LAP", v: sum.wearPerLap ? `${sum.wearPerLap.fl.toFixed(2)} ${sum.wearPerLap.fr.toFixed(2)} / ${sum.wearPerLap.rl.toFixed(2)} ${sum.wearPerLap.rr.toFixed(2)} %` : "—", title: "FL FR / RL RR" },
+    { k: "RUNS OUT FIRST", v: sum.limit === null ? "—" : sum.limit === "energy" ? "virtual energy" : "fuel" },
+    { k: "TYRE WEAR PER LAP", v: sum.wearPerLap ? <LabelledWheels v={sum.wearPerLap} digits={2} unit=" %" /> : "—", title: "Tread lost on an average flying lap, per tyre" },
   ];
   return (
     <>
       <div className={styles.meta}>
         {multi ? `Stint ${stint.stint_no} · ` : ""}{session.session_type} · {formatShortDate(session.started_at)} · {stint.laps.length} laps
       </div>
+      <p className={styles.sentence}>{stintSentence(stint)}</p>
       <div className={styles.cards}>
         {cards.map((c) => (
           <div key={c.k} className={styles.card} title={c.title}>
@@ -58,6 +83,14 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
           </div>
         ))}
       </div>
+      <details className={styles.how}>
+        <summary>How is this worked out</summary>
+        <p className={styles.dim}>
+          {raw
+            ? `Slowing per lap is the slope of a straight line through your lap times over ${raw.n_laps} laps. Out laps, in laps, invalid laps and laps more than 2 % slower than the median are left out.`
+            : "Slowing per lap needs a straight line through at least 3 clean laps, and this stint has fewer."}{" "}
+          Laps the load lasts is the starting fuel or virtual energy divided by the average used on a flying lap.
+        </p>
       {corrected && (
         // The fuel-weight effect is an assumed per-class constant (docs/stint/fuel-corrected-falloff.md), shown with its source.
         <div className={styles.corrected} aria-label="Fuel-corrected fall-off">
@@ -69,6 +102,8 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
           </span>
         </div>
       )}
+      </details>
+
       <div className={styles.plot}>
         <svg viewBox="0 0 1000 160" preserveAspectRatio="none" role="img" aria-label="Lap time against lap number, with the fall-off line">
           <path d="M0 40 L1000 40 M0 80 L1000 80 M0 120 L1000 120" className={styles.grid} />
@@ -95,6 +130,7 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
         <span><span className={cx(styles.legendDot, styles.dotOut)} /> left out (out, in, slow)</span>
         <span>━ fall-off line</span>
       </div>
+      <TyreKey />
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
@@ -106,7 +142,7 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
               <th scope="col" className={styles.num}>Fuel left</th>
               {hasEnergy && <th scope="col" className={styles.num}>Energy used</th>}
               {hasEnergy && <th scope="col" className={styles.num}>Energy left</th>}
-              <th scope="col" title="Lap mean of the tread surface, °C: FL FR / RL RR">Tyre °C</th>
+              <th scope="col" title="Lap mean of the tread surface, °C: FL FR / RL RR">Tyre temp °C</th>
               <th scope="col" title="Tread left at the end of the lap, %: FL FR / RL RR">Tread left %</th>
               <th scope="col" title="Lap mean, kPa: FL FR / RL RR">Pressure</th>
               <th scope="col" title="Lap mean of the disc, °C: FL FR / RL RR">Brake °C</th>

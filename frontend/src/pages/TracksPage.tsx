@@ -9,6 +9,7 @@ import { nearestCorner, nearestPoint, pointAtDistance, polylinePath, cornerSegme
 import { buildProjection } from "../lib/model";
 import { boundsOf, placeMapLabels } from "../lib/mapLabels";
 import { cx } from "../lib/cx";
+import { loadTracksAdvanced, saveTracksAdvanced } from "../lib/tracksAdvanced";
 import ui from "../components/ui.module.css";
 import styles from "./TracksPage.module.css";
 
@@ -37,6 +38,14 @@ export function TracksPage() {
   const sessionsQ = useSessions();
   const sessions = sessionsQ.data ?? null;
   const [trackId, setTrackId] = useState<string | null>(null);
+  // Advanced: the landmark editor and calibration. Closed on first visit, then remembered.
+  const [advanced, setAdvanced] = useState(loadTracksAdvanced);
+  const toggleAdvanced = () => {
+    const next = !advanced;
+    setAdvanced(next);
+    saveTracksAdvanced(next);
+    if (!next) setAdding(null);
+  };
   const [selectedCorner, setSelectedCorner] = useState<string | null>(null);
   const [calResult, setCalResult] = useState<CalibrationResult | null>(null);
   const [adding, setAdding] = useState<{ seq: number; distanceM: number; cornerId: string | null; left?: number; top?: number; inline?: boolean } | null>(null);
@@ -168,7 +177,7 @@ export function TracksPage() {
   };
 
   const onMapClick = (e: MouseEvent<SVGSVGElement>) => {
-    if (!e.altKey || !geo || !map || !svgRef.current || !mapBoxRef.current) return;
+    if (!advanced || !e.altKey || !geo || !map || !svgRef.current || !mapBoxRef.current) return;
     const ctm = svgRef.current.getScreenCTM();
     if (!ctm) return;
     const pt = svgRef.current.createSVGPoint();
@@ -229,25 +238,39 @@ export function TracksPage() {
           </button>
         ))}
         <div className={styles.spacer} />
-        <button type="button" disabled={calibrating || !map} onClick={calibrate} className={cx(ui.btn, styles.calibrate)}>
-          {calibrating ? "Calibrating…" : "Re-calibrate from ★ reference"}
+        <button type="button" aria-expanded={advanced} aria-controls="tracks-advanced" onClick={toggleAdvanced} className={cx(ui.btn, styles.calibrate)}>
+          Advanced {advanced ? "▴" : "▾"}
         </button>
       </div>
-      <div role="status" className={cx(ui.panel, styles.statusBar, error && styles.error, (calResult || error) && styles.mono)}>
-        {error
-          ? `${error.code}: ${error.message}`
-          : calResult
-            ? `Matched ${matched} of ${calResult.map.corners.length} corners · ${calResult.unmapped.length} unmapped detected · ${calResult.missing.length} missing`
-            : "Re-calibrate to match the corners detected on the reference lap against this map."}
-      </div>
+      <p className={styles.purpose}>
+        The corners of each track you have driven, named and placed on the map. Click a corner to pick it out; the coach uses these names when it talks about your laps.
+      </p>
+      {advanced && (
+        <div id="tracks-advanced" className={styles.advanced}>
+          <button type="button" disabled={calibrating || !map} onClick={calibrate} className={cx(ui.btn, styles.calibrate)}>
+            {calibrating ? "Calibrating…" : "Re-calibrate from ★ reference"}
+          </button>
+        </div>
+      )}
+      {(advanced || error) && (
+        <div role="status" className={cx(ui.panel, styles.statusBar, error && styles.error, (calResult || error) && styles.mono)}>
+          {error
+            ? `${error.code}: ${error.message}`
+            : calResult
+              ? `Matched ${matched} of ${calResult.map.corners.length} corners · ${calResult.unmapped.length} unmapped detected · ${calResult.missing.length} missing`
+              : "Re-calibrate to match the corners detected on the reference lap against this map."}
+        </div>
+      )}
 
       <div className={styles.columns}>
         <section aria-label="Track map" className={cx(ui.panel, styles.mapPanel)}>
           <div className={styles.mapHead}>
-            <div className={ui.heading}>MAP · ALT-CLICK TO ADD A LANDMARK</div>
-            <div className={styles.legend}>
-              <span className={styles.confirmed}>●</span> confirmed <span className={styles.detected}>●</span> detected <span>○</span> low (not used by coach)
-            </div>
+            <div className={ui.heading}>{advanced ? "MAP · ALT-CLICK TO ADD A LANDMARK" : "MAP"}</div>
+            {advanced && (
+              <div className={styles.legend}>
+                <span className={styles.confirmed}>●</span> confirmed <span className={styles.detected}>●</span> detected <span>○</span> low (not used by coach)
+              </div>
+            )}
           </div>
           <div ref={mapBoxRef} className={styles.mapBox} style={layout ? ({ aspectRatio: layout.aspect, "--aspect": layout.aspect } as CSSProperties) : undefined}>
             {geo && map && layout ? (
@@ -285,7 +308,7 @@ export function TracksPage() {
                     {l.text}
                   </text>
                 ))}
-                {map.landmarks.filter((l) => l.id !== pending?.id).map((l) => {
+                {advanced && map.landmarks.filter((l) => l.id !== pending?.id).map((l) => {
                   const p = pointAtDistance(geo.proj, geo.distance, l.distance_m);
                   return (
                     <circle key={l.id} cx={p.x} cy={p.y} r={2.4} className={styles.landmark} style={{ fill: landmarkFill(l.confidence), stroke: landmarkStroke(l.confidence) }}>
@@ -297,7 +320,7 @@ export function TracksPage() {
             ) : (
               <div className={styles.loadingMap}>{error ? "" : "Loading map…"}</div>
             )}
-            {addForm && !adding?.inline && addForm}
+            {advanced && addForm && !adding?.inline && addForm}
           </div>
         </section>
 
@@ -338,16 +361,18 @@ export function TracksPage() {
               </table>
             </div>
           </section>
-          <LandmarkEditor
-            title={selectedName}
-            landmarks={visibleLandmarks}
-            corners={map?.corners ?? []}
-            busy={busy}
-            onConfirm={(id) => landmarkM.mutate({ op: "patch", landmarkId: id, patch: { confirm: true } })}
-            onDelete={deleteLandmark}
-            onAdd={openAddForm}
-          />
-          {adding?.inline && addForm}
+          {advanced && (
+            <LandmarkEditor
+              title={selectedName}
+              landmarks={visibleLandmarks}
+              corners={map?.corners ?? []}
+              busy={busy}
+              onConfirm={(id) => landmarkM.mutate({ op: "patch", landmarkId: id, patch: { confirm: true } })}
+              onDelete={deleteLandmark}
+              onAdd={openAddForm}
+            />
+          )}
+          {advanced && adding?.inline && addForm}
         </div>
       </div>
       {pending && (

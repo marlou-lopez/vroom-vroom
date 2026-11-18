@@ -40,3 +40,12 @@
 
 /* Fuel-corrected fall-off, with its assumed constant visible. */
 .corrected { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--gap); border: 1px dashed var(--color-border); border-radius: var(--radius); padding: var(--pad); }
+
+/* Plain-language lead (vroom-xg2). */
+.sentence { margin: 0; font-size: 14px; line-height: 1.4; }
+.how summary { cursor: pointer; color: var(--color-muted); }
+.how[open] { display: flex; flex-direction: column; gap: var(--gap); }
+.how p { margin: 0; }
+.labelled { display: inline-grid; grid-template-columns: repeat(2, auto); column-gap: 12px; justify-content: start; font-family: var(--font-mono); font-size: 14px; }
+.tyreKey { display: flex; align-items: center; gap: var(--gap); flex-wrap: wrap; font-size: var(--font-size-small); }
+.keyGrid { display: inline-grid; grid-template-columns: repeat(2, auto); column-gap: 8px; font-family: var(--font-mono); }

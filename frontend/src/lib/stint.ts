@@ -1,5 +1,5 @@
 // Pure logic (spike vroom-pnw.26, kept in vroom-bi4.4) for the Stint view. Per-lap consumption, the lap-time fall-off line and the tank range.
-import type { StintLap, Wheels } from "../api/types";
+import type { Stint, StintLap, Wheels } from "../api/types";
 
 /** Why a lap is left out of the fall-off fit. */
 export type FitExclusion = "out" | "in" | "incomplete" | "invalid" | "slow";
@@ -189,4 +189,24 @@ export function falloffPlot(rows: StintRow[], fit: Falloff | null, w: number, h:
     line = `M${r1(sx(a))} ${r1(sy(fit.intercept + fit.slope * a))}L${r1(sx(b))} ${r1(sy(fit.intercept + fit.slope * b))}`;
   }
   return { points, fit: line, lo, hi };
+}
+
+// ---- Plain-language summary (vroom-xg2, novice-review N17) ----
+
+/**
+ * One sentence that leads the Stint view, built only from the stint's own numbers: the API's fall-off slope and the laps the
+ * starting fuel or virtual energy lasts at the mean use per flying lap (the same range the cards show). A part with no data is left out.
+ */
+export function stintSentence(stint: Stint): string {
+  const sum = stintSummary(stintRows(stint.laps));
+  const parts: string[] = [];
+  const slope = stint.falloff?.slope_s_per_lap;
+  if (slope === undefined) parts.push("There are too few clean laps to say how your pace changed");
+  else if (Math.abs(slope) < 0.005) parts.push("Your lap times stayed steady");
+  else parts.push(`You ${slope > 0 ? "slowed" : "got quicker"} about ${Math.abs(slope).toFixed(2)} s a lap over the stint`);
+  if (sum.limit !== null) {
+    const laps = sum.limit === "energy" ? sum.energyRangeLaps : sum.fuelRangeLaps;
+    parts.push(`${sum.limit === "energy" ? "virtual energy" : "fuel"} runs out first, after about ${Math.round(laps!)} laps`);
+  }
+  return `${parts.join("; ")}.`;
 }

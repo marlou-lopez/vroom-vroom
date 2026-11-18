@@ -38,6 +38,33 @@ describe("StintPanel", () => {
     expect(within(panel).getAllByText(/s\/lap$/).length).toBeGreaterThan(0);
   });
 
+  it("leads with the one-sentence summary, plain row titles, a tyre key and labelled wear, and keeps the maths behind a disclosure", async () => {
+    serve(STINT);
+    const race = await sessionOf((s) => s.session_type === "Race");
+    const { wrapper } = createQueryWrapper();
+    render(<StintPanel session={race} />, { wrapper });
+    const panel = await screen.findByRole("region", { name: "Stint" });
+    expect(within(panel).getByText("You slowed about 0.05 s a lap over the stint; virtual energy runs out first, after about 26 laps.")).toBeTruthy();
+    for (const t of ["SLOWING PER LAP", "RUNS OUT FIRST", "TYRE WEAR PER LAP"]) expect(within(panel).getByText(t)).toBeTruthy();
+    expect(within(panel).queryByText("FALL-OFF")).toBeNull();
+    const key = within(panel).getByLabelText("Tyre key");
+    for (const w of ["FL", "FR", "RL", "RR"]) expect(within(key).getByText(w)).toBeTruthy();
+    const wear = within(panel).getByText("TYRE WEAR PER LAP").parentElement!;
+    for (const w of ["FL", "FR", "RL", "RR"]) expect(within(wear).getByText(w)).toBeTruthy();
+    const how = within(panel).getByText("How is this worked out").closest("details")!;
+    expect(how.open).toBe(false);
+    expect(how.contains(within(panel).getByLabelText("Fuel-corrected fall-off"))).toBe(true);
+  });
+
+  it("says fuel runs out first for a stint without virtual energy", async () => {
+    serve({ ...STINT, laps: STINT.laps.map((l) => ({ ...l, energy_start_pct: null, energy_end_pct: null })) });
+    const race = await sessionOf((s) => s.session_type === "Race");
+    const { wrapper } = createQueryWrapper();
+    render(<StintPanel session={race} />, { wrapper });
+    const panel = await screen.findByRole("region", { name: "Stint" });
+    expect(within(panel).getByText(/; fuel runs out first, after about 28 laps\.$/)).toBeTruthy();
+  });
+
   it("shows the fuel-corrected fall-off next to the raw one, with its assumed constant and source", async () => {
     serve(STINT);
     const race = await sessionOf((s) => s.session_type === "Race");
