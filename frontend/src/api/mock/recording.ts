@@ -34,6 +34,33 @@ export interface RecordingLap {
   slip_rr?: number[];
   /** Wheels on grass or gravel, 0..4 (vroom-pnw.24); absent in older recordings. */
   wheels_off?: number[];
+  /** Metres with ABS / TC on and the number of separate activations in this lap (vroom-bi4.10); absent in older files. */
+  aid_activation?: AidActivation;
+}
+
+/** Per-lap driver-aid activation, from the lap's own `abs` / `tc` metres. `*_m` counts metres, `*_runs` counts separate on-stretches. */
+export interface AidActivation {
+  abs_m: number;
+  tc_m: number;
+  abs_runs: number;
+  tc_runs: number;
+}
+
+/** The in-car settings LMU records as change events (the recording's ABSLevel, TCLevel, TCCut, TCSlipAngle and FuelMixtureMap events). */
+export type SettingName = "ABSLevel" | "TCLevel" | "TCCut" | "TCSlipAngle" | "FuelMixtureMap";
+
+/**
+ * One in-car setting change (vroom-bi4.10). `value` / `previous` are LMU's setting values (the knob position, unitless). `lap_no` is the
+ * lap the change happened in (the recording's lap number), `dist_m` the lap distance in metres where it happened (it can pass the lap
+ * length in the pit lane, where LMU's Lap Dist keeps counting) and `lap_time_s` the seconds since that lap started. Sorted by lap, then time.
+ */
+export interface SettingEvent {
+  setting: SettingName;
+  value: number;
+  previous: number;
+  lap_no: number;
+  dist_m: number;
+  lap_time_s: number;
 }
 
 export interface Recording {
@@ -42,6 +69,10 @@ export interface Recording {
   steering_range_deg: number | null;
   /** The recording's garage setup: LMU key -> display string. Absent in files made before vroom-pnw.25. */
   car_setup?: Record<string, string>;
+  /** The value of each in-car setting at the recording start (vroom-bi4.10). Absent in older files. */
+  initial_settings?: Partial<Record<SettingName, number>>;
+  /** Every change of those settings after the start (vroom-bi4.10). Absent in older files. */
+  setting_events?: SettingEvent[];
   laps: RecordingLap[];
 }
 
@@ -59,6 +90,27 @@ export const RECORDING_URLS = {
 } as const;
 
 export type RecordingTrack = keyof typeof RECORDING_URLS;
+
+/** The Spa race of 10 Nov 2026: every lap with its 1 m trace, plus setting events and aid activation (vroom-bi4.10). */
+export const SPA_RACE_URL = "/mock/spa-race-2026-11-10.json";
+
+let spaRace: Promise<Recording> | null = null;
+
+/** Default browser loader for the Spa race: one fetch, cached for the page's lifetime (a failure is not cached). */
+export const fetchSpaRace: RecordingLoader = () => {
+  if (!spaRace) {
+    spaRace = fetch(SPA_RACE_URL)
+      .then((res) => {
+        if (!res.ok) throw new Error(`${SPA_RACE_URL}: HTTP ${res.status}`);
+        return res.json() as Promise<Recording>;
+      })
+      .catch((e) => {
+        spaRace = null;
+        throw e;
+      });
+  }
+  return spaRace;
+};
 
 const cached = new Map<RecordingTrack, Promise<Recording>>();
 

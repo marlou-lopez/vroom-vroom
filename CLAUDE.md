@@ -14,7 +14,7 @@ and GitHub Issues is disabled. Before starting, run `bd ready --exclude-type epi
 `bd list --status in_progress,review` for work in flight. Each milestone is a Beads epic (`bd list -t
 epic`). Each issue stands on its own and lists its dependencies. Don't rely on this file for progress.
 
-This section only records facts that change rarely (last checked 2026-11-17):
+This section only records facts that change rarely (last checked 2026-11-18):
 - **Phase:** the frontend runs on a mock API serving real Spa and Monza recordings. The backend
   hasn't been started, and there's no `backend/` directory yet.
 - **Agreed order:** the **Track views** milestone (detailed 2D, then 3D) closed on 2026-11-12. Next
@@ -34,7 +34,7 @@ This section only records facts that change rarely (last checked 2026-11-17):
 |---|---|
 | `frontend/` | React 18 + TypeScript (~5.9) + Vite app |
 | `frontend/src/api/types.ts`, `client.ts` | **The API contract.** The future backend must match it |
-| `frontend/src/api/mock/` | MSW mock API built on real laps: Spa (`public/mock/spa-2026-11-03.json`) and Monza (`monza-2026-11-05.json`). Spa also has the edge survey and elevation; Monza has only the centreline. The Monza race of 9 Nov 2026 (`monza-stint-2026-11-09.json`, stint stats only) is a Race session with lap metadata and no traces (`LapMeta.has_trace` false), served with its stints by `GET /sessions/{id}/stints` (vroom-bi4.4) |
+| `frontend/src/api/mock/` | MSW mock API built on real laps: Spa (`public/mock/spa-2026-11-03.json`) and Monza (`monza-2026-11-05.json`). Spa also has the edge survey and elevation; Monza has only the centreline. The Monza race of 9 Nov 2026 (`monza-stint-2026-11-09.json`, stint stats only) is a Race session with lap metadata and no traces (`LapMeta.has_trace` false), served with its stints by `GET /sessions/{id}/stints` (vroom-bi4.4); the Spa race of 10 Nov 2026 (`spa-race-2026-11-10.json` and `spa-race-stint-2026-11-10.json`, GT3, one stop) has a 1 m trace for every one of its 9 laps, per-lap stint stats, the recorded setup, `setting_events` (in-car ABS/TC/fuel-map changes with lap, distance and time, vroom-bi4.10) and per-lap `aid_activation` (see `recording.ts` for the shapes) |
 | `frontend/src/pages/` | Telemetry (home, `/`), Sessions, Tracks |
 | `frontend/src/lib/` | Pure logic: playback, track map projection, strips, formatting, car attitude estimate for the cockpit camera (unit-tested) |
 | `frontend/src/state/` | Zustand playback store, data and coach hooks |
@@ -42,7 +42,7 @@ This section only records facts that change rarely (last checked 2026-11-17):
 | `frontend/public/local-models/` | **Git-ignored** developer-fallback folder for 3D car models, `<car_id>.glb` (#102). Only its `README.md` is committed. The 3D view's lookup order is the user's model stored in the browser (IndexedDB, loaded in the 3D view's Car popover, which converts raw glTF folders, zips and large .glb files in a Web Worker), then this folder, then the box. Never commit a model, its textures or a converted copy (licence) |
 | `docs/lmu-duckdb-schema.md` | **Verified LMU recording facts**: they override any assumption in plans or issues |
 | `docs/track-views/` | Spike write-ups and decisions for the Track views milestone (e.g. `edge-survey.md`, `elevation-shared-memory.md`) |
-| `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON: `node extract-laps.mjs <copy.duckdb> <out.json> "<source label>" [laps]` (needs `npm i @duckdb/node-api`) |
+| `tools/extract-laps.mjs` | Turns an LMU `.duckdb` into the mock JSON: `node extract-laps.mjs <copy.duckdb> <out.json> "<source label>" [laps]` (needs `npm i @duckdb/node-api`); also writes `initial_settings`, `setting_events` and each lap's `aid_activation` |
 | `tools/extract-stint.py` | Per-lap stint stats (fuel, virtual energy, tyres, brakes) from an LMU `.duckdb` copy, for the Stint view: `uv run --with duckdb python -I extract-stint.py <copy.duckdb> <out.json> "<label>"` (vroom-pnw.26) |
 | `tools/fuel-effect-fit.py` | Fits the fuel-weight effect (s/kg per lap) and tyre fall-off across a car's sessions at one track with different fuel loads: `uv run --with duckdb --with numpy python -I tools/fuel-effect-fit.py <telemetry dir> <scratch dir> "<track prefix>" "<car prefix>" [PQR]` (copies each recording first; vroom-d4g) |
 | `docs/ui-review/` | Whole-app UI review (vroom-pnw.30): ranked findings, screenshots in `img/`, three UI directions and the workspace prototype; `novice-review.md` is the first-time-user review (vroom-pnw.50, screenshots `img/novice-*`) |

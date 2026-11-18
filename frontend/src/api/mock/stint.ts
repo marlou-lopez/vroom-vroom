@@ -5,6 +5,8 @@ import { falloff, fuelCorrectedFalloff, GT3_FUEL_EFFECT, stintRows, type FuelEff
 import type { Stint, StintLap } from "../types";
 
 export const MONZA_STINT_URL = "/mock/monza-stint-2026-11-09.json";
+/** The stint stats of the Spa race of 10 Nov 2026 (9 laps, one stop), whose laps also have 1 m traces (vroom-bi4.10). */
+export const SPA_RACE_STINT_URL = "/mock/spa-race-stint-2026-11-10.json";
 
 export interface StintFile {
   source: string;
@@ -17,23 +19,29 @@ export interface StintFile {
 
 export type StintLoader = () => Promise<StintFile | null>;
 
-let cached: Promise<StintFile> | null = null;
+const cache = new Map<string, Promise<StintFile>>();
 
-/** Default browser loader: one fetch, cached for the page's lifetime (a failure is not cached). */
-export const fetchMonzaStint: StintLoader = () => {
-  if (!cached) {
-    cached = fetch(MONZA_STINT_URL)
+/** One fetch per URL, cached for the page's lifetime (a failure is not cached). */
+const fetchStint = (url: string): Promise<StintFile> => {
+  let hit = cache.get(url);
+  if (!hit) {
+    hit = fetch(url)
       .then((res) => {
-        if (!res.ok) throw new Error(`${MONZA_STINT_URL}: HTTP ${res.status}`);
+        if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
         return res.json() as Promise<StintFile>;
       })
       .catch((e) => {
-        cached = null;
+        cache.delete(url);
         throw e;
       });
+    cache.set(url, hit);
   }
-  return cached;
+  return hit;
 };
+
+/** Default browser loaders. */
+export const fetchMonzaStint: StintLoader = () => fetchStint(MONZA_STINT_URL);
+export const fetchSpaRaceStint: StintLoader = () => fetchStint(SPA_RACE_STINT_URL);
 
 /**
  * The fuel-weight effect per `SessionMeta.car_class`. A class without an entry gets no corrected fall-off (null), not a guess.
