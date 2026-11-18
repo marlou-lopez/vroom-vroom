@@ -2,7 +2,6 @@ import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { withParams } from "../lib/urlParams";
-import { BiggestLosses } from "../components/BiggestLosses";
 import { AnalysisBar } from "../components/AnalysisBar";
 import { AnnotationCardProvider, type AnnotationCardActions } from "../components/AnnotationPopup";
 import { ScrubberBadges, ScrubberOffTrack, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
@@ -12,11 +11,11 @@ import { EngineerLine } from "../components/EngineerLine";
 import { SimplifiedWheels } from "../components/SimplifiedWheels";
 import { TrackPanel } from "../components/TrackPanel";
 import { Transport } from "../components/Transport";
+import { CornerRail } from "../components/workspace/CornerRail";
 import { LapRail } from "../components/workspace/LapRail";
 import wsStyles from "../components/workspace/Workspace.module.css";
 import { leadInTime, toAnnotations, type Annotation } from "../lib/annotations";
 import { effectiveValid, type Corner } from "../api/types";
-import { biggestLosses, type CornerLoss } from "../lib/biggestLosses";
 import { CORNER_LEAD_M } from "../lib/annotations";
 import { comparisonName } from "../lib/compareName";
 import { timeAtDistance } from "../lib/playback";
@@ -53,6 +52,9 @@ function Telemetry() {
   const [expanded, setExpanded] = useState(false);
   const [keptCtx, setKeptCtx] = useState<typeof ctx>(null);
   if (ctx && ctx !== keptCtx) setKeptCtx(ctx);
+  // Like the lap rail, the corner rail stays mounted (filter and scroll survive) while the next comparison loads.
+  const [keptCmp, setKeptCmp] = useState<typeof cmp>(null);
+  if (cmp && cmp !== keptCmp) setKeptCmp(cmp);
   const [tab, setTab] = useState<"strips" | "corners">("strips");
 
   // Escape collapses the expanded map, unless something else (an open popup) already handled it.
@@ -108,24 +110,15 @@ function Telemetry() {
   const seekTo = useCallback((a: Annotation) => cmp && store.seek(leadInTime(cmp, a)), [cmp, store]);
   // Stable between renders, so the memoised track views only render when something they draw changes.
   const handlers = useMemo<BadgeHandlers>(() => ({ onSeek: seekTo }), [seekTo]);
-  // Free, from the comparison alone: shown before any coach command.
-  const losses = useMemo(() => (cmp && trackMap ? biggestLosses(cmp, trackMap.corners) : null), [cmp, trackMap]);
-  const seekToLoss = useCallback(
-    (l: CornerLoss) => {
+  const seekToCornerStart = useCallback(
+    (startM: number) => {
       if (!cmp) return;
       store.pause();
-      store.seek(timeAtDistance(cmp.lap.t, cmp.distance, l.startM - CORNER_LEAD_M));
+      store.seek(leadInTime(cmp, { startM }));
     },
     [cmp, store],
   );
-  const seekToCorner = useCallback(
-    (c: Corner) => {
-      if (!cmp) return;
-      store.pause();
-      store.seek(leadInTime(cmp, { startM: c.start_m }));
-    },
-    [cmp, store],
-  );
+  const seekToCorner = useCallback((c: Corner) => seekToCornerStart(c.start_m), [seekToCornerStart]);
   const { deepDives, setReviewed, askCorner } = coach;
   const { setOpen } = popup;
   const onPlay = useCallback(
@@ -174,7 +167,6 @@ function Telemetry() {
           totalDelta={cmp ? (cmp.delta[cmp.delta.length - 1] ?? null) : null}
         />
       )}
-      {ctx && <BiggestLosses result={losses} onSeek={seekToLoss} />}
       {(() => {
         const body = error && !model ? (
           error.code === "unknown_lap" ? (
@@ -250,6 +242,9 @@ function Telemetry() {
               onSelectLap={selectLap} onSelectRef={selectRef}
             />
             <div className={wsStyles.center}>{body}</div>
+            {(cmp ?? keptCmp) && (
+              <CornerRail cmp={(cmp ?? keptCmp)!} trackMap={trackMap} annotations={annotations} deepDives={deepDives} onSeek={seekToCornerStart} />
+            )}
           </div>
         );
       })()}
