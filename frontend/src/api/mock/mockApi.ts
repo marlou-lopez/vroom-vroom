@@ -23,8 +23,8 @@ import { formatLapTime } from "../../lib/format";
 import { fetchSpaElevation, type ElevationLoader } from "./elevation";
 import { fetchSpaSurvey, type SurveyLoader } from "./survey";
 import { balanceForApi, compareBalance, runsForApi } from "../../lib/carBalance";
-import { fetchMonzaStint, splitStints, type StintFile, type StintLoader } from "./stint";
-import { fetchRecording, lapToTrace, scaleTime, type Recording, type RecordingLap, type RecordingLoader, type RecordingTrack, type Trace } from "./recording";
+import { fetchMonzaStint, fetchSpaRaceStint, splitStints, type StintFile, type StintLoader } from "./stint";
+import { fetchRecording, fetchSpaRace, lapToTrace, scaleTime, type Recording, type RecordingLap, type RecordingLoader, type RecordingTrack, type Trace } from "./recording";
 import { monzaCorners, MONZA_TRACK_ID, MONZA_TRACK_LENGTH_M } from "./monzaTrack";
 import { setupLabel } from "./setupLabels";
 import { deriveLandmarks, spaCorners, SPA_TRACK_ID, SPA_TRACK_LENGTH_M } from "./spaTrack";
@@ -55,6 +55,13 @@ export interface MockOptions {
    * leaves the session out.
    */
   loadStint?: StintLoader;
+  /**
+   * Supplies the Spa race of 10 Nov 2026 with a 1 m trace for every lap (vroom-bi4.10). Default: fetch
+   * /mock/spa-race-2026-11-10.json, or no such session when a custom `loadSpa` or `loadMonza` is given. It needs `loadSpaRaceStint` too.
+   */
+  loadSpaRace?: RecordingLoader;
+  /** Supplies the stint stats of that race. Default: fetch /mock/spa-race-stint-2026-11-10.json (none when a custom loader is given). */
+  loadSpaRaceStint?: StintLoader;
 }
 
 // ---- seed data ----
@@ -299,6 +306,8 @@ export function createMockApi(opts: MockOptions = {}): Api {
   const loadSurvey: SurveyLoader = opts.loadSurvey ?? (custom ? async () => null : fetchSpaSurvey);
   let surveyFile: SurveyFile | null = null;
   const loadStint: StintLoader = opts.loadStint ?? (custom ? async () => null : fetchMonzaStint);
+  const loadSpaRace: RecordingLoader | null = opts.loadSpaRace ?? (custom ? null : fetchSpaRace);
+  const loadSpaRaceStint: StintLoader = opts.loadSpaRaceStint ?? (custom ? async () => null : fetchSpaRaceStint);
 
   const sessions: SessionMeta[] = [];
   const laps = new Map<string, LapRec>();
@@ -316,7 +325,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
   let counter = 0;
 
   /** Builds every session, trace, map and per-lap structure once, after the recordings have loaded. */
-  function build(recs: Partial<Record<RecordingTrack, Recording>>, stintFile: StintFile | null) {
+  function build(recs: Partial<Record<RecordingTrack, Recording>>, stintFile: StintFile | null, race: { rec: Recording; stint: StintFile } | null) {
     const trackInfo: Record<RecordingTrack, { id: string; name: string; length: number; map: (ref: RecordingLap) => TrackMap }> = {
       spa: {
         id: SPA_TRACK_ID, name: "Spa-Francorchamps", length: SPA_TRACK_LENGTH_M,
@@ -412,6 +421,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
       });
     }
     if (stintFile && recs.monza) addStintSession(stintFile);
+    if (race && recs.spa) addSpaRaceSession(race.rec, race.stint);
     sessions.sort((a, b) => b.started_at.localeCompare(a.started_at));
   }
 
@@ -441,6 +451,43 @@ export function createMockApi(opts: MockOptions = {}): Api {
     })));
   }
 
+  /**
+   * The real Spa race of 10 Nov 2026 (9 laps, one stop; McLaren 720S GT3 Evo): every lap has its 1 m trace and its stint stats, and the
+   * recording's own setup. Its in-car setting events and per-lap ABS / TC activation stay in the recording file (`setting_events`,
+   * `aid_activation`, see recording.ts), for the session report. Lap kinds come from the stint stats; a lap without an official time
+   * shows the elapsed time, as in the other sessions.
+   */
+  function addSpaRaceSession(rec: Recording, file: StintFile) {
+    const session_id = fakeSha("spa-2026-11-10-race");
+    const started_at = "2026-11-10T17:44:00";
+    sessions.push({
+      session_id, track_name: "Spa-Francorchamps", track_layout: "Grand Prix", track_id: SPA_TRACK_ID, track_length_m: SPA_TRACK_LENGTH_M,
+      car_name: CAR_720S.car_name, car_id: CAR_720S.car_id, car_class: file.car_class, session_type: file.session_type,
+      game_build: "1.2.0.3", started_at, driver: "Driver", steering_range_deg: rec.steering_range_deg, car_dims: DIMS_720S,
+    });
+    const d = new Date(started_at);
+    dateLabel.set(session_id, `${d.getDate()} ${DATE_FMT[d.getMonth()]}`);
+    extras.set(session_id, { trackTempC: file.laps[0]?.track_temp_c ?? 0, focus: null });
+    setups.set(session_id, { entries: Object.entries(rec.car_setup ?? {}).map(([key, value]) => ({ key, label: setupLabel(key), value })) });
+    const stats = file.laps.map((l) => ({ ...l, lap_id: `${session_id.slice(0, 12)}-${pad3(l.lap_no)}` }));
+    stintStats.set(session_id, stats);
+    for (const st of stats) {
+      const recLap = rec.laps.find((x) => x.lap_no === st.lap_no);
+      if (!recLap) continue;
+      const official = st.lap_time_s !== null && st.lap_time_s > 0 ? st.lap_time_s : null;
+      laps.set(st.lap_id, {
+        trace: lapToTrace(recLap),
+        meta: {
+          lap_id: st.lap_id, session_id, lap_no: st.lap_no, kind: st.kind,
+          lap_time_s: official ?? (st.lap_time_s === 0 ? recLap.t[recLap.t.length - 1] : null),
+          sectors_s: official !== null && st.kind === "flying" && recLap.sectors_s ? fitSectors(recLap.sectors_s, official) : [],
+          valid: st.valid, valid_override: null, pinned_reference: false, source: "own_recording",
+          driver: "Driver", track_id: SPA_TRACK_ID, car_id: CAR_720S.car_id, has_trace: true,
+        },
+      });
+    }
+  }
+
   // The recordings are fetched on the first call of any method, never at import time.
   let ready: Promise<void> | null = null;
   const ensure = (): Promise<void> => {
@@ -450,10 +497,11 @@ export function createMockApi(opts: MockOptions = {}): Api {
       loadElevation().catch(() => null),
       loadSurvey().catch(() => null),
       loadStint().catch(() => null),
-    ]).then(([loaded, elev, survey, stint]) => {
+      loadSpaRace ? Promise.all([loadSpaRace(), loadSpaRaceStint()]).then(([rec, stint]) => (stint ? { rec, stint } : null)).catch(() => null) : null,
+    ]).then(([loaded, elev, survey, stint, race]) => {
       elevationIndex = elev ? buildElevationIndex(elev) : null;
       surveyFile = survey;
-      build(Object.fromEntries(tracks.map((t, i) => [t, loaded[i]])), stint);
+      build(Object.fromEntries(tracks.map((t, i) => [t, loaded[i]])), stint, race);
     }).catch((e) => {
       ready = null;
       throw e instanceof ApiError ? e : new ApiError("network", e instanceof Error ? e.message : "could not load the recordings");

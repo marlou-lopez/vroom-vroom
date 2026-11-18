@@ -1,0 +1,584 @@
+{
+ "source": "Spa race 2026-11-10 (GT3, LMU recording)",
+ "note": "Per-lap stint stats (tools/extract-stint.py). Wheels FL FR RL RR. tyre_zones_c left/right are the car's left/right edge of the tread.",
+ "session_type": "Race",
+ "car_class": "GT3",
+ "weather": "Clear",
+ "compound": [
+  [
+   0,
+   0,
+   0,
+   0
+  ]
+ ],
+ "laps": [
+  {
+   "lap_no": 0,
+   "kind": "out",
+   "lap_time_s": 174.919,
+   "valid": true,
+   "duration_s": 272.18,
+   "fuel_start_l": 45.9,
+   "fuel_end_l": 41.57,
+   "energy_start_pct": 54.0,
+   "energy_end_pct": 49.01,
+   "tyre_surface_c": {
+    "fl": 78.8,
+    "fr": 78.2,
+    "rl": 80.7,
+    "rr": 79.5
+   },
+   "tyre_zones_c": {
+    "left": {
+     "fl": 76.6,
+     "fr": 79.8,
+     "rl": 78.5,
+     "rr": 81.1
+    },
+    "centre": {
+     "fl": 79.6,
+     "fr": 79.0,
+     "rl": 82.0,
+     "rr": 80.8
+    },
+    "right": {
+     "fl": 80.1,
+     "fr": 75.9,
+     "rl": 81.7,
+     "rr": 76.6
+    }
+   },
+   "tyre_carcass_c": {
+    "fl": 80.3,
+    "fr": 79.7,
+    "rl": 82.4,
+    "rr": 81.2
+   },
+   "tyre_pressure_kpa": {
+    "fl": 171.4,
+    "fr": 171.1,
+    "rl": 171.7,
+    "rr": 171.2
+   },
+   "tyre_wear_end_pct": {
+    "fl": 95.87,
+    "fr": 95.79,
+    "rl": 95.94,
+    "rr": 96.36
+   },
+   "brake_c": {
+    "fl": 180.0,
+    "fr": 172.0,
+    "rl": 147.0,
+    "rr": 144.0
+   },
+   "track_temp_c": 43.0,
+   "air_temp_c": 25.0
+  },
+  {
+   "lap_no": 1,
+   "kind": "flying",
+   "lap_time_s": 142.064,
+   "valid": true,
+   "duration_s": 142.06,
+   "fuel_start_l": 41.57,
+   "fuel_end_l": 37.79,
+   "energy_start_pct": 49.01,
+   "energy_end_pct": 44.21,
+   "tyre_surface_c": {
+    "fl": 83.3,
+    "fr": 82.3,
+    "rl": 79.2,
+    "rr": 77.7
+   },
+   "tyre_zones_c": {
+    "left": {
+     "fl": 76.7,
+     "fr": 86.8,
+     "rl": 73.7,
+     "rr": 81.0
+    },
+    "centre": {
+     "fl": 85.8,
+     "fr": 84.7,
+     "rl": 82.0,
+     "rr": 80.4
+    },
+    "right": {
+     "fl": 87.4,
+     "fr": 75.4,
+     "rl": 82.0,
+     "rr": 71.7
+    }
+   },
+   "tyre_carcass_c": {
+    "fl": 84.9,
+    "fr": 83.7,
+    "rl": 81.7,
+    "rr": 80.0
+   },
+   "tyre_pressure_kpa": {
+    "fl": 171.4,
+    "fr": 170.5,
+    "rl": 168.9,
+    "rr": 167.9
+   },
+   "tyre_wear_end_pct": {
+    "fl": 94.83,
+    "fr": 94.72,
+    "rl": 95.28,
+    "rr": 95.7
+   },
+   "brake_c": {
+    "fl": 405.0,
+    "fr": 384.0,
+    "rl": 319.0,
+    "rr": 312.0
+   },
+   "track_temp_c": 42.1,
+   "air_temp_c": 25.0
+  },
+  {
+   "lap_no": 2,
+   "kind": "flying",
+   "lap_time_s": 0.0,
+   "valid": false,
+   "duration_s": 141.78,
+   "fuel_start_l": 37.78,
+   "fuel_end_l": 33.99,
+   "energy_start_pct": 44.21,
+   "energy_end_pct": 39.39,
+   "tyre_surface_c": {
+    "fl": 84.4,
+    "fr": 83.4,
+    "rl": 78.9,
+    "rr": 77.2
+   },
+   "tyre_zones_c": {
+    "left": {
+     "fl": 77.7,
+     "fr": 87.7,
+     "rl": 73.3,
+     "rr": 80.4
+    },
+    "centre": {
+     "fl": 87.0,
+     "fr": 86.0,
+     "rl": 81.7,
+     "rr": 80.0
+    },
+    "right": {
+     "fl": 88.5,
+     "fr": 76.5,
+     "rl": 81.6,
+     "rr": 71.1
+    }
+   },
+   "tyre_carcass_c": {
+    "fl": 86.2,
+    "fr": 84.9,
+    "rl": 81.4,
+    "rr": 79.6
+   },
+   "tyre_pressure_kpa": {
+    "fl": 172.6,
+    "fr": 171.6,
+    "rl": 169.2,
+    "rr": 168.1
+   },
+   "tyre_wear_end_pct": {
+    "fl": 93.83,
+    "fr": 93.63,
+    "rl": 94.65,
+    "rr": 95.06
+   },
+   "brake_c": {
+    "fl": 422.0,
+    "fr": 399.0,
+    "rl": 337.0,
+    "rr": 328.0
+   },
+   "track_temp_c": 42.1,
+   "air_temp_c": 25.0
+  },
+  {
+   "lap_no": 3,
+   "kind": "flying",
+   "lap_time_s": 141.965,
+   "valid": true,
+   "duration_s": 141.98,
+   "fuel_start_l": 33.99,
+   "fuel_end_l": 30.16,
+   "energy_start_pct": 39.39,
+   "energy_end_pct": 34.53,
+   "tyre_surface_c": {
+    "fl": 85.4,
+    "fr": 84.3,
+    "rl": 79.2,
+    "rr": 77.5
+   },
+   "tyre_zones_c": {
+    "left": {
+     "fl": 78.6,
+     "fr": 88.9,
+     "rl": 73.5,
+     "rr": 80.9
+    },
+    "centre": {
+     "fl": 87.9,
+     "fr": 86.8,
+     "rl": 82.0,
+     "rr": 80.4
+    },
+    "right": {
+     "fl": 89.7,
+     "fr": 77.2,
+     "rl": 82.1,
+     "rr": 71.3
+    }
+   },
+   "tyre_carcass_c": {
+    "fl": 87.3,
+    "fr": 85.9,
+    "rl": 81.8,
+    "rr": 79.9
+   },
+   "tyre_pressure_kpa": {
+    "fl": 173.7,
+    "fr": 172.5,
+    "rl": 169.7,
+    "rr": 168.5
+   },
+   "tyre_wear_end_pct": {
+    "fl": 92.78,
+    "fr": 92.53,
+    "rl": 93.94,
+    "rr": 94.35
+   },
+   "brake_c": {
+    "fl": 426.0,
+    "fr": 404.0,
+    "rl": 341.0,
+    "rr": 333.0
+   },
+   "track_temp_c": 42.1,
+   "air_temp_c": 25.0
+  },
+  {
+   "lap_no": 4,
+   "kind": "flying",
+   "lap_time_s": 141.972,
+   "valid": true,
+   "duration_s": 141.96,
+   "fuel_start_l": 30.16,
+   "fuel_end_l": 26.33,
+   "energy_start_pct": 34.52,
+   "energy_end_pct": 29.68,
+   "tyre_surface_c": {
+    "fl": 86.5,
+    "fr": 85.3,
+    "rl": 79.5,
+    "rr": 77.7
+   },
+   "tyre_zones_c": {
+    "left": {
+     "fl": 79.6,
+     "fr": 89.8,
+     "rl": 73.9,
+     "rr": 81.0
+    },
+    "centre": {
+     "fl": 89.1,
+     "fr": 87.8,
+     "rl": 82.3,
+     "rr": 80.5
+    },
+    "right": {
+     "fl": 90.7,
+     "fr": 78.1,
+     "rl": 82.3,
+     "rr": 71.6
+    }
+   },
+   "tyre_carcass_c": {
+    "fl": 88.4,
+    "fr": 86.9,
+    "rl": 82.2,
+    "rr": 80.2
+   },
+   "tyre_pressure_kpa": {
+    "fl": 174.5,
+    "fr": 173.2,
+    "rl": 170.1,
+    "rr": 168.8
+   },
+   "tyre_wear_end_pct": {
+    "fl": 91.75,
+    "fr": 91.44,
+    "rl": 93.29,
+    "rr": 93.71
+   },
+   "brake_c": {
+    "fl": 430.0,
+    "fr": 404.0,
+    "rl": 343.0,
+    "rr": 334.0
+   },
+   "track_temp_c": 42.1,
+   "air_temp_c": 25.0
+  },
+  {
+   "lap_no": 5,
+   "kind": "flying",
+   "lap_time_s": 142.234,
+   "valid": true,
+   "duration_s": 142.24,
+   "fuel_start_l": 26.32,
+   "fuel_end_l": 22.49,
+   "energy_start_pct": 29.67,
+   "energy_end_pct": 24.81,
+   "tyre_surface_c": {
+    "fl": 86.9,
+    "fr": 85.3,
+    "rl": 79.6,
+    "rr": 77.8
+   },
+   "tyre_zones_c": {
+    "left": {
+     "fl": 80.3,
+     "fr": 89.8,
+     "rl": 74.0,
+     "rr": 81.0
+    },
+    "centre": {
+     "fl": 89.5,
+     "fr": 87.9,
+     "rl": 82.4,
+     "rr": 80.6
+    },
+    "right": {
+     "fl": 90.9,
+     "fr": 78.3,
+     "rl": 82.4,
+     "rr": 71.8
+    }
+   },
+   "tyre_carcass_c": {
+    "fl": 88.9,
+    "fr": 87.1,
+    "rl": 82.3,
+    "rr": 80.3
+   },
+   "tyre_pressure_kpa": {
+    "fl": 175.0,
+    "fr": 173.6,
+    "rl": 170.3,
+    "rr": 169.0
+   },
+   "tyre_wear_end_pct": {
+    "fl": 90.66,
+    "fr": 90.35,
+    "rl": 92.61,
+    "rr": 93.03
+   },
+   "brake_c": {
+    "fl": 431.0,
+    "fr": 407.0,
+    "rl": 345.0,
+    "rr": 338.0
+   },
+   "track_temp_c": 42.0,
+   "air_temp_c": 24.1
+  },
+  {
+   "lap_no": 6,
+   "kind": "in",
+   "lap_time_s": 255.493,
+   "valid": true,
+   "duration_s": 255.5,
+   "fuel_start_l": 22.49,
+   "fuel_end_l": 45.83,
+   "energy_start_pct": 24.81,
+   "energy_end_pct": 54.0,
+   "tyre_surface_c": {
+    "fl": 87.7,
+    "fr": 84.4,
+    "rl": 81.3,
+    "rr": 79.7
+   },
+   "tyre_zones_c": {
+    "left": {
+     "fl": 81.5,
+     "fr": 88.4,
+     "rl": 75.3,
+     "rr": 82.1
+    },
+    "centre": {
+     "fl": 91.0,
+     "fr": 88.1,
+     "rl": 85.0,
+     "rr": 81.8
+    },
+    "right": {
+     "fl": 90.7,
+     "fr": 76.8,
+     "rl": 83.5,
+     "rr": 75.2
+    }
+   },
+   "tyre_carcass_c": {
+    "fl": 89.1,
+    "fr": 86.0,
+    "rl": 82.9,
+    "rr": 81.2
+   },
+   "tyre_pressure_kpa": {
+    "fl": 175.7,
+    "fr": 174.0,
+    "rl": 170.8,
+    "rr": 129.1
+   },
+   "tyre_wear_end_pct": {
+    "fl": 86.55,
+    "fr": 87.8,
+    "rl": 87.37,
+    "rr": 99.77
+   },
+   "brake_c": {
+    "fl": 366.0,
+    "fr": 352.0,
+    "rl": 303.0,
+    "rr": 290.0
+   },
+   "track_temp_c": 42.0,
+   "air_temp_c": 24.0
+  },
+  {
+   "lap_no": 7,
+   "kind": "out",
+   "lap_time_s": 151.248,
+   "valid": true,
+   "duration_s": 151.24,
+   "fuel_start_l": 45.83,
+   "fuel_end_l": 42.18,
+   "energy_start_pct": 54.0,
+   "energy_end_pct": 49.43,
+   "tyre_surface_c": {
+    "fl": 81.6,
+    "fr": 78.2,
+    "rl": 76.5,
+    "rr": 75.4
+   },
+   "tyre_zones_c": {
+    "left": {
+     "fl": 76.1,
+     "fr": 81.0,
+     "rl": 71.0,
+     "rr": 77.2
+    },
+    "centre": {
+     "fl": 84.7,
+     "fr": 81.4,
+     "rl": 80.0,
+     "rr": 76.9
+    },
+    "right": {
+     "fl": 83.9,
+     "fr": 72.1,
+     "rl": 78.4,
+     "rr": 72.1
+    }
+   },
+   "tyre_carcass_c": {
+    "fl": 83.4,
+    "fr": 79.8,
+    "rl": 78.8,
+    "rr": 77.7
+   },
+   "tyre_pressure_kpa": {
+    "fl": 172.6,
+    "fr": 170.2,
+    "rl": 167.8,
+    "rr": 168.5
+   },
+   "tyre_wear_end_pct": {
+    "fl": 85.44,
+    "fr": 86.75,
+    "rl": 86.78,
+    "rr": 99.19
+   },
+   "brake_c": {
+    "fl": 316.0,
+    "fr": 309.0,
+    "rl": 255.0,
+    "rr": 248.0
+   },
+   "track_temp_c": 42.0,
+   "air_temp_c": 24.0
+  },
+  {
+   "lap_no": 8,
+   "kind": "incomplete",
+   "lap_time_s": null,
+   "valid": false,
+   "duration_s": 12.94,
+   "fuel_start_l": 42.18,
+   "fuel_end_l": 42.04,
+   "energy_start_pct": 49.42,
+   "energy_end_pct": 49.42,
+   "tyre_surface_c": {
+    "fl": 83.9,
+    "fr": 81.9,
+    "rl": 76.2,
+    "rr": 76.9
+   },
+   "tyre_zones_c": {
+    "left": {
+     "fl": 77.5,
+     "fr": 85.9,
+     "rl": 70.6,
+     "rr": 79.6
+    },
+    "centre": {
+     "fl": 86.5,
+     "fr": 84.7,
+     "rl": 78.9,
+     "rr": 79.4
+    },
+    "right": {
+     "fl": 87.7,
+     "fr": 75.2,
+     "rl": 79.0,
+     "rr": 71.6
+    }
+   },
+   "tyre_carcass_c": {
+    "fl": 86.3,
+    "fr": 83.8,
+    "rl": 78.5,
+    "rr": 79.0
+   },
+   "tyre_pressure_kpa": {
+    "fl": 173.9,
+    "fr": 171.7,
+    "rl": 167.8,
+    "rr": 168.2
+   },
+   "tyre_wear_end_pct": {
+    "fl": 85.39,
+    "fr": 86.72,
+    "rl": 86.77,
+    "rr": 99.18
+   },
+   "brake_c": {
+    "fl": 450.0,
+    "fr": 438.0,
+    "rl": 350.0,
+    "rr": 345.0
+   },
+   "track_temp_c": 41.9,
+   "air_temp_c": 24.0
+  }
+ ]
+}

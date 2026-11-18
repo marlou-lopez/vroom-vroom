@@ -3,6 +3,9 @@
 // Adds abs, tc (0/1 per metre), slip_fl..slip_rr (wheel speed / ground speed, 1 below 5 m/s) and wheels_off (0-4 wheels on grass or gravel).
 // NOTE LMU swaps its G channels: 'G Force Lat' is longitudinal, 'G Force Long' is lateral (mapped below).
 // The garage setup (metadata.CarSetup) goes into `car_setup` as { VM_KEY: display string } and nothing else (vroom-pnw.25).
+// Setting events (vroom-bi4.10): `initial_settings` ({name: value}) and `setting_events` for the in-car aid settings (ABSLevel, TCLevel, TCCut, TCSlipAngle,
+// FuelMixtureMap): one {setting, value, previous, lap_no, dist_m, lap_time_s} per change (dist_m is Lap Dist at the event, so it can pass the lap length in the
+// pit lane). Each lap also gets `aid_activation` {abs_m, tc_m, abs_runs, tc_runs} (metres with ABS / TC on, and number of separate activations).
 // Throttle comes from 'Throttle Pos Unfiltered' (the pedal); 'Throttle Pos' includes the ignition cut at every upshift (#49).
 import { DuckDBInstance } from '@duckdb/node-api';
 import fs from 'node:fs';
@@ -72,6 +75,28 @@ if (setupRow) {
   }
 }
 
+// In-car setting events: tables of (ts, value). The first row of each is the value at the recording start.
+const SETTINGS = ['ABSLevel', 'TCLevel', 'TCCut', 'TCSlipAngle', 'FuelMixtureMap'];
+const settingRows = {};
+for (const name of SETTINGS) {
+  try { settingRows[name] = await ev(name); } catch { settingRows[name] = []; }
+}
+const initialSettings = {}, settingEvents = [];
+const lapOfTs = (t) => { let k = 0; for (let i = 0; i < laps.length; i++) if (laps[i].t <= t) k = i; return k; };
+const distAt = (t) => { let i = lowerBound(ch.dist.t, t); if (i >= ch.dist.t.length) i = ch.dist.t.length - 1; return ch.dist.v[i]; };
+for (const name of SETTINGS) {
+  const rows = settingRows[name];
+  if (!rows.length) continue;
+  initialSettings[name] = rows[0].v;
+  for (let i = 1; i < rows.length; i++) {
+    const k = lapOfTs(rows[i].t);
+    settingEvents.push({ setting: name, value: rows[i].v, previous: rows[i - 1].v, lap_no: k, dist_m: Math.round(distAt(rows[i].t)), lap_time_s: +(rows[i].t - laps[k].t).toFixed(2) });
+  }
+}
+settingEvents.sort((x, y) => x.lap_no - y.lap_no || x.lap_time_s - y.lap_time_s);
+const runs = (a) => { let n = 0; for (let i = 0; i < a.length; i++) if (a[i] && !a[i - 1]) n++; return n; };
+const sum = (a) => a.reduce((x, y) => x + y, 0);
+
 const out_laps = [];
 for (let k = 0; k < laps.length; k++) {
   const a = laps[k].t, b = k + 1 < laps.length ? laps[k + 1].t : t0 + (ch.speed.v.length - 1) / 100;
@@ -115,8 +140,8 @@ for (let k = 0; k < laps.length; k++) {
   const sectors = lt && lt.v > 0 && s1 && s2 && s1.v > 0 && s2.v > s1.v && s2.v < lt.v
     ? [s1.v, s2.v - s1.v, lt.v - s2.v].map(x => +x.toFixed(3)) : null;
   if (keep && !keep.has(k)) continue;
-  out_laps.push({ lap_no: k, start_ts: a, end_ts: b, lap_time_s: lt ? (lt.v > 0 ? +lt.v.toFixed(3) : 0) : null, sectors_s: sectors, length_m: L, ...g });
+  out_laps.push({ lap_no: k, start_ts: a, end_ts: b, lap_time_s: lt ? (lt.v > 0 ? +lt.v.toFixed(3) : 0) : null, sectors_s: sectors, length_m: L, aid_activation: { abs_m: sum(g.abs), tc_m: sum(g.tc), abs_runs: runs(g.abs), tc_runs: runs(g.tc) }, ...g });
   console.log('lap', k, 'start', a.toFixed(2), 'dur', (b - a).toFixed(2), 'time', lt ? lt.v.toFixed(3) : '-', 'firstDist', ds[0].toFixed(1), 'L', L, 'gridT', g.t[L]);
 }
-fs.writeFileSync(out, JSON.stringify({ source: label, steering_range_deg: 524, car_setup: carSetup, laps: out_laps }));
+fs.writeFileSync(out, JSON.stringify({ source: label, steering_range_deg: 524, car_setup: carSetup, initial_settings: initialSettings, setting_events: settingEvents, laps: out_laps }));
 console.log('bytes', fs.statSync(out).size);
