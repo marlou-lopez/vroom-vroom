@@ -65,3 +65,14 @@
 .page { flex: 1; display: flex; flex-direction: column; gap: 8px; padding: var(--pad); min-height: 0; max-width: 960px; width: 100%; box-sizing: border-box; margin: 0 auto; }
 .pageHead { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .sessionPick { background: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border-strong); border-radius: var(--radius); font: inherit; padding: 3px 6px; max-width: 100%; }
+
+/* EXPERIMENTAL (vroom-k5s.2): setup suggestions, behind ?suggest. */
+.suggest { display: flex; flex-direction: column; gap: 6px; border: 1px dashed var(--color-border-strong); border-radius: var(--radius); padding: 6px 8px; }
+.experimental { margin-left: 6px; font-weight: 400; letter-spacing: 0.04em; color: var(--color-minor); }
+.suggestion { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--color-border); border-left-width: 3px; border-radius: var(--radius); padding: 4px 8px; }
+.suggestion[data-confidence="high"] { border-left-color: var(--color-you); }
+.suggestion[data-confidence="medium"] { border-left-color: var(--color-minor); }
+.suggestion[data-confidence="low"] { border-left-color: var(--color-muted); }
+.considered { color: var(--color-muted); }
+.considered summary { cursor: pointer; }
+.considered li { padding: 2px 0; overflow-wrap: anywhere; }

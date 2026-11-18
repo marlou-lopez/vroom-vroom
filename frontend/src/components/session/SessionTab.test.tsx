@@ -36,6 +36,27 @@ describe("Session tab", () => {
     expect(screen.queryByText(/Playback is not available/)).toBeNull();
   });
 
+  it("shows the experimental setup suggestions only with ?suggest (vroom-k5s.2)", async () => {
+    const practice = await sessionOn("2026-11-05");
+    renderTab(practice.session_id);
+    await screen.findByRole("region", { name: "Events" });
+    expect(screen.queryByRole("region", { name: "Setup suggestions" })).toBeNull();
+  });
+
+  it("with ?suggest, shows one TC test for the Monza practice and the items looked at", async () => {
+    const practice = await sessionOn("2026-11-05");
+    window.history.replaceState(null, "", "/?suggest");
+    try {
+      renderTab(practice.session_id);
+      const panel = await screen.findByRole("region", { name: "Setup suggestions" });
+      expect(within(panel).getByText("Experimental")).toBeTruthy();
+      await within(panel).findByText("Try TC 4 instead of 5 for one run");
+      expect(within(panel).getByText(/Looked at, no change/)).toBeTruthy();
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
+  });
+
   it("filters the event list by category", async () => {
     const race = await sessionOn("2026-11-10");
     const report = await engine().sessionReport(race.session_id);
