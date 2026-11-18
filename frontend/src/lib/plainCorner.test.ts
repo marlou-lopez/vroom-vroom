@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CompareCandidate, CornerMetrics, CornerSideMetrics, LapWithRef } from "../api/types";
-import { biggestGains, biggestLosses, fastestValidLap, plainCorner, plainGap, plainRefName } from "./plainCorner";
+import { biggestGains, biggestLosses, fastestValidLap, plainCorner, plainCorners, plainGap, plainRefName } from "./plainCorner";
 
 const side = (o: Partial<CornerSideMetrics> = {}): CornerSideMetrics => ({
   brake_onset_m: 100, peak_brake: 0.8, min_speed_kmh: 120, min_speed_m: 150, throttle_pickup_m: 180, exit_speed_kmh: 170,
@@ -28,6 +28,30 @@ describe("plainCorner", () => {
     expect(g.what).toBe("You carried 10 km/h more through the slowest point.");
     expect(g.tip).toBeNull();
     expect(plainCorner(corner("c", 0.0004), "lap 2")).toMatchObject({ what: "Same time as lap 2.", tip: null });
+  });
+});
+
+describe("tips", () => {
+  const tipOf = (m: CornerMetrics) => plainCorner(m, "lap 2").tip!;
+  it("vary by cause and by the corner's own numbers, with no metre distances", () => {
+    const tips = [
+      tipOf(corner("a", 0.1, { brake_onset_m: 50 }, { brake_onset_m: 90 })),
+      tipOf(corner("b", 0.1, { brake_onset_m: 50 }, { brake_onset_m: 66 })),
+      tipOf(corner("c", 0.1, { brake_onset_m: 140 }, { brake_onset_m: 100 })),
+      tipOf(corner("d", 0.1, { throttle_pickup_m: 230 }, { throttle_pickup_m: 180 })),
+      tipOf(corner("e", 0.1, { steer_corrections: 5 }, { steer_corrections: 1 })),
+      tipOf(corner("f", 0.1, { steer_corrections: 3 }, { steer_corrections: 0 })),
+      tipOf(corner("g", 0.1, { min_speed_kmh: 110 }, { min_speed_kmh: 124 })),
+      tipOf(corner("h", 0.1, { min_speed_kmh: 120 }, { min_speed_kmh: 120 })),
+    ];
+    expect(new Set(tips).size).toBe(tips.length);
+    for (const t of tips) expect(t).not.toMatch(/\d+ ?(m|metres|meters)\b/);
+  });
+  it("plainCorners names the corner when two tips would read the same", () => {
+    const m = corner("x", 0.1, { min_speed_kmh: 110 }, { min_speed_kmh: 124 });
+    const [a, b] = plainCorners([{ metrics: m, name: "Eau Rouge" }, { metrics: { ...m, corner_id: "y" }, name: "Pouhon" }], "lap 2");
+    expect(a.tip).not.toBe(b.tip);
+    expect(b.tip).toMatch(/^At Pouhon: /);
   });
 });
 
