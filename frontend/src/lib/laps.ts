@@ -1,4 +1,4 @@
-import { effectiveValid, type LapMeta } from "../api/types";
+import { effectiveValid, type LapKind, type LapMeta } from "../api/types";
 
 /** The fastest valid flying lap that has a trace (so it can be opened), or null. */
 export function bestValidLap<T extends LapMeta>(laps: T[]): T | null {
@@ -22,4 +22,9 @@ export function defaultLap<T extends LapMeta & { is_reference: boolean }>(laps: 
     if (newest === null || l.lap_no > newest.lap_no) newest = l;
   }
   return newest ?? bestValidLap(laps);
+}
+
+/** Kind of a lap as the Sessions lap table tags it: a flying lap that is not (effectively) valid is "invalid". */
+export function lapTag(l: Pick<LapMeta, "kind" | "valid" | "valid_override">): LapKind | "invalid" {
+  return l.kind === "flying" && !effectiveValid(l) ? "invalid" : l.kind;
 }

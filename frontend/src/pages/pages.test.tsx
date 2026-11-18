@@ -154,7 +154,7 @@ describe("pages", () => {
     expect(within(screen.getByRole("region", { name: "Summary" })).getAllByText(/session/i).length).toBeGreaterThan(1);
   });
 
-  it("Sessions: a stats-only session (no lap has a trace) is tagged and shows its stint, not a lap table", async () => {
+  it("Sessions: a stats-only session (no lap has a trace) is tagged, its laps are listed without links, and its stint follows", async () => {
     const sessions = (await mock.engine().sessions());
     const ids = new Set(sessions.map((x) => x.session_id));
     mock.server.use(http.get("*/api/sessions/:id/laps", async ({ params }) => {
@@ -165,8 +165,9 @@ describe("pages", () => {
     const list = await screen.findByRole("region", { name: "Session list" });
     const tags = await within(list).findAllByText("stats only");
     expect(tags.length).toBeGreaterThan(0);
-    expect(await screen.findByText(/stats only \(no lap traces\)/)).toBeTruthy();
-    expect(screen.queryByRole("region", { name: "Laps against the ideal" })).toBeNull();
+    const laps = await screen.findByRole("region", { name: "Laps against the ideal" }, { timeout: 5000 });
+    expect(within(laps).getAllByText("stats only").length).toBeGreaterThan(0);
+    expect(within(laps).queryAllByRole("link", { name: /Open lap/ })).toHaveLength(0);
   });
 
   it("Tracks shows the corners table", async () => {

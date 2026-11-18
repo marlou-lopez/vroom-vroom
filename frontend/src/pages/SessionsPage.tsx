@@ -188,11 +188,8 @@ export function SessionsPage() {
           <div className={ui.heading}>
             SELECTED SESSION · {formatShortDate(shownRow.session.started_at)} · {shownRow.session.session_type}
           </div>
-          {shownRow.hasTraces ? (
-            <LapGaugeTable key={shownRow.session.session_id} sessionId={shownRow.session.session_id} />
-          ) : (
-            <div className={ui.muted}>This session is stats only (no lap traces), so there is no lap table; its stint follows.</div>
-          )}
+          {/* Every lap is listed; laps without a trace are tagged "stats only" and do not link. */}
+          <LapGaugeTable key={shownRow.session.session_id} sessionId={shownRow.session.session_id} />
           {/* Per-lap stint stats of the selected session (the panel renders nothing without). */}
           <StintPanel key={shownRow.session.session_id} session={shownRow.session} />
         </>
