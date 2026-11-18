@@ -273,3 +273,12 @@ Kept or left for follow-ups, with reasons:
 - **"Your best lap" in the two views:** the full view's ★ button means the track and car reference lap (it can be another day's or a pinned lap); the Simple view's button means the fastest valid lap of this session. They coincide in the common case. Unifying them needs a product decision on what the reference is.
 - **Map readout "0.05 s slower here", lap rail key hint, out/in/flying tags, Tracks page wording, Stint FALL-OFF / LIMIT / WEAR rows, the 3D cockpit dash text, and coach prose in `mockApi.ts` / `coachFacts.ts` that says "the reference":** not done in this pass. The coach prose is the backend's job to phrase (the LLM only phrases facts); the others are filed as a follow-up.
 - **Internal names** (`is_ideal`, `theoretical_best_s`, `IdealBreakdown`): API contract and code names, not UI text.
+
+## Jargon pass 2 (vroom-eso)
+
+Applied: the lap kind tags (flying, out, in, incomplete) now read "timed lap", "out lap (from the pits)", "in lap (to the pits)" and "incomplete lap" in the lap rail, the Sessions lap table and the Session tab chart and legend (one table, `LAP_KIND_TEXT` in `lib/laps.ts`); the 3D cockpit's second display ("TIME VS YOUR BEST LAP", "SLOWER / FASTER / SAME PACE", "NO LAP TO COMPARE"); the mock coach prose and error messages ("your best lap" for "the reference"; "braking marker" for "that reference"); the Session tab (the session report's sentences say "timed laps"; severity badges read "for your information / keep an eye on it / needs fixing"; the chart's "window" is "good range"). The report's number guard and wording rules are untouched (no "because", numbers stay in `numbers`).
+
+The scrubber zero label reads "0 · same pace". Already plain before this pass (found on checking): the map readout ("0.005 s behind your best lap", "your best lap is 2 m ahead"), and the lap rail key hint ("● your lap · ○ the lap you compare with").
+
+Kept, with reasons: the Tracks page ("Re-calibrate from ★ reference", Stint rows: vroom-xg2); the category names in the Session tab filters (tyres, brakes, driving, settings, pace, conditions: already plain); internal and API names (`is_reference`, `kind: "flying"`, `ref`); "your best lap" in the full against the Simple view (product decision, above). The cockpit dash is a WebGL texture, so it has no screenshot from `npm run shots`; `cockpitPaint.test.ts` pins its text.
+

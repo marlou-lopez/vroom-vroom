@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { lapLink } from "../lib/urlParams";
 import { ApiError } from "../api/types";
-import { lapTag } from "../lib/laps";
+import { LAP_KIND_TEXT, lapTag } from "../lib/laps";
 import { useSessionLaps } from "../api/queries";
 import { formatLapTime } from "../lib/format";
 import { formatGap } from "../lib/idealGauge";
@@ -37,7 +37,7 @@ export function LapGaugeTable({ sessionId }: { sessionId: string }) {
     <div className={styles.row}>
       <section aria-label="Laps against the best possible lap" className={cx(ui.panel, styles.laps)}>
         <div className={styles.head}>
-          <div className={ui.heading}>{hasIdeal ? `LAPS AGAINST THE BEST POSSIBLE LAP · ${formatLapTime(ideal.time_s)}` : "LAPS · NO VALID FLYING LAP FOR A BEST POSSIBLE LAP"}</div>
+          <div className={ui.heading}>{hasIdeal ? `LAPS AGAINST THE BEST POSSIBLE LAP · ${formatLapTime(ideal.time_s)}` : "LAPS · NO VALID TIMED LAP FOR A BEST POSSIBLE LAP"}</div>
           <label className={styles.toggle}>
             <input type="checkbox" checked={validOnly} onChange={(e) => setValidOnly(e.target.checked)} /> Hide laps with track-limit cuts
           </label>
@@ -69,7 +69,7 @@ export function LapGaugeTable({ sessionId }: { sessionId: string }) {
                 <tr key={l.lap_id} className={cx(!l.has_trace && styles.noTrace)}>
                   <td className={styles.mono}>L{l.lap_no}</td>
                   <td>
-                    <span className={cx(styles.tag, tag === "invalid" && styles.tagInvalid)}>{tag}</span>
+                    <span className={cx(styles.tag, tag === "invalid" && styles.tagInvalid)}>{LAP_KIND_TEXT[tag]}</span>
                     {!l.has_trace && <span className={styles.tag} title="Recorded without a lap trace: only the stint stats are available"> numbers only, no replay</span>}
                   </td>
                   <td className={styles.num}>{g ? formatLapTime(g.lapTimeS) : l.lap_time_s ? formatLapTime(l.lap_time_s) : "—"}</td>

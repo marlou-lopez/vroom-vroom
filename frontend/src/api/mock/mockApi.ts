@@ -557,7 +557,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
 
   const resolveRef = (lap: LapRec, refId: string | null | undefined): LapRec => {
     const ref = refId ? refOf(refId, lap) : referenceFor(lap.meta.track_id, lap.meta.car_id);
-    if (!ref) throw new ApiError("no_reference", "This lap has no reference: there is no valid flying lap for this track and car.");
+    if (!ref) throw new ApiError("no_reference", "There is no lap to compare this lap with: there is no valid timed lap for this track and car.");
     if (ref.meta.track_id !== lap.meta.track_id) {
       throw new ApiError("track_mismatch", "These laps are from different track layouts and cannot be compared.");
     }
@@ -667,7 +667,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
 
   const label = (r: LapRec) => {
     if (r.joins) return `Best possible lap ${formatLapTime(r.meta.lap_time_s!)}`;
-    const tag = r.meta.kind === "flying" ? "" : ` (${r.meta.kind})`;
+    const tag = r.meta.kind === "flying" ? "" : ` (${r.meta.kind} lap)`;
     const time = r.meta.lap_time_s === null ? "—" : formatLapTime(r.meta.lap_time_s);
     return `${dateLabel.get(r.meta.session_id)} · L${r.meta.lap_no} ${time}${tag}`;
   };
@@ -688,7 +688,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
         ? l.meta.track_id === session.track_id && l.meta.car_id === session.car_id
         : l.meta.session_id === sessionId) && isTimed(l))
       .sort((a, b) => sessionOf(a.meta.session_id).started_at.localeCompare(sessionOf(b.meta.session_id).started_at) || a.meta.lap_no - b.meta.lap_no);
-    if (!pool.length) throw new ApiError("no_valid_laps", "There is no valid flying lap to build an ideal lap from.");
+    if (!pool.length) throw new ApiError("no_valid_laps", "There is no valid timed lap to build an ideal lap from.");
     const segs = mapSegments(mapOf(session.track_id));
     const durs = pool.map((l) => segmentDurations(l.trace.ch.t, segs, lapTime(l)));
     const segments: IdealSegment[] = segs.map((s, k) => {
@@ -804,7 +804,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
 
     if (req.command === "average") {
       const valid = sortedSessionLaps(session.session_id).filter(isTimed);
-      if (valid.length < 2) throw new ApiError("not_enough_laps", "Checking consistency needs at least 2 valid flying laps in the session.");
+      if (valid.length < 2) throw new ApiError("not_enough_laps", "Checking consistency needs at least 2 valid timed laps in the session.");
       const ref = req.ref_lap_id ? refOf(req.ref_lap_id, lap) : referenceFor(lap.meta.track_id, lap.meta.car_id);
       await delay(coachDelayMs);
       const times = valid.map(lapTime);
@@ -845,7 +845,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
       const { finding } = makeFinding(id, 0, f, kind);
       const result: CoachResult = {
         ...base, created_at: new Date().toISOString(), ref_lap_id: ref.meta.lap_id,
-        summary: `${f.corner.name}: ${signed(f.delta)} against the reference.`,
+        summary: `${f.corner.name}: ${signed(f.delta)} against your best lap.`,
         findings: [finding], focus: null, encouragement: null, stats, cost_usd: COST.corner.cost,
       };
       save(lap, ref, result);
@@ -879,10 +879,10 @@ export function createMockApi(opts: MockOptions = {}): Api {
       summary:
         lap.meta.lap_id === ref.meta.lap_id
           ? "This lap is the comparison lap, so there is nothing to compare."
-          : `${signed(total)} against the reference.${issues.length ? ` It goes at ${issues.map((f) => f.corner.name).join(", ")}.` : ""}`,
+          : `${signed(total)} against your best lap.${issues.length ? ` It goes at ${issues.map((f) => f.corner.name).join(", ")}.` : ""}`,
       findings,
       focus: top ? { corner_id: top.corner.id, instruction: findings[0].fix, metric: METRIC[built[0].cause] } : null,
-      encouragement: strength ? `${strength.corner.name} is quicker than your reference. Keep that commitment.` : null,
+      encouragement: strength ? `${strength.corner.name} is quicker than your best lap. Keep that commitment.` : null,
       stats, cost_usd: COST.analyze.cost,
     };
     save(lap, ref, result);
@@ -1039,7 +1039,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
     async segmentTimes(sessionId): Promise<SegmentTimes> {
       const session = sessionOf(sessionId);
       const pool = sortedSessionLaps(sessionId).filter(isTimed);
-      if (!pool.length) throw new ApiError("no_valid_laps", "There is no valid flying lap in this session.");
+      if (!pool.length) throw new ApiError("no_valid_laps", "There is no valid timed lap in this session.");
       const segs = mapSegments(mapOf(session.track_id));
       return { laps: pool.map((l) => ({ lap_id: l.meta.lap_id, lap_no: l.meta.lap_no, segment_s: segmentDurations(l.trace.ch.t, segs, lapTime(l)).map(round3) })) };
     },
@@ -1047,7 +1047,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
       const m = mapOf(trackId);
       const onTrack = [...laps.values()].filter((l) => l.meta.track_id === trackId);
       const ref = onTrack.find((l) => l.meta.pinned_reference) ?? onTrack.filter(isTimed).sort((a, b) => lapTime(a) - lapTime(b))[0];
-      if (!ref) throw new ApiError("no_reference", "Calibration needs a reference lap, and this track has none.");
+      if (!ref) throw new ApiError("no_reference", "Calibration needs a best lap to compare with, and this track has none.");
       return {
         map: clone(m),
         // The Kemmel kink is detected as a flat zone that is not in the mapped corner list.

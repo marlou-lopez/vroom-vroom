@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { ReportEvent, ReportLap, ReportSeverity, ReportWindow } from "../../api/types";
 import { cx } from "../../lib/cx";
 import { formatLapTime } from "../../lib/format";
+import { LAP_KIND_TEXT } from "../../lib/laps";
 import { CHARTS, lapSeverity, lapTimeRange, settingChanges, windowsOf, yRange, type ChartMetric } from "../../lib/sessionTab";
 import styles from "./Session.module.css";
 
@@ -43,7 +44,7 @@ function LapAxis({ frame, laps }: { frame: Frame; laps: ReportLap[] }) {
   );
 }
 
-const kindText = (l: ReportLap) => (l.kind === "flying" ? (l.valid ? "" : "invalid") : l.kind === "incomplete" ? "incomplete" : `${l.kind} lap`);
+const kindText = (l: ReportLap) => (l.kind === "flying" ? (l.valid ? "" : "invalid") : l.kind === "incomplete" ? "incomplete lap" : LAP_KIND_TEXT[l.kind]);
 
 export function LapTimeChart({ laps, events, onOpenLap }: { laps: ReportLap[]; events: ReportEvent[]; onOpenLap(lap: ReportLap): void }) {
   const frame = useMemo(() => frameFor(laps), [laps]);
@@ -81,8 +82,8 @@ export function LapTimeChart({ laps, events, onOpenLap }: { laps: ReportLap[]; e
       </div>
       <LapAxis frame={frame} laps={laps} />
       <div className={styles.legend}>
-        <span><span className={styles.key} /> flying lap</span>
-        <span><span className={cx(styles.key, styles.dotOut)} /> out, in or incomplete lap (at the bottom: no time)</span>
+        <span><span className={styles.key} /> timed lap</span>
+        <span><span className={cx(styles.key, styles.dotOut)} /> out lap, in lap or incomplete lap (at the bottom: no time)</span>
         <span><span className={cx(styles.key, styles.dotOut, styles.dotInvalid)} /> invalid lap</span>
         <span><span className={cx(styles.mark, styles.sev_watch, styles.keyMark)} /> lap with events</span>
         <span><span className={styles.settingKey} /> in-car setting changed</span>
@@ -107,7 +108,7 @@ export function MetricChart({ metric, laps, windows, events, onOpenLap }: {
     <figure className={styles.chart} aria-label={`${spec.title} per lap`}>
       <figcaption className={styles.chartTitle}>
         {spec.title} ({spec.unit})
-        {wins.length > 0 && <span className={styles.windowNote} title={wins.map((x) => x.source).join(" | ")}> · window {wins.map((x) => `${x.axle === "both" ? "" : `${x.axle} `}${x.min}–${x.max}`).join(", ")} {wins[0].unit}</span>}
+        {wins.length > 0 && <span className={styles.windowNote} title={wins.map((x) => x.source).join(" | ")}> · good range {wins.map((x) => `${x.axle === "both" ? "" : `${x.axle} `}${x.min}–${x.max}`).join(", ")} {wins[0].unit}</span>}
       </figcaption>
       <div className={styles.plot} style={{ height: 110 }}>
         <svg viewBox={`0 0 1000 ${H}`} preserveAspectRatio="none" aria-hidden="true">
@@ -131,7 +132,7 @@ export function MetricChart({ metric, laps, windows, events, onOpenLap }: {
       <div className={styles.legend}>
         <span><span className={cx(styles.swatch, styles.swatchFront)} /> front axle</span>
         <span><span className={cx(styles.swatch, styles.swatchRear)} /> rear axle</span>
-        {wins.length > 0 && <span><span className={cx(styles.swatch, styles.swatchWindow)} /> working window</span>}
+        {wins.length > 0 && <span><span className={cx(styles.swatch, styles.swatchWindow)} /> good range</span>}
       </div>
     </figure>
   );
