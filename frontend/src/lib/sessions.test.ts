@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionMeta } from "../api/types";
-import { comboKey, focusOutcome, groupCombos, trendPaths } from "./sessions";
+import { comboKey, focusOutcome, groupCombos, headline, trendPaths } from "./sessions";
 
 const s = (id: string, track: string, car: string, started: string): SessionMeta => ({
   session_id: id, track_name: `Track ${track}`, track_layout: "GP", track_id: track, track_length_m: 1000,
@@ -50,5 +50,33 @@ describe("trendPaths", () => {
   it("skips sessions without a time and copes with one point", () => {
     expect(trendPaths([{ best: null, theo: null }], 1000, 200).best).toBe("");
     expect(trendPaths([{ best: 143, theo: null }], 1000, 200).best).toContain("M");
+  });
+});
+
+describe("headline", () => {
+  const r = (type: string, d: string, best: number | null, theo: number | null) => ({ type, startedAt: d, best, theo });
+  it("never compares a race best with a practice best", () => {
+    const h = headline([r("Practice", "2026-11-01", 100, 99.5), r("Race", "2026-11-09", 100.14, null)]);
+    expect(h.change).toBeNull();
+    expect(h.changeType).toBe("Race");
+  });
+  it("falls back to the newest type that has two sessions", () => {
+    const h = headline([r("Practice", "1", 101, null), r("Practice", "2", 100, null), r("Race", "3", 103, null)]);
+    expect(h.change).toBeCloseTo(-1);
+    expect(h.changeType).toBe("Practice");
+  });
+  it("changes between the first and last session of the newest best's type", () => {
+    const h = headline([r("Practice", "1", 101, 100), r("Race", "2", 103, null), r("Practice", "3", 100.5, 99.8), r("Race", "4", 102, null)]);
+    expect(h.change).toBeCloseTo(-1);
+    expect(h.changeType).toBe("Race");
+    expect(h.changeFrom?.startedAt).toBe("2");
+  });
+  it("takes the gap to theoretical from the newest session that has both, and names it", () => {
+    const h = headline([r("Practice", "1", 100, 99.5), r("Race", "2", 100.1, null)]);
+    expect(h.gap).toBeCloseTo(0.5);
+    expect(h.gapFrom?.type).toBe("Practice");
+  });
+  it("is empty without data", () => {
+    expect(headline([])).toMatchObject({ change: null, gap: null, changeType: null });
   });
 });

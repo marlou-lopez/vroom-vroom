@@ -39,11 +39,11 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
     { k: "FUEL / LAP", v: f2(sum.fuelPerLap, " L") },
     { k: "ENERGY / LAP", v: hasEnergy ? f2(sum.energyPerLap, " %") : "n/a" },
     {
-      k: "RANGE", v: `${f1(sum.fuelRangeLaps)} fuel · ${hasEnergy ? f1(sum.energyRangeLaps) : "—"} energy`,
+      k: "RANGE", v: `${f1(sum.fuelRangeLaps, " laps")} on fuel · ${hasEnergy ? f1(sum.energyRangeLaps, " laps") : "—"} on energy`,
       title: "Laps the starting load lasts at the mean use per flying lap",
     },
     { k: "LIMIT", v: sum.limit === null ? "—" : sum.limit === "energy" ? "virtual energy" : "fuel" },
-    { k: "WEAR / LAP %", v: sum.wearPerLap ? `${sum.wearPerLap.fl.toFixed(2)} ${sum.wearPerLap.fr.toFixed(2)} / ${sum.wearPerLap.rl.toFixed(2)} ${sum.wearPerLap.rr.toFixed(2)}` : "—", title: "FL FR / RL RR" },
+    { k: "WEAR / LAP", v: sum.wearPerLap ? `${sum.wearPerLap.fl.toFixed(2)} ${sum.wearPerLap.fr.toFixed(2)} / ${sum.wearPerLap.rl.toFixed(2)} ${sum.wearPerLap.rr.toFixed(2)} %` : "—", title: "FL FR / RL RR" },
   ];
   return (
     <>
@@ -64,7 +64,7 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
           <span className={styles.cardKey}>FUEL-CORRECTED FALL-OFF</span>
           <span className={styles.cardValue}>{signed(corrected.slope_s_per_lap)} s/lap</span>
           <span className={styles.dim}>
-            {raw ? `raw ${signed(raw.slope_s_per_lap)} + ` : ""}fuel gain {corrected.fuel_gain_s_per_lap.toFixed(3)} ({corrected.kg_per_lap.toFixed(2)} kg a lap ×{" "}
+            {raw ? `raw ${signed(raw.slope_s_per_lap)} + ` : ""}fuel gain {corrected.fuel_gain_s_per_lap.toFixed(3)} s/lap ({corrected.kg_per_lap.toFixed(2)} kg a lap ×{" "}
             {corrected.s_per_kg.toFixed(4)} s/kg). Assumed: {corrected.assumption.source}.
           </span>
         </div>

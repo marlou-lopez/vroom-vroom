@@ -55,6 +55,7 @@ describe("IdealBreakdown", () => {
     render(wrap(<IdealBreakdown ideal={ideal} />));
     const rows = within(screen.getByRole("region", { name: "Ideal lap breakdown" })).getAllByRole("link");
     expect(rows).toHaveLength(2);
+    rows.forEach((r) => expect(r.textContent).toContain("→")); // link rows show an arrow
     await user.tab();
     await user.tab();
     expect(document.activeElement).toBe(rows[1]);
