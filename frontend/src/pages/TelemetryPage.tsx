@@ -17,6 +17,7 @@ import wsStyles from "../components/workspace/Workspace.module.css";
 import { leadInTime, toAnnotations, type Annotation } from "../lib/annotations";
 import { effectiveValid, type Corner } from "../api/types";
 import { CORNER_LEAD_M } from "../lib/annotations";
+import { cornerRailRows } from "../lib/cornerRail";
 import { comparisonName, lapGap } from "../lib/compareName";
 import { timeAtDistance } from "../lib/playback";
 import { buildModel } from "../lib/model";
@@ -151,8 +152,11 @@ function Telemetry() {
   const ideal = candidates.find((c) => c.is_ideal) ?? null;
   const refCand = candidates.find((c) => c.lap_id === cmp?.ref_lap_id) ?? null;
   const priorityCorners = useMemo(
-    () => new Set([...annotations.map((a) => a.cornerId), ...(losses?.losses.map((l) => l.cornerId) ?? [])]),
-    [annotations, losses],
+    () => new Set([
+      ...annotations.map((a) => a.cornerId),
+      ...(cmp ? cornerRailRows(cmp, trackMap?.corners ?? []).filter((r) => r.kind === "loss").map((r) => r.corner.id) : []),
+    ]),
+    [annotations, cmp, trackMap],
   );
   const youName = ctx ? `You · L${ctx.lap.lap_no}` : "You";
   const refShort = comparisonName(refCand, ctx?.laps ?? []);
