@@ -14,7 +14,8 @@
   width: 15.6667em; box-sizing: border-box;
   border: 1px solid var(--color-border); border-radius: var(--radius);
   padding: 6px; display: flex; flex-direction: column; gap: var(--gap);
-  min-height: 0; overflow: auto;
+  /* height 0 + min-height 100%: the rail takes the row height the centre sets and scrolls inside, so a long list or answer never grows the page. */
+  height: 0; min-height: 100%; overflow: auto;
 }
 .cornerRail { width: 20em; }
 .railHead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--gap); }
@@ -85,6 +86,11 @@
 .barGain { background: var(--color-strength); }
 .cause { grid-area: cause; color: var(--color-muted); font-size: var(--font-size-small); }
 .cornerDelta { grid-area: delta; font-family: var(--font-mono); text-align: right; font-size: var(--font-size-small); }
+.noteMore { background: transparent; border: 0; padding: 0; margin-left: 4px; color: var(--color-you); font: inherit; font-size: var(--font-size-small); cursor: pointer; white-space: nowrap; }
+.noteMore:hover { text-decoration: underline; }
+.noteMore:focus-visible { outline: 1px solid var(--color-you); outline-offset: 1px; }
+.noteText { min-width: 0; }
+.noteText[data-clamped="true"] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .note { display: flex; gap: 6px; align-items: flex-start; padding: 2px 2px 4px 8px; color: var(--color-text-soft); line-height: 1.35; }
 .noteBadge {
   flex: none; width: 16px; height: 16px; border-radius: 50%; color: var(--color-on-accent);
@@ -118,7 +124,7 @@
 @media (max-width: 700px) {
   .layout { display: flex; flex-direction: column; overflow-y: auto; padding-bottom: var(--pad); }
   .center { flex: none; overflow: visible; }
-  .rail, .cornerRail { width: auto; max-height: 260px; flex: none; }
+  .rail, .cornerRail { width: auto; height: auto; min-height: 0; max-height: 260px; flex: none; }
   .railCollapsed { flex-direction: row; justify-content: flex-start; padding: 4px 6px; max-height: none; }
   .vertical { writing-mode: horizontal-tb; }
 }

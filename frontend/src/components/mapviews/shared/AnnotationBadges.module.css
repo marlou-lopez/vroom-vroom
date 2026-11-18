@@ -1,5 +1,6 @@
 /* Badges sit above the renderer; the layer ignores the pointer, the badges do not. */
-.badges { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+/* Badges under the readout row (--top-h, set by TrackPanel) are clipped, so they never cover the delta readout. */
+.badges { position: absolute; inset: 0; pointer-events: none; overflow: hidden; clip-path: inset(var(--top-h, 0px) 0 0 0); }
 .badge {
   position: absolute; left: 0; top: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px;
   display: flex; align-items: center; justify-content: center;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { CompareResponse, TrackMap } from "../../api/types";
 import type { Annotation } from "../../lib/annotations";
 import { cornerRailRows } from "../../lib/cornerRail";
@@ -31,6 +31,18 @@ const STATES = ["open", "collapsed"] as const;
 
 function defaultState(): (typeof STATES)[number] {
   return typeof window !== "undefined" && window.innerWidth < NARROW_PX ? "collapsed" : "open";
+}
+
+/** A coach note under its corner: one line with "more" until opened, so answers never push the rail (or the page) longer. */
+function CollapsibleNote({ badge, testId, children }: { badge?: ReactNode; testId?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={styles.note} data-testid={testId}>
+      {badge}
+      <span className={styles.noteText} data-clamped={!open}>{children}</span>
+      <button type="button" className={styles.noteMore} aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? "less" : "more"}</button>
+    </div>
+  );
 }
 
 export function CornerRail({ cmp, trackMap, annotations, deepDives, onSeek }: CornerRailProps) {
@@ -110,18 +122,15 @@ export function CornerRail({ cmp, trackMap, annotations, deepDives, onSeek }: Co
                       {direction && <span className={cx(styles.cause, kind === "gain" && styles.gain)}>{direction}</span>}
                     </button>
                     {notes.map((a) => (
-                      <div key={a.findingId} className={styles.note}>
-                        <span className={styles.noteBadge} style={{ background: a.color }}>{a.label}</span>
-                        <span>{a.finding.fix}</span>
-                      </div>
+                      <CollapsibleNote key={a.findingId} badge={<span className={styles.noteBadge} style={{ background: a.color }}>{a.label}</span>}>
+                        {a.finding.fix}
+                      </CollapsibleNote>
                     ))}
                     {dive && (
-                      <div className={styles.note} data-testid="corner-dive">
-                        <span>
-                          <span className={styles.muted}>About this corner · </span>
-                          {dive.what} <span className={styles.muted}>Fix · </span>{dive.fix}
-                        </span>
-                      </div>
+                      <CollapsibleNote testId="corner-dive">
+                        <span className={styles.muted}>About this corner · </span>
+                        {dive.what} <span className={styles.muted}>Fix · </span>{dive.fix}
+                      </CollapsibleNote>
                     )}
                   </li>
                 );
