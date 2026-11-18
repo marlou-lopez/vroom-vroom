@@ -10,6 +10,7 @@ import { cornerAt } from "../lib/trackmap";
 import { distanceAtTime, timeAtDistance } from "../lib/playback";
 import { RATES, usePlayback, usePlaybackStore, type Rate } from "../state/playback";
 import { cx } from "../lib/cx";
+import { ShortcutsPopover } from "./ShortcutsPopover";
 import styles from "./Transport.module.css";
 import ui from "./ui.module.css";
 
@@ -62,6 +63,20 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refN
   const dNow = distanceAtTime(cmp.lap.t, cmp.distance, tau);
   const currentCorner = trackMap ? cornerAt(trackMap, dNow) : null;
 
+  // The ticks are one tab stop (a roving tabindex): arrows, Home and End move between all of them, hidden labels included.
+  const tickEls = useRef<(HTMLButtonElement | null)[]>([]);
+  const [activeTick, setActiveTick] = useState(0);
+  const tabStop = Math.min(Math.max(0, activeTick), Math.max(0, ticks.length - 1));
+  const onTickKeyDown = (e: KeyboardEvent, i: number) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    const last = ticks.length - 1;
+    const to = e.key === "ArrowRight" ? Math.min(last, i + 1) : e.key === "ArrowLeft" ? Math.max(0, i - 1) : e.key === "Home" ? 0 : e.key === "End" ? last : -1;
+    if (to < 0) return;
+    e.preventDefault();
+    setActiveTick(to);
+    tickEls.current[to]?.focus();
+  };
+
   /** Radix steps arrows by 0.05 s; PageUp and PageDown are 5 s here (Radix would use 10 steps). Home and End are Radix's. */
   const onScrubKeyDown = (e: KeyboardEvent) => {
     if (e.key !== "PageUp" && e.key !== "PageDown") return;
@@ -91,6 +106,7 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refN
           <span data-testid="transport-distance" title="Distance along the lap">{formatDistance(dNow)}</span>
           {" · "}{formatClock(tau)} / {formatClock(duration)}
         </div>
+        <ShortcutsPopover />
       </div>
       <div className={styles.scrubWrap}>
         <Slider.Root
@@ -116,14 +132,17 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refN
         </Slider.Root>
         {scrubberBadges}
       </div>
-      <div ref={ticksRef} className={styles.ticks}>
-        {ticks.map(({ c, frac, label }) => (
+      <div ref={ticksRef} className={styles.ticks} role="group" aria-label="Corners: arrow keys move between them">
+        {ticks.map(({ c, frac, label }, i) => (
           <button
             key={c.id}
+            ref={(el) => void (tickEls.current[i] = el)}
             type="button"
             aria-label={c.name}
             title={c.name}
-            tabIndex={label.mode === "dot" ? -1 : 0}
+            tabIndex={i === tabStop ? 0 : -1}
+            onFocus={() => setActiveTick(i)}
+            onKeyDown={(e) => onTickKeyDown(e, i)}
             onClick={() => store.seek(timeAtDistance(cmp.lap.t, cmp.distance, c.start_m - CORNER_LEAD_M))}
             className={cx(styles.tick, currentCorner?.id === c.id && styles.current)}
             style={{ left: `${frac * 100}%` }}
