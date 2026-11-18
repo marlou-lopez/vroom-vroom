@@ -19,6 +19,9 @@ describe("applyThemeVariables", () => {
     expect(set.get("--radius")).toBe(`${sizes.radius}px`);
     expect(set.get("--header-height")).toBe("36px");
     expect(set.get("--font-size-base")).toBe("12px");
+    expect(set.get("--font-size-small")).toBe("11px");
+    expect(set.get("--control")).toBe("24px");
+    expect(colors.muted).toBe("#9AA3AE");
   });
   it("covers every colour token", () => {
     const vars = themeVariables();

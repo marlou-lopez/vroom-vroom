@@ -164,7 +164,7 @@
 .mapPin { cursor: pointer; }
 .pin { fill: var(--color-popup); stroke: var(--color-issue); stroke-width: 1.5; }
 .pinSel { fill: var(--color-issue); stroke: var(--color-issue); stroke-width: 1.5; }
-.pinText { font-size: 10px; font-weight: 700; fill: var(--color-text); pointer-events: none; }
+.pinText { font-size: 10px /* svg-units */; font-weight: 700; fill: var(--color-text); pointer-events: none; }
 
 .detailHead { display: flex; flex-wrap: wrap; gap: var(--s-gap); align-items: center; }
 .chartWrap { display: flex; flex-direction: column; gap: 4px; }

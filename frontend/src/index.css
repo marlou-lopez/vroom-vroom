@@ -7,5 +7,9 @@ body {
   font-family: var(--font-sans);
   font-size: var(--font-size-base);
 }
+/* Above 1920 px the base grows with the viewport (12 px at 1920, 16 px at 2560 and up), and the small size with it. !important beats the inline values applyThemeVariables writes. */
+@media (min-width: 1921px) {
+  :root { --font-size-base: clamp(12px, 0.625vw, 16px) !important; --font-size-small: clamp(11px, 0.5625vw, 14px) !important; }
+}
 button, input, select { font: inherit; }
 :focus-visible { outline: 2px solid var(--color-you); outline-offset: 1px; }

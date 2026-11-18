@@ -37,8 +37,8 @@
   justify-content: flex-end;
   overflow: hidden;
 }
-.barValue { font-family: var(--font-mono); font-size: 11px; font-variant-numeric: tabular-nums; }
-.barLabel { font-size: 9px; color: var(--color-muted); letter-spacing: 0.06em; }
+.barValue { font-family: var(--font-mono); font-size: var(--font-size-small); font-variant-numeric: tabular-nums; }
+.barLabel { font-size: var(--font-size-small); color: var(--color-muted); letter-spacing: 0.06em; }
 
 .speed { font-family: var(--font-mono); font-size: 20px; font-weight: 600; }
-.unit { font-size: 11px; color: var(--color-muted); }
+.unit { font-size: var(--font-size-small); color: var(--color-muted); }

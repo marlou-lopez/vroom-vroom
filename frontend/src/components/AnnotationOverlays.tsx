@@ -6,6 +6,7 @@ import { offTrackRuns } from "../lib/offTrack";
 import { timeAtDistance } from "../lib/playback";
 import { chipFraction } from "../lib/strips";
 import { cornerSegmentPath, pointAtDistance, splitWrapping } from "../lib/trackmap";
+import { smallFontPx } from "../lib/cornerLabels";
 import styles from "./AnnotationOverlays.module.css";
 import { AnnotationHoverCard } from "./AnnotationPopup";
 
@@ -14,13 +15,14 @@ export interface BadgeHandlers {
   onSeek(a: Annotation): void;
 }
 
-const CHIP_CHAR_PX = 6;
-const SCRUB_BADGE_PX = 18;
+const CHIP_CHAR_EM = 0.6;
+const SCRUB_BADGE_PX = 24;
 
 /** Sideways shift (px) of a stacked chip: the estimated widths of the chips before it on the same corner. */
 function chipShift(a: Annotation, all: Annotation[]): number {
   let px = 0;
-  for (const o of all) if (o.cornerId === a.cornerId && o.stack < a.stack) px += (o.label.length + 1 + o.finding.corner.length) * CHIP_CHAR_PX + 16;
+  const charPx = CHIP_CHAR_EM * smallFontPx();
+  for (const o of all) if (o.cornerId === a.cornerId && o.stack < a.stack) px += (o.label.length + 1 + o.finding.corner.length) * charPx + 16;
   return px;
 }
 

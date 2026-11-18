@@ -13,7 +13,7 @@
 .mapBadge:focus-visible { outline: none; }
 .mapBadgeDot { stroke: var(--color-bg); stroke-width: 1.2; }
 .mapBadgeText {
-  font-size: 7px;
+  font-size: 7px /* svg-units */;
   font-weight: 700;
   fill: var(--color-bg);
   font-family: var(--font-sans);
@@ -26,7 +26,7 @@
   color: var(--color-bg);
   border: 0;
   border-radius: 999px;
-  font-size: 10px;
+  font-size: var(--font-size-small);
   font-weight: 700;
   cursor: pointer;
 }
@@ -37,9 +37,9 @@
   bottom: 4px;
   transform: translateX(calc(-50% + var(--shift, 0px)));
   pointer-events: auto;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  min-width: var(--control);
+  height: var(--control);
+  padding: 0 6px;
   white-space: nowrap;
 }
 
@@ -53,12 +53,12 @@
 
 .scrubBadge {
   position: absolute;
-  top: -8px;
+  top: -11px;
   transform: translateX(calc(-50% + var(--shift, 0px)));
   border: 2px solid var(--color-bg);
-  width: 18px;
-  height: 18px;
+  width: var(--control);
+  height: var(--control);
   padding: 0;
 }
 
-.offLegend { position: absolute; right: 4px; bottom: 2px; font-size: 9px; line-height: 1; color: var(--color-muted); pointer-events: none; }
+.offLegend { position: absolute; left: 4px; bottom: 2px; font-size: var(--font-size-small); line-height: 1; color: var(--color-muted); pointer-events: none; }
