@@ -44,7 +44,7 @@ These findings answer plan Task 1 Step 8. **Where they contradict the plan, the 
 - **`CarName` is the entry/livery name** ("Garage 59 2026 #58:LM"), not the car model, and no key holds the model. Two liveries of the 720S would therefore count as different cars. → `config/cars.yaml` maps entry names to a model `car_id`.
 - **`CarSetup`** is the full garage setup as JSON (172 `VM_*` entries, the same shape as the REST API), which is useful for the setup engineer later.
   - **Shape:** an object keyed by setting id, 170 entries on the 720S GT3: `VM_*` for the car and `WM_<item>-W_<FL|FR|RL|RR>` per wheel, plus two non-setting keys (`gearGraph`, `symmetric`) with no `stringValue`. Each setting has `stringValue` (the display string, e.g. "6.7 deg"; `value` is an index), `lastSavedStringValue`, `minValue`, `maxValue`, `diffComparisonValue` and sometimes `caption`. `tools/extract-laps.mjs` keeps only key -> `stringValue` as `car_setup` (checked: no driver name or account id inside; those are separate metadata keys). The mock serves it at `GET /api/sessions/{id}/setup` (vroom-pnw.25).
-  - **Unverified:** whether `CarSetup` is the setup at the start or the end of the recording when the setup is changed in the garage mid-session (`stringValue` differs from `lastSavedStringValue` on 47 settings in the Spa file, so it is the live setup, not the saved one). Treat it as per session, not per lap, until checked on a recording with a mid-session change.
+  - **`CarSetup` is the setup at the start of the recording** (vroom-k5s.2, checked on 230 recordings): 225 start with exactly the setup's fuel (`VM_FUEL_CAPACITY`), and the 5 that do not are Race sessions, where the race sets the start fuel. In the Spa race of 10 Nov 2026 the RR tyre was changed at the stop, yet the setup still shows the start wear (`WM_COMPOUND` RR "98% Medium"). A garage visit starts a **new** recording (consecutive files show the fuel reset to the setup value with the previous file's end tyre wear), so "one recording, one start setup" holds. `stringValue` is the live setup, not the saved one (it differs from `lastSavedStringValue` on 47 settings in the Spa file).
   - **The steering range is `VM_STEER_LOCK.stringValue`**, "524deg (18.5deg)", so `steering_range_deg = 524`. Parse the leading number.
 
 ## Rates and size
@@ -107,6 +107,8 @@ Source: a survey of 244 recordings (copies, read-only) and two in detail: `Autod
 | Engine Oil Temp, Engine Water Temp | 7 | C | |
 
 **Events:** `TyresCompound` (four values, one per wheel; 0 on the GT3, 1 on the Hypercar; names unverified), `FuelMixtureMap` (1 on the GT3, 6 on the Hypercar), `Minimum Path Wetness` and `OffpathWetness` (%; 0 / false on dry days), `CloudDarkness`. Events are emitted on change, so a dry session has one row each.
+
+**In-car brake bias is recorded** (vroom-k5s.2): the event table `Brake Bias Rear` holds the rear share (0.4775 = 52.25:47.75 front:rear), with `Brake Migration` beside it. The first event of a recording equals the setup's `VM_BRAKE_BALANCE` in 242 of 246 recordings. 6 recordings have in-car changes (one click is 0.0025 on the GT3 and 0.0045 on the Toyota Hypercar), e.g. Spa practice 10 Nov 2026 20:25 (25 events) and Spa race 16 Nov 2026 01:13 (35). No `Brake Migration` change was seen. `tools/extract-laps.mjs` does not extract either yet.
 
 **Wheel order FL, FR, RL, RR is confirmed** by these channels on the right-handed Monza: value1 and value3 (the left tyres) run 4–8 °C hotter than value2 and value4, and value1 and value2 (the fronts) carry the hotter brakes.
 

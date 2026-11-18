@@ -7,7 +7,9 @@ import { cx } from "../../lib/cx";
 import { categoryCounts, CHARTS, eventLap, groupEvents, noPlayback, sessionBestLap } from "../../lib/sessionTab";
 import { errorInfo } from "../../api/types";
 import ui from "../ui.module.css";
+import { suggestEnabled } from "../../lib/setupSuggestions";
 import { LapTimeChart, MetricChart } from "./SessionCharts";
+import { SuggestionsPanel } from "./SuggestionsPanel";
 import styles from "./Session.module.css";
 
 const SEVERITY_TEXT: Record<ReportSeverity, string> = { info: "for your information", watch: "keep an eye on it", problem: "needs fixing" };
@@ -41,6 +43,7 @@ function ReportBody({ report, onOpen, filter }: { report: SessionReport; onOpen(
   const counts = useMemo(() => categoryCounts(report.events), [report.events]);
   const groups = useMemo(() => groupEvents(report.events, categories), [report.events, categories]);
   const playbackOff = noPlayback(report);
+  const suggestOn = useMemo(() => suggestEnabled(globalThis.location?.search ?? ""), []);
 
   const open = (lap: ReportLap | null, distanceM: number | null) => {
     if (!lap) return;
@@ -69,6 +72,7 @@ function ReportBody({ report, onOpen, filter }: { report: SessionReport; onOpen(
       <div className={styles.miniCharts}>
         {CHARTS.map((c) => <MetricChart key={c.metric} metric={c.metric} laps={report.laps} windows={report.windows} events={report.events} onOpenLap={(l) => open(l, null)} />)}
       </div>
+      {suggestOn && <SuggestionsPanel report={report} />}
       <section className={styles.events} aria-label="Events">
         <div className={styles.filters} role="group" aria-label="Filter events by category">
           {REPORT_CATEGORIES.map((c) => (
