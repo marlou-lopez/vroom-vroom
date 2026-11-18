@@ -61,6 +61,27 @@ describe("Session tab", () => {
     expect(onOpen).toHaveBeenCalledWith({ lapId: lap.lap_id, refLapId: best.lap_id === lap.lap_id ? null : best.lap_id, distanceM: ev.distance_m });
   });
 
+  it("opens a lock-up trend or repeated-corner event at its corner, on the first lap it names", async () => {
+    const race = await sessionOn("2026-11-10");
+    const base = await engine().sessionReport(race.session_id);
+    const mk = (kind: string, sentence: string, lap_from: number, distance_m: number): SessionReport["events"][number] => ({
+      id: `driving-${kind}-x`, category: "driving", kind, severity: "watch", lap_from, lap_to: lap_from + 1, corner: { id: "c9", name: "Bus Stop" },
+      distance_m, numbers: { first_runs: 0, last_runs: 4 }, coincides: null, sentence,
+    });
+    const events = [
+      mk("lockup_trend", "Lock-ups at Bus Stop rose from 0 in the first 2 flying laps (laps 1 to 2) to 4 in the last 2 (laps 4 to 5).", 4, 6700),
+      mk("lockups", "The car locked a wheel under braking at Bus Stop on 2 of 5 traced laps (4 times, laps 2 to 3).", 2, 6710),
+    ];
+    server.use(http.get("*/sessions/:id/report", () => HttpResponse.json({ ...base, events })));
+    const onOpen = renderTab(race.session_id);
+    const best = base.laps.filter((l) => l.kind === "flying" && l.valid && l.has_trace && l.lap_time_s).sort((a, b) => a.lap_time_s! - b.lap_time_s!)[0];
+    const lapOf = (n: number) => base.laps.find((l) => l.lap_no === n)!;
+    fireEvent.click(await screen.findByRole("button", { name: /Lock-ups at Bus Stop rose/ }));
+    expect(onOpen).toHaveBeenLastCalledWith({ lapId: lapOf(4).lap_id, refLapId: best.lap_id === lapOf(4).lap_id ? null : best.lap_id, distanceM: 6700 });
+    fireEvent.click(screen.getByRole("button", { name: /The car locked a wheel under braking at Bus Stop/ }));
+    expect(onOpen).toHaveBeenLastCalledWith({ lapId: lapOf(2).lap_id, refLapId: best.lap_id === lapOf(2).lap_id ? null : best.lap_id, distanceM: 6710 });
+  });
+
   it("opens a lap clicked in the lap-time chart, without a distance", async () => {
     const race = await sessionOn("2026-11-10");
     const report = await engine().sessionReport(race.session_id);
