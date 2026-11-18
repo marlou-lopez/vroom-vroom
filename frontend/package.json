@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "shots": "node scripts/shots.mjs"
   },
   "dependencies": {
     "@gltf-transform/core": "4.5.1",
@@ -32,6 +33,7 @@
     "zustand": "5.0.16"
   },
   "devDependencies": {
+    "@playwright/test": "1.65.1",
     "@testing-library/dom": "10.4.2",
     "@testing-library/react": "16.3.3",
     "@testing-library/user-event": "14.6.8",

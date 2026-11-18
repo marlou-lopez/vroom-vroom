@@ -6,7 +6,7 @@
 
 ## How the review was done
 
-- **Browser.** No browser MCP could be reached from this session. Claude in Chrome doesn't support WSL, and the built-in browser pane isn't available in a terminal session. So the review used **scripted Playwright screenshots**: Playwright 1.49.1 run from a scratch folder (not added to `package.json`) and its headless Chromium 131 with software WebGL (SwiftShader), at 1600×900 unless noted. Three environment workarounds were needed on this WSL machine (Ubuntu 26.04), noted here for whoever repeats this:
+- **Browser.** No browser MCP could be reached from this session. Claude in Chrome doesn't support WSL, and the built-in browser pane isn't available in a terminal session. So the review used **scripted Playwright screenshots**: Playwright 1.49.1 run from a scratch folder (not added to `package.json`) and its headless Chromium 131 with software WebGL (SwiftShader), at 1600×900 unless noted. Three environment workarounds were needed on this WSL machine (Ubuntu 26.04), noted here for whoever repeats this. **These are now built in** (vroom-pnw.47): `npm run shots` in `frontend/` and the Playwright MCP server in `.mcp.json` set the dbus variable and locale, Playwright is a pinned devDependency, and the system libraries are installed system-wide, so no `LD_LIBRARY_PATH`:
   - headless Chromium hangs before rendering unless `DBUS_SESSION_BUS_ADDRESS=disabled:` is set;
   - `libnss3`, `libnspr4` and `libasound2t64` were fetched with `apt-get download` and loaded with `LD_LIBRARY_PATH`, because there was no sudo;
   - the browser context needs an explicit `locale: "en-US"`, or the app throws "Incorrect locale information provided" and renders a blank page.
