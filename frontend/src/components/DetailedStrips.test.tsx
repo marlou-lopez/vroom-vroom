@@ -105,6 +105,32 @@ describe("DetailedStrips legend, zoom, pan and axis (vroom-pnw.35, vroom-pnw.48)
     expect(screen.getByText("Comparison · L2")).toBeTruthy();
   });
 
+  it("keys the ABS and TC shading in the pedals header only when the lap has those runs", async () => {
+    const { unmount } = await setup();
+    const has = (n: string) => screen.queryAllByText(n).length > 0;
+    const abs = lastModel.cmp.lap.abs.some(Boolean), tc = lastModel.cmp.lap.tc.some(Boolean);
+    expect(has("ABS")).toBe(abs);
+    expect(has("TC")).toBe(tc);
+    unmount();
+    // A lap with no aid runs shows neither.
+    const clean = { ...lastModel, cmp: { ...lastModel.cmp, lap: { ...lastModel.cmp.lap, abs: lastModel.cmp.lap.abs.map(() => 0), tc: lastModel.cmp.lap.tc.map(() => 0) } } };
+    render(
+      <PlaybackProvider>
+        <DetailedStrips model={clean as never} geometry={null} annotations={[]} handlers={lastHandlers} />
+      </PlaybackProvider>,
+    );
+    expect(has("ABS")).toBe(false);
+    expect(has("TC")).toBe(false);
+  });
+
+  it("explains the wheels-off and corner bands in the legend", async () => {
+    await setup({ lapValid: false, annotations: [{ startM: 100, apexM: 150, endM: 200, color: "#fff", label: "1", kind: "issue", finding: { corner: "T1" } }] });
+    // Wheels-off item appears only when the lap has such runs; its tooltip names both colours.
+    expect(screen.queryAllByText(/Wheels off/).length).toBeGreaterThan(0);
+    for (const el of screen.queryAllByText(/Wheels off/)) expect(el.getAttribute("title")).toMatch(/close call.*invalid/i);
+    expect(screen.getByText("Coach corner").getAttribute("title")).toMatch(/corner/i);
+  });
+
   const scales = () => (globalThis as unknown as { __scales: Array<{ min: number; max: number }> }).__scales;
   const lastWin = () => scales()[scales().length - 1];
 
