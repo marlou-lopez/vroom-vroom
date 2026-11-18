@@ -1,8 +1,7 @@
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Corner, CornerMetrics, TrackMap } from "../api/types";
 import { cx } from "../lib/cx";
-import { cornerRows, shiftWord, sortRows, type Cell, type CornerRow, type CornerSort } from "../lib/cornerTable";
-import { formatDelta } from "../lib/format";
+import { cornerRows, nearApex, shiftWord, signedNumber, signedSeconds, sortRows, type Cell, type CornerRow, type CornerSort } from "../lib/cornerTable";
 import styles from "./CornersTable.module.css";
 
 export interface CornersTableProps {
@@ -12,8 +11,7 @@ export interface CornersTableProps {
 }
 
 const f = (x: number | null, d: number) => (x === null ? "–" : x.toFixed(d));
-const signed = (x: number | null, d: number, unit = "") =>
-  x === null ? "–" : `${x < 0 ? "−" : x > 0 ? "+" : ""}${Math.abs(x).toFixed(d)}${unit}`;
+const signed = signedNumber;
 
 interface Col {
   key: string;
@@ -27,7 +25,7 @@ interface Col {
   worse?: 1 | -1;
 }
 
-const near = (x: number | null) => (x === null ? "–" : `${Math.abs(Math.round(x))} m ${x <= 0 ? "before" : "after"} apex`);
+const near = nearApex;
 
 const COLS: Col[] = [
   {
@@ -54,57 +52,88 @@ function hintText(lap: string | null, ref: string | null): string | undefined {
 
 export function CornersTable({ corners, trackMap, onSeek }: CornersTableProps) {
   const [sort, setSort] = useState<CornerSort>("track");
+  const [expanded, setExpanded] = useState(false);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  const wrapRef = useRef<HTMLDivElement>(null);
   const all = useMemo(() => cornerRows(corners, trackMap), [corners, trackMap]);
   const rows = useMemo(() => sortRows(all, sort), [all, sort]);
+  const measure = (el: HTMLDivElement | null) => {
+    if (!el) return;
+    const left = el.scrollLeft > 1;
+    const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+    setEdges((e) => (e.left === left && e.right === right ? e : { left, right }));
+  };
+  useLayoutEffect(() => {
+    measure(wrapRef.current);
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => measure(el));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [all.length, expanded, corners]);
   if (all.length === 0) return <div className={styles.empty}>No corner data for this comparison.</div>;
+  const sortHeader = (key: CornerSort, label: string) => (
+    <button
+      type="button" className={styles.sortBtn} aria-pressed={sort === key}
+      aria-label={label} onClick={() => setSort(key)}
+    >
+      {label}<span aria-hidden className={styles.arrow} data-on={sort === key || undefined}>{sort === key ? "↓" : "↕"}</span>
+    </button>
+  );
   return (
-    <div className={styles.wrap}>
-      <table className={styles.table}>
-        <caption className={styles.caption}>Corners: you / reference / difference</caption>
-        <thead>
-          <tr>
-            <th scope="col" className={styles.left}>
-              <button
-                type="button" className={styles.sortBtn} aria-pressed={sort === "track"}
-                onClick={() => setSort("track")}
-              >Corner</button>
-            </th>
-            <th scope="col">
-              <button
-                type="button" className={styles.sortBtn} aria-pressed={sort === "loss"}
-                onClick={() => setSort("loss")}
-              >Time lost</button>
-            </th>
-            {COLS.map((c) => <th key={c.key} scope="col">{c.label}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.corner.id} className={styles.row} onClick={() => onSeek(r.corner)}>
-              <th scope="row" className={styles.left}>
-                <button
-                  type="button" className={styles.name}
-                  aria-label={`${r.corner.name}. Seek to the corner`}
-                >{r.corner.name}</button>
-              </th>
-              <td className={cx(styles.num, r.deltaS > 0 ? styles.loss : r.deltaS < 0 ? styles.gain : undefined)}>
-                {formatDelta(r.deltaS)} s
-              </td>
-              {COLS.map((c) => {
-                const x = c.cell(r);
-                const bad = c.worse && x.diff !== null && Math.abs(x.diff) > 1e-9 ? Math.sign(x.diff) === c.worse : null;
-                return (
-                  <td key={c.key} className={styles.metric} title={c.hint?.(r)}>
-                    <span>{c.show(x.lap)}</span>
-                    <span className={styles.ref}>{c.show(x.ref)}</span>
-                    <span className={cx(styles.diff, bad === true && styles.loss, bad === false && styles.gain)}>{c.diff(x.diff)}</span>
-                  </td>
-                );
-              })}
+    <div className={styles.outer} data-shadow-left={edges.left || undefined} data-shadow-right={edges.right || undefined}>
+      <div className={styles.toolbar}>
+        <button
+          type="button" className={styles.expandBtn} aria-pressed={expanded}
+          onClick={() => setExpanded((x) => !x)}
+        >{expanded ? "Show difference only" : "Show you / reference"}</button>
+      </div>
+      {/* A scrollable region must be keyboard-reachable so the table can be scrolled sideways. */}
+      <div
+        className={styles.wrap} ref={wrapRef}
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        role="region" tabIndex={0}
+        onScroll={(e) => measure(e.currentTarget)} aria-label="Corner details, scrolls sideways"
+      >
+        <table className={styles.table}>
+          <caption className={styles.caption}>Corners: difference to the reference (hover a cell for you and reference)</caption>
+          <thead>
+            <tr>
+              <th scope="col" className={styles.left}>{sortHeader("track", "Corner")}</th>
+              <th scope="col">{sortHeader("loss", "Time lost")}</th>
+              {COLS.map((c) => <th key={c.key} scope="col">{c.label}</th>)}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.corner.id} className={styles.row} onClick={() => onSeek(r.corner)}>
+                <th scope="row" className={styles.left}>
+                  <button
+                    type="button" className={styles.name}
+                    aria-label={`${r.corner.name}. Seek to the corner`}
+                  >{r.corner.name}</button>
+                </th>
+                <td className={cx(styles.num, r.deltaS > 0 ? styles.loss : r.deltaS < 0 ? styles.gain : undefined)}>
+                  {signedSeconds(r.deltaS)} s
+                </td>
+                {COLS.map((c) => {
+                  const x = c.cell(r);
+                  const bad = c.worse && x.diff !== null && Math.abs(x.diff) > 1e-9 ? Math.sign(x.diff) === c.worse : null;
+                  const both = `You ${c.show(x.lap)} · Reference ${c.show(x.ref)}`;
+                  const hint = c.hint?.(r);
+                  return (
+                    <td key={c.key} className={styles.metric} title={hint ? `${both}. ${hint}` : both}>
+                      {expanded && <span>{c.show(x.lap)}</span>}
+                      {expanded && <span className={styles.ref}>{c.show(x.ref)}</span>}
+                      <span className={cx(styles.diff, bad === true && styles.loss, bad === false && styles.gain)}>{c.diff(x.diff)}</span>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

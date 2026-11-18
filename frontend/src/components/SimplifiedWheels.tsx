@@ -40,6 +40,7 @@ function Driver({ name, color, ch, i, rangeDeg }: { name: string; color: string;
             <div className={styles.track}>
               <div style={{ height: `${Math.round(b.v * 100)}%`, background: b.color }} />
             </div>
+            <div className={styles.barValue}>{Math.round(b.v * 100)}</div>
             <div className={styles.barLabel}>{b.k}</div>
           </div>
         ))}

@@ -100,3 +100,23 @@ export function shiftWord(diff: number | null): string {
   if (m === 0) return "same";
   return `${m} m ${diff > 0 ? "later" : "earlier"}`;
 }
+
+/** A signed number with `d` decimals and a real minus sign; a value that rounds to zero has no sign (never "−0"). */
+export function signedNumber(x: number | null, d: number, unit = ""): string {
+  if (x === null) return "–";
+  const s = Math.abs(x).toFixed(d);
+  const zero = Number(s) === 0;
+  return `${zero ? "" : x < 0 ? "−" : "+"}${s}${unit}`;
+}
+
+/** Time difference in seconds, three decimals; no sign when it rounds to zero. */
+export function signedSeconds(x: number): string {
+  return signedNumber(x, 3);
+}
+
+/** Where a landmark is relative to the apex: "12 m before apex", "at apex", or "—" where there is no value. */
+export function nearApex(x: number | null): string {
+  if (x === null) return "—";
+  const m = Math.round(Math.abs(x));
+  return m === 0 ? "at apex" : `${m} m ${x < 0 ? "before" : "after"} apex`;
+}
