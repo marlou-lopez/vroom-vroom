@@ -58,14 +58,17 @@ export function plainCorner(m: CornerMetrics, refName: string): PlainCorner {
   }
 }
 
+/** Below this a corner reads "0.00 s" at two decimals, so the Simple view neither ranks nor praises it. */
+export const PLAIN_MIN_S = 0.005;
+
 /** The corners where the lap lost the most time, worst first. */
 export function biggestLosses(corners: CornerMetrics[], n = 3): CornerMetrics[] {
-  return corners.filter((c) => c.delta_s >= MIN_DELTA_S).sort((a, b) => b.delta_s - a.delta_s).slice(0, n);
+  return corners.filter((c) => c.delta_s >= PLAIN_MIN_S).sort((a, b) => b.delta_s - a.delta_s).slice(0, n);
 }
 
 /** The corners where the lap gained the most time, best first. */
 export function biggestGains(corners: CornerMetrics[], n = 2): CornerMetrics[] {
-  return corners.filter((c) => c.delta_s <= -MIN_DELTA_S).sort((a, b) => a.delta_s - b.delta_s).slice(0, n);
+  return corners.filter((c) => c.delta_s <= -PLAIN_MIN_S).sort((a, b) => a.delta_s - b.delta_s).slice(0, n);
 }
 
 /** "0.20 s" with two decimals: a novice reads tenths and hundredths, not thousandths. */
@@ -86,7 +89,12 @@ export function plainRefName(refCand: CompareCandidate | null, laps: LapWithRef[
   if (refCand.is_ideal) return "your ideal lap";
   const own = laps.find((l) => l.lap_id === refCand.lap_id);
   if (!own) return refCand.label;
-  const fastest = laps.filter((l) => effectiveValid(l) && l.lap_time_s).sort((a, b) => a.lap_time_s! - b.lap_time_s!)[0];
+  const fastest = fastestValidLap(laps);
   if (fastest?.lap_id === own.lap_id) return `your best lap (lap ${own.lap_no})`;
   return `lap ${own.lap_no}`;
+}
+
+/** The fastest valid timed lap of the session, or null: what "your best lap" means in the Simple view. */
+export function fastestValidLap(laps: LapWithRef[]): LapWithRef | null {
+  return laps.filter((l) => effectiveValid(l) && l.lap_time_s).sort((a, b) => a.lap_time_s! - b.lap_time_s!)[0] ?? null;
 }

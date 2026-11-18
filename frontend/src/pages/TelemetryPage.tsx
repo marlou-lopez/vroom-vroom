@@ -217,6 +217,7 @@ function Telemetry() {
   ];
 
   // EXPERIMENTAL (spike vroom-pnw.50): `?ui=simple` swaps the page for the plain-language Simple view prototype.
+  if (params.get("ui") === "simple" && !(ctx && cmp && model) && !error) return <Message>Loading…</Message>;
   if (params.get("ui") === "simple" && ctx && cmp && model) {
     return (
       <SimpleView

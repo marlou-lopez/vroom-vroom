@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CompareCandidate, CornerMetrics, CornerSideMetrics, LapWithRef } from "../api/types";
-import { biggestGains, biggestLosses, plainCorner, plainGap, plainRefName } from "./plainCorner";
+import { biggestGains, biggestLosses, fastestValidLap, plainCorner, plainGap, plainRefName } from "./plainCorner";
 
 const side = (o: Partial<CornerSideMetrics> = {}): CornerSideMetrics => ({
   brake_onset_m: 100, peak_brake: 0.8, min_speed_kmh: 120, min_speed_m: 150, throttle_pickup_m: 180, exit_speed_kmh: 170,
@@ -37,6 +37,10 @@ describe("ranking and wording", () => {
     expect(biggestLosses(cs).map((c) => c.corner_id)).toEqual(["b", "e", "a"]);
     expect(biggestGains(cs).map((c) => c.corner_id)).toEqual(["c", "f"]);
   });
+  it("leaves out corners that would read 0.00 s", () => {
+    expect(biggestLosses([corner("a", 0.004), corner("b", 0.006)]).map((c) => c.corner_id)).toEqual(["b"]);
+    expect(biggestGains([corner("a", -0.004)])).toEqual([]);
+  });
   it("words the lap gap in hundredths", () => {
     expect(plainGap(0.0404, "your best lap")).toBe("0.04 s slower than your best lap");
     expect(plainGap(-0.12, "the ideal lap")).toBe("0.12 s faster than the ideal lap");
@@ -54,5 +58,7 @@ describe("ranking and wording", () => {
     expect(plainRefName(cand({ lap_id: "ideal:s", is_ideal: true }), laps)).toBe("your ideal lap");
     expect(plainRefName(cand({ lap_id: "other", label: "26 Oct · L4" }), laps)).toBe("26 Oct · L4");
     expect(plainRefName(null, laps)).toBe("the comparison lap");
+    expect(fastestValidLap(laps)?.lap_id).toBe("x2");
+    expect(fastestValidLap([{ ...laps[1], valid: false }, laps[0]] as LapWithRef[])?.lap_id).toBe("x1");
   });
 });

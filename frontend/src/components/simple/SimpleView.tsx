@@ -8,7 +8,7 @@ import { effectiveValid } from "../../api/types";
 import { formatLapTime } from "../../lib/format";
 import { lapGap } from "../../lib/compareName";
 import { MAP_H, MAP_W, type PlaybackModel } from "../../lib/model";
-import { biggestGains, biggestLosses, plainCorner, plainGap, plainRefName, plainSeconds } from "../../lib/plainCorner";
+import { biggestGains, biggestLosses, fastestValidLap, plainCorner, plainGap, plainRefName, plainSeconds } from "../../lib/plainCorner";
 import { cornerSegmentPath, pointAtDistance } from "../../lib/trackmap";
 import { withParams } from "../../lib/urlParams";
 import type { CoachState } from "../../state/useCoach";
@@ -30,7 +30,7 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
   const [params] = useSearchParams();
   const lap = laps.find((l) => l.lap_id === lapId) ?? null;
   const refCand = candidates.find((c) => c.lap_id === cmp.ref_lap_id) ?? null;
-  const reference = candidates.find((c) => c.is_reference && !c.is_ideal) ?? null;
+  const best = fastestValidLap(laps);
   const ideal = candidates.find((c) => c.is_ideal) ?? null;
   const refName = plainRefName(refCand, laps);
   const refShort = refCand?.is_ideal ? "ideal lap" : refName.startsWith("your best") ? "best lap" : refName;
@@ -54,7 +54,8 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
   }, [coach.results]);
   const analyzed = !!coach.results.analyze;
 
-  const flying = laps.filter((l) => l.kind === "flying" && l.lap_time_s);
+  // Timed laps, plus the lap on screen even when it is not one (an invalid or out lap opened from the full view).
+  const flying = laps.filter((l) => (l.kind === "flying" && l.lap_time_s) || l.lap_id === lapId);
   const fullView = `/?${withParams(params, { ui: null }).toString()}`;
   const fullAt = (c: Corner) => `/?${withParams(params, { ui: null, at: String(Math.round(c.start_m)) }).toString()}`;
 
@@ -71,7 +72,7 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
             Lap {lap?.lap_no ?? "?"} · {formatLapTime(lapTime)}
           </h1>
           <p className={styles.lede}>
-            {self ? "You are looking at the lap you compare against, so there is no difference to show." : <>This lap was <strong className={gap !== null && gap > 0 ? styles.slower : styles.faster}>{plainGap(gap, refName)}</strong>.</>}
+            {self ? "You are looking at the lap you compare against, so there is no difference to show." : gap === null ? null : <>This lap was <strong className={gap !== null && gap > 0 ? styles.slower : styles.faster}>{plainGap(gap, refName)}</strong>.</>}
           </p>
         </div>
         <div className={styles.pickers}>
@@ -88,7 +89,7 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
           <div className={styles.field} role="group" aria-label="Compare with">
             <span>Compare with</span>
             <div className={styles.segmented}>
-              <button type="button" aria-pressed={!!refCand && !refCand.is_ideal && refCand.is_reference} onClick={() => onSelectRef(reference?.lap_id ?? null)} disabled={!reference}>
+              <button type="button" aria-pressed={!!best && cmp.ref_lap_id === best.lap_id} onClick={() => best && onSelectRef(best.lap_id)} disabled={!best || best.lap_id === lapId} title="Your fastest valid lap of this session">
                 Your best lap
               </button>
               <button type="button" aria-pressed={!!refCand?.is_ideal} onClick={() => ideal && onSelectRef(ideal.lap_id)} disabled={!ideal} title="Your best part of every corner from this session, stitched into one lap">
@@ -124,7 +125,7 @@ export function SimpleView({ laps, lapId, cmp, model, trackMap, candidates, coac
                         {fix ? (
                           <span className={styles.tip}><b>Coach:</b> {fix}</span>
                         ) : p.tip ? (
-                          <span className={styles.tip}><b>Try:</b> {p.tip}</span>
+                          <span className={styles.tip}><b>{analyzed ? "Try (worked out from your laps, not the coach):" : "Try:"}</b> {p.tip}</span>
                         ) : null}
                       </span>
                     </button>
