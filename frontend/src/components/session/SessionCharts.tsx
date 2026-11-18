@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import type { ReportEvent, ReportLap, ReportSeverity, ReportWindow } from "../../api/types";
 import { cx } from "../../lib/cx";
 import { formatLapTime } from "../../lib/format";
-import { CHARTS, lapSeverity, lapTimeRange, settingChanges, windowFor, yRange, type ChartMetric } from "../../lib/sessionTab";
+import { CHARTS, lapSeverity, lapTimeRange, settingChanges, windowsOf, yRange, type ChartMetric } from "../../lib/sessionTab";
 import styles from "./Session.module.css";
 
 const H = 140;
@@ -96,9 +96,9 @@ export function MetricChart({ metric, laps, windows, events, onOpenLap }: {
 }) {
   const spec = CHARTS.find((c) => c.metric === metric)!;
   const frame = useMemo(() => frameFor(laps), [laps]);
-  const win = windowFor(windows, metric);
+  const wins = useMemo(() => windowsOf(windows, metric), [windows, metric]);
   const points = useMemo(() => laps.flatMap((l) => { const a = spec.pick(l); return a ? [{ lap: l, ...a }] : []; }), [laps, spec]);
-  const range = useMemo(() => yRange(points.flatMap((p) => [p.front, p.rear]), win), [points, win]);
+  const range = useMemo(() => yRange(points.flatMap((p) => [p.front, p.rear]), wins.length ? { min: Math.min(...wins.map((x) => x.min)), max: Math.max(...wins.map((x) => x.max)) } : null), [points, wins]);
   const changes = useMemo(() => settingChanges(events), [events]);
   if (!range || points.length === 0) return null;
   const y = (v: number) => ((range.hi - v) / (range.hi - range.lo)) * H;
@@ -107,11 +107,11 @@ export function MetricChart({ metric, laps, windows, events, onOpenLap }: {
     <figure className={styles.chart} aria-label={`${spec.title} per lap`}>
       <figcaption className={styles.chartTitle}>
         {spec.title} ({spec.unit})
-        {win && <span className={styles.windowNote} title={win.source}> · window {win.min}–{win.max} {win.unit}</span>}
+        {wins.length > 0 && <span className={styles.windowNote} title={wins.map((x) => x.source).join(" | ")}> · window {wins.map((x) => `${x.axle === "both" ? "" : `${x.axle} `}${x.min}–${x.max}`).join(", ")} {wins[0].unit}</span>}
       </figcaption>
       <div className={styles.plot} style={{ height: 110 }}>
         <svg viewBox={`0 0 1000 ${H}`} preserveAspectRatio="none" aria-hidden="true">
-          {win && <rect x={0} width={1000} y={y(win.max)} height={Math.max(0, y(win.min) - y(win.max))} className={styles.windowBand} data-testid={`window-${metric}`} />}
+          {wins.map((x) => <rect key={x.axle} x={0} width={1000} y={y(x.max)} height={Math.max(0, y(x.min) - y(x.max))} className={styles.windowBand} data-testid={`window-${metric}-${x.axle}`} />)}
           <SettingLines frame={frame} events={changes} />
           <path d={path((p) => p.front)} className={styles.lineFront} />
           <path d={path((p) => p.rear)} className={styles.lineRear} />
@@ -131,7 +131,7 @@ export function MetricChart({ metric, laps, windows, events, onOpenLap }: {
       <div className={styles.legend}>
         <span><span className={cx(styles.swatch, styles.swatchFront)} /> front axle</span>
         <span><span className={cx(styles.swatch, styles.swatchRear)} /> rear axle</span>
-        {win && <span><span className={cx(styles.swatch, styles.swatchWindow)} /> working window</span>}
+        {wins.length > 0 && <span><span className={cx(styles.swatch, styles.swatchWindow)} /> working window</span>}
       </div>
     </figure>
   );

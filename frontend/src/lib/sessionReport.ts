@@ -7,7 +7,7 @@ import {
 } from "../api/types";
 import { type AidRuns, type Run } from "./driverAids";
 import { median, fitLine, SLOW_LAP_FACTOR, stintRows, stintSummary } from "./stint";
-import { windowList, windowsFor, type ClassWindows, type Window } from "./reportWindows";
+import { rangeFor, windowList, windowsFor, type ClassWindows, type Range as WindowRange } from "./reportWindows";
 
 export interface ReportLapInput {
   lap_id: string;
@@ -67,9 +67,16 @@ export const RULES = {
   absCornerMinM: 15,
   tcCornerMinM: 10,
   maxAidCorners: 3,
-  /** Aid trend: change across the session as a share of the first lap's value, and in metres. */
+  /** Aid trend: change across the session as a share of the first lap's value, and in metres; flying laps needed for any trend (vroom-bi4.13). */
   trendShare: 0.2,
   trendMinM: 30,
+  trendMinLaps: 6,
+  /**
+   * An ABS or TC activation per corner says nothing by itself (vroom-bi4.13). It is reported only when the laps coincide with time lost in that
+   * corner (`minCornerLostS`) or the corner's activation on the other laps differs from the best laps' by this many metres and share.
+   */
+  aidBestDiffM: 8,
+  aidBestDiffShare: 0.3,
   /** Fall-off from this s/lap on is reported; from `falloffWatch` a watch, from `falloffProblem` a problem. */
   falloffMin: 0.05,
   falloffWatch: 0.1,
@@ -280,7 +287,10 @@ export function buildSessionReport(input: ReportInput): SessionReport {
 
 
 const wheelsOf = (s: StintLap, key: "tyre_surface_c" | "tyre_carcass_c" | "tyre_pressure_kpa" | "brake_c") => axles(s[key]);
-const outside = (v: number, w: Window) => (v < w.min ? "low" : v > w.max ? "high" : null);
+/** Which side of the range a value is on, once it is more than `tolerance` outside it (vroom-bi4.13); null inside or within the tolerance. */
+const outside = (v: number, w: WindowRange, tolerance: number) => (v < w.min - tolerance ? "low" : v > w.max + tolerance ? "high" : null);
+/** 'problem' needs a gap of at least twice the tolerance; a smaller gap is at most a watch. */
+const capSev = (severity: ReportSeverity, gap: number, tolerance: number): ReportSeverity => (severity === "problem" && gap < 2 * tolerance ? "watch" : severity);
 
 /** Only flying laps are judged against a window: out, in and incomplete laps run cold, slow or cut short on purpose. */
 const settled = (s: StintLap) => s.kind === "flying";
@@ -293,14 +303,14 @@ function tyreEvents(stats: StintLap[], win: ClassWindows, add: Add, range: Range
   for (const [key, label, unit, d] of metrics) {
     for (const axle of AXLES) {
       for (const dir of ["low", "high"] as const) {
-        const w = win[key];
-        const bad = use.filter((s) => outside(wheelsOf(s, key)[axle], w) === dir);
+        const tol = win[key].tolerance, w = rangeFor(win[key], axle);
+        const bad = use.filter((s) => outside(wheelsOf(s, key)[axle], w, tol) === dir);
         if (bad.length < RULES.tyreMinLaps) continue;
         const v = mean(bad.map((s) => wheelsOf(s, key)[axle]));
         const gap = Math.abs(v - (dir === "low" ? w.min : w.max));
         const laps = bad.map((s) => s.lap_no);
         add({
-          category: "tyres", kind: `${key}_${dir}`, severity: gapSev(gap / (w.max - w.min)),
+          category: "tyres", kind: `${key}_${dir}`, severity: capSev(gapSev(gap / (w.max - w.min)), gap, tol),
           laps, numbers: withRange(laps, { mean: r(v, d), window_min: w.min, window_max: w.max, n_laps: bad.length }),
           say: (n) => `${axle[0].toUpperCase()}${axle.slice(1)} tyre ${label} averaged ${n.mean.toFixed(d)} ${unit} over ${n.n_laps} laps (${range(n)}), ${dir === "low" ? "below" : "above"} the ${n.window_min}-${n.window_max} ${unit} window.`,
           locate: true,
@@ -308,19 +318,19 @@ function tyreEvents(stats: StintLap[], win: ClassWindows, add: Add, range: Range
       }
     }
   }
-  const sp = win.tyre_spread_c;
   for (const axle of AXLES) {
+    const tol = win.tyre_spread_c.tolerance, sp = rangeFor(win.tyre_spread_c, axle);
     const spread = (s: StintLap) => {
       const z = s.tyre_zones_c;
       const [a, b] = axle === "front" ? (["fl", "fr"] as const) : (["rl", "rr"] as const);
       return (Math.abs(z.left[a] - z.right[a]) + Math.abs(z.left[b] - z.right[b])) / 2;
     };
-    const bad = use.filter((s) => spread(s) > sp.max);
+    const bad = use.filter((s) => spread(s) > sp.max + tol);
     if (bad.length < RULES.tyreMinLaps) continue;
     const v = mean(bad.map(spread));
     const laps = bad.map((s) => s.lap_no);
     add({
-      category: "tyres", kind: "tyre_spread", severity: sev(bad.length / use.length),
+      category: "tyres", kind: "tyre_spread", severity: capSev(sev(bad.length / use.length), v - sp.max, tol),
       laps, numbers: withRange(laps, { mean: r(v, 1), window_max: sp.max, n_laps: bad.length }),
       say: (n) => `${axle[0].toUpperCase()}${axle.slice(1)} tyre tread edge-to-edge temperature spread averaged ${n.mean.toFixed(1)} °C over ${n.n_laps} laps (${range(n)}), above the ${n.window_max} °C limit.`,
       locate: true,
@@ -330,15 +340,15 @@ function tyreEvents(stats: StintLap[], win: ClassWindows, add: Add, range: Range
 
 function brakeEvents(stats: StintLap[], win: ClassWindows, add: Add, range: Range, withRange: WithRange) {
   const use = stats.filter(settled);
-  const w = win.brake_c;
   for (const axle of AXLES) {
+    const tol = win.brake_c.tolerance, w = rangeFor(win.brake_c, axle);
     for (const dir of ["low", "high"] as const) {
-      const bad = use.filter((s) => outside(wheelsOf(s, "brake_c")[axle], w) === dir);
+      const bad = use.filter((s) => outside(wheelsOf(s, "brake_c")[axle], w, tol) === dir);
       if (bad.length < RULES.brakeTempMinLaps) continue;
       const v = mean(bad.map((s) => wheelsOf(s, "brake_c")[axle]));
       const laps = bad.map((s) => s.lap_no);
       add({
-        category: "brakes", kind: `brake_${dir}`, severity: sev(bad.length / use.length * 0.6),
+        category: "brakes", kind: `brake_${dir}`, severity: capSev(sev(bad.length / use.length * 0.6), Math.abs(v - (dir === "low" ? w.min : w.max)), tol),
         laps, numbers: withRange(laps, { mean: r(v, 0), window_min: w.min, window_max: w.max, n_laps: bad.length }),
         say: (n) => `${axle[0].toUpperCase()}${axle.slice(1)} brake disc temperature averaged ${n.mean.toFixed(0)} °C over ${n.n_laps} ${n.n_laps === 1 ? "lap" : "laps"} (${range(n)}), ${dir === "low" ? "below" : "above"} the ${n.window_min}-${n.window_max} °C window.`,
         locate: true,
@@ -361,14 +371,15 @@ function brakeEvents(stats: StintLap[], win: ClassWindows, add: Add, range: Rang
     });
   });
   const ratio = (s: StintLap) => { const b = wheelsOf(s, "brake_c"); return b.rear > 0 ? b.front / b.rear : 1; };
-  const rw = win.brake_front_rear_ratio;
+  const rw = rangeFor(win.brake_front_rear_ratio, "front"), rtol = win.brake_front_rear_ratio.tolerance;
   for (const dir of ["low", "high"] as const) {
-    const bad = use.filter((s) => outside(ratio(s), rw) === dir);
+    const bad = use.filter((s) => outside(ratio(s), rw, rtol) === dir);
     if (bad.length < RULES.brakeRatioMinLaps) continue;
     const laps = bad.map((s) => s.lap_no);
+    const meanRatio = mean(bad.map(ratio));
     add({
-      category: "brakes", kind: `brake_imbalance_${dir}`, severity: sev(bad.length / use.length),
-      laps, numbers: withRange(laps, { ratio: r(mean(bad.map(ratio))), window_min: rw.min, window_max: rw.max, n_laps: bad.length }),
+      category: "brakes", kind: `brake_imbalance_${dir}`, severity: capSev(sev(bad.length / use.length), Math.abs(meanRatio - (dir === "low" ? rw.min : rw.max)), rtol),
+      laps, numbers: withRange(laps, { ratio: r(meanRatio), window_min: rw.min, window_max: rw.max, n_laps: bad.length }),
       say: (n) => `Front to rear disc temperature ratio averaged ${n.ratio.toFixed(2)} over ${n.n_laps} laps (${range(n)}), ${dir === "low" ? "below" : "above"} the ${n.window_min}-${n.window_max} range.`,
       locate: true,
     });
@@ -423,6 +434,11 @@ function drivingEvents(
     const m = mean(xs);
     return m >= RULES.minCornerLostS ? { scope: "corner", lost_s: r(m), laps: lapNos.filter((l) => l !== bestLap && timedNo(l)) } : null;
   };
+  // The best laps among the traced timed flying laps, same rule as the tyre comparison; null when there are too few to compare.
+  const timedTraced = traced.filter(([lap]) => timedNo(lap) && input.laps.find((x) => x.lap_no === lap)!.kind === "flying")
+    .sort((a, b) => input.laps.find((x) => x.lap_no === a[0])!.lap_time_s! - input.laps.find((x) => x.lap_no === b[0])!.lap_time_s!);
+  const nBest = Math.max(RULES.bestMinSet, Math.ceil(RULES.bestShare * timedTraced.length));
+  const bestSet = timedTraced.length >= RULES.bestMinSet + RULES.bestMinOthers && timedTraced.length - nBest >= RULES.bestMinOthers ? new Set(timedTraced.slice(0, nBest).map(([lap]) => lap)) : null;
   const perCorner = (kind: "lockup" | "wheelspin" | "abs" | "tc") =>
     corners.map((c, i) => ({
       c, i,
@@ -471,14 +487,26 @@ function drivingEvents(
     perCorner(kind)
       .map((x) => ({ ...x, avg: mean(x.perLap.map((p) => p.m)) }))
       .filter((x) => x.avg >= minM)
+      .flatMap((x) => {
+        const laps = x.perLap.filter((p) => p.m > 0).map((p) => p.lap);
+        const coincides = cornerLoss(laps, x.i);
+        let vsBest: { best: number; others: number } | null = null;
+        if (bestSet) {
+          const best = mean(x.perLap.filter((p) => bestSet.has(p.lap)).map((p) => p.m));
+          const others = mean(x.perLap.filter((p) => timedNo(p.lap) && !bestSet.has(p.lap)).map((p) => p.m));
+          const diff = Math.abs(others - best);
+          if (diff >= RULES.aidBestDiffM && diff >= RULES.aidBestDiffShare * Math.max(best, 1)) vsBest = { best, others };
+        }
+        // A bare description (no time lost, no clear difference from the best laps) is dropped before the corner cut.
+        return coincides || vsBest ? [{ ...x, laps, coincides, vsBest }] : [];
+      })
       .sort((a, b) => b.avg - a.avg).slice(0, RULES.maxAidCorners)
-      .forEach(({ c, i, perLap, avg }) => {
-        const laps = perLap.filter((p) => p.m > 0).map((p) => p.lap);
+      .forEach(({ c, avg, laps, coincides, vsBest }) => {
         add({
           category: "driving", kind: `${kind}_activation`, severity: "info",
-          laps, numbers: withRange(laps, { avg_m: r(avg, 0), n_laps: laps.length, n_traced: n }),
-          say: (nn) => `${label} was active for ${nn.avg_m.toFixed(0)} m a lap on average at ${c.name} (${nn.n_laps} of ${nn.n_traced} traced laps, ${range(nn)}).`,
-          corner: c, distance_m: c.apex_m, coincides: cornerLoss(laps, i),
+          laps, numbers: withRange(laps, { avg_m: r(avg, 0), n_laps: laps.length, n_traced: n, ...(vsBest ? { best_m: r(vsBest.best, 0), others_m: r(vsBest.others, 0), n_best: bestSet!.size } : {}) }),
+          say: (nn) => `${label} was active for ${nn.avg_m.toFixed(0)} m a lap on average at ${c.name} (${nn.n_laps} of ${nn.n_traced} traced laps, ${range(nn)}).${vsBest ? ` On your ${nn.n_best} best laps it was ${nn.best_m.toFixed(0)} m there, on the other timed flying laps ${nn.others_m.toFixed(0)} m.` : ""}`,
+          corner: c, distance_m: c.apex_m, coincides,
         });
       });
   }
@@ -486,7 +514,7 @@ function drivingEvents(
   for (const [key, label] of [["abs_m", "ABS"], ["tc_m", "Traction control"]] as const) {
     const pts = input.laps.filter((l) => l.kind === "flying" && input.aid_activation.has(l.lap_no)).map((l) => [l.lap_no, input.aid_activation.get(l.lap_no)![key]] as const);
     const fit = fitLine([...pts]);
-    if (!fit || pts.length < 3) continue;
+    if (!fit || pts.length < RULES.trendMinLaps) continue;
     const a = pts[0][0], b = pts[pts.length - 1][0];
     const first = fit.intercept + fit.slope * a, last = fit.intercept + fit.slope * b;
     const change = last - first;

@@ -646,6 +646,10 @@ export interface ReportEvent {
 export interface ReportWindow {
   key: string;
   unit: string;
+  /** Which axle the range is for; "both" where front and rear share one range. */
+  axle: "both" | "front" | "rear";
+  /** An event fires only when the per-lap average is outside the range by more than this (vroom-bi4.13). */
+  tolerance: number;
   min: number;
   max: number;
   source: string;

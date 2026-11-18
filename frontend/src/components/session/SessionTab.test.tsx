@@ -25,8 +25,8 @@ describe("Session tab", () => {
     expect(screen.getByLabelText("Tyre surface temperature per lap")).toBeTruthy();
     expect(screen.getByLabelText("Tyre pressure per lap")).toBeTruthy();
     expect(screen.getByLabelText("Brake disc temperature per lap")).toBeTruthy();
-    expect(screen.getByTestId("window-tyre_surface_c")).toBeTruthy();
-    expect(screen.getByTestId("window-brake_c")).toBeTruthy();
+    expect(screen.getByTestId("window-tyre_surface_c-both")).toBeTruthy();
+    expect(screen.getByTestId("window-brake_c-front")).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Lap 1 / })).toBeTruthy();
     const list = screen.getByRole("region", { name: "Events" });
     expect(within(list).getAllByRole("listitem").length).toBe(report.events.length);
