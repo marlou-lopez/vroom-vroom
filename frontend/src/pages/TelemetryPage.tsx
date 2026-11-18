@@ -17,7 +17,7 @@ import wsStyles from "../components/workspace/Workspace.module.css";
 import { leadInTime, toAnnotations, type Annotation } from "../lib/annotations";
 import { effectiveValid, type Corner } from "../api/types";
 import { CORNER_LEAD_M } from "../lib/annotations";
-import { comparisonName } from "../lib/compareName";
+import { comparisonName, lapGap } from "../lib/compareName";
 import { timeAtDistance } from "../lib/playback";
 import { buildModel } from "../lib/model";
 import { invalidHint } from "../lib/offTrack";
@@ -164,7 +164,8 @@ function Telemetry() {
       {ctx && (
         <AnalysisBar
           coach={coach} annotations={allAnnotations} disabled={coach.running !== null}
-          totalDelta={cmp ? (cmp.delta[cmp.delta.length - 1] ?? null) : null}
+          totalDelta={cmp ? lapGap(lapTime, refTime, cmp.delta[cmp.delta.length - 1] ?? null) : null}
+          refName={refShort}
         />
       )}
       {(() => {
@@ -224,7 +225,7 @@ function Telemetry() {
                   )}
                 </div>
                 {tab === "corners" ? (
-                  <CornersTable corners={model.cmp.corners} trackMap={trackMap} onSeek={seekToCorner} />
+                  <CornersTable corners={model.cmp.corners} trackMap={trackMap} onSeek={seekToCorner} refName={refShort} />
                 ) : view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} lapValid={lapValid} corners={trackMap?.corners} youName={youName} refName={refName} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
               </section>
               )}

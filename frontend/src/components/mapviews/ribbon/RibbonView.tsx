@@ -64,7 +64,10 @@ function loadSplit(): boolean {
 }
 
 /** Experimental 3D view (#39): the track as a ribbon with elevation, both cars, and chase / cockpit (#100) / orbit / top-down cameras. */
-export function RibbonView({ model, geometry, annotations, handlers, lapTimes, lapValid }: TrackViewProps) {
+export function RibbonView({ model, geometry, annotations, handlers, lapTimes, lapValid, refName }: TrackViewProps) {
+  // A lap of another session is named by its full label, which already carries a time.
+  const cmpName = refName && !/\d:\d\d\.\d{3}/.test(refName) ? refName[0].toUpperCase() + refName.slice(1) : "Comparison";
+  const cmpLower = refName ?? "the comparison lap";
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
@@ -360,17 +363,17 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
       <div ref={hostRef} className={styles.host} aria-hidden="true" />
       <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} />
       {split && (
-        <div className={styles.panes} role="group" aria-label="Lap and reference lap, side by side">
+        <div className={styles.panes} role="group" aria-label={`Lap and ${cmpLower}, side by side`}>
           <div className={cx(styles.pane, styles.paneLap)}>
             <span className={styles.paneTitle}>{paneTitle("Lap", lapTimes?.lap ?? cmp.lap.t[cmp.lap.t.length - 1] ?? null)}</span>
             <span ref={(el) => { paneEls.current.lapInfo = el; }} className={styles.paneInfo} />
           </div>
           <div className={cx(styles.pane, styles.paneRef)}>
-            <span className={styles.paneTitle}>{paneTitle("Reference", lapTimes?.ref ?? cmp.ref.t[cmp.ref.t.length - 1] ?? null)}</span>
+            <span className={styles.paneTitle}>{paneTitle(cmpName, lapTimes?.ref ?? cmp.ref.t[cmp.ref.t.length - 1] ?? null)}</span>
             <span ref={(el) => { paneEls.current.refInfo = el; }} className={styles.paneInfo} />
           </div>
           <div className={styles.seam} />
-          <div className={styles.deltaPill} title="Lap minus reference at the lap car's metre; + means the lap is behind">
+          <div className={styles.deltaPill} title={`Lap minus ${cmpLower} at the lap car's metre; + means the lap is behind`}>
             <span className={styles.tag}>Δ</span>
             <span ref={(el) => { paneEls.current.delta = el; }} />
           </div>
@@ -402,7 +405,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
           </ToggleGroup.Root>
           <button
             type="button" className={cx(ui.btn, styles.small)} aria-pressed={split} disabled={running} onClick={selectSplit}
-            title="Two panes: the lap and the reference lap, each followed by its own camera"
+            title={`Two panes: the lap and ${cmpLower}, each followed by its own camera`}
           >
             Split
           </button>
