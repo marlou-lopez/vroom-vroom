@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 import type { CoachRequest } from "../api/types";
 import { createQueryWrapper, spaPairs, setupMockServer } from "../test/mockServer";
@@ -128,6 +128,26 @@ describe("useCoach", () => {
 
     rerender(b);
     await waitFor(() => expect(result.current.error).toBeNull());
+  });
+
+  it("cancel aborts the request without showing an error, and the run can be repeated", async () => {
+    const [a] = await twoPairs();
+    mock.server.use(http.post("*/api/coach", async () => { await delay("infinite"); return HttpResponse.json({}); }));
+    const { result } = setup({ lap: a.lap, ref: a.ref });
+    act(() => result.current.run("analyze"));
+    await waitFor(() => expect(result.current.running).toBe("analyze"));
+    act(() => result.current.cancel());
+    await waitFor(() => expect(result.current.running).toBeNull());
+    expect(result.current.error).toBeNull();
+    expect(result.current.failedCommand).toBeNull();
+  });
+
+  it("reports the failed command so the bar can offer Retry", async () => {
+    const [a] = await twoPairs();
+    mock.server.use(http.post("*/api/coach", () => HttpResponse.json({ code: "llm_error", message: "model down" }, { status: 502 })));
+    const { result } = setup({ lap: a.lap, ref: a.ref });
+    act(() => result.current.run("average"));
+    await waitFor(() => expect(result.current.failedCommand).toBe("average"));
   });
 
   it("does nothing on run without a lap", () => {

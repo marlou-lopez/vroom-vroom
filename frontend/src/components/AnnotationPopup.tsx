@@ -1,9 +1,10 @@
 import * as Popover from "@radix-ui/react-popover";
-import { createContext, useContext, useEffect, useLayoutEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactElement } from "react";
 import type { Finding } from "../api/types";
 import { formatDelta } from "../lib/format";
 import type { Annotation } from "../lib/annotations";
 import { cx } from "../lib/cx";
+import { plainCoachError } from "../lib/coachError";
 import styles from "./AnnotationPopup.module.css";
 import ui from "./ui.module.css";
 
@@ -22,11 +23,24 @@ const Ctx = createContext<AnnotationCardActions | null>(null);
 export const AnnotationCardProvider = Ctx.Provider;
 
 const TAG: Record<Finding["kind"], string> = { issue: "COSTING TIME", minor: "MINOR", strength: "STRENGTH", inconsistent: "INCONSISTENT" };
+const TAG_HELP: Record<Finding["kind"], string> = {
+  issue: "This corner costs time against the comparison.",
+  minor: "A small loss, worth a look.",
+  strength: "You are faster than the comparison here.",
+  inconsistent: "This corner varies a lot between your laps.",
+};
 const CUE: Record<Finding["cue_type"], string | null> = { landmark: "LANDMARK", feel: "FEEL", own_lap: "OWN LAP", none: null };
+const CUE_HELP: Record<Finding["cue_type"], string> = {
+  landmark: "The fix points at a trackside landmark.",
+  feel: "The fix is a feel cue: no landmark is close to this corner.",
+  own_lap: "The fix points at what you did on one of your own laps.",
+  none: "",
+};
 
 const loss = (f: Finding) => (f.kind === "inconsistent" ? `±${f.time_s.toFixed(3)} s` : `${formatDelta(f.time_s)} s`);
 
-export const OPEN_DELAY_MS = 100;
+/** A hover only previews the card after this pause, so sweeping the pointer across the strips does not cover them. */
+export const OPEN_DELAY_MS = 600;
 export const CLOSE_DELAY_MS = 250;
 
 /**
@@ -53,10 +67,13 @@ export function AnnotationHoverCard({ annotation, children }: { annotation: Anno
   const contentEl = useRef<HTMLDivElement | null>(null);
   /** Opened by the keyboard: hover leave must not close it, and focus moves into it. */
   const byKeyboard = useRef(false);
+  /** Opened by a click: stays until Escape, a click away or another click on the trigger; hover leave must not close it. */
+  const pinned = useRef(false);
   /** Closed from inside the card (Escape, Play): focus goes back to the trigger. */
   const focusBack = useRef(false);
 
   const change = (next: boolean) => {
+    if (!next) pinned.current = false;
     setOpenState(next);
     actionsRef.current?.setOpen(key, next);
   };
@@ -74,12 +91,13 @@ export function AnnotationHoverCard({ annotation, children }: { annotation: Anno
 
   const hoverOn = (e: ReactPointerEvent) => {
     anchorEl.current = e.currentTarget as HTMLElement;
-    if (e.pointerType === "touch") return;
+    if (e.pointerType === "touch" || pinned.current) return;
     if (!byKeyboard.current) schedule(true, OPEN_DELAY_MS);
     else clearTimeout(timer.current);
   };
   const hoverOff = (e: ReactPointerEvent) => {
-    if (e.pointerType === "touch" || byKeyboard.current) return;
+    if (e.pointerType === "touch" || byKeyboard.current || pinned.current) return;
+    clearTimeout(timer.current);
     schedule(false, CLOSE_DELAY_MS);
   };
   const keyOpen = (e: ReactKeyboardEvent) => {
@@ -94,6 +112,14 @@ export function AnnotationHoverCard({ annotation, children }: { annotation: Anno
     if (open) contentEl.current?.querySelector<HTMLElement>("button")?.focus(); // already open from hover: no auto-focus will run
     else change(true);
   };
+  // A click opens the card for good (and seeks, through the child's own handler); a second click on the same mark closes it.
+  const clickOpen = (e: ReactMouseEvent) => {
+    anchorEl.current = e.currentTarget as HTMLElement;
+    clearTimeout(timer.current);
+    if (open && pinned.current) { change(false); return; }
+    change(true);
+    pinned.current = true;
+  };
   const close = (next: boolean) => {
     clearTimeout(timer.current);
     change(next);
@@ -105,6 +131,7 @@ export function AnnotationHoverCard({ annotation, children }: { annotation: Anno
         asChild
         onPointerEnter={hoverOn}
         onPointerLeave={hoverOff}
+        onClick={clickOpen}
         aria-haspopup="dialog"
         aria-expanded={open}
         onKeyDownCapture={keyOpen}
@@ -120,7 +147,7 @@ export function AnnotationHoverCard({ annotation, children }: { annotation: Anno
           role="dialog" aria-label={annotation.finding.corner}
           className={styles.card} style={{ borderTopColor: annotation.color }}
           onPointerEnter={() => clearTimeout(timer.current)}
-          onPointerLeave={(e) => { if (e.pointerType !== "touch" && !byKeyboard.current) schedule(false, CLOSE_DELAY_MS); }}
+          onPointerLeave={(e) => { if (e.pointerType !== "touch" && !byKeyboard.current && !pinned.current) schedule(false, CLOSE_DELAY_MS); }}
           // Hover opens must not steal focus; keyboard opens move it to the first button.
           onOpenAutoFocus={(e) => { if (!byKeyboard.current) e.preventDefault(); }}
           onCloseAutoFocus={(e) => {
@@ -153,8 +180,7 @@ function CardBody({ annotation: a, actions, onPlay }: { annotation: Annotation; 
     try {
       await actions.onAsk(a);
     } catch (e) {
-      const x = e as { code?: string; message?: string };
-      setAskError(`${x.code ?? "error"}: ${x.message ?? String(e)}`);
+      setAskError(plainCoachError((e as { code?: string }).code ?? "error"));
     } finally {
       setAsking(false);
     }
@@ -166,13 +192,13 @@ function CardBody({ annotation: a, actions, onPlay }: { annotation: Annotation; 
         <div className={styles.corner}>{f.corner}</div>
         <div className={styles.loss} style={{ color: a.color }}>{loss(f)}</div>
         <div className={styles.spacer} />
-        <span className={styles.tag} style={{ color: a.color }}>{a.reviewed ? "REVIEWED" : TAG[f.kind]}</span>
+        <span className={styles.tag} style={{ color: a.color }} title={a.reviewed ? "You marked this finding reviewed." : TAG_HELP[f.kind]}>{a.reviewed ? "REVIEWED" : TAG[f.kind]}</span>
       </div>
       <div className={styles.what}>{f.what}</div>
       <div className={styles.fix}>
         <span className={styles.fixLabel}>Fix · </span>
         {f.fix}{" "}
-        {cue && <span className={styles.cue}>{cue}</span>}
+        {cue && <span className={styles.cue} title={CUE_HELP[f.cue_type]}>{cue}</span>}
       </div>
       {f.evidence.length > 0 && <div className={styles.evidence}>{f.evidence.join(" · ")}</div>}
       {deepDive && (

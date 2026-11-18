@@ -31,7 +31,8 @@ export function paneReadout(speedKmh: number, gear: number): string {
   return `${Math.round(speedKmh)} km/h · ${gearLabel(gear)}`;
 }
 
-export function paneTitle(who: "Lap" | "Reference", lapTimeS: number | null): string {
+/** `who` is "Lap" or the comparison's name ("Ideal", "L7"; "Comparison" when unknown). */
+export function paneTitle(who: string, lapTimeS: number | null): string {
   return `${who} ${formatLapTime(lapTimeS)}`;
 }
 

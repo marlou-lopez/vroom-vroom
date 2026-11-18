@@ -1,4 +1,8 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import * as Popover from "@radix-ui/react-popover";
+import { useEffect, useState } from "react";
+import { plainCoachError } from "../lib/coachError";
+import { standingLabel } from "../lib/compareName";
 import type { Annotation } from "../lib/annotations";
 import { formatDelta } from "../lib/format";
 import type { CoachState } from "../state/useCoach";
@@ -10,8 +14,10 @@ import ui from "./ui.module.css";
 export interface AnalysisBarProps {
   coach: CoachState;
   annotations: Annotation[];
-  /** Final lap delta against the comparison, when a comparison is loaded. */
+  /** Lap-time gap to the comparison (positive = slower), when a comparison is loaded. */
   totalDelta: number | null;
+  /** Short name of the comparison ("ideal", "L7"); null while unknown. */
+  refName?: string | null;
   disabled: boolean;
 }
 
@@ -44,8 +50,57 @@ function AverageMenu({ onAverage, disabled, attached }: { onAverage(): void; dis
   );
 }
 
-export function AnalysisBar({ coach, annotations, totalDelta, disabled }: AnalysisBarProps) {
-  const { results, running, error, showNotes, setShowNotes, run } = coach;
+const LEGEND: { glyph: string; color: string; text: string }[] = [
+  { glyph: "1 2 3", color: annotationColors.issue, text: "Issues that cost time, numbered biggest first" },
+  { glyph: "!", color: annotationColors.minor, text: "Minor: a small loss worth a look" },
+  { glyph: "✓", color: annotationColors.strength, text: "Strength, or a finding you marked reviewed" },
+  { glyph: "~", color: annotationColors.inconsistent, text: "Inconsistent: this corner varies between your laps (Average)" },
+];
+const TAGS: [string, string][] = [
+  ["LANDMARK", "the fix points at a trackside landmark"],
+  ["FEEL", "the fix is a feel cue (no landmark nearby)"],
+  ["OWN LAP", "the fix points at your own better lap"],
+];
+
+function Legend() {
+  return (
+    <Popover.Root>
+      <Popover.Trigger className={ui.btn} aria-label="What the marks mean" title="What the marks mean">Key</Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content align="end" sideOffset={4} collisionPadding={8} className={styles.legend} aria-label="Annotation key">
+          {LEGEND.map((l) => (
+            <div key={l.glyph} className={styles.legendRow}><span className={styles.glyph} style={{ background: l.color }}>{l.glyph}</span>{l.text}</div>
+          ))}
+          {TAGS.map(([tag, text]) => (
+            <div key={tag} className={styles.legendRow}><span className={styles.tagKey}>{tag}</span>{text}</div>
+          ))}
+          <div className={styles.legendRow}>Click a mark to open its card. Hover previews it after a moment.</div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+function Busy({ running, onCancel }: { running: "analyze" | "average" | string; onCancel(): void }) {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const t0 = Date.now();
+    const id = setInterval(() => setSecs(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <>
+      <span className={styles.spinner} aria-hidden="true" />
+      <span className={styles.busy} role="status">{running === "average" ? "Averaging…" : "Analyzing…"} {secs}s</span>
+      <span className={styles.muted}>{running === "average" ? "comparing your laps in this session" : "computing corner facts, then asking the Engineer"}</span>
+      <div className={styles.spacer} />
+      <button type="button" className={ui.btn} onClick={onCancel}>Cancel</button>
+    </>
+  );
+}
+
+export function AnalysisBar({ coach, annotations, totalDelta, refName = null, disabled }: AnalysisBarProps) {
+  const { results, running, error, failedCommand, cancel, showNotes, setShowNotes, run } = coach;
   const analyzed = Boolean(results.analyze || results.average);
   const busy = running !== null;
   const cost = [results.analyze, results.average].reduce((sum, r) => sum + (r?.cost_usd ?? 0), 0);
@@ -56,10 +111,7 @@ export function AnalysisBar({ coach, annotations, totalDelta, disabled }: Analys
   return (
     <div className={styles.row}>
       {busy ? (
-        <>
-          <span className={styles.busy}>Analyzing…</span>
-          <span className={styles.muted}>{running === "average" ? "comparing your laps in this session" : "computing corner facts, then asking the Engineer"}</span>
-        </>
+        <Busy running={running} onCancel={cancel} />
       ) : !analyzed ? (
         <>
           <span className={styles.group}>
@@ -73,8 +125,15 @@ export function AnalysisBar({ coach, annotations, totalDelta, disabled }: Analys
       ) : (
         <>
           {totalDelta !== null && (
-            <span className={cx(styles.delta, totalDelta > 0.005 && styles.deltaLoss, totalDelta < -0.005 && styles.deltaGain)}>
-              {formatDelta(totalDelta)} s
+            <span
+              className={styles.totalWrap}
+              title="Lap time minus the comparison's lap time. + means this lap is slower."
+            >
+              <span className={styles.muted}>Lap Δ</span>{" "}
+              <span className={cx(styles.delta, totalDelta > 0.005 && styles.deltaLoss, totalDelta < -0.005 && styles.deltaGain)}>
+                {formatDelta(totalDelta)} s
+              </span>
+              {(() => { const st = standingLabel(totalDelta, refName ?? "the comparison"); return st ? <span className={styles.muted}> {st}</span> : null; })()}
             </span>
           )}
           <span className={styles.muted}>·</span>
@@ -88,7 +147,12 @@ export function AnalysisBar({ coach, annotations, totalDelta, disabled }: Analys
             </>
           )}
           <div className={styles.spacer} />
-          {hasCost && <span className={cx(styles.mono, styles.muted)}>${cost.toFixed(3)}</span>}
+          {hasCost && (
+            <span className={cx(styles.mono, styles.muted)} title="What the language model charged for the analyses of this lap (Analyze and Average). Telemetry itself is free.">
+              Coach cost ${cost.toFixed(3)}
+            </span>
+          )}
+          <Legend />
           <button type="button" aria-pressed={showNotes} onClick={() => setShowNotes(!showNotes)} className={ui.btn}>
             {showNotes ? "Hide notes" : "Show notes"}
           </button>
@@ -98,7 +162,14 @@ export function AnalysisBar({ coach, annotations, totalDelta, disabled }: Analys
           </span>
         </>
       )}
-      {error && <span role="alert" className={styles.error}>{error.code}: {error.message}</span>}
+      {error && (
+        <span role="alert" className={styles.error} title={`${error.code}: ${error.message}`}>
+          {plainCoachError(error.code)}
+          {failedCommand && failedCommand !== "corner" && (
+            <button type="button" className={ui.btn} onClick={() => void run(failedCommand)}>Retry</button>
+          )}
+        </span>
+      )}
     </div>
   );
 }

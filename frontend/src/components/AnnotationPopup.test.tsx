@@ -1,9 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { act } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { Finding } from "../api/types";
 import type { Annotation } from "../lib/annotations";
-import { AnnotationCardProvider, AnnotationHoverCard, type AnnotationCardActions } from "./AnnotationPopup";
+import { AnnotationCardProvider, AnnotationHoverCard, OPEN_DELAY_MS, type AnnotationCardActions } from "./AnnotationPopup";
 
 const finding = {
   id: "f1", corner: "Eau Rouge", kind: "issue", time_s: 0.123, what: "Lifted early", fix: "Stay flat",
@@ -87,5 +88,34 @@ describe("AnnotationHoverCard keyboard access", () => {
     await user.keyboard("{Enter}");
     await screen.findByRole("dialog");
     expect(badge.getAttribute("aria-expanded")).toBe("true");
+  });
+});
+
+describe("AnnotationHoverCard click and hover", () => {
+  it("does not preview before the hover delay", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { user } = setup();
+      await user.hover(screen.getByRole("button", { name: "badge" }));
+      await act(async () => { await vi.advanceTimersByTimeAsync(OPEN_DELAY_MS - 100); });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      await act(async () => { await vi.advanceTimersByTimeAsync(200); });
+      expect(screen.getByRole("dialog")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens on click at once, keeps open when the pointer leaves, and closes on a second click", async () => {
+    const { user, onSeek } = setup();
+    const badge = screen.getByRole("button", { name: "badge" });
+    await user.click(badge);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    await user.unhover(badge);
+    await new Promise((r) => setTimeout(r, 400));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    await user.click(badge);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });
