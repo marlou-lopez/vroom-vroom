@@ -209,4 +209,4 @@ Changes to B:
   - ‹ › buttons sit next to it.
 - **e.** The build happens behind `?ui=one`. One issue then switches the default and deletes the old layout, so the default UI never ships half-converted.
 
-Follow-up issues filed under vroom-pnw: vroom-pnw.59 (remove the Simple/Full switch), .60 (Lap view story column), .61 (scope line with lap stepping), .62 (Session view), .63 (replay stage), .64 (make the one app the default and delete the old layout, after .60–.63), .65 (Track and car view), .66 (theme tokens app-wide). Already filed: vroom-jny (lap rail gap overlaps "Compare"; gear labels overprint).
+Follow-up issues filed under vroom-pnw: vroom-pnw.59 (remove the Simple/Full switch; already shipped by autopilot while this spike was in review), .60 (Lap view story column), .61 (scope line with lap stepping), .62 (Session view), .63 (replay stage), .64 (make the one app the default and delete the old layout, after .60–.63), .65 (Track and car view), .66 (theme tokens app-wide). Already filed: vroom-jny (lap rail gap overlaps "Compare"; gear labels overprint).

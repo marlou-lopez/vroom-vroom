@@ -16,9 +16,6 @@ import { Transport } from "../components/Transport";
 import { cornerRailRows } from "../lib/cornerRail";
 import { CornerRail } from "../components/workspace/CornerRail";
 import { LapRail } from "../components/workspace/LapRail";
-import { HeaderSlot } from "../components/AppShell";
-import { loadUiMode, saveUiMode, type UiMode } from "../lib/uiMode";
-import { SimpleView } from "../components/simple/SimpleView";
 import { OneLapView, OneSessionView } from "../components/oneapp/OneApp";
 import oneStyles from "../components/oneapp/OneApp.module.css";
 import { oneUiEnabled } from "../lib/oneUi";
@@ -74,8 +71,6 @@ function Telemetry() {
   // Like the lap rail, the corner rail stays mounted (filter and scroll survive) while the next comparison loads.
   const [keptCmp, setKeptCmp] = useState<typeof cmp>(null);
   if (cmp && cmp !== keptCmp) setKeptCmp(cmp);
-  const [mode, setModeState] = useState<UiMode>(() => loadUiMode());
-  const changeMode = (m: UiMode) => { setModeState(m); saveUiMode(m); };
   const [sessionCats, setSessionCats] = useState<ReadonlySet<ReportCategory>>(new Set());
   const [tab, setTabState] = useState<InputsTab>(() => loadInputsTab());
   const setTab = (t: InputsTab) => { setTabState(t); saveInputsTab(t); };
@@ -253,15 +248,7 @@ function Telemetry() {
     { id: "simplified", label: "Wheel & pedals" },
   ];
 
-  const modeSwitch = (
-    <HeaderSlot>
-      <ToggleGroup.Root type="single" aria-label="Page mode" className={styles.viewToggle} value={mode} onValueChange={(v) => v && changeMode(v as UiMode)}>
-        <ToggleGroup.Item value="simple" className={ui.toggleItem}>Simple</ToggleGroup.Item>
-        <ToggleGroup.Item value="full" className={ui.toggleItem}>Full</ToggleGroup.Item>
-      </ToggleGroup.Root>
-    </HeaderSlot>
-  );
-  // EXPERIMENTAL overhaul prototype (vroom-pnw.58, ?ui=one): the lap scope, with no Simple/Full switch, lap rail or corner rail.
+  // EXPERIMENTAL overhaul prototype (vroom-pnw.58, ?ui=one): the lap scope, with no lap rail or corner rail.
   if (oneUiEnabled(params)) {
     if (!(ctx && cmp && model)) return <Message>{error ? `${error.code}: ${error.message}` : "Loading…"}</Message>;
     return (
@@ -293,29 +280,9 @@ function Telemetry() {
       </AnnotationCardProvider>
     );
   }
-  if (mode === "simple" && !(ctx && cmp && model) && !error) return <>{modeSwitch}<Message>Loading…</Message></>;
-  if (mode === "simple" && ctx && cmp && model) {
-    return (
-      <>
-        {modeSwitch}
-        <SimpleView
-          laps={ctx.laps} lapId={ctx.lap.lap_id} cmp={cmp} model={model} trackMap={trackMap} candidates={candidates}
-          coach={coach} onSelectLap={selectLap} onSelectRef={selectRef}
-          onReplayCorner={(c) => {
-            // Not remembered: one replay should not turn the Simple view off for the next visit. A repeat replay of the
-            // same corner must seek again, so forget the last ?at= seek.
-            setModeState("full");
-            seekedAt.current = null;
-            setParams((p) => withParams(p, { lap: ctx.lap.lap_id, at: String(Math.round(c.start_m)) }));
-          }}
-        />
-      </>
-    );
-  }
 
   return (
     <AnnotationCardProvider value={cardActions}>
-      {modeSwitch}
       {ctx && (
         <AnalysisBar
           coach={coach} annotations={allAnnotations} disabled={coach.running !== null}

@@ -54,11 +54,10 @@ function renderAt(url: string) {
 beforeEach(() => localStorage.clear());
 
 describe("one-app prototype (?ui=one)", () => {
-  it("shows the lap scope, labelled experimental, without the Simple/Full switch or the rails", async () => {
+  it("shows the lap scope, labelled experimental, without the lap rail", async () => {
     renderAt("/?ui=one");
     const story = await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     expect(screen.getByText("Experimental UI")).toBeTruthy();
-    expect(screen.queryByRole("radiogroup", { name: "Page mode" })).toBeNull();
     expect(screen.queryByRole("complementary", { name: "Laps" })).toBeNull();
     expect(screen.getAllByRole("button", { name: /Replay this corner/ }).length).toBeGreaterThan(0);
     expect(story.textContent).toMatch(/slower than/);
@@ -78,6 +77,6 @@ describe("one-app prototype (?ui=one)", () => {
     renderAt("/");
     await screen.findByRole("complementary", { name: "Laps" }, { timeout: 5000 });
     expect(screen.queryByText("Experimental UI")).toBeNull();
-    await waitFor(() => expect(screen.getByRole("radiogroup", { name: "Page mode" })).toBeTruthy());
+    expect(screen.queryByRole("navigation", { name: "Where you are" })).toBeNull();
   });
 });
