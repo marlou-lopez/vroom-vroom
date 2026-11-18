@@ -1,4 +1,4 @@
-// Plain-language corner summaries for the Simple view (vroom-pnw.50, vroom-pnw.56). Pure: computed from the
+// Plain-language corner summaries for the Lap view (formerly the Simple view) (vroom-pnw.50, vroom-pnw.56). Pure: computed from the
 // comparison's per-corner metrics, no coach call. Every number in a sentence comes from those metrics, and the tips
 // never use metre distances (the coach rule in CLAUDE.md).
 import { effectiveValid, type CompareCandidate, type CornerMetrics, type LapWithRef } from "../api/types";
@@ -90,7 +90,7 @@ export function plainCorners(list: { metrics: CornerMetrics; name: string }[], r
   });
 }
 
-/** Below this a corner reads "0.00 s" at two decimals, so the Simple view neither ranks nor praises it. */
+/** Below this a corner reads "0.00 s" at two decimals, so the Lap view neither ranks nor praises it. */
 export const PLAIN_MIN_S = 0.005;
 
 /** The corners where the lap lost the most time, worst first. */
@@ -126,7 +126,7 @@ export function plainRefName(refCand: CompareCandidate | null, laps: LapWithRef[
   return `lap ${own.lap_no}`;
 }
 
-/** The fastest valid timed lap of the session, or null: what "your best lap" means in the Simple view. */
+/** The fastest valid timed lap of the session, or null: what "your best lap" means in the Lap view. */
 export function fastestValidLap(laps: LapWithRef[]): LapWithRef | null {
   return laps.filter((l) => effectiveValid(l) && l.lap_time_s).sort((a, b) => a.lap_time_s! - b.lap_time_s!)[0] ?? null;
 }
