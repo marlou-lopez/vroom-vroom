@@ -12,7 +12,7 @@ import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
 import { DEFAULT_WINDOW_M, WINDOW_WIDTH_KEY, chipLayerGeometry, clampWidth, cornerBands, cornerFitWidth, clipBand, distanceTicks, elevationRange, paddedRange, parseWidth, stripDistanceAt, stripPanCentre, stripRanges, symmetricRange, stripScrubTarget, stripView, wheelFactor, withAlpha, zoomWidth, type Range } from "../lib/strips";
 import { usePlaybackStore } from "../state/playback";
-import { colors, fonts } from "../theme";
+import { annotationColors, colors, fonts } from "../theme";
 import styles from "./DetailedStrips.module.css";
 import * as Popover from "@radix-ui/react-popover";
 import { loadStrips, moveStrip, saveStrips, STRIP_OPTIONS, toggleStrip, type StripId } from "../lib/stripChoice";
@@ -48,7 +48,7 @@ export interface DetailedStripsProps {
   handlers: BadgeHandlers;
   /** A corner the user just clicked (rail, badge, scrubber): the window fits it once; `n` changes on every click. The window then follows the playhead as before. */
   focusCorner?: { startM: number; endM: number; n: number } | null;
-  /** Whether the lap is valid: wheels-off bands are red on an invalid lap, grey close calls on a valid one. Absent = valid. */
+  /** Whether the lap is valid: wheels-off bands are red on an invalid lap, tan close calls on a valid one. Absent = valid. */
   lapValid?: boolean;
   /** Names in the legend and the read-outs' colour key, e.g. "You · L8" and "Comparison · ★L2". */
   youName?: string;
@@ -531,6 +531,11 @@ export function DetailedStrips({ model, geometry, annotations, handlers, focusCo
   const balanceOn = useMemo(() => balanceEnabled(globalThis.location?.search ?? ""), []);
   const allSpecs = useMemo(() => buildSpecs(cmp, geometry, lapValid, balanceOn), [cmp, geometry, lapValid, balanceOn]);
   // The chosen strips in the chosen order; one the data cannot draw (elevation on a flat track) is skipped.
+  const aidKey = useMemo(() => {
+    const a = allSpecs.find((x) => x.id === "pedals")?.aids?.runs;
+    return a && (a.abs.length > 0 || a.tc.length > 0) ? { abs: a.abs.length > 0, tc: a.tc.length > 0 } : null;
+  }, [allSpecs]);
+  const offRuns = allSpecs[0]?.off.runs.length ?? 0;
   const specList = useMemo(() => {
     const picked = choice.flatMap((id) => allSpecs.filter((s) => s.id === id));
     return picked.length > 0 ? picked : allSpecs.slice(0, 1);
@@ -795,6 +800,16 @@ export function DetailedStrips({ model, geometry, annotations, handlers, focusCo
         <div className={styles.legend} aria-label="Legend">
           <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.you }} />{youName}</span>
           <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.comparison }} />{refName}</span>
+          {offRuns > 0 && (
+            <span className={styles.legendItem} title="Full-height band where two or more wheels were off the track. Tan: a close call on a valid lap. Red: the lap is invalid.">
+              <i className={styles.swatchBox} style={{ background: withAlpha(lapValid ? colors.closeCall : colors.offTrack, 0.5) }} />{lapValid ? "Wheels off" : "Wheels off (invalid lap)"}
+            </span>
+          )}
+          {annotations.length > 0 && (
+            <span className={styles.legendItem} title="Faint band over each corner the coach has a finding for, from its entry to its exit. The colour shows the kind of finding (issue, minor, strength or reviewed).">
+              <i className={styles.swatchBox} style={{ background: withAlpha(annotationColors.issue, 0.4) }} />Coach corner
+            </span>
+          )}
         </div>
         <div className={styles.windowGroup}>
           <span className={styles.hint}>Shift-drag to pan · wheel to zoom</span>
@@ -811,6 +826,12 @@ export function DetailedStrips({ model, geometry, annotations, handlers, focusCo
               {name}
               {experimental && <span className={styles.exp} title="Experimental">exp</span>}
             </div>
+            {id === "pedals" && aidKey && (
+              <span className={styles.aidKey} title="Light shading under the traces: ABS where the brake trace is shaded, traction control (TC) where the throttle trace is shaded. Your lap only.">
+                {aidKey.abs && <span className={styles.aidItem}><i className={styles.aidSwatch} style={{ background: withAlpha(colors.brake, 0.6) }} />ABS</span>}
+                {aidKey.tc && <span className={styles.aidItem}><i className={styles.aidSwatch} style={{ background: withAlpha(colors.throttle, 0.6) }} />TC</span>}
+              </span>
+            )}
             <div ref={(el) => void (values.current[i] = el)} className={styles.value}>
               <span className={styles.vLap} /><span /><span className={styles.vRef} />
             </div>

@@ -47,6 +47,10 @@
 .legend { display: flex; gap: 12px; font-size: 11px; color: var(--color-text); min-width: 0; }
 .legendItem { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .swatch { display: inline-block; width: 14px; height: 3px; border-radius: 1px; }
+.swatchBox { display: inline-block; width: 10px; height: 10px; border-radius: 1px; }
+.aidKey { display: inline-flex; gap: 8px; margin-right: auto; margin-left: 4px; font-size: 10px; color: var(--color-muted); }
+.aidItem { display: inline-flex; align-items: center; gap: 3px; }
+.aidSwatch { display: inline-block; width: 8px; height: 8px; border-radius: 1px; }
 .windowGroup { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
 .hint { font-size: 11px; color: var(--color-muted); }
 .windowButton {
