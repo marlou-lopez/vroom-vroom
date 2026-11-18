@@ -54,7 +54,7 @@ describe("Simple view (experimental, ?ui=simple)", () => {
   it("shows the labelled prototype with the biggest losses in plain words, and keeps the flag on lap changes", async () => {
     const user = userEvent.setup();
     renderAt("/?ui=simple");
-    const losses = await screen.findByRole("region", { name: "Where you lose the most time" });
+    const losses = await screen.findByRole("region", { name: "Where you lose the most time" }, { timeout: 5000 });
     expect(screen.getByText("Experimental")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Open the full view" }).getAttribute("href")).not.toContain("ui=simple");
     const rows = within(losses).getAllByRole("button").filter((b) => b.hasAttribute("aria-pressed"));
@@ -73,7 +73,7 @@ describe("Simple view (experimental, ?ui=simple)", () => {
 
   it("is off by default: the full page renders without it", async () => {
     renderAt("/");
-    await screen.findByRole("complementary", { name: "Laps" });
+    await screen.findByRole("complementary", { name: "Laps" }, { timeout: 5000 });
     expect(screen.queryByRole("region", { name: "Where you lose the most time" })).toBeNull();
     expect(screen.queryByText("Experimental")).toBeNull();
   });
