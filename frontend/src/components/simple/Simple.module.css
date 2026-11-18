@@ -1,0 +1,175 @@
+/* Simple view (vroom-pnw.50, vroom-pnw.56). Uses the proposed "comfortable" tokens locally:
+   14 px body, 12 px minimum, 32 px controls, 8/16 px spacing, 6 px radius, a lighter muted grey. */
+.root {
+  --s-font: 14px;
+  --s-small: 12px;
+  --s-control: 32px;
+  --s-gap: 8px;
+  --s-pad: 16px;
+  --s-radius: 6px;
+  --s-muted: #9aa3ae;
+  font-size: var(--s-font);
+  line-height: 1.45;
+  padding: var(--s-gap) var(--s-pad) var(--s-pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-pad);
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  overflow: auto;
+  min-height: 0;
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-pad);
+}
+.title { font-size: 24px; font-weight: 600; margin: 0; }
+.lede { font-size: 16px; margin: 4px 0 0; color: var(--color-text-soft); }
+.lede strong { font-weight: 600; }
+
+.pickers { display: flex; flex-wrap: wrap; gap: var(--s-pad); align-items: flex-end; }
+.field { display: flex; flex-direction: column; gap: 4px; font-size: var(--s-small); color: var(--s-muted); }
+.select {
+  min-height: var(--s-control);
+  min-width: 200px;
+  font-size: var(--s-font);
+  background: var(--color-popup);
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--s-radius);
+  padding: 0 8px;
+}
+.segmented { display: flex; }
+.segmented button {
+  min-height: var(--s-control);
+  padding: 0 14px;
+  font-size: var(--s-font);
+  background: transparent;
+  color: var(--color-text);
+  border: 1px solid var(--color-border-strong);
+  cursor: pointer;
+}
+.segmented button:first-child { border-radius: var(--s-radius) 0 0 var(--s-radius); }
+.segmented button:last-child { border-radius: 0 var(--s-radius) var(--s-radius) 0; border-left: 0; }
+.segmented button[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-you); color: var(--color-you); }
+.segmented button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--s-pad);
+}
+@media (max-width: 1000px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.wide { grid-column: 1 / -1; }
+
+.card {
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--s-radius);
+  padding: var(--s-pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-gap);
+  min-width: 0;
+}
+.h2 { font-size: 16px; font-weight: 600; margin: 0; }
+.muted { color: var(--s-muted); }
+.empty { font-size: 16px; color: var(--s-muted); }
+.slower { color: var(--color-issue); font-weight: 600; }
+.faster { color: var(--color-strength); font-weight: 600; }
+.error { color: var(--color-issue); }
+
+.losses { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-gap); }
+.lossRow {
+  width: 100%;
+  display: flex;
+  gap: 12px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--s-radius);
+  padding: 12px;
+  cursor: pointer;
+}
+.lossRow:hover { background: var(--color-hover); }
+.lossRow[aria-pressed="true"] { border-color: var(--color-issue); background: var(--color-selected); }
+.rank {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--color-issue);
+  color: var(--color-on-accent);
+  font-weight: 700;
+}
+.lossBody { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lossHead { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+.cornerName { font-size: 16px; font-weight: 600; }
+.what { color: var(--color-text); }
+.tip { color: var(--color-text-soft); }
+.tip b { color: var(--color-you); font-weight: 600; }
+.gains { margin: 0; color: var(--color-text-soft); }
+
+.coachRow { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 4px; }
+.primary {
+  min-height: var(--s-control);
+  padding: 0 16px;
+  font-size: var(--s-font);
+  font-weight: 600;
+  background: var(--color-you);
+  color: var(--color-on-accent);
+  border: 0;
+  border-radius: var(--s-radius);
+  cursor: pointer;
+}
+.primary:disabled { opacity: 0.6; cursor: progress; }
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--s-radius);
+  color: var(--color-text);
+  text-decoration: none;
+  margin-left: auto;
+}
+.linkBtn:hover { background: var(--color-hover); }
+
+.map { width: 100%; max-height: 420px; }
+.mapLine { fill: none; stroke: var(--color-border-strong); stroke-width: 5; stroke-linejoin: round; stroke-linecap: round; }
+.mapHot { fill: none; stroke: var(--color-issue); stroke-opacity: 0.55; stroke-width: 5; stroke-linecap: round; }
+.mapHotSel { fill: none; stroke: var(--color-issue); stroke-width: 6; stroke-linecap: round; }
+.mapPin { cursor: pointer; }
+.pin { fill: var(--color-popup); stroke: var(--color-issue); stroke-width: 1.5; }
+.pinSel { fill: var(--color-issue); stroke: var(--color-issue); stroke-width: 1.5; }
+.pinText { font-size: 10px; font-weight: 700; fill: var(--color-text); pointer-events: none; }
+
+.detailHead { display: flex; flex-wrap: wrap; gap: var(--s-gap); align-items: center; }
+.chartWrap { display: flex; flex-direction: column; gap: 4px; }
+.chart { width: 100%; height: auto; }
+.chartLabel { margin: 8px 0 0; color: var(--s-muted); font-size: var(--s-small); }
+.legend { display: flex; gap: var(--s-pad); list-style: none; margin: 0; padding: 0; }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.swYou, .swRef { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
+.swYou { background: var(--color-you); }
+.swRef { background: var(--color-comparison); }
+.cornerBand { fill: var(--color-hover); }
+.grid1 { stroke: var(--color-border); stroke-width: 1; }
+.axis { font-size: 12px; fill: var(--s-muted); }
+.youLine, .refLine, .brake, .throttle { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.youLine { stroke: var(--color-you); }
+.refLine { stroke: var(--color-comparison); stroke-dasharray: 5 4; }
+.brake { stroke: var(--color-brake); }
+.throttle { stroke: var(--color-throttle); }
+.dashed { stroke-dasharray: 5 4; stroke-opacity: 0.8; }
+.brakeTxt { color: var(--color-brake); }
+.throttleTxt { color: var(--color-throttle); }

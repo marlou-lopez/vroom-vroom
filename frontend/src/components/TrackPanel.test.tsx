@@ -90,5 +90,27 @@ describe("TrackPanel", () => {
     act(() => grabbed.store!.seek(0));
     expect(screen.queryByText("understeer")).toBeNull();
   });
-});
 
+  it("names the clicked corner in its lead-in, even while still inside the previous corner", () => {
+    // Playhead at 50 m: inside A (0-60), 80 m before B starts (its lead-in is 150 m).
+    mountAt({ length_m: 1000, corners: [
+      { id: "a", name: "Roggia 2", start_m: 0, end_m: 60, apex_m: 30 },
+      { id: "b", name: "Lesmo 1", start_m: 130, end_m: 200, apex_m: 160 },
+    ] });
+    act(() => grabbed.store!.seek(1, "b"));
+    expect(screen.getByText("Approaching Lesmo 1")).toBeTruthy();
+    expect(screen.queryByText("Roggia 2")).toBeNull();
+    // Any other seek (scrub, key) goes back to the corner the car is in.
+    act(() => grabbed.store!.seek(1));
+    expect(screen.getByText("Roggia 2")).toBeTruthy();
+  });
+
+  it("keeps the understeer verdict of the corner the car is in during a lead-in", () => {
+    mountAt({ length_m: 1000, corners: [
+      { id: "a", name: "Roggia 2", start_m: 30, end_m: 70, apex_m: 50 },
+      { id: "b", name: "Lesmo 1", start_m: 130, end_m: 200, apex_m: 160 },
+    ] });
+    act(() => grabbed.store!.seek(1, "b"));
+    expect(screen.getByText("understeer")).toBeTruthy();
+  });
+});
