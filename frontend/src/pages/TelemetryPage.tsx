@@ -5,12 +5,15 @@ import { withParams } from "../lib/urlParams";
 import { AnalysisBar } from "../components/AnalysisBar";
 import { AnnotationCardProvider, type AnnotationCardActions } from "../components/AnnotationPopup";
 import { ScrubberBadges, ScrubberOffTrack, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
+import * as Tabs from "@radix-ui/react-tabs";
+import { loadInputsTab, saveInputsTab, type InputsTab } from "../lib/inputsTab";
 import { CornersTable } from "../components/CornersTable";
 import { DetailedStrips } from "../components/DetailedStrips";
 import { EngineerLine } from "../components/EngineerLine";
 import { SimplifiedWheels } from "../components/SimplifiedWheels";
 import { TrackPanel } from "../components/TrackPanel";
 import { Transport } from "../components/Transport";
+import { cornerRailRows } from "../lib/cornerRail";
 import { CornerRail } from "../components/workspace/CornerRail";
 import { LapRail } from "../components/workspace/LapRail";
 import wsStyles from "../components/workspace/Workspace.module.css";
@@ -55,7 +58,8 @@ function Telemetry() {
   // Like the lap rail, the corner rail stays mounted (filter and scroll survive) while the next comparison loads.
   const [keptCmp, setKeptCmp] = useState<typeof cmp>(null);
   if (cmp && cmp !== keptCmp) setKeptCmp(cmp);
-  const [tab, setTab] = useState<"strips" | "corners">("strips");
+  const [tab, setTabState] = useState<InputsTab>(() => loadInputsTab());
+  const setTab = (t: InputsTab) => { setTabState(t); saveInputsTab(t); };
 
   // Escape collapses the expanded map, unless something else (an open popup) already handled it.
   useEffect(() => {
@@ -151,8 +155,13 @@ function Telemetry() {
   const ideal = candidates.find((c) => c.is_ideal) ?? null;
   const refCand = candidates.find((c) => c.lap_id === cmp?.ref_lap_id) ?? null;
   const priorityCorners = useMemo(
-    () => new Set([...annotations.map((a) => a.cornerId), ...(losses?.losses.map((l) => l.cornerId) ?? [])]),
-    [annotations, losses],
+    () => {
+      const top = cmp && trackMap
+        ? cornerRailRows(cmp, trackMap.corners).filter((r) => r.kind === "loss").sort((a, b) => b.deltaS - a.deltaS).slice(0, 5)
+        : [];
+      return new Set([...annotations.map((a) => a.cornerId), ...top.map((r) => r.corner.id)]);
+    },
+    [annotations, cmp, trackMap],
   );
   const youName = ctx ? `You · L${ctx.lap.lap_no}` : "You";
   const refShort = comparisonName(refCand, ctx?.laps ?? []);
@@ -208,14 +217,12 @@ function Telemetry() {
               />
               {!expanded && (
               <section aria-label="Inputs" className={styles.inputs}>
+                <Tabs.Root value={tab} onValueChange={(v) => setTab(v as InputsTab)} className={styles.tabs}>
                 <div className={styles.viewBar}>
-                  <ToggleGroup.Root
-                    type="single" aria-label="Inputs tab" className={styles.viewToggle}
-                    value={tab} onValueChange={(v) => v && setTab(v as "strips" | "corners")}
-                  >
-                    <ToggleGroup.Item value="strips" className={ui.toggleItem}>Strips</ToggleGroup.Item>
-                    <ToggleGroup.Item value="corners" className={ui.toggleItem}>Corners</ToggleGroup.Item>
-                  </ToggleGroup.Root>
+                  <Tabs.List aria-label="Inputs" className={styles.tabList}>
+                    <Tabs.Trigger value="strips" className={styles.tabTrigger}>Strips</Tabs.Trigger>
+                    <Tabs.Trigger value="corners" className={styles.tabTrigger}>Corners</Tabs.Trigger>
+                  </Tabs.List>
                   {tab === "strips" && (
                     <ToggleGroup.Root
                       type="single" aria-label="Input view" className={styles.viewToggle}
@@ -227,9 +234,12 @@ function Telemetry() {
                     </ToggleGroup.Root>
                   )}
                 </div>
+                <Tabs.Content value={tab} className={styles.tabContent}>
                 {tab === "corners" ? (
                   <CornersTable corners={model.cmp.corners} trackMap={trackMap} onSeek={seekToCorner} />
                 ) : view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} lapValid={lapValid} corners={trackMap?.corners} youName={youName} refName={refName} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
+                </Tabs.Content>
+                </Tabs.Root>
               </section>
               )}
             </div>

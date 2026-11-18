@@ -27,6 +27,20 @@ describe("CornersTable", () => {
     expect(within(rows[0]).getByText("10 m earlier")).toBeTruthy();
     expect(within(rows[0]).getByText("−2.0")).toBeTruthy();
   });
+  it("shows only the difference by default, with you and reference in the hover and on the expand toggle", () => {
+    render(<CornersTable corners={metrics} trackMap={map} onSeek={() => {}} />);
+    const row = screen.getAllByRole("row")[1];
+    expect(within(row).queryByText("98")).toBeNull();
+    expect(row.querySelectorAll("td")[3].getAttribute("title")).toBe("You 98 · Reference 100");
+    fireEvent.click(screen.getByRole("button", { name: "Show you / reference" }));
+    expect(within(screen.getAllByRole("row")[1]).getByText("98")).toBeTruthy();
+  });
+  it("never prints −0 and shows the apex instead of a bogus distance", () => {
+    const m = [{ ...metrics[1], delta_s: -0.0002, lap: side({ min_speed_kmh: 99.97, min_speed_m: 200 }), ref: side({ min_speed_m: 200 }) }];
+    render(<CornersTable corners={m} trackMap={map} onSeek={() => {}} />);
+    expect(document.body.textContent).not.toContain("−0");
+    expect(document.body.textContent).not.toContain("0 m before apex");
+  });
   it("shows the landmark phrase on hover where one is close", () => {
     render(<CornersTable corners={metrics} trackMap={map} onSeek={() => {}} />);
     const cell = screen.getAllByRole("row")[1].querySelector("td[title]");
