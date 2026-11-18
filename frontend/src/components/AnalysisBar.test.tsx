@@ -41,6 +41,17 @@ describe("AnalysisBar", () => {
     expect(screen.getByText("Tip")).toBeTruthy();
   });
 
+  it("has the key before Analyze and while running, covering map, strips and coach marks", async () => {
+    bar(coach({ results: {} }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "What the marks mean" }));
+    for (const t of ["Map", "Strips", "Coach marks"]) expect(screen.getByText(t)).toBeTruthy();
+    expect(screen.getByText(/Lockup/)).toBeTruthy();
+  });
+  it("keeps the key while running", () => {
+    bar(coach({ running: "analyze" }));
+    expect(screen.getByRole("button", { name: "What the marks mean" })).toBeTruthy();
+  });
+
   it("shows progress and a Cancel while running", async () => {
     const c = coach({ running: "analyze" });
     bar(c);

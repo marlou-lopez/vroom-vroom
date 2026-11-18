@@ -7,7 +7,7 @@ import type { Annotation } from "../lib/annotations";
 import { formatDelta } from "../lib/format";
 import type { CoachState } from "../state/useCoach";
 import { cx } from "../lib/cx";
-import { annotationColors } from "../theme";
+import { annotationColors, colors } from "../theme";
 import styles from "./AnalysisBar.module.css";
 import ui from "./ui.module.css";
 
@@ -62,12 +62,39 @@ const TAGS: [string, string][] = [
   ["Copy your better lap", "the fix points at your own better lap"],
 ];
 
+/** Section titles over the key's rows; the swatch colours match the map, the strips and the coach marks. */
+const MAP_KEY: { color: string; text: string }[] = [
+  { color: colors.understeer, text: "Car pushing wide (understeer): map line and steering strip" },
+  { color: colors.closeCall, text: "Nearly off track: two wheels off on a valid lap (red when the lap is invalid)" },
+  { color: colors.lockup, text: "Lockup: a wheel locked under braking" },
+  { color: colors.wheelspin, text: "Wheelspin: a driven wheel spun on exit" },
+  { color: colors.oversteer, text: "Oversteer (experimental, only with ?balance)" },
+];
+const STRIP_KEY: { color: string; text: string }[] = [
+  { color: annotationColors.issue, text: "Shaded corner on the strips: the coach has a finding there (colour = kind)" },
+  { color: colors.brake, text: "Light shading under the brake trace: ABS working" },
+  { color: colors.throttle, text: "Light shading under the throttle trace: traction control working" },
+  { color: colors.closeCall, text: "Full-height band: two or more wheels off the track (tan on a valid lap, red on an invalid one)" },
+  { color: colors.lockup, text: "Red / amber marks on the pedal strip: lockups and wheelspin" },
+];
+
+/** The one key: map marks, strip shading and coach marks, available before and after Analyze. */
 function Legend() {
   return (
     <Popover.Root>
       <Popover.Trigger className={ui.btn} aria-label="What the marks mean" title="What the marks mean">Key</Popover.Trigger>
       <Popover.Portal>
-        <Popover.Content align="end" sideOffset={4} collisionPadding={8} className={styles.legend} aria-label="Annotation key">
+        <Popover.Content align="end" sideOffset={4} collisionPadding={8} className={styles.legend} aria-label="Key">
+          <div className={styles.legendTitle}>Map</div>
+          {MAP_KEY.map((l) => (
+            <div key={l.text} className={styles.legendRow}><span className={styles.swatch} style={{ background: l.color }} />{l.text}</div>
+          ))}
+          <div className={styles.legendTitle}>Strips</div>
+          <div className={styles.legendRow}>Rising time vs best = you are losing time. Falling = gaining.</div>
+          {STRIP_KEY.map((l) => (
+            <div key={l.text} className={styles.legendRow}><span className={styles.swatch} style={{ background: l.color }} />{l.text}</div>
+          ))}
+          <div className={styles.legendTitle}>Coach marks</div>
           {LEGEND.map((l) => (
             <div key={l.glyph} className={styles.legendRow}><span className={styles.glyph} style={{ background: l.color }}>{l.glyph}</span>{l.text}</div>
           ))}
@@ -111,7 +138,7 @@ export function AnalysisBar({ coach, annotations, totalDelta, refName = null, di
   return (
     <div className={styles.row}>
       {busy ? (
-        <Busy running={running} onCancel={cancel} />
+        <><Busy running={running} onCancel={cancel} /><Legend /></>
       ) : !analyzed ? (
         <>
           <span className={styles.group}>
@@ -121,6 +148,8 @@ export function AnalysisBar({ coach, annotations, totalDelta, refName = null, di
             <AverageMenu onAverage={() => void run("average")} disabled={disabled} />
           </span>
           <span className={styles.muted}>Plain telemetry. Analyze to mark up where you gain and lose time.</span>
+          <div className={styles.spacer} />
+          <Legend />
         </>
       ) : (
         <>

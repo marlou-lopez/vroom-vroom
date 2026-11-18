@@ -39,6 +39,7 @@ describe("DetailedStrips elevation strip", () => {
     const view = (g: never | null) => (
       <PlaybackProvider><DetailedStrips model={model} geometry={g} annotations={[]} handlers={handlers} /></PlaybackProvider>
     );
+    localStorage.setItem("vroom.strips", '["speed","gear","elevation"]');
     const { rerender } = render(view(null));
     expect(screen.queryByText("ELEVATION")).toBeNull();
     expect(screen.getByText("GEAR")).toBeTruthy();
@@ -57,25 +58,25 @@ describe("DetailedStrips picker", () => {
       <PlaybackProvider><DetailedStrips model={model} geometry={null} annotations={[]} handlers={handlers} /></PlaybackProvider>,
     );
   }
-  const labels = () => Array.from(document.querySelectorAll("[class*=label]")).map((e) => e.textContent);
+  const labels = () => Array.from(document.querySelectorAll("[class*=label]")).map((e) => e.firstChild?.textContent);
 
   it("adds, reorders and removes strips and remembers the choice", async () => {
     localStorage.clear();
     await setup();
-    expect(labels()).toEqual(["SPEED", "THROTTLE · BRAKE", "GEAR", "STEERING", "TIME VS BEST (RISING = LOSING TIME)"]);
+    expect(labels()).toEqual(["TIME VS BEST", "SPEED", "BRAKE & THROTTLE"]);
     fireEvent.click(screen.getByRole("button", { name: "Choose strips" }));
     fireEvent.click(screen.getByRole("button", { name: "Add RPM" }));
     expect(labels()).toContain("RPM");
     fireEvent.click(screen.getByRole("button", { name: "Move RPM up" }));
     fireEvent.click(screen.getByRole("button", { name: "Remove Speed" }));
-    expect(labels()).toEqual(["THROTTLE · BRAKE", "GEAR", "STEERING", "RPM", "TIME VS BEST (RISING = LOSING TIME)"]);
-    expect(JSON.parse(localStorage.getItem("vroom.strips")!)).toEqual(["pedals", "gear", "steering", "rpm", "delta", "elevation"]);
+    expect(labels()).toEqual(["TIME VS BEST", "RPM", "BRAKE & THROTTLE"]);
+    expect(JSON.parse(localStorage.getItem("vroom.strips")!)).toEqual(["delta", "rpm", "pedals"]);
   });
 
   it("starts from the default set when the stored choice names an unknown channel", async () => {
     localStorage.setItem("vroom.strips", '["speed","bogus"]');
     await setup();
-    expect(labels()).toEqual(["SPEED", "THROTTLE · BRAKE", "GEAR", "STEERING", "TIME VS BEST (RISING = LOSING TIME)"]);
+    expect(labels()).toEqual(["TIME VS BEST", "SPEED", "BRAKE & THROTTLE"]);
   });
 });
 
@@ -123,12 +124,18 @@ describe("DetailedStrips legend, zoom, pan and axis (vroom-pnw.35, vroom-pnw.48)
     expect(has("TC")).toBe(false);
   });
 
-  it("explains the wheels-off and corner bands in the legend", async () => {
+  it("captions the time strip and has no second key of its own", async () => {
     await setup({ lapValid: false, annotations: [{ startM: 100, apexM: 150, endM: 200, color: "#fff", label: "1", kind: "issue", finding: { corner: "T1" } }] });
-    // Wheels-off item appears only when the lap has such runs; its tooltip names both colours.
-    expect(screen.queryAllByText(/Off track/).length).toBeGreaterThan(0);
-    for (const el of screen.queryAllByText(/Off track/)) expect(el.getAttribute("title")).toMatch(/nearly off track.*invalid/i);
-    expect(screen.getByText("Corner the coach commented on").getAttribute("title")).toMatch(/corner/i);
+    expect(screen.getByText("rising = losing time")).toBeTruthy();
+    expect(screen.queryByText(/Wheels off/)).toBeNull();
+    expect(screen.queryByText("Coach corner")).toBeNull();
+  });
+
+  it("groups the strip chooser into Basics and Advanced with a line for each", async () => {
+    await setup({});
+    fireEvent.click(screen.getByRole("button", { name: "Choose strips" }));
+    expect(screen.getByRole("list", { name: "Basics" })).toBeTruthy();
+    expect(screen.getByRole("list", { name: "Advanced" }).textContent).toMatch(/Engine speed/);
   });
 
   const scales = () => (globalThis as unknown as { __scales: Array<{ min: number; max: number }> }).__scales;
@@ -250,7 +257,7 @@ describe("DetailedStrips legend, zoom, pan and axis (vroom-pnw.35, vroom-pnw.48)
     const ticks = Array.from(container.querySelectorAll("[class*=tick]")).map((e) => e.textContent);
     expect(ticks.length).toBeGreaterThan(3);
     expect(ticks[0]).toBe("0");
-    const speed = container.querySelectorAll("[class*=value]")[0];
+    const speed = container.querySelectorAll("[class*=value]")[1];
     expect(speed.hasAttribute("data-pair")).toBe(true);
     expect(speed.children[2].textContent).not.toBe("");
   });
