@@ -17,7 +17,7 @@ describe("paneRects", () => {
 describe("pane labels", () => {
   it("shows the lap time and the live speed and gear", () => {
     expect(paneTitle("Lap", 143.751)).toBe("Lap 2:23.751");
-    expect(paneTitle("Reference", null)).toBe("Reference –:––.–––");
+    expect(paneTitle("Ideal", null)).toBe("Ideal –:––.–––");
     expect(paneReadout(213.6, 5)).toBe("214 km/h · 5");
     expect(paneReadout(0, 0)).toBe("0 km/h · N");
   });

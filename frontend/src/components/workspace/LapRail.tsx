@@ -158,7 +158,7 @@ export function LapRail({ session, laps, lap, refLapId, candidates, warning, inv
       </div>
       <div className={styles.versus}>
         <span className={styles.comparison}>○ vs {refName ?? (refLapId ? "…" : "choose")}</span>
-        {warning ? <span className={styles.badge} title={warning}>DIFFERENT CAR</span> : <SetupChip lapSessionId={session.session_id} laps={laps} refLapId={refLapId} />}
+        {warning ? <span className={styles.badge} title={warning}>DIFFERENT CAR</span> : <SetupChip lapSessionId={session.session_id} laps={laps} refLapId={refLapId} refName={refName} />}
       </div>
       {self && (
         <p className={styles.hint} role="status">

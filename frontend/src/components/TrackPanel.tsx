@@ -48,7 +48,7 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
   return (
     <section aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
       <ErrorBoundary label="track view" variant="panel" resetKeys={[model, active.id]}>
-        <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} />
+        <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} refName={refName ?? null} />
       </ErrorBoundary>
       <div className={styles.top}>
       <Readout model={model} trackMap={trackMap} refName={refName ?? null} view={active.id} />
@@ -92,8 +92,8 @@ function Readout({ model, trackMap, refName, view }: { model: PlaybackModel; tra
   const corner = trackMap ? cornerAt(trackMap, dYou) : null;
   const delta = cmp.delta[iy] ?? 0;
   const gap = Math.round(dRef - dYou);
-  const standing = standingLabel(delta, refName);
-  const who = refName ?? "reference";
+  const who = refName ?? "the comparison";
+  const standing = standingLabel(delta, who);
   const gapLabel = gap > 0 ? `${who} ${gap} m ahead` : gap < 0 ? `${who} ${-gap} m behind` : standing ? null : `level with ${who}`;
     return (
     <Fragment>

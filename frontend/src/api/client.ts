@@ -23,7 +23,8 @@ export interface Api {
   addLandmark(trackId: string, landmark: NewLandmark): Promise<TrackMap>;
   patchLandmark(trackId: string, landmarkId: string, patch: LandmarkPatch): Promise<TrackMap>;
   deleteLandmark(trackId: string, landmarkId: string): Promise<TrackMap>;
-  coach(req: CoachRequest): Promise<CoachResult>;
+  /** `opts.signal` aborts the request: the promise then rejects with ApiError `cancelled`. */
+  coach(req: CoachRequest, opts?: { signal?: AbortSignal }): Promise<CoachResult>;
   coachResults(lap: string, ref: string): Promise<CoachResults>;
   setFindingReviewed(findingId: string, reviewed: boolean): Promise<Finding>;
   sessionSummary(sessionId: string): Promise<SessionSummary>;
@@ -67,15 +68,17 @@ async function errorFrom(res: Response): Promise<ApiError> {
   return new ApiError(code, message);
 }
 
-async function send<T>(baseUrl: string, path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+async function send<T>(baseUrl: string, path: string, init?: { method?: string; body?: unknown; signal?: AbortSignal }): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${baseUrl}/api${path}`, {
       method: init?.method ?? "GET",
       headers: init?.body !== undefined ? { "Content-Type": "application/json" } : undefined,
       body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
+      signal: init?.signal,
     });
   } catch (e) {
+    if (init?.signal?.aborted) throw new ApiError("cancelled", "request cancelled");
     throw new ApiError("network", e instanceof Error ? e.message : "network error");
   }
   if (!res.ok) throw await errorFrom(res);
@@ -86,7 +89,7 @@ const enc = encodeURIComponent;
 
 /** The HTTP implementation. `baseUrl` (default: same origin) is only needed where relative URLs do not resolve, e.g. node tests. */
 export function createRealApi(baseUrl = ""): Api {
-  const request = <T>(path: string, init?: { method?: string; body?: unknown }) => send<T>(baseUrl, path, init);
+  const request = <T>(path: string, init?: { method?: string; body?: unknown; signal?: AbortSignal }) => send<T>(baseUrl, path, init);
   return {
     sessions: () => request("/sessions"),
     sessionLaps: (id) => request(`/sessions/${enc(id)}/laps`),
@@ -102,7 +105,7 @@ export function createRealApi(baseUrl = ""): Api {
     patchLandmark: (trackId, id, patch) =>
       request(`/tracks/${enc(trackId)}/landmarks/${enc(id)}`, { method: "PATCH", body: patch }),
     deleteLandmark: (trackId, id) => request(`/tracks/${enc(trackId)}/landmarks/${enc(id)}`, { method: "DELETE" }),
-    coach: (req) => request("/coach", { method: "POST", body: req }),
+    coach: (req, opts) => request("/coach", { method: "POST", body: req, signal: opts?.signal }),
     coachResults: (lap, ref) => request(`/coach/results${query({ lap, ref })}`),
     setFindingReviewed: (id, reviewed) =>
       request(`/coach/findings/${enc(id)}`, { method: "PATCH", body: { reviewed } }),

@@ -488,7 +488,7 @@ export type ApiErrorCode =
   | "not_enough_laps" | "no_reference" | "track_mismatch" | "missing_api_key" | "llm_error"
   | "invalid_output" | "unknown_corner"
   | "unknown_lap" | "unknown_session" | "unknown_track" | "unknown_landmark" | "unknown_finding"
-  | "network" | (string & {});
+  | "network" | "cancelled" | (string & {});
 
 /** Thrown by every Api method on failure. Mirrors the backend's `{code, message}` error body. */
 export class ApiError extends Error {
