@@ -43,6 +43,17 @@ describe("CornerRail", () => {
     expect(row.textContent).toContain("Brake later.");
     expect(row.textContent).toContain("You slow too much.");
   });
+  it("shows each note on one line with a more button that opens it", () => {
+    const { container } = render(ui({ annotations: [note], deepDives: { "1": dive } }));
+    const texts = Array.from(container.querySelectorAll<HTMLElement>("[data-clamped]"));
+    expect(texts).toHaveLength(2);
+    expect(texts.every((t) => t.dataset.clamped === "true")).toBe(true);
+    const more = screen.getAllByRole("button", { name: "more" });
+    fireEvent.click(more[1]!);
+    expect(texts[1]!.dataset.clamped).toBe("false");
+    expect(texts[0]!.dataset.clamped).toBe("true");
+    expect(screen.getByRole("button", { name: "less" }).getAttribute("aria-expanded")).toBe("true");
+  });
   it("filters to losses only", () => {
     render(ui());
     fireEvent.click(screen.getByRole("checkbox", { name: "Losses only" }));

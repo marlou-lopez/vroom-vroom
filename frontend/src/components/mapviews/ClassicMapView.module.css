@@ -1,4 +1,5 @@
-.map { position: absolute; inset: 0; width: 100%; height: 100%; user-select: none; }
+/* The map sits below the readout row (--top-h, set by TrackPanel), so a coach badge can never land on the delta readout. */
+.map { position: absolute; inset: var(--top-h, 0px) 0 0 0; width: 100%; height: calc(100% - var(--top-h, 0px)); user-select: none; }
 /* Scrubbing is a mouse convenience; touch keeps scrolling the page. */
 .map[data-near="true"] { cursor: pointer; }
 .map[data-dragging="true"] { cursor: grabbing; }
