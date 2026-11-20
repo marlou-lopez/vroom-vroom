@@ -78,6 +78,31 @@ const STRIP_KEY: { color: string; text: string }[] = [
   { color: colors.lockup, text: "Red / amber marks on the pedal strip: lockups and wheelspin" },
 ];
 
+/** The rows of the key: map marks, strip shading and coach marks. Shared by the Analysis bar's popover and the Lap view's "⋯" menu. */
+export function LegendRows() {
+  return (
+    <>
+      <div className={styles.legendTitle}>Map</div>
+      {MAP_KEY.map((l) => (
+        <div key={l.text} className={styles.legendRow}><span className={styles.swatch} style={{ background: l.color }} />{l.text}</div>
+      ))}
+      <div className={styles.legendTitle}>Strips</div>
+      <div className={styles.legendRow}>Rising time vs best = you are losing time. Falling = gaining.</div>
+      {STRIP_KEY.map((l) => (
+        <div key={l.text} className={styles.legendRow}><span className={styles.swatch} style={{ background: l.color }} />{l.text}</div>
+      ))}
+      <div className={styles.legendTitle}>Coach marks</div>
+      {LEGEND.map((l) => (
+        <div key={l.glyph} className={styles.legendRow}><span className={styles.glyph} style={{ background: l.color }}>{l.glyph}</span>{l.text}</div>
+      ))}
+      {TAGS.map(([tag, text]) => (
+        <div key={tag} className={styles.legendRow}><span className={styles.tagKey}>{tag}</span>{text}</div>
+      ))}
+      <div className={styles.legendRow}>Click a mark to open its card. Hover previews it after a moment.</div>
+    </>
+  );
+}
+
 /** The one key: map marks, strip shading and coach marks, available before and after Analyze. */
 function Legend() {
   return (
@@ -85,23 +110,7 @@ function Legend() {
       <Popover.Trigger className={ui.btn} aria-label="What the marks mean" title="What the marks mean">Key</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={4} collisionPadding={8} className={styles.legend} aria-label="Key">
-          <div className={styles.legendTitle}>Map</div>
-          {MAP_KEY.map((l) => (
-            <div key={l.text} className={styles.legendRow}><span className={styles.swatch} style={{ background: l.color }} />{l.text}</div>
-          ))}
-          <div className={styles.legendTitle}>Strips</div>
-          <div className={styles.legendRow}>Rising time vs best = you are losing time. Falling = gaining.</div>
-          {STRIP_KEY.map((l) => (
-            <div key={l.text} className={styles.legendRow}><span className={styles.swatch} style={{ background: l.color }} />{l.text}</div>
-          ))}
-          <div className={styles.legendTitle}>Coach marks</div>
-          {LEGEND.map((l) => (
-            <div key={l.glyph} className={styles.legendRow}><span className={styles.glyph} style={{ background: l.color }}>{l.glyph}</span>{l.text}</div>
-          ))}
-          {TAGS.map(([tag, text]) => (
-            <div key={tag} className={styles.legendRow}><span className={styles.tagKey}>{tag}</span>{text}</div>
-          ))}
-          <div className={styles.legendRow}>Click a mark to open its card. Hover previews it after a moment.</div>
+          <LegendRows />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

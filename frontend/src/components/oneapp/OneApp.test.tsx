@@ -111,6 +111,51 @@ describe("one-app prototype (?ui=one)", () => {
     expect(new URLSearchParams(loc.search).get("lap")).toBe(lapId);
   });
 
+  it("pins the lap sentence above the cards and counts every corner", async () => {
+    renderAt("/?ui=one");
+    const story = await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    const head = story.querySelector("header")!;
+    expect(head.textContent).toMatch(/Lap \d+/);
+    expect(head.contains(story.querySelector("ol"))).toBe(false);
+    const toggle = within(story).getByRole("button", { name: /Every corner · \d+/ });
+    const n = Number(/· (\d+)/.exec(toggle.textContent ?? "")![1]);
+    expect(within(story).queryByRole("list", { name: "Every corner" })).toBeNull();
+    await userEvent.click(toggle);
+    expect(within(within(story).getByRole("list", { name: "Every corner" })).getAllByRole("listitem")).toHaveLength(n);
+    // No advice text appears on two cards.
+    const tips = Array.from(story.querySelectorAll("ol > li")).map((li) => li.querySelector("p:nth-of-type(2)")?.textContent).filter(Boolean);
+    expect(new Set(tips).size).toBe(tips.length);
+  });
+
+  it("puts Key, notes, Average and the coach in the ⋯ menu", async () => {
+    renderAt("/?ui=one");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    await userEvent.click(screen.getByRole("button", { name: /More: key/ }));
+    const menu = await screen.findByRole("dialog", { name: "More" });
+    expect(within(menu).getByRole("button", { name: /^Hide notes/ })).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: /Average/ })).toBeTruthy();
+    expect(within(menu).queryByRole("button", { name: "Ask again" })).toBeNull();
+    await userEvent.click(within(menu).getByRole("button", { name: /^Key/ }));
+    expect(within(menu).getByText("Coach marks")).toBeTruthy();
+  });
+
+  it("keeps the scope line and story mounted while the next lap loads", { timeout: 20000 }, async () => {
+    renderAt("/?ui=one");
+    const story = await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    const scope = screen.getByRole("navigation", { name: "Where you are" });
+    const select = screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement;
+    const ids = Array.from(select.options).map((o) => o.value);
+    const target = ids.find((i) => i !== select.value)!;
+    await userEvent.selectOptions(select, target);
+    // Straight after the click and once the new lap has loaded: the same elements, never a "Loading…" page.
+    expect(screen.queryByText("Loading…")).toBeNull();
+    expect(story.isConnected && scope.isConnected).toBe(true);
+    await waitFor(() => expect((screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement).value).toBe(target));
+    await waitFor(() => expect(story.querySelector("h1")?.textContent).toMatch(new RegExp(`Lap ${(select.selectedOptions[0].textContent ?? "").match(/Lap (\d+)/)![1]} `)), { timeout: 5000 });
+    expect(story.isConnected && scope.isConnected).toBe(true);
+    expect(screen.queryByText("Loading…")).toBeNull();
+  });
+
   it("leaves the current UI alone without the flag", async () => {
     renderAt("/");
     await screen.findByRole("complementary", { name: "Laps" }, { timeout: 5000 });
