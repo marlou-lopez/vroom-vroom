@@ -2,6 +2,8 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { useEffect } from "react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -96,6 +98,28 @@ describe("lap rail", () => {
     await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBe(next.getAttribute("data-lap-id")));
     expect(loc.search).toContain("debug=0");
   }, 20000);
+
+  it("sets the comparison lap when its Compare button is clicked", async () => {
+    const user = userEvent.setup();
+    renderAt("/?debug=0");
+    const laps = await screen.findByRole("complementary", { name: "Laps" });
+    const buttons = await within(laps).findAllByRole("button", { name: /^Compare with L\d/ });
+    const target = buttons[buttons.length - 1];
+    const row = target.closest("li")!.querySelector("[data-lap-id]")!;
+    await user.click(target);
+    await waitFor(() => expect(new URLSearchParams(loc.search).get("ref")).toBe(row.getAttribute("data-lap-id")), { timeout: 5000 });
+  }, 20000);
+
+  // jsdom has no layout, so this guards the CSS that keeps the gap text and the Compare button apart (vroom-jny):
+  // the gap column must be able to shrink and truncate, and the button must not be squeezed by it.
+  it("keeps the gap column from overrunning the Compare button (CSS contract)", () => {
+    const css = readFileSync(resolve(process.cwd(), "src/components/workspace/Workspace.module.css"), "utf8");
+    const rule = (sel: string) => css.match(new RegExp(`\\${sel}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+    expect(rule(".lapMain")).toMatch(/minmax\(0,\s*1fr\)/);
+    expect(rule(".lapGap")).toMatch(/overflow:\s*hidden/);
+    expect(rule(".lapGap")).toMatch(/text-overflow:\s*ellipsis/);
+    expect(rule(".refBtn")).toMatch(/flex:\s*none/);
+  });
 
   it("moves between rows with the arrow keys", async () => {
     const user = userEvent.setup();
