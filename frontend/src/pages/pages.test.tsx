@@ -149,7 +149,7 @@ describe("pages", () => {
     expect(within(table).getByRole("columnheader", { name: "Name" })).toBeTruthy();
     await waitFor(() => expect(within(table).getAllByRole("row").length).toBeGreaterThan(1));
     const rows = within(table).getAllByRole("row");
-    expect(panel.textContent).toContain(`CORNERS · ${rows.length - 1}`);
+    expect(panel.textContent).toContain(`Corners · ${rows.length - 1}`);
   });
   it("Track and car opens on the combo of ?session=<id>, not just the newest", async () => {
     const sessions = (await mock.engine().sessions()) as { session_id: string; track_id: string; car_id: string }[];

@@ -90,7 +90,7 @@ Run test, lint and build before calling frontend work done. Vite proxies `/api` 
 - **UI stack:** TanStack Query for server data, Zustand for playback state, Radix UI for
   menus, popovers (annotation cards), sliders and toggles, uPlot for the strips, custom SVG for the classic map and
   scrubber, three.js (WebGL, lazy-loaded chunk) for the detailed track views (#33, #45, #39), CSS Modules with theme tokens as CSS variables (`src/theme.ts`). The theme is
-  dark only and dense: 6 px spacing, 4 px radius, 12 px Inter.
+  dark only and dense (vroom-pnw.66, `theme.ts`): 13 px prose, 12 px floor outside the stage (`--font-size-small`), 11 px in the stage (`--font-size-stage`: strips, transport, wheels, map views; `legibilityFloor.test.ts`), 15/20 px sentence-case titles, 8 px spacing, 6 px radius, 28 px controls. Regions are tones (`--color-surface`, `--color-surface2`), not 1 px boxes; cyan is only your trace and the primary action.
 - **No tracking-like words in frontend file or folder names** (`trackview`, `tracking`,
   `analytics`, `beacon`, `pixel`). Ad blockers block those module URLs in `npm run dev`, which
   leaves a white page.

@@ -37,7 +37,7 @@ export function LapGaugeTable({ sessionId, linkFor }: { sessionId: string; /** W
     <div className={styles.row}>
       <section aria-label="Laps against the best possible lap" className={cx(ui.panel, styles.laps)}>
         <div className={styles.head}>
-          <div className={ui.heading}>{hasIdeal ? `LAPS AGAINST THE BEST POSSIBLE LAP · ${formatLapTime(ideal.time_s)}` : "LAPS · NO VALID TIMED LAP FOR A BEST POSSIBLE LAP"}</div>
+          <div className={ui.heading}>{hasIdeal ? `Laps against the best possible lap · ${formatLapTime(ideal.time_s)}` : "Laps · no valid timed lap for a best possible lap"}</div>
           <label className={styles.toggle}>
             <input type="checkbox" checked={validOnly} onChange={(e) => setValidOnly(e.target.checked)} /> Hide laps with track-limit cuts
           </label>

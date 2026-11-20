@@ -77,16 +77,16 @@ export function SessionsPage() {
   const totalValid = (rows ?? []).reduce((n, r) => n + r.summary.n_valid, 0);
   // Cards compare like with like: the change is between sessions of one type, and each value names the session it comes from.
   const cards: { k: string; v: string; from: string; tone?: string }[] = [
-    { k: "SESSIONS", v: String(combo.count), from: "this track and car" },
-    { k: "VALID LAPS", v: String(totalValid), from: `all ${combo.count} sessions` },
+    { k: "Sessions", v: String(combo.count), from: "this track and car" },
+    { k: "Valid laps", v: String(totalValid), from: `all ${combo.count} sessions` },
     {
-      k: h.changeType ? `CHANGE SINCE FIRST ${h.changeType.toUpperCase()}` : "CHANGE SINCE FIRST",
+      k: h.changeType ? `Change since first ${h.changeType.toLowerCase()}` : "Change since first",
       v: h.change === null ? "—" : `${formatDelta(h.change)} s`,
       from: h.change === null ? (h.changeType ? `needs 2 ${h.changeType} sessions` : "needs 2 sessions") : `${h.changeType} best, ${dateOf(h.changeFrom)} → ${dateOf(h.changeTo)}`,
       tone: h.change === null ? undefined : h.change < 0 ? styles.gain : styles.loss,
     },
     {
-      k: "TIME LEFT ON THE TABLE",
+      k: "Time left on the table",
       v: h.gap === null ? "—" : `${h.gap.toFixed(2)} s`,
       from: h.gapFrom ? `${h.gapFrom.type}, ${dateOf(h.gapFrom)}` : "no session with a best possible lap",
     },
@@ -107,7 +107,7 @@ export function SessionsPage() {
       <div className={styles.row}>
         <section aria-label="Best lap trend" className={cx(ui.panel, styles.trend)}>
           <div className={styles.trendHead}>
-            <div className={ui.heading}>BEST LAP PER SESSION · {combo.label}</div>
+            <div className={ui.heading}>Best lap per session · {combo.label}</div>
             <div className={styles.pb}>PB <span className={styles.pbValue}>{formatLapTime(pb)}</span></div>
           </div>
           <div className={styles.plot}>

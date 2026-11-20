@@ -45,11 +45,11 @@ describe("StintPanel", () => {
     render(<StintPanel session={race} />, { wrapper });
     const panel = await screen.findByRole("region", { name: "Stint" });
     expect(within(panel).getByText("You slowed about 0.05 s a lap over the stint; virtual energy runs out first, after about 26 laps.")).toBeTruthy();
-    for (const t of ["SLOWING PER LAP", "RUNS OUT FIRST", "TYRE WEAR PER LAP"]) expect(within(panel).getByText(t)).toBeTruthy();
+    for (const t of ["Slowing per lap", "Runs out first", "Tyre wear per lap"]) expect(within(panel).getByText(t)).toBeTruthy();
     expect(within(panel).queryByText("FALL-OFF")).toBeNull();
     const key = within(panel).getByLabelText("Tyre key");
     for (const w of ["FL", "FR", "RL", "RR"]) expect(within(key).getByText(w)).toBeTruthy();
-    const wear = within(panel).getByText("TYRE WEAR PER LAP").parentElement!;
+    const wear = within(panel).getByText("Tyre wear per lap").parentElement!;
     for (const w of ["FL", "FR", "RL", "RR"]) expect(within(wear).getByText(w)).toBeTruthy();
     const how = within(panel).getByText("How is this worked out").closest("details")!;
     expect(how.open).toBe(false);

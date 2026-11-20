@@ -5,7 +5,7 @@
   position: absolute; left: 0; top: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px;
   display: flex; align-items: center; justify-content: center;
   padding: 0; border: 1.2px solid var(--color-bg); border-radius: 50%;
-  color: var(--color-bg); font: 700 var(--font-size-small)/1 var(--font-sans);
+  color: var(--color-bg); font: 700 var(--font-size-stage)/1 var(--font-sans);
   pointer-events: auto; cursor: pointer; visibility: hidden;
 }
 .badge:hover, .badge:focus-visible { border-color: var(--color-text); outline: none; }

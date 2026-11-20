@@ -30,7 +30,7 @@ button.play { padding: 3px 12px; font-weight: 700; min-width: 64px; }
 .baseline { stroke: var(--color-line); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .delta { fill: none; stroke: var(--color-issue); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
 
-.deltaLabel, .zeroLabel { position: absolute; font-size: var(--font-size-small); line-height: 1; pointer-events: none; }
+.deltaLabel, .zeroLabel { position: absolute; font-size: var(--font-size-stage); line-height: 1; pointer-events: none; }
 .deltaLabel { left: 4px; top: 2px; color: var(--color-issue); }
 .zeroLabel { right: 4px; top: 20px; color: var(--color-muted); }
 
@@ -46,7 +46,7 @@ button.play { padding: 3px 12px; font-weight: 700; min-width: 64px; }
   border: 0;
   border-radius: var(--radius);
   color: var(--color-muted);
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-stage);
   height: var(--control);
   min-width: var(--control);
   padding: 0 4px;

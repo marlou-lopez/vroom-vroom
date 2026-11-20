@@ -9,7 +9,7 @@
   min-height: 72px;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--color-border);
+  background: var(--color-surface);
   border-radius: var(--radius);
   overflow: hidden;
 }
@@ -31,45 +31,45 @@
 .chips { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 
 .label {
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-stage);
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--color-muted);
   pointer-events: none;
   white-space: nowrap;
 }
-.value { font-family: var(--font-mono); font-size: var(--font-size-small); pointer-events: none; white-space: nowrap; }
+.value { font-family: var(--font-mono); font-size: var(--font-size-stage); pointer-events: none; white-space: nowrap; }
 /* Where a strip draws both laps, each number takes its line's colour. */
 .value[data-pair] .vLap { color: var(--color-you); }
 .value[data-pair] .vRef { color: var(--color-comparison); }
 
 .bar { flex: none; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
-.legend { display: flex; gap: 12px; font-size: var(--font-size-small); color: var(--color-text); min-width: 0; }
+.legend { display: flex; gap: 12px; font-size: var(--font-size-stage); color: var(--color-text); min-width: 0; }
 .legendItem { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
 .swatch { display: inline-block; width: 14px; height: 3px; border-radius: 1px; }
 .swatchBox { display: inline-block; width: 10px; height: 10px; border-radius: 1px; }
-.aidKey { display: inline-flex; gap: 8px; margin-right: auto; margin-left: 4px; font-size: var(--font-size-small); color: var(--color-muted); }
+.aidKey { display: inline-flex; gap: 8px; margin-right: auto; margin-left: 4px; font-size: var(--font-size-stage); color: var(--color-muted); }
 .aidItem { display: inline-flex; align-items: center; gap: 3px; }
 .aidSwatch { display: inline-block; width: 8px; height: 8px; border-radius: 1px; }
 .windowGroup { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
-.hint { font-size: var(--font-size-small); color: var(--color-muted); }
+.hint { font-size: var(--font-size-stage); color: var(--color-muted); }
 .windowButton {
-  font: inherit; font-size: var(--font-size-small); color: var(--color-muted); background: transparent;
+  font: inherit; font-size: var(--font-size-stage); color: var(--color-muted); background: transparent;
   border: 1px solid var(--color-border); border-radius: var(--radius); padding: 1px 8px; cursor: pointer;
 }
 .windowButton:hover { background: var(--color-hover); }
 
 /* Distance axis under the last strip; ticks are placed from JS over the plot's full width (inside the strips' 1px border). */
-.axis { flex: none; position: relative; height: calc(var(--font-size-small) * 1.2 + 4px); margin: 0 1px; overflow: hidden; font-family: var(--font-mono); font-size: var(--font-size-small); color: var(--color-muted); pointer-events: none; }
+.axis { flex: none; position: relative; height: calc(var(--font-size-stage) * 1.2 + 4px); margin: 0 1px; overflow: hidden; font-family: var(--font-mono); font-size: var(--font-size-stage); color: var(--color-muted); pointer-events: none; }
 .tick { position: absolute; top: 0; transform: translateX(-50%); padding-top: 3px; white-space: nowrap; }
 .tick::before { content: ""; position: absolute; top: 0; left: 50%; height: 3px; border-left: 1px solid var(--color-border-strong); }
 .axisUnit { position: absolute; right: 2px; top: 3px; opacity: 0.7; }
 .caption { margin-left: 6px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--color-muted); }
-.exp { margin-left: 4px; font-size: var(--font-size-small); font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; }
+.exp { margin-left: 4px; font-size: var(--font-size-stage); font-weight: 400; text-transform: uppercase; letter-spacing: 0.04em; }
 
 .pickerBar { display: flex; flex: none; }
 .pickerButton, .pickerRow button {
-  font: inherit; font-size: var(--font-size-small); color: var(--color-text); background: transparent;
+  font: inherit; font-size: var(--font-size-stage); color: var(--color-text); background: transparent;
   border: 1px solid var(--color-border); border-radius: var(--radius); padding: 1px 6px; cursor: pointer;
 }
 .pickerButton:hover, .pickerRow button:hover:not(:disabled) { background: var(--color-hover); }
@@ -83,8 +83,8 @@
 .pickerList:last-child { margin-bottom: 0; }
 .pickerRow { display: flex; gap: 4px; align-items: center; }
 .pickerName { flex: 1; }
-.pickerDesc { display: block; color: var(--color-muted); font-size: var(--font-size-small); }
-.pickerGroup { font-size: var(--font-size-small); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-muted); font-weight: 600; margin-top: 4px; }
+.pickerDesc { display: block; color: var(--color-muted); font-size: var(--font-size-stage); }
+.pickerGroup { font-size: var(--font-size-stage); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-muted); font-weight: 600; margin-top: 4px; }
 
 /* The one app's stage (vroom-pnw.63): strips sit on a surface, with no outlines. */
 .strips[data-flat] .strip { border: 0; background: var(--color-bg); }
@@ -92,7 +92,7 @@
 .menuSection { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .zoomRow { display: flex; gap: 4px; }
 .zoomRow button {
-  font: inherit; font-size: var(--font-size-small); color: var(--color-text); background: transparent;
+  font: inherit; font-size: var(--font-size-stage); color: var(--color-text); background: transparent;
   border: 1px solid var(--color-border); border-radius: var(--radius); padding: 2px 8px; cursor: pointer;
 }
 .zoomRow button:hover { background: var(--color-hover); }

@@ -16,7 +16,7 @@ export function IdealBreakdown({ ideal, linkFor }: { ideal: IdealLap; linkFor?: 
   return (
     <section aria-label="Best possible lap breakdown" className={cx(ui.panel, styles.panel)}>
       <div className={styles.head}>
-        <div className={ui.heading}>BEST POSSIBLE LAP · BREAKDOWN</div>
+        <div className={ui.heading}>Best possible lap · breakdown</div>
         <div className={styles.total}>{formatLapTime(ideal.time_s)}</div>
       </div>
       <ol className={styles.list}>

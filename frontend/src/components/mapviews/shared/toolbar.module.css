@@ -1,7 +1,7 @@
 /* Pieces shared by the toolbars of the detailed 2D and 3D views. */
 .small { padding: 2px 8px; background-color: var(--color-bg); white-space: nowrap; }
 .experimental {
-  font-size: var(--font-size-small); color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
+  font-size: var(--font-size-stage); color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap;
   background: var(--color-bg); border-radius: var(--radius); padding: 2px 4px;
 }
 .content {

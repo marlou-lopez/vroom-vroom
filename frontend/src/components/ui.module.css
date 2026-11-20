@@ -2,15 +2,14 @@
 .mono { font-family: var(--font-mono); }
 
 .panel {
-  border: 1px solid var(--color-border);
+  background: var(--color-surface);
   border-radius: var(--radius);
   padding: var(--pad);
 }
 
 .heading {
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-title);
   font-weight: 600;
-  letter-spacing: 0.08em;
   color: var(--color-muted);
 }
 
@@ -18,16 +17,16 @@
 
 /* Outlined button. */
 .btn {
-  background: transparent;
+  background: var(--color-surface2);
   color: var(--color-text);
-  border: 1px solid var(--color-border);
+  border: 0;
   border-radius: var(--radius);
   padding: 3px 8px;
   cursor: pointer;
 }
-.btn:hover:not(:disabled) { background: var(--color-hover); }
+.btn:hover:not(:disabled) { background: var(--color-border-strong); }
 /* On state of a toggle button (aria-pressed), the same look as an on toggleItem plus an accent edge. */
-.btn[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-you); }
+.btn[aria-pressed="true"] { background: var(--color-border-strong); box-shadow: inset 0 -2px 0 var(--color-comparison); }
 .btn:disabled, .btnPrimary:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .btnMuted { color: var(--color-muted); }
@@ -57,7 +56,7 @@
   padding: 4px 12px;
 }
 .chip:hover { background: var(--color-hover); }
-.chip[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-you); }
+.chip[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-comparison); }
 
 /* Segmented toggle (Radix ToggleGroup items). */
 .toggleItem {

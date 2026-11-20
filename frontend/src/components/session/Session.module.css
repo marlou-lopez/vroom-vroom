@@ -1,12 +1,12 @@
 /* The Session tab (vroom-bi4.12). Self-contained: the tab may move in a later UI overhaul. */
 .root { display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow-y: auto; min-height: 0; flex: 1; container: session / inline-size; }
-.note { margin: 0; padding: 4px 8px; border: 1px solid var(--color-border); border-radius: var(--radius); color: var(--color-muted); }
+.note { margin: 0; padding: 4px 8px; background: var(--color-surface); border-radius: var(--radius); color: var(--color-muted); }
 .noteWarn { color: var(--color-minor); }
 .state { padding: 16px; text-align: center; color: var(--color-muted); }
 .stateError { color: var(--color-issue); display: flex; flex-direction: column; gap: 6px; align-items: center; }
 
 .chart { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.chartTitle { font-size: var(--font-size-small); font-weight: 600; letter-spacing: 0.04em; color: var(--color-muted); }
+.chartTitle { font-size: var(--font-size-small); font-weight: 600; color: var(--color-muted); }
 .windowNote { font-weight: 400; letter-spacing: 0; }
 .plot { position: relative; margin-left: 52px; }
 .plot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
@@ -57,7 +57,7 @@
 .event[data-severity="watch"] { border-left-color: var(--color-minor); }
 .event[data-severity="problem"] { border-left-color: var(--color-issue); }
 .badges { display: flex; gap: 4px; align-items: baseline; flex-wrap: wrap; }
-.badge { font-size: var(--font-size-small); letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+.badge { font-size: var(--font-size-small); color: var(--color-muted); }
 .sentence { min-width: 0; overflow-wrap: anywhere; }
 .where { grid-column: 2; color: var(--color-muted); font-size: var(--font-size-small); }
 

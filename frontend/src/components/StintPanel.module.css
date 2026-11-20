@@ -7,8 +7,8 @@
 /* Fixed grid: six cards are 3x2, 2x3 in a split screen, and one column on a phone-width window (the panel's own width, not the viewport's). */
 @container stint (max-width: 560px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @container stint (max-width: 300px) { .cards { grid-template-columns: minmax(0, 1fr); } }
-.card { border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--pad); }
-.cardKey { font-size: var(--font-size-small); color: var(--color-muted); letter-spacing: 0.08em; }
+.card { background: var(--color-surface); border-radius: var(--radius); padding: var(--pad); }
+.cardKey { font-size: var(--font-size-small); color: var(--color-muted); }
 .cardValue { font-family: var(--font-mono); font-size: 14px; }
 
 .plot { position: relative; height: 160px; }

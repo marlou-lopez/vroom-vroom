@@ -26,7 +26,7 @@ export function LandmarkEditor({ title, landmarks, corners, busy, onConfirm, onD
   return (
     <section aria-label="Landmarks" className={styles.editor}>
       <div className={styles.head}>
-        <div className={styles.title}>LANDMARKS · {title}</div>
+        <div className={styles.title}>Landmarks · {title}</div>
         <div className={styles.note}>Only confirmed and detected landmarks reach the coach</div>
         {onAdd && <button type="button" id={ADD_LANDMARK_BTN_ID} onClick={onAdd} className={styles.small}>Add landmark</button>}
       </div>

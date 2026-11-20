@@ -45,6 +45,9 @@ export const colors = {
   cockpitTrim: "#4A525E",
   /** The car's bonnet paint seen at the windscreen's lower corners (a neutral silver-grey, lit from above). */
   cockpitBonnet: "#7D8691",
+  /** Regions are tones, not boxes (vroom-pnw.66): the page sits on `bg`, a region on `surface`, a control or card inside it on `surface2`. */
+  surface: "#15171B",
+  surface2: "#1B1E23",
 } as const;
 
 /** Annotation colour per finding kind (spec §9). `inconsistent` has no colour in the spec; it reuses `minor`. */
@@ -62,14 +65,25 @@ export const fonts = {
 } as const;
 
 export const sizes = {
-  fontBase: 12,
-  /** Smallest text anywhere (vroom-pnw.53): nothing is drawn under this. */
-  fontSmall: 11,
-  /** Smallest hit target in px (WCAG 2.2 2.5.8). */
-  control: 24,
-  radius: 4,
-  pad: 6,
-  gap: 6,
+  /** Prose (vroom-pnw.66). The stage keeps `fontStage`. */
+  fontBase: 13,
+  /** Smallest text outside the strips and canvas. */
+  fontSmall: 12,
+  /** Smallest text in the stage (strips, transport, wheels, map overlays), where density matters (vroom-pnw.53). */
+  fontStage: 11,
+  /** Sentence-case titles: section title, lede, page heading. */
+  fontTitle: 15,
+  fontLede: 15,
+  fontH1: 20,
+  lineHeight: 1.45,
+  /** Inline control height in px; primary and segmented controls use `controlLarge` (WCAG 2.2 2.5.8 wants 24). */
+  control: 28,
+  controlLarge: 30,
+  radius: 6,
+  pad: 8,
+  gap: 8,
+  /** Space between page regions. */
+  region: 12,
   headerHeight: 36,
 } as const;
 
@@ -86,6 +100,13 @@ export function themeVariables(): Record<string, string> {
   for (const [k, v] of Object.entries(fonts)) vars[`--font-${kebab(k)}`] = v;
   vars["--font-size-base"] = `${sizes.fontBase}px`;
   vars["--font-size-small"] = `${sizes.fontSmall}px`;
+  vars["--font-size-stage"] = `${sizes.fontStage}px`;
+  vars["--font-size-title"] = `${sizes.fontTitle}px`;
+  vars["--font-size-lede"] = `${sizes.fontLede}px`;
+  vars["--font-size-h1"] = `${sizes.fontH1}px`;
+  vars["--line-height"] = String(sizes.lineHeight);
+  vars["--control-large"] = `${sizes.controlLarge}px`;
+  vars["--region"] = `${sizes.region}px`;
   vars["--control"] = `${sizes.control}px`;
   vars["--radius"] = `${sizes.radius}px`;
   vars["--pad"] = `${sizes.pad}px`;

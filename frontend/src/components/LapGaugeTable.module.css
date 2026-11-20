@@ -10,12 +10,12 @@ th.num { font-family: inherit; }
 .mono { font-family: var(--font-mono); }
 .best { color: var(--color-you); }
 .open { text-align: right; white-space: nowrap; }
-.openLink { color: var(--color-you); text-decoration: none; }
+.openLink { color: var(--color-text); text-decoration: none; }
 .openLink:hover { text-decoration: underline; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .head { display: flex; justify-content: space-between; align-items: center; gap: var(--gap); }
 .toggle { color: var(--color-muted); display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
-.tag { color: var(--color-muted); font-size: var(--font-size-small); border: 1px solid var(--color-border); border-radius: 4px; padding: 0 4px; }
+.tag { color: var(--color-muted); font-size: var(--font-size-small); background: var(--color-surface2); border-radius: 4px; padding: 0 4px; }
 .tagInvalid { color: var(--color-off-track); }
 .noTrace td { opacity: 0.6; }
 .dim { color: var(--color-muted); }

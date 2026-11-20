@@ -9,10 +9,10 @@
 .name { font-weight: 600; }
 .source { color: var(--color-muted); overflow-wrap: anywhere; }
 .source [data-testid] { color: var(--color-text); }
-.tag { font-size: var(--font-size-small); text-transform: uppercase; letter-spacing: 0.04em; }
+.tag { font-size: var(--font-size-stage); text-transform: uppercase; letter-spacing: 0.04em; }
 .row { display: flex; flex-wrap: wrap; gap: 6px; }
 .small { padding: 2px 8px; }
-.small[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-you); }
+.small[aria-pressed="true"] { background: var(--color-selected); border-color: var(--color-comparison); }
 .file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
 .error { color: var(--color-text); border-left: 2px solid var(--color-you); padding-left: 6px; }
 .note { color: var(--color-muted); }
