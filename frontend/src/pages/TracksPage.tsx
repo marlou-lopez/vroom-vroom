@@ -326,7 +326,7 @@ export function TracksPage() {
 
         <div className={styles.side}>
           <section aria-label="Corners" className={ui.panel}>
-            <div className={cx(ui.heading, styles.cornersHead)}>CORNERS{map ? ` · ${map.corners.length}` : ""}</div>
+            <div className={cx(ui.heading, styles.cornersHead)}>Corners{map ? ` · ${map.corners.length}` : ""}</div>
             <div className={styles.tableWrap}>
               <table className={styles.table}>
                 <thead>

@@ -1,43 +1,37 @@
-/* The one app (vroom-pnw.58). The proposed tokens are local here: 13 px body, 12 px floor, 15/20 px titles,
-   line height 1.45, 8 px spacing, 6 px radius, 28-32 px controls, surfaces instead of borders. */
+/* The one app (vroom-pnw.58). Its tokens are the app's (vroom-pnw.66, theme.ts). */
 .root {
-  --one-surface: #15171B;
-  --one-surface-2: #1B1E23;
-  --one-pad: 8px;
-  --one-radius: 6px;
-  --one-control: 30px;
   flex: 1; display: flex; flex-direction: column; min-height: 0;
-  font-size: max(13px, var(--font-size-base)); line-height: 1.45;
+
 }
 
 .scope {
-  display: flex; align-items: center; flex-wrap: wrap; gap: var(--one-pad);
-  padding: 6px 12px; border-bottom: 1px solid var(--color-border); background: var(--one-surface);
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--pad);
+  padding: 6px 12px; border-bottom: 1px solid var(--color-border); background: var(--color-surface);
 }
 .crumb {
   color: var(--color-text); text-decoration: none; background: none; border: 0; padding: 0 4px; font: inherit; cursor: pointer;
-  min-height: var(--one-control); display: inline-flex; align-items: center; border-radius: var(--one-radius);
+  min-height: var(--control-large); display: inline-flex; align-items: center; border-radius: var(--radius);
 }
 .crumb:hover { background: var(--color-hover); }
 .sep { color: var(--color-muted); }
 .vs { color: var(--color-muted); }
 .spacer { flex: 1; }
 .select {
-  min-height: var(--one-control); background: var(--one-surface-2); color: var(--color-text);
-  border: 1px solid var(--color-border-strong); border-radius: var(--one-radius); padding: 0 8px;
+  min-height: var(--control-large); background: var(--color-surface2); color: var(--color-text);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius); padding: 0 8px;
 }
-.segmented { display: inline-flex; border: 1px solid var(--color-border-strong); border-radius: var(--one-radius); overflow: hidden; }
-.segmented button { min-height: var(--one-control); padding: 0 12px; background: transparent; color: var(--color-muted); border: 0; cursor: pointer; }
+.segmented { display: inline-flex; border: 1px solid var(--color-border-strong); border-radius: var(--radius); overflow: hidden; }
+.segmented button { min-height: var(--control-large); padding: 0 12px; background: transparent; color: var(--color-muted); border: 0; cursor: pointer; }
 .segmented button + button { border-left: 1px solid var(--color-border-strong); }
-.segmented button[aria-pressed="true"] { background: var(--one-surface-2); color: var(--color-text); box-shadow: inset 0 -2px 0 var(--color-comparison); }
+.segmented button[aria-pressed="true"] { background: var(--color-surface2); color: var(--color-text); box-shadow: inset 0 -2px 0 var(--color-comparison); }
 
 .message { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--color-muted); }
 
 /* Session scope: one readable column, the report at full width. */
 .page { flex: 1; overflow: auto; padding: 16px clamp(12px, 3vw, 48px); display: flex; flex-direction: column; gap: 16px; max-width: 1400px; width: 100%; margin: 0 auto; box-sizing: border-box; }
 .headline { display: flex; flex-direction: column; gap: 4px; }
-.h1 { margin: 0; font-size: 20px; font-weight: 600; line-height: 1.25; }
-.lede { margin: 0; font-size: 15px; color: var(--color-text); max-width: 70ch; }
+.h1 { margin: 0; font-size: var(--font-size-h1); font-weight: 600; line-height: 1.25; }
+.lede { margin: 0; font-size: var(--font-size-lede); color: var(--color-text); max-width: 70ch; }
 .hint { margin: 0; color: var(--color-muted); }
 
 /* Lap scope: the story column on the left, the replay stage on the right. */
@@ -46,7 +40,7 @@
 @media (max-width: 899px) { .lapGrid { grid-template-columns: minmax(0, 1fr); } .story { height: auto; min-height: 0; max-height: 60vh; } }
 .stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .story {
-  background: var(--one-surface); border-radius: var(--one-radius); padding: 12px 14px;
+  background: var(--color-surface); border-radius: var(--radius); padding: 12px 14px;
   display: flex; flex-direction: column; gap: 0; height: 0; min-height: 100%; overflow: hidden; box-sizing: border-box; min-width: 0;
 }
 /* The lap and gap sentence stay put; only .storyBody scrolls. */
@@ -56,16 +50,16 @@
 .storyBody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }
 .loading { opacity: 0.6; transition: opacity 0.15s; }
 .more {
-  flex: none; min-width: var(--one-control); min-height: var(--one-control); background: var(--one-surface-2); color: var(--color-text);
-  border: 1px solid var(--color-border-strong); border-radius: var(--one-radius); cursor: pointer; font-size: 18px; line-height: 1; padding: 0;
+  flex: none; min-width: var(--control-large); min-height: var(--control-large); background: var(--color-surface2); color: var(--color-text);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius); cursor: pointer; font-size: 18px; line-height: 1; padding: 0;
 }
 .more:hover { background: var(--color-hover); }
 .menu {
-  background: var(--color-popup); border: 1px solid var(--color-border-strong); border-radius: var(--one-radius);
+  background: var(--color-popup); border: 1px solid var(--color-border-strong); border-radius: var(--radius);
   padding: 6px; width: min(340px, calc(100vw - 16px)); max-height: min(80vh, 640px); overflow-y: auto; display: flex; flex-direction: column; gap: 2px; z-index: 50;
   font-size: 13px; line-height: 1.45; color: var(--color-text);
 }
-.menuItem { text-align: left; min-height: 30px; padding: 0 8px; background: none; border: 0; border-radius: var(--one-radius); color: var(--color-text); font: inherit; cursor: pointer; }
+.menuItem { text-align: left; min-height: 30px; padding: 0 8px; background: none; border: 0; border-radius: var(--radius); color: var(--color-text); font: inherit; cursor: pointer; }
 .menuItem:hover:not(:disabled) { background: var(--color-hover); }
 .menuItem:disabled { color: var(--color-muted); cursor: default; }
 .menuKey { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px 8px; }
@@ -80,26 +74,26 @@
 .muted { color: var(--color-muted); }
 
 .losses { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
-.loss { background: var(--one-surface-2); border-radius: var(--one-radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.loss { background: var(--color-surface2); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
 .lossHead { display: flex; align-items: center; gap: 8px; }
 .rank {
   width: 22px; height: 22px; border-radius: 50%; background: var(--color-issue); color: var(--color-on-accent);
   display: inline-flex; align-items: center; justify-content: center; font-weight: 700; flex: none;
 }
-.cornerBtn { background: none; border: 0; padding: 0; color: var(--color-text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; text-align: left; flex: 1; }
+.cornerBtn { background: none; border: 0; padding: 0; color: var(--color-text); font: inherit; font-size: var(--font-size-lede); font-weight: 600; cursor: pointer; text-align: left; flex: 1; }
 .cornerBtn:hover { text-decoration: underline; }
 .what { margin: 0; overflow-wrap: anywhere; color: var(--color-text-soft); }
 .tip { margin: 0; overflow-wrap: anywhere; }
 .tip b { color: var(--color-you); font-weight: 600; }
 .replay {
-  align-self: flex-start; min-height: 28px; padding: 0 12px; margin-top: 2px; border-radius: var(--one-radius);
+  align-self: flex-start; min-height: 28px; padding: 0 12px; margin-top: 2px; border-radius: var(--radius);
   border: 1px solid var(--color-border-strong); background: transparent; color: var(--color-text); cursor: pointer;
 }
 .replay:hover { background: var(--color-hover); }
 
 .coachRow { display: flex; flex-direction: column; gap: 6px; }
 .primary {
-  align-self: flex-start; min-height: 32px; padding: 0 16px; border-radius: var(--one-radius); border: 0;
+  align-self: flex-start; min-height: 32px; padding: 0 16px; border-radius: var(--radius); border: 0;
   background: var(--color-you); color: var(--color-on-accent); font-weight: 600; cursor: pointer;
 }
 .primary:disabled { opacity: 0.6; cursor: default; }
@@ -109,7 +103,7 @@
 .all { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .allRow {
   width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 80px 56px; align-items: center; gap: 8px;
-  min-height: 28px; background: none; border: 0; color: var(--color-text); font: inherit; cursor: pointer; padding: 0 4px; border-radius: var(--one-radius);
+  min-height: 28px; background: none; border: 0; color: var(--color-text); font: inherit; cursor: pointer; padding: 0 4px; border-radius: var(--radius);
 }
 .allRow:hover { background: var(--color-hover); }
 .allName { text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -122,24 +116,24 @@
 /* The stage: map beside the strips, without the old panel borders. */
 .stageGrid { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 12px; }
 @media (max-width: 899px) { .stageGrid { grid-template-columns: minmax(0, 1fr); } }
-.strips { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--one-surface); border-radius: var(--one-radius); padding: 8px; }
+.strips { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--color-surface); border-radius: var(--radius); padding: 8px; }
 .wheelsBar { display: flex; justify-content: flex-end; padding-bottom: 4px; }
 /* Expanded map: the strips go and the map takes the stage. */
 .stageGrid[data-expanded] { grid-template-columns: minmax(0, 1fr); }
 
 .step {
-  min-width: var(--one-control); min-height: var(--one-control); padding: 0; background: var(--one-surface-2); color: var(--color-text);
-  border: 1px solid var(--color-border-strong); border-radius: var(--one-radius); cursor: pointer; font-size: 16px; line-height: 1;
+  min-width: var(--control-large); min-height: var(--control-large); padding: 0; background: var(--color-surface2); color: var(--color-text);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius); cursor: pointer; font-size: 16px; line-height: 1;
 }
 .step:disabled { opacity: 0.4; cursor: default; }
 .step:not(:disabled):hover { background: var(--color-hover); }
 .back {
-  min-height: var(--one-control); padding: 0 12px; background: var(--one-surface-2); color: var(--color-text);
-  border: 1px solid var(--color-border-strong); border-radius: var(--one-radius); cursor: pointer; font: inherit;
+  min-height: var(--control-large); padding: 0 12px; background: var(--color-surface2); color: var(--color-text);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius); cursor: pointer; font: inherit;
 }
 .back:hover { background: var(--color-hover); }
 
 .block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.h2 { margin: 0; font-size: var(--font-size-lede); font-weight: 600; }
 
-.badge { border: 1px solid var(--color-minor); color: var(--color-minor); border-radius: var(--one-radius); padding: 2px 8px; font-size: max(12px, var(--font-size-small)); white-space: nowrap; flex: none; }
+.badge { border: 1px solid var(--color-minor); color: var(--color-minor); border-radius: var(--radius); padding: 2px 8px; font-size: max(12px, var(--font-size-small)); white-space: nowrap; flex: none; }

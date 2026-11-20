@@ -59,15 +59,15 @@ function StintBody({ stint, session, multi }: { stint: Stint; session: SessionMe
   const corrected = stint.falloff_fuel_corrected;
   const hasEnergy = stint.laps.some((l) => l.energy_start_pct !== null);
   const cards: { k: string; v: ReactNode; title?: string }[] = [
-    { k: "SLOWING PER LAP", v: raw ? `${signed(raw.slope_s_per_lap)} s/lap` : "—", title: raw ? `Least-squares fit over ${raw.n_laps} laps` : undefined },
-    { k: "FUEL PER LAP", v: f2(sum.fuelPerLap, " L") },
-    { k: "ENERGY PER LAP", v: hasEnergy ? f2(sum.energyPerLap, " %") : "n/a" },
+    { k: "Slowing per lap", v: raw ? `${signed(raw.slope_s_per_lap)} s/lap` : "—", title: raw ? `Least-squares fit over ${raw.n_laps} laps` : undefined },
+    { k: "Fuel per lap", v: f2(sum.fuelPerLap, " L") },
+    { k: "Energy per lap", v: hasEnergy ? f2(sum.energyPerLap, " %") : "n/a" },
     {
-      k: "LAPS THE LOAD LASTS", v: `${f1(sum.fuelRangeLaps, " laps")} on fuel · ${hasEnergy ? f1(sum.energyRangeLaps, " laps") : "—"} on energy`,
+      k: "Laps the load lasts", v: `${f1(sum.fuelRangeLaps, " laps")} on fuel · ${hasEnergy ? f1(sum.energyRangeLaps, " laps") : "—"} on energy`,
       title: "Laps the starting load lasts at the mean use per timed lap",
     },
-    { k: "RUNS OUT FIRST", v: sum.limit === null ? "—" : sum.limit === "energy" ? "virtual energy" : "fuel" },
-    { k: "TYRE WEAR PER LAP", v: sum.wearPerLap ? <LabelledWheels v={sum.wearPerLap} digits={2} unit=" %" /> : "—", title: "Tread lost on an average timed lap, per tyre" },
+    { k: "Runs out first", v: sum.limit === null ? "—" : sum.limit === "energy" ? "virtual energy" : "fuel" },
+    { k: "Tyre wear per lap", v: sum.wearPerLap ? <LabelledWheels v={sum.wearPerLap} digits={2} unit=" %" /> : "—", title: "Tread lost on an average timed lap, per tyre" },
   ];
   return (
     <>
@@ -182,7 +182,7 @@ export function StintPanel({ session }: { session: SessionMeta }) {
   return (
     <section aria-label="Stint" className={cx(ui.panel, styles.panel)}>
       <div className={styles.head}>
-        <span className={ui.heading}>RACE RUN</span>
+        <span className={ui.heading}>Race run</span>
       </div>
       {stints.map((s) => <StintBody key={s.stint_no} stint={s} session={session} multi={stints.length > 1} />)}
     </section>

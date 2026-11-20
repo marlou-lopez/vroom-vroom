@@ -1,4 +1,4 @@
-.legendTitle { font-size: var(--font-size-small); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-muted); font-weight: 600; }
+.legendTitle { font-size: var(--font-size-lede); color: var(--color-muted); font-weight: 600; }
 .swatch { flex: none; width: 14px; height: 6px; border-radius: 2px; }
 .legendRow { display: flex; align-items: center; gap: 8px; }
 .glyph {

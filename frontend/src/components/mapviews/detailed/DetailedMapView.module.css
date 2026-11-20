@@ -10,7 +10,7 @@
 .side > * { pointer-events: auto; }
 .bar { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px; }
 .group { display: flex; border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; background: var(--color-bg); }
-.tag { font-size: var(--font-size-small); color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.tag { font-size: var(--font-size-stage); color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .small { padding: 2px 8px; background-color: var(--color-bg); }
 .hud {
   font-family: var(--font-mono); color: var(--color-text); background: var(--color-bg);
@@ -21,7 +21,7 @@
   background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius);
 }
 .results textarea {
-  width: 100%; min-width: 300px; resize: vertical; font: 11px/1.4 var(--font-mono);
+  width: 100%; min-width: 300px; resize: vertical; font: var(--font-size-stage)/1.4 var(--font-mono);
   color: var(--color-text); background: transparent; border: 1px solid var(--color-border); border-radius: var(--radius);
   padding: 3px 6px; white-space: pre; overflow: auto;
 }

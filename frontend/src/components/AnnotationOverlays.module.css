@@ -26,7 +26,7 @@
   color: var(--color-bg);
   border: 0;
   border-radius: 999px;
-  font-size: var(--font-size-small);
+  font-size: var(--font-size-stage);
   font-weight: 700;
   cursor: pointer;
 }
@@ -61,4 +61,4 @@
   padding: 0;
 }
 
-.offLegend { position: absolute; left: 4px; bottom: 2px; font-size: var(--font-size-small); line-height: 1; color: var(--color-muted); pointer-events: none; }
+.offLegend { position: absolute; left: 4px; bottom: 2px; font-size: var(--font-size-stage); line-height: 1; color: var(--color-muted); pointer-events: none; }

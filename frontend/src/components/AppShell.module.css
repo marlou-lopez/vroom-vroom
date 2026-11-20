@@ -16,7 +16,7 @@
   flex-wrap: wrap;
 }
 
-.brand { font-weight: 700; letter-spacing: 0.14em; font-size: var(--font-size-small); color: var(--color-you); }
+.brand { font-weight: 700; letter-spacing: 0.14em; font-size: var(--font-size-small); color: var(--color-text); }
 
 .nav { display: flex; gap: 2px; }
 

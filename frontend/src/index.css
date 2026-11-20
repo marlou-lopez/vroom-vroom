@@ -6,10 +6,11 @@ body {
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: var(--font-size-base);
+  line-height: var(--line-height);
 }
-/* Above 1920 px the base grows with the viewport (12 px at 1920, 16 px at 2560 and up), and the small size with it. !important beats the inline values applyThemeVariables writes. */
+/* Above 1920 px the base grows with the viewport (13 px at 1920, 16 px at 2560 and up), and the small and stage sizes with it. !important beats the inline values applyThemeVariables writes. */
 @media (min-width: 1921px) {
-  :root { --font-size-base: clamp(12px, 0.625vw, 16px) !important; --font-size-small: clamp(11px, 0.5625vw, 14px) !important; }
+  :root { --font-size-base: clamp(13px, 0.6771vw, 16px) !important; --font-size-small: clamp(12px, 0.625vw, 15px) !important; --font-size-stage: clamp(11px, 0.5729vw, 14px) !important; }
 }
 button, input, select { font: inherit; }
 :focus-visible { outline: 2px solid var(--color-you); outline-offset: 1px; }

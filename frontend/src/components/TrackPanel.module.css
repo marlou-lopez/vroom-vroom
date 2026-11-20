@@ -17,7 +17,7 @@
 .readout { display: flex; flex-direction: column; gap: 2px; min-width: 0; order: 1; }
 .corner { font-size: 18px; font-weight: 700; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
 /* Understeer verdict: only inside a corner, much smaller than the corner name. */
-.balance { font-size: var(--font-size-small); font-weight: 600; color: var(--color-you); }
+.balance { font-size: var(--font-size-stage); font-weight: 600; color: var(--color-you); }
 .mono { font-family: var(--font-mono); }
 .muted { color: var(--color-muted); }
 
@@ -33,7 +33,7 @@
 /* Between the readout and the delta box when there is room; on its own row below them when there is not. */
 .toolbar { display: flex; gap: 4px; pointer-events: auto; order: 2; margin: 0 auto; }
 .viewToggle { display: flex; border: 1px solid var(--color-border); border-radius: var(--radius); overflow: hidden; background: var(--color-bg); }
-.exp { margin-left: 4px; font-size: var(--font-size-small); color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.exp { margin-left: 4px; font-size: var(--font-size-stage); color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .expand { padding: 1px 6px; background: var(--color-bg); line-height: 1; }
 
 .panel[data-expanded="true"] { min-height: 0; }

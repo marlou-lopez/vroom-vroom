@@ -1,7 +1,7 @@
-.editor { border: 1px solid var(--color-border); border-radius: var(--radius); padding: var(--pad); }
+.editor { background: var(--color-surface); border-radius: var(--radius); padding: var(--pad); }
 
 .head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 6px; gap: 8px; flex-wrap: wrap; }
-.title { font-size: var(--font-size-small); font-weight: 600; letter-spacing: 0.08em; color: var(--color-muted); }
+.title { font-size: var(--font-size-small); font-weight: 600; color: var(--color-muted); }
 .note { font-size: var(--font-size-small); color: var(--color-muted); }
 .empty { color: var(--color-muted); padding: 6px 0; }
 
