@@ -3,7 +3,7 @@
 // at?") and the Lap view ("where did this lap lose time, and what do I try?"). It reuses the existing components and
 // data hooks; nothing here is wired into the default UI.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useSessionReport, useSessions } from "../../api/queries";
 import { effectiveValid, type CompareCandidate, type CompareResponse, type Corner, type LapWithRef, type SessionMeta, type TrackMap } from "../../api/types";
 import { lapGap } from "../../lib/compareName";
@@ -11,10 +11,12 @@ import { bestLapTime, lapGapText, lapKeyDir, stepLapId, timedLaps } from "../../
 import { cornerRailRows } from "../../lib/cornerRail";
 import { formatLapTime, formatShortDate } from "../../lib/format";
 import { plainCorners, plainGap, plainRefName, plainSeconds, PLAIN_MIN_S } from "../../lib/plainCorner";
+import { noPlayback } from "../../lib/sessionTab";
 import { sessionSummary } from "../../lib/sessionSummary";
 import { withParams } from "../../lib/urlParams";
 import type { CoachState } from "../../state/useCoach";
 import { SessionTab, type OpenLap } from "../session/SessionTab";
+import { LapGaugeTable } from "../LapGaugeTable";
 import { StintPanel } from "../StintPanel";
 import styles from "./OneApp.module.css";
 
@@ -57,12 +59,15 @@ function SessionPicker({ session, onPick }: { session: SessionMeta; onPick(id: s
 
 export function OneSessionView() {
   const [params, setParams] = useSearchParams();
+  const { search } = useLocation();
   const sessions = useSessions().data;
   const latest = sessions?.slice().sort((a, b) => b.started_at.localeCompare(a.started_at))[0] ?? null;
   const session = sessions?.find((s) => s.session_id === params.get("session")) ?? latest;
   const report = useSessionReport(session?.session_id ?? null).data;
   const summary = useMemo(() => (report ? sessionSummary(report) : null), [report]);
   if (!session) return <div className={styles.message}>Loading…</div>;
+  // The lap table's "Open": the Lap view of that lap, not this view again.
+  const openLink = (lapId: string, atM?: number) => ({ pathname: "/", search: `?${withParams(new URLSearchParams(search), { scope: null, session: null, lap: lapId, ref: null, at: atM === undefined ? null : String(Math.round(atM)) }).toString()}` });
   const open = (t: OpenLap) =>
     setParams((p) => withParams(p, { scope: null, session: null, lap: t.lapId, ref: t.refLapId, at: t.distanceM === null ? null : String(Math.round(t.distanceM)) }));
   return (
@@ -80,10 +85,15 @@ export function OneSessionView() {
         <header className={styles.headline}>
           <h1 className={styles.h1}>{session.session_type} · {formatShortDate(session.started_at)}</h1>
           {summary && <p className={styles.lede}>{summary.join(" ")}</p>}
-          <p className={styles.hint}>Click a lap in the chart, or an event below, to open that lap.</p>
+          <p className={styles.hint}>{summary && report && !noPlayback(report) ? "Click a lap in the chart, an event, or a row in the lap table to open that lap." : null}</p>
         </header>
-        <SessionTab key={session.session_id} sessionId={session.session_id} onOpen={open} />
-        <StintPanel key={`stint-${session.session_id}`} session={session} />
+        <SessionTab key={session.session_id} sessionId={session.session_id} onOpen={open} full>
+          <section className={styles.block} aria-label="Laps">
+            <h2 className={styles.h2}>Every lap</h2>
+            <LapGaugeTable key={`laps-${session.session_id}`} sessionId={session.session_id} linkFor={openLink} />
+          </section>
+          <StintPanel key={`stint-${session.session_id}`} session={session} />
+        </SessionTab>
       </div>
     </div>
   );

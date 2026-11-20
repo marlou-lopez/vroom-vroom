@@ -45,7 +45,8 @@ export function TelemetryPage() {
   const [params] = useSearchParams();
   const sessionParam = params.get("session");
   // EXPERIMENTAL overhaul prototype (vroom-pnw.58): `?ui=one&scope=session` is the session scope.
-  if (oneUiEnabled(params) && params.get("scope") === "session") return <OneSessionView />;
+  // A session without traces (`?session=<id>`, no lap) opens there too, as its only place.
+  if (oneUiEnabled(params) && (params.get("scope") === "session" || (sessionParam && !params.get("lap")))) return <OneSessionView />;
   if (sessionParam && !params.get("lap")) return <TracelessSession key={sessionParam} sessionId={sessionParam} />;
   return (
     <PlaybackProvider>

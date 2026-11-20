@@ -11,7 +11,7 @@ import styles from "./IdealBreakdown.module.css";
  * The ideal lap segment by segment: the lap each best time came from and the time. A row opens that lap at that segment.
  * Whole rows are links, so they are reachable with Tab and open with Enter.
  */
-export function IdealBreakdown({ ideal }: { ideal: IdealLap }) {
+export function IdealBreakdown({ ideal, linkFor }: { ideal: IdealLap; linkFor?: (lapId: string, atM?: number) => { pathname: string; search: string } }) {
   const { search } = useLocation();
   return (
     <section aria-label="Best possible lap breakdown" className={cx(ui.panel, styles.panel)}>
@@ -22,7 +22,7 @@ export function IdealBreakdown({ ideal }: { ideal: IdealLap }) {
       <ol className={styles.list}>
         {ideal.segments.map((s, i) => (
           <li key={i}>
-            <Link to={lapLink(search, s.lap_id, s.start_m)} className={styles.row} aria-label={`${s.label}, ${s.best_s.toFixed(3)} seconds, lap ${s.lap_no}. Open`}>
+            <Link to={linkFor ? linkFor(s.lap_id, s.start_m) : lapLink(search, s.lap_id, s.start_m)} className={styles.row} aria-label={`${s.label}, ${s.best_s.toFixed(3)} seconds, lap ${s.lap_no}. Open`}>
               <span className={styles.label}>{s.label}</span>
               <span className={styles.lap}>L{s.lap_no}</span>
               <span className={styles.time}>{s.best_s.toFixed(3)}</span>
