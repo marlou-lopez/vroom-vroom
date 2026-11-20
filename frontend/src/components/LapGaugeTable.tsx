@@ -18,7 +18,7 @@ const timesOk = (g: Map<string, unknown>) => g.size > 0;
 /**
  * Every lap of one session, tagged flying, out, in or invalid; valid flying laps carry their gap to the ideal and to the best lap
  * and a segment strip, beside the ideal lap's breakdown (vroom-bi4.2). Any lap with a trace opens in Telemetry; a lap without one
- * is "stats only" and does not link (vroom-x19). "valid only" hides everything but valid flying laps, as the Telemetry lap rail does.
+ * is "stats only" and does not link (vroom-x19). "valid only" hides everything but valid flying laps.
  */
 export function LapGaugeTable({ sessionId, linkFor }: { sessionId: string; /** Where "Open" goes (default: the Telemetry page, keeping the current params). */ linkFor?: (lapId: string, atM?: number) => { pathname: string; search: string } }) {
   const { search } = useLocation();

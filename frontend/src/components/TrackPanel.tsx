@@ -1,5 +1,5 @@
 import * as ToggleGroup from "@radix-ui/react-toggle-group";
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import type { TrackGeometry, TrackMap } from "../api/types";
 import type { Annotation } from "../lib/annotations";
 import type { PlaybackModel } from "../lib/model";
@@ -28,15 +28,11 @@ export interface TrackPanelProps {
   lapValid?: boolean;
   /** Short name of the comparison ("ideal", "reference", "L7"), so the read-out says who you are ahead of or behind. */
   refName?: string | null;
-  /** Bottom strip of the panel (EngineerLine). */
-  footer?: ReactNode;
   expanded: boolean;
   onToggleExpanded(): void;
-  /** The one app's replay stage (vroom-pnw.63): no panel border. */
-  flat?: boolean;
 }
 
-export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, lapValid, refName, footer, expanded, onToggleExpanded, flat }: TrackPanelProps) {
+export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, lapValid, refName, expanded, onToggleExpanded }: TrackPanelProps) {
   const [viewId, setViewId] = useState<TrackViewId>(loadTrackView);
 
   const active = TRACK_VIEWS.find((v) => v.id === viewId) ?? TRACK_VIEWS[0];
@@ -62,7 +58,7 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
   }, []);
 
   return (
-    <section ref={panelRef} aria-label="Track playback" className={styles.panel} data-expanded={expanded} data-flat={flat || undefined}>
+    <section ref={panelRef} aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
       <ErrorBoundary label="track view" variant="panel" resetKeys={[model, active.id]}>
         <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} refName={refName ?? null} />
       </ErrorBoundary>
@@ -94,7 +90,6 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
         </button>
       </div>
       </div>
-      {footer && <div className={styles.footer}>{footer}</div>}
     </section>
   );
 }

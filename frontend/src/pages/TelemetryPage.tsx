@@ -2,37 +2,25 @@ import * as ToggleGroup from "@radix-ui/react-toggle-group";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { withParams } from "../lib/urlParams";
-import { AnalysisBar } from "../components/AnalysisBar";
 import { AnnotationCardProvider, type AnnotationCardActions } from "../components/AnnotationPopup";
 import { ScrubberBadges, ScrubberOffTrack, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
-import * as Tabs from "@radix-ui/react-tabs";
-import { loadInputsTab, saveInputsTab, type InputsTab } from "../lib/inputsTab";
-import { CornersTable } from "../components/CornersTable";
 import { DetailedStrips, StripMenu } from "../components/DetailedStrips";
-import { EngineerLine } from "../components/EngineerLine";
 import { SimplifiedWheels } from "../components/SimplifiedWheels";
 import { TrackPanel } from "../components/TrackPanel";
 import { Transport } from "../components/Transport";
 import { cornerRailRows } from "../lib/cornerRail";
-import { CornerRail } from "../components/workspace/CornerRail";
-import { LapRail } from "../components/workspace/LapRail";
 import { OneLapView, OneSessionView } from "../components/oneapp/OneApp";
 import oneStyles from "../components/oneapp/OneApp.module.css";
-import { oneUiEnabled } from "../lib/oneUi";
 import type { CoachState } from "../state/useCoach";
 import { lapStory, relabelByStory } from "../lib/lapStory";
-import { SessionTab, type OpenLap } from "../components/session/SessionTab";
-import { TracelessSession } from "../components/session/TracelessSession";
-import wsStyles from "../components/workspace/Workspace.module.css";
 import { leadInTime, toAnnotations, type Annotation } from "../lib/annotations";
-import { effectiveValid, type Corner, type ReportCategory } from "../api/types";
+import { effectiveValid, type Corner } from "../api/types";
 import { CORNER_LEAD_M } from "../lib/annotations";
-import { comparisonName, lapGap } from "../lib/compareName";
+import { comparisonName } from "../lib/compareName";
 import { timeAtDistance } from "../lib/playback";
 import { playbackKeyAction, stepTime } from "../lib/shortcuts";
 import { MIN_DELTA_S } from "../lib/cornerRail";
 import { buildModel } from "../lib/model";
-import { invalidHint } from "../lib/offTrack";
 import { PlaybackProvider, usePlayback, usePlaybackStore, type PlaybackView } from "../state/playback";
 import { useAnnotationPopup } from "../state/useAnnotationPopup";
 import { useCoach } from "../state/useCoach";
@@ -43,13 +31,11 @@ import ui from "../components/ui.module.css";
 const EMPTY_ANNOTATIONS: Annotation[] = [];
 
 export function TelemetryPage() {
-  // `?session=<id>` without a lap: a session recorded without traces, which has only its Session tab (vroom-bi4.12).
+  // `?session=<id>` without a lap: a session recorded without traces, which has only the Session view (vroom-bi4.12).
   const [params] = useSearchParams();
   const sessionParam = params.get("session");
-  // EXPERIMENTAL overhaul prototype (vroom-pnw.58): `?ui=one&scope=session` is the session scope.
-  // A session without traces (`?session=<id>`, no lap) opens there too, as its only place.
-  if (oneUiEnabled(params) && (params.get("scope") === "session" || (sessionParam && !params.get("lap")))) return <OneSessionView />;
-  if (sessionParam && !params.get("lap")) return <TracelessSession key={sessionParam} sessionId={sessionParam} />;
+  // `?scope=session` is the Session view. A session recorded without traces (`?session=<id>`, no lap) opens there too, as its only place.
+  if (params.get("scope") === "session" || (sessionParam && !params.get("lap"))) return <OneSessionView />;
   return (
     <PlaybackProvider>
       <Telemetry />
@@ -69,14 +55,6 @@ function Telemetry() {
   const store = usePlaybackStore();
   const view = usePlayback((s) => s.view);
   const [expanded, setExpanded] = useState(false);
-  const [keptCtx, setKeptCtx] = useState<typeof ctx>(null);
-  if (ctx && ctx !== keptCtx) setKeptCtx(ctx);
-  // Like the lap rail, the corner rail stays mounted (filter and scroll survive) while the next comparison loads.
-  const [keptCmp, setKeptCmp] = useState<typeof cmp>(null);
-  if (cmp && cmp !== keptCmp) setKeptCmp(cmp);
-  const [sessionCats, setSessionCats] = useState<ReadonlySet<ReportCategory>>(new Set());
-  const [tab, setTabState] = useState<InputsTab>(() => loadInputsTab());
-  const setTab = (t: InputsTab) => { setTabState(t); saveInputsTab(t); };
 
   // Escape collapses the expanded map, unless something else (an open popup) already handled it.
   useEffect(() => {
@@ -95,7 +73,7 @@ function Telemetry() {
 
   const model = useMemo(() => (cmp ? buildModel(cmp) : null), [cmp]);
   const keptOne = useRef<{ ctx: NonNullable<typeof ctx>; cmp: NonNullable<typeof cmp>; model: NonNullable<typeof model>; coach: CoachState } | null>(null);
-  // The one app (?ui=one) keeps its scope line, story and map mounted while the next comparison loads (vroom-pnw.60).
+  // The scope line, story and map stay mounted while the next comparison loads (vroom-pnw.60).
 
   useEffect(() => {
     if (!model) return;
@@ -119,18 +97,17 @@ function Telemetry() {
   // Coach results for this lap and comparison; Analyze and Average together form one annotation set.
   const coach = useCoach(ctx?.lap.lap_id ?? null, cmp?.ref_lap_id ?? null);
   const popup = useAnnotationPopup();
-  // All findings, kept whether or not the notes are shown: the Analysis bar counts these.
+  // All findings, kept whether or not the notes are shown.
   const allAnnotations = useMemo<Annotation[]>(
     () => (cmp && trackMap ? toAnnotations(coach.results, cmp, trackMap) : []),
     [cmp, trackMap, coach.results],
   );
-  // The one app numbers the map's issues by the story's ranking (biggest loss first), so the map and the cards agree.
-  const oneUi = oneUiEnabled(params);
+  // The map's issues are numbered by the story's ranking (biggest loss first), so the map and the cards agree.
   const storyLosses = useMemo(
-    () => (oneUi && cmp && trackMap ? lapStory(cmp, trackMap.corners, {}, "").losses : []),
-    [oneUi, cmp, trackMap],
+    () => (cmp && trackMap ? lapStory(cmp, trackMap.corners, {}, "").losses : []),
+    [cmp, trackMap],
   );
-  const mapAnnotations = useMemo(() => (oneUi ? relabelByStory(allAnnotations, storyLosses) : allAnnotations), [oneUi, allAnnotations, storyLosses]);
+  const mapAnnotations = useMemo(() => relabelByStory(allAnnotations, storyLosses), [allAnnotations, storyLosses]);
   // What the map, strips and scrubber draw: nothing while notes are hidden.
   const annotations = useMemo<Annotation[]>(
     () => (coach.showNotes ? mapAnnotations : EMPTY_ANNOTATIONS),
@@ -222,26 +199,8 @@ function Telemetry() {
   const lapTimes = useMemo(() => (cmp ? { lap: lapTime, ref: refTime } : undefined), [cmp, lapTime, refTime]);
 
   const selectLap = (id: string) => setParams((p) => withParams(p, { lap: id, ref: null, at: null }));
-  // From the Session tab: open a lap against the session's best lap, and move the playhead when an event has a distance.
-  const openFromSession = useCallback(
-    (t: OpenLap) => {
-      seekedAt.current = null;
-      setParams((p) => withParams(p, { lap: t.lapId, ref: t.refLapId, at: t.distanceM === null ? null : String(Math.round(t.distanceM)) }));
-      // Already on that lap and reference: the URL effect does not run again, so seek here.
-      if (model && t.distanceM !== null && model.cmp.lap_id === t.lapId && (t.refLapId === null || model.cmp.ref_lap_id === t.refLapId)) {
-        store.pause();
-        store.seek(timeAtDistance(model.cmp.lap.t, model.cmp.distance, t.distanceM - CORNER_LEAD_M));
-      }
-    },
-    [model, setParams, store],
-  );
   const selectRef = (id: string | null) => setParams((p) => withParams(p, { lap: ctx!.lap.lap_id, ref: id, at: null }));
 
-  // Whether the lap counts as valid (the manual override wins); decides whether its wheels-off marks are red or grey.
-  const lapValid = ctx ? effectiveValid(ctx.lap) : true;
-  const offTrackHint = useMemo(() => (cmp && !lapValid ? invalidHint(cmp.lap, trackMap) : null), [cmp, trackMap, lapValid]);
-  const ideal = candidates.find((c) => c.is_ideal) ?? null;
-  const refCand = candidates.find((c) => c.lap_id === cmp?.ref_lap_id) ?? null;
   const priorityCorners = useMemo(
     () => {
       const top = cmp && trackMap
@@ -251,6 +210,7 @@ function Telemetry() {
     },
     [annotations, cmp, trackMap],
   );
+  const refCand = candidates.find((c) => c.lap_id === cmp?.ref_lap_id) ?? null;
   const youName = ctx ? `You · L${ctx.lap.lap_no}` : "You";
   const refShort = comparisonName(refCand, ctx?.laps ?? []);
   const refName = refCand ? `Compared with · ${refCand.is_reference ? "★" : ""}${refCand.label}` : "Compared with";
@@ -260,162 +220,69 @@ function Telemetry() {
     { id: "simplified", label: "Wheel & pedals" },
   ];
 
-  // EXPERIMENTAL overhaul prototype (vroom-pnw.58, ?ui=one): the lap scope, with no lap rail or corner rail.
-  if (oneUi) {
-    const viewSwitch = (
-      <ToggleGroup.Root type="single" aria-label="Input view" className={styles.viewToggle} value={view} onValueChange={(v) => v && store.setView(v as PlaybackView)}>
-        {views.map((v) => <ToggleGroup.Item key={v.id} value={v.id} className={ui.toggleItem}>{v.label}</ToggleGroup.Item>)}
-      </ToggleGroup.Root>
-    );
-    // Lap, comparison, model and coach are kept as one set, so while the next comparison loads the story never mixes two laps.
-    const live = ctx && cmp && model ? { ctx, cmp, model, coach } : null;
-    const shown = live ?? keptOne.current;
-    if (live) keptOne.current = live;
-    if (error || !shown) return <Message>{error ? `${error.code}: ${error.message}` : "Loading…"}</Message>;
-    const { ctx: sCtx, cmp: sCmp, model: sModel, coach: sCoach } = shown;
-    const loading = !live;
-    const sValid = effectiveValid(sCtx.lap);
-    return (
-      <AnnotationCardProvider value={cardActions}>
-        <OneLapView
-          session={sCtx.session} laps={sCtx.laps} lap={sCtx.lap} cmp={sCmp} trackMap={trackMap} candidates={candidates} coach={sCoach} loading={loading}
-          onSelectLap={selectLap} onSelectRef={selectRef} onSeek={seekToCorner}
-          onReplay={(c) => { seekToCorner(c); store.play(); }}
-          stage={
-            <div className={oneStyles.stageGrid} data-expanded={expanded || undefined}>
-              <TrackPanel
-                model={sModel} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers}
-                lapTimes={lapTimes} lapValid={sValid} refName={refShort}
-                expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)} flat
-              />
-              {!expanded && (
-                <section aria-label="Inputs" className={oneStyles.strips}>
-                  {view === "simplified" ? (
-                    <>
-                      <div className={oneStyles.wheelsBar}><StripMenu viewControl={viewSwitch} /></div>
-                      <SimplifiedWheels model={sModel} youName={youName} refName={refName} />
-                    </>
-                  ) : (
-                    <DetailedStrips model={sModel} geometry={geometry} annotations={annotations} handlers={handlers} focusCorner={focusCorner} lapValid={sValid} youName={youName} refName={refName} stage={{ viewControl: viewSwitch }} />
-                  )}
-                </section>
-              )}
-            </div>
-          }
-          transport={
-            <Transport
-              compact model={sModel} trackMap={trackMap} refName={refShort ?? undefined} priorityCornerIds={priorityCorners}
-              scrubberLayer={<><ScrubberOffTrack model={sModel} valid={sValid} /><ScrubberSections annotations={annotations} duration={sModel.duration} /></>}
-              scrubberBadges={<ScrubberBadges annotations={annotations} duration={sModel.duration} h={handlers} />}
-            />
-          }
-        />
-      </AnnotationCardProvider>
+  const viewSwitch = (
+    <ToggleGroup.Root type="single" aria-label="Input view" className={styles.viewToggle} value={view} onValueChange={(v) => v && store.setView(v as PlaybackView)}>
+      {views.map((v) => <ToggleGroup.Item key={v.id} value={v.id} className={ui.toggleItem}>{v.label}</ToggleGroup.Item>)}
+    </ToggleGroup.Root>
+  );
+  // Lap, comparison, model and coach are kept as one set, so while the next comparison loads the story never mixes two laps.
+  const live = ctx && cmp && model ? { ctx, cmp, model, coach } : null;
+  const shown = live ?? keptOne.current;
+  if (live) keptOne.current = live;
+  if (error && !live) {
+    return error.code === "unknown_lap" ? (
+      <Message>
+        <div className={styles.missing}>
+          <p>That lap no longer exists</p>
+          <div className={styles.actions}>
+            <Link to="/" className={ui.btn}>Open latest lap</Link>
+            <Link to="/sessions" className={ui.btn}>Sessions</Link>
+          </div>
+        </div>
+      </Message>
+    ) : (
+      <Message>{error.code}: {error.message}</Message>
     );
   }
-
+  if (!shown) return <Message>Loading…</Message>;
+  const { ctx: sCtx, cmp: sCmp, model: sModel, coach: sCoach } = shown;
+  const loading = !live;
+  const sValid = effectiveValid(sCtx.lap);
   return (
     <AnnotationCardProvider value={cardActions}>
-      {ctx && (
-        <AnalysisBar
-          coach={coach} annotations={allAnnotations} disabled={coach.running !== null}
-          totalDelta={cmp ? lapGap(lapTime, refTime, cmp.delta[cmp.delta.length - 1] ?? null) : null}
-          refName={refShort}
-        />
-      )}
-      {(() => {
-        const body = error && !model ? (
-          error.code === "unknown_lap" ? (
-            <Message>
-              <div className={styles.missing}>
-                <p>That lap no longer exists</p>
-                <div className={styles.actions}>
-                  <Link to="/" className={ui.btn}>Open latest lap</Link>
-                  <Link to="/sessions" className={ui.btn}>Sessions</Link>
-                </div>
-              </div>
-            </Message>
-          ) : (
-            <Message>{error.code}: {error.message}</Message>
-          )
-        ) : !model ? (
-          <Message>Loading…</Message>
-        ) : (
-          <>
-            {cmp?.warning && <div className={styles.warning}>{cmp.warning}</div>}
-            {cmp && cmp.lap_id === cmp.ref_lap_id && (
-              <div className={styles.warning} role="note">
-                This lap is the one you are comparing with, so every time gap is zero.
-                {ideal && <> <button type="button" className={ui.btn} onClick={() => selectRef(ideal.lap_id)}>Compare with the best possible lap</button></>}
-              </div>
-            )}
-            <div className={styles.grid} data-expanded={expanded || undefined}>
-              <TrackPanel
-                model={model} trackMap={trackMap} geometry={geometry}
-                annotations={annotations} handlers={handlers}
-                lapTimes={lapTimes} lapValid={lapValid}
-                refName={refShort}
-                expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
-                footer={<EngineerLine annotations={annotations} trackMap={trackMap} model={model} />}
-              />
-              {!expanded && (
-              <section aria-label="Inputs" className={styles.inputs}>
-                <Tabs.Root value={tab} onValueChange={(v) => setTab(v as InputsTab)} className={styles.tabs}>
-                <div className={styles.viewBar}>
-                  <Tabs.List aria-label="Inputs" className={styles.tabList}>
-                    <Tabs.Trigger value="strips" className={styles.tabTrigger}>Strips</Tabs.Trigger>
-                    <Tabs.Trigger value="corners" className={styles.tabTrigger}>Corners</Tabs.Trigger>
-                    <Tabs.Trigger value="session" className={styles.tabTrigger}>Session</Tabs.Trigger>
-                  </Tabs.List>
-                  {tab === "strips" && (
-                    <ToggleGroup.Root
-                      type="single" aria-label="Input view" className={styles.viewToggle}
-                      value={view} onValueChange={(v) => v && store.setView(v as PlaybackView)}
-                    >
-                      {views.map((v) => (
-                        <ToggleGroup.Item key={v.id} value={v.id} className={ui.toggleItem}>{v.label}</ToggleGroup.Item>
-                      ))}
-                    </ToggleGroup.Root>
-                  )}
-                </div>
-                <Tabs.Content value={tab} className={styles.tabContent}>
-                {tab === "session" ? (
-                  ctx && <SessionTab sessionId={ctx.session.session_id} onOpen={openFromSession} filter={{ value: sessionCats, set: setSessionCats }} />
-                ) : tab === "corners" ? (
-                  <CornersTable corners={model.cmp.corners} trackMap={trackMap} onSeek={seekToCorner} refName={refShort} />
-                ) : view === "detailed" ? <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} focusCorner={focusCorner} lapValid={lapValid} youName={youName} refName={refName} /> : <SimplifiedWheels model={model} youName={youName} refName={refName} />}
-                </Tabs.Content>
-                </Tabs.Root>
-              </section>
-              )}
-            </div>
-          </>
-        );
-        // The rail stays mounted while the next lap loads (its focus and scroll survive), so it shows the last loaded lap meanwhile.
-        const railCtx = ctx ?? (error ? null : keptCtx);
-        if (!railCtx) return body;
-        return (
-          <div className={wsStyles.layout}>
-            <LapRail
-              session={railCtx.session} laps={railCtx.laps} lap={railCtx.lap} refLapId={cmp?.ref_lap_id ?? null}
-              candidates={candidates} warning={cmp?.warning ?? null} invalidHint={offTrackHint}
-              onSelectLap={selectLap} onSelectRef={selectRef}
-              onOpenSession={(id) => setParams((p) => withParams(p, { session: id, lap: null, ref: null, at: null }))}
+      <OneLapView
+        session={sCtx.session} laps={sCtx.laps} lap={sCtx.lap} cmp={sCmp} trackMap={trackMap} candidates={candidates} coach={sCoach} loading={loading}
+        onSelectLap={selectLap} onSelectRef={selectRef} onSeek={seekToCorner}
+        onReplay={(c) => { seekToCorner(c); store.play(); }}
+        stage={
+          <div className={oneStyles.stageGrid} data-expanded={expanded || undefined}>
+            <TrackPanel
+              model={sModel} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers}
+              lapTimes={lapTimes} lapValid={sValid} refName={refShort}
+              expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
             />
-            <div className={wsStyles.center}>{body}</div>
-            {(cmp ?? keptCmp) && (
-              <CornerRail cmp={(cmp ?? keptCmp)!} trackMap={trackMap} annotations={annotations} deepDives={deepDives} onSeek={seekToCornerStart} />
+            {!expanded && (
+              <section aria-label="Inputs" className={oneStyles.strips}>
+                {view === "simplified" ? (
+                  <>
+                    <div className={oneStyles.wheelsBar}><StripMenu viewControl={viewSwitch} /></div>
+                    <SimplifiedWheels model={sModel} youName={youName} refName={refName} />
+                  </>
+                ) : (
+                  <DetailedStrips model={sModel} geometry={geometry} annotations={annotations} handlers={handlers} focusCorner={focusCorner} lapValid={sValid} youName={youName} refName={refName} stage={{ viewControl: viewSwitch }} />
+                )}
+              </section>
             )}
           </div>
-        );
-      })()}
-      {model && (
-        <Transport
-          model={model} trackMap={trackMap} refName={refShort ?? undefined} priorityCornerIds={priorityCorners}
-          scrubberLayer={<><ScrubberOffTrack model={model} valid={lapValid} /><ScrubberSections annotations={annotations} duration={model.duration} /></>}
-          scrubberBadges={<ScrubberBadges annotations={annotations} duration={model.duration} h={handlers} />}
-        />
-      )}
+        }
+        transport={
+          <Transport
+            compact model={sModel} trackMap={trackMap} refName={refShort ?? undefined} priorityCornerIds={priorityCorners}
+            scrubberLayer={<><ScrubberOffTrack model={sModel} valid={sValid} /><ScrubberSections annotations={annotations} duration={sModel.duration} /></>}
+            scrubberBadges={<ScrubberBadges annotations={annotations} duration={sModel.duration} h={handlers} />}
+          />
+        }
+      />
     </AnnotationCardProvider>
   );
 }

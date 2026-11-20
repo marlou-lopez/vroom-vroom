@@ -1,11 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { HttpResponse, http } from "msw";
-import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { SessionMeta, SessionReport } from "../../api/types";
 import { createTestClient, setupMockServer } from "../../test/mockServer";
-import { TracelessSession } from "./TracelessSession";
 import { SessionTab } from "./SessionTab";
 
 const { server, engine } = setupMockServer({ allSessions: true });
@@ -154,19 +152,5 @@ describe("Session tab", () => {
     answer({ ...base, laps: [], events: [] });
     renderTab(race.session_id);
     await screen.findByText("This session has no laps to report on.");
-  });
-});
-
-describe("Session without traces on the Telemetry page", () => {
-  it("shows the Session tab alone for ?session=", async () => {
-    const monza = await sessionOn("2026-11-09");
-    render(
-      <QueryClientProvider client={createTestClient()}>
-        <MemoryRouter initialEntries={[`/?session=${monza.session_id}`]}><TracelessSession sessionId={monza.session_id} /></MemoryRouter>
-      </QueryClientProvider>,
-    );
-    await screen.findByText(/recorded without lap traces/);
-    await screen.findByLabelText("Lap times across the session");
-    await waitFor(() => expect(screen.getByRole("combobox", { name: "Session" })).toBeTruthy());
   });
 });

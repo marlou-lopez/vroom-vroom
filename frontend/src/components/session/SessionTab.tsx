@@ -17,22 +17,18 @@ const SEVERITY_TEXT: Record<ReportSeverity, string> = { info: "for your informat
 /** What the page needs to open a lap: the reference is the session's best lap (null when the lap is that lap), `distanceM` moves the playhead. */
 export interface OpenLap { lapId: string; refLapId: string | null; distanceM: number | null }
 
-export interface CategoryFilter { value: ReadonlySet<ReportCategory>; set(next: ReadonlySet<ReportCategory>): void }
-
-/** `filter` lets the page keep the category filter while the tab is unmounted (it is, whilst the next lap loads). */
 /** In the full-width Session view (`full`, vroom-pnw.62) the events show their first few and fold the rest. */
 export const EVENTS_SHOWN = 5;
 
 export interface SessionTabProps {
   sessionId: string;
   onOpen(target: OpenLap): void;
-  filter?: CategoryFilter;
-  /** The full-width Session view of the one-app prototype: lap chart, events (folded past 5), tyre and brake charts, then `children`; "Not judged" is one line. */
+  /** The full-width Session view: lap chart, events (folded past 5), tyre and brake charts, then `children`; "Not judged" is one line. */
   full?: boolean;
   children?: ReactNode;
 }
 
-export function SessionTab({ sessionId, onOpen, filter, full, children }: SessionTabProps) {
+export function SessionTab({ sessionId, onOpen, full, children }: SessionTabProps) {
   const q = useSessionReport(sessionId);
   if (q.isPending) return <div className={styles.state} role="status">Loading the session report…</div>;
   if (q.error) {
@@ -43,14 +39,12 @@ export function SessionTab({ sessionId, onOpen, filter, full, children }: Sessio
       </div>
     );
   }
-  return <ReportBody key={sessionId} report={q.data} onOpen={onOpen} filter={filter} full={full}>{children}</ReportBody>;
+  return <ReportBody key={sessionId} report={q.data} onOpen={onOpen} full={full}>{children}</ReportBody>;
 }
 
-function ReportBody({ report, onOpen, filter, full, children }: { report: SessionReport; onOpen(target: OpenLap): void; filter?: CategoryFilter; full?: boolean; children?: ReactNode }) {
+function ReportBody({ report, onOpen, full, children }: { report: SessionReport; onOpen(target: OpenLap): void; full?: boolean; children?: ReactNode }) {
   const [showAllEvents, setShowAllEvents] = useState(false);
-  const [own, setOwn] = useState<ReadonlySet<ReportCategory>>(new Set());
-  const categories = filter?.value ?? own;
-  const setCategories = filter?.set ?? setOwn;
+  const [categories, setCategories] = useState<ReadonlySet<ReportCategory>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
   const best = useMemo(() => sessionBestLap(report.laps), [report.laps]);
   const counts = useMemo(() => categoryCounts(report.events), [report.events]);

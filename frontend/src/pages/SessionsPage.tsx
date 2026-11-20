@@ -1,15 +1,13 @@
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { Link, useLocation } from "react-router-dom";
-import { lapLink } from "../lib/urlParams";
+import { lapLink, sessionLink } from "../lib/urlParams";
 import { sessionLapsOptions, sessionSummaryOptions, useSessions } from "../api/queries";
 import type { SessionMeta, SessionSummary } from "../api/types";
 import { formatDelta, formatLapTime, formatShortDate } from "../lib/format";
 import { bestValidLap } from "../lib/laps";
 import { comboKey, focusOutcome, groupCombos, headline, trendPaths, type FocusTone } from "../lib/sessions";
 import { cx } from "../lib/cx";
-import { LapGaugeTable } from "../components/LapGaugeTable";
-import { StintPanel } from "../components/StintPanel";
 import ui from "../components/ui.module.css";
 import styles from "./SessionsPage.module.css";
 
@@ -37,7 +35,6 @@ export function SessionsPage() {
   const sessionsQ = useSessions();
   const sessions = sessionsQ.data ?? null;
   const [selected, setSelected] = useState<string | null>(null);
-  const [pickedSession, setPickedSession] = useState<string | null>(null);
 
   const combos = useMemo(() => groupCombos(sessions ?? []), [sessions]);
   const comboKeyNow = selected && combos.some((c) => c.key === selected) ? selected : (combos[0]?.key ?? null);
@@ -61,9 +58,6 @@ export function SessionsPage() {
   if (!sessions) return <div className={styles.status}>Loading…</div>;
   if (combos.length === 0) return <div className={styles.status}>No sessions yet. Import a recording first.</div>;
 
-  // The selected session: the picked one if it is in this combo, else the newest that has traces, else the newest.
-  const shownRow = (rows ?? []).find((r) => r.session.session_id === pickedSession) ?? [...(rows ?? [])].reverse().find((r) => r.hasTraces) ?? rows?.[rows.length - 1];
-  const shownId = shownRow?.session.session_id ?? null;
   const combo = combos.find((c) => c.key === comboKeyNow)!;
   const bests = (rows ?? []).map((r) => r.summary.best_lap_s).filter((v): v is number => v !== null);
   const pb = bests.length ? Math.min(...bests) : null;
@@ -164,17 +158,16 @@ export function SessionsPage() {
             </thead>
             <tbody>
               {[...rows].reverse().map(({ session, summary, bestLapId, hasTraces }) => {
-                const isSel = session.session_id === shownId;
                 const best = summary.best_lap_s;
                 const out = summary.focus ? focusOutcome(summary.focus.improved) : null;
                 return (
-                  <tr key={session.session_id} className={isSel ? styles.selected : undefined} onClick={() => setPickedSession(session.session_id)}>
+                  <tr key={session.session_id}>
                     <td className={styles.date}>
-                      <button type="button" aria-pressed={isSel} className={styles.rowButton} onClick={(e) => { e.stopPropagation(); setPickedSession(session.session_id); }}>
+                      <Link to={sessionLink(search, session.session_id)} className={styles.rowButton} title="Open the session">
                         {formatShortDate(session.started_at)}
-                      </button>
+                      </Link>
                     </td>
-                    <td>{session.session_type}{!hasTraces && <span className={styles.statsOnly} title="Recorded without lap traces: only the stint stats are available"> numbers only, no replay</span>}</td>
+                    <td>{session.session_type}{!hasTraces && <span className={styles.statsOnly} title="Recorded without lap traces: only the session numbers are available"> numbers only, no replay</span>}</td>
                     <td className={styles.num}>{summary.n_laps} ({summary.n_valid})</td>
                     <td className={cx(styles.num, best !== null && best === pb && styles.pbCell)}>{formatLapTime(best)}</td>
                     <td className={cx(styles.num, styles.dim)}>{best === null || pb === null ? "—" : best === pb ? "PB" : `+${(best - pb).toFixed(3)}`}</td>
@@ -185,7 +178,7 @@ export function SessionsPage() {
                     </td>
                     <td className={styles.open}>
                       {bestLapId ? (
-                        <Link to={lapLink(search, bestLapId)} className={styles.openLink} onClick={(e) => e.stopPropagation()}>Open →</Link>
+                        <Link to={lapLink(search, bestLapId)} className={styles.openLink}>Open →</Link>
                       ) : (
                         <span className={styles.dim} title="No lap with a trace to open">—</span>
                       )}
@@ -197,18 +190,6 @@ export function SessionsPage() {
           </table>
         )}
       </section>
-
-      {shownRow && (
-        <>
-          <div className={ui.heading}>
-            SELECTED SESSION · {formatShortDate(shownRow.session.started_at)} · {shownRow.session.session_type}
-          </div>
-          {/* Every lap is listed; laps without a trace are tagged "stats only" and do not link. */}
-          <LapGaugeTable key={`laps-${shownRow.session.session_id}`} sessionId={shownRow.session.session_id} />
-          {/* Per-lap stint stats of the selected session (the panel renders nothing without). */}
-          <StintPanel key={`stint-${shownRow.session.session_id}`} session={shownRow.session} />
-        </>
-      )}
     </div>
   );
 }

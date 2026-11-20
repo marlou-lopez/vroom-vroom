@@ -75,7 +75,7 @@ export interface ShortcutGroup {
   rows: { keys: string[]; what: string }[];
 }
 
-/** What the "?" popover lists. Keep in step with `playbackKeyAction`, the strips, the lap rail and the scrubber. */
+/** What the "?" popover lists. Keep in step with `playbackKeyAction`, the strips, the lap stepping and the scrubber. */
 export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: "Playback (anywhere on the page)",
@@ -115,10 +115,9 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     ],
   },
   {
-    title: "Lap list (when focused)",
+    title: "Laps",
     rows: [
-      { keys: ["↑", "↓"], what: "Move between laps" },
-      { keys: ["R"], what: "Use the lap as the comparison" },
+      { keys: ["↑", "↓"], what: "Step to the previous or next timed lap" },
     ],
   },
 ];

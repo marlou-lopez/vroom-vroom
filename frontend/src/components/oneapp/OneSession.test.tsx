@@ -53,9 +53,9 @@ function renderAt(url: string) {
 
 beforeEach(() => localStorage.clear());
 
-describe("one-app Session view (?ui=one&scope=session)", () => {
+describe("one-app Session view (?scope=session)", () => {
   it("lays the session view out in the decided order, with events folded past five and a lap table that opens the lap", async () => {
-    renderAt("/?ui=one&scope=session");
+    renderAt("/?scope=session");
     const chart = await screen.findByRole("figure", { name: "Lap times across the session" }, { timeout: 5000 });
     const events = await screen.findByRole("region", { name: "Events" });
     const tyres = await screen.findByRole("figure", { name: "Tyre surface temperature per lap" });
@@ -75,11 +75,10 @@ describe("one-app Session view (?ui=one&scope=session)", () => {
     await userEvent.click(within(laps).getAllByRole("link", { name: /^Open lap/ })[0]);
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     expect(loc.search).not.toMatch(/scope=/);
-    expect(loc.search).toMatch(/ui=one/);
   });
 
   it("opens a session without traces in the session view, with no way to replay it", async () => {
-    renderAt("/?ui=one&scope=session");
+    renderAt("/?scope=session");
     const pick = await screen.findByRole("combobox", { name: "Session" }, { timeout: 5000 });
     const monza = Array.from((pick as HTMLSelectElement).options).find((o) => /Monza/.test(o.textContent ?? "") && /Race/.test(o.textContent ?? ""));
     expect(monza, Array.from((pick as HTMLSelectElement).options).map((o) => o.textContent).join("|")).toBeTruthy();
@@ -90,7 +89,7 @@ describe("one-app Session view (?ui=one&scope=session)", () => {
 
   it("opens ?session=<id> without a lap in the session view, for a session without traces", async () => {
     const monza = (await engine().sessions()).find((x) => x.started_at.startsWith("2026-11-09"))!;
-    renderAt(`/?ui=one&session=${monza.session_id}`);
+    renderAt(`/?session=${monza.session_id}`);
     await screen.findByText(/Playback is not available/, undefined, { timeout: 5000 });
     expect(screen.queryByRole("complementary", { name: "Where the time goes" })).toBeNull();
     expect(screen.queryByText(/Click a lap in the chart/)).toBeNull();

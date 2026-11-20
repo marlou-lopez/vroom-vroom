@@ -13,3 +13,9 @@ export function lapLink(search: string, lapId: string, atM?: number): { pathname
   const next = withParams(new URLSearchParams(search), { lap: lapId, ref: null, at: atM === undefined ? null : String(Math.round(atM)) });
   return { pathname: "/", search: `?${next.toString()}` };
 }
+
+/** A link to a session's Session view: the lap-specific params belong to the lap you were on. */
+export function sessionLink(search: string, sessionId: string): { pathname: string; search: string } {
+  const next = withParams(new URLSearchParams(search), { session: sessionId, scope: "session", lap: null, ref: null, at: null });
+  return { pathname: "/", search: `?${next.toString()}` };
+}

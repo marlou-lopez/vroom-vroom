@@ -35,7 +35,7 @@ async function open() {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await screen.findByRole("button", { name: /Analyze lap/ });
+  await screen.findByRole("button", { name: "Ask the coach" });
   await screen.findByRole("slider", { name: "Lap position" });
   // The URL gets its ?lap after the first load and the page reloads the comparison: let it settle.
   await new Promise((r) => setTimeout(r, 300));
@@ -87,13 +87,13 @@ describe("page-wide playback keys", () => {
 });
 
 describe("shortcuts popover", () => {
-  it("opens from the button and from ?, listing the rail keys", async () => {
+  it("opens from the button and from ?, listing the lap keys", async () => {
     await open();
     fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
     const panel = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
-    expect(within(panel).getByText("Use the lap as the comparison")).toBeTruthy();
+    expect(within(panel).getByText("Step to the previous or next timed lap")).toBeTruthy();
     expect(within(panel).getAllByText("Play or pause").length).toBeGreaterThan(0);
-    fireEvent.keyDown(within(panel).getByText("Move between laps"), { key: "?" });
+    fireEvent.keyDown(within(panel).getAllByText("Play or pause")[0], { key: "?" });
     expect(screen.queryByRole("dialog", { name: "Keyboard shortcuts" })).toBeNull();
     fireEvent.keyDown(document.body, { key: "?" });
     expect(await screen.findByRole("dialog", { name: "Keyboard shortcuts" })).toBeTruthy();
