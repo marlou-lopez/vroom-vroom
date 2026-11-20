@@ -10,6 +10,7 @@ import { readoutCorner } from "../lib/trackmap";
 import { distanceAtTime, timeAtDistance } from "../lib/playback";
 import { RATES, usePlayback, usePlaybackStore, type Rate } from "../state/playback";
 import { cx } from "../lib/cx";
+import * as Popover from "@radix-ui/react-popover";
 import { ShortcutsPopover } from "./ShortcutsPopover";
 import styles from "./Transport.module.css";
 import ui from "./ui.module.css";
@@ -27,13 +28,15 @@ export interface TransportProps {
   refName?: string;
   /** Corners that have a finding or are among the biggest losses: their labels are never dropped. */
   priorityCornerIds?: ReadonlySet<string>;
+  /** The one app (vroom-pnw.63): playback speeds sit in a menu on the Play button, and the bar has no top rule. */
+  compact?: boolean;
 }
 
 /** Slider resolution, and the PageUp/PageDown jump. */
 const SEEK_STEP_S = 0.05;
 const PAGE_SEEK_S = 5;
 
-export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refName, priorityCornerIds }: TransportProps) {
+export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refName, priorityCornerIds, compact }: TransportProps) {
   const store = usePlaybackStore();
   const tau = usePlayback((s) => s.tau);
   const playing = usePlayback((s) => s.playing);
@@ -86,13 +89,31 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refN
   };
 
   return (
-    <div className={styles.transport}>
+    <div className={styles.transport} data-compact={compact || undefined}>
       <div className={styles.controls}>
         <button type="button" aria-label="Back 5 seconds" className={ui.btn} onClick={() => store.seekBy(-5)}>−5s</button>
         <button type="button" onClick={() => store.toggle()} className={cx(ui.btnPrimary, styles.play)}>
           {playing ? "Pause" : "Play"}
         </button>
         <button type="button" aria-label="Forward 5 seconds" className={ui.btn} onClick={() => store.seekBy(5)}>+5s</button>
+        {compact ? (
+          <Popover.Root>
+            <Popover.Trigger className={cx(ui.btn, styles.rateButton)} aria-label={`Playback speed: ${rate}×`} title="Playback speed">{rate}× ▾</Popover.Trigger>
+            <Popover.Portal>
+              <Popover.Content className={styles.rateMenu} side="top" align="start" sideOffset={4} collisionPadding={8} aria-label="Playback speed">
+                <ToggleGroup.Root
+                  type="single" aria-label="Playback speed" className={styles.speeds}
+                  value={String(rate)}
+                  onValueChange={(v) => v && store.setRate(Number(v) as Rate)}
+                >
+                  {RATES.map((r) => (
+                    <ToggleGroup.Item key={r} value={String(r)} className={cx(ui.toggleItem, styles.speed)}>{r}×</ToggleGroup.Item>
+                  ))}
+                </ToggleGroup.Root>
+              </Popover.Content>
+            </Popover.Portal>
+          </Popover.Root>
+        ) : (
         <ToggleGroup.Root
           type="single" aria-label="Playback speed" className={styles.speeds}
           value={String(rate)}
@@ -102,6 +123,7 @@ export function Transport({ model, trackMap, scrubberLayer, scrubberBadges, refN
             <ToggleGroup.Item key={r} value={String(r)} className={cx(ui.toggleItem, styles.speed)}>{r}×</ToggleGroup.Item>
           ))}
         </ToggleGroup.Root>
+        )}
         <div className={styles.spacer} />
         <div className={styles.clock}>
           <span data-testid="transport-distance" title="Distance along the lap">{formatDistance(dNow)}</span>

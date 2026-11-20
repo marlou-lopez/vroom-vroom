@@ -8,7 +8,7 @@ import { ScrubberBadges, ScrubberOffTrack, ScrubberSections, type BadgeHandlers 
 import * as Tabs from "@radix-ui/react-tabs";
 import { loadInputsTab, saveInputsTab, type InputsTab } from "../lib/inputsTab";
 import { CornersTable } from "../components/CornersTable";
-import { DetailedStrips } from "../components/DetailedStrips";
+import { DetailedStrips, StripMenu } from "../components/DetailedStrips";
 import { EngineerLine } from "../components/EngineerLine";
 import { SimplifiedWheels } from "../components/SimplifiedWheels";
 import { TrackPanel } from "../components/TrackPanel";
@@ -262,6 +262,11 @@ function Telemetry() {
 
   // EXPERIMENTAL overhaul prototype (vroom-pnw.58, ?ui=one): the lap scope, with no lap rail or corner rail.
   if (oneUi) {
+    const viewSwitch = (
+      <ToggleGroup.Root type="single" aria-label="Input view" className={styles.viewToggle} value={view} onValueChange={(v) => v && store.setView(v as PlaybackView)}>
+        {views.map((v) => <ToggleGroup.Item key={v.id} value={v.id} className={ui.toggleItem}>{v.label}</ToggleGroup.Item>)}
+      </ToggleGroup.Root>
+    );
     // Lap, comparison, model and coach are kept as one set, so while the next comparison loads the story never mixes two laps.
     const live = ctx && cmp && model ? { ctx, cmp, model, coach } : null;
     const shown = live ?? keptOne.current;
@@ -277,20 +282,29 @@ function Telemetry() {
           onSelectLap={selectLap} onSelectRef={selectRef} onSeek={seekToCorner}
           onReplay={(c) => { seekToCorner(c); store.play(); }}
           stage={
-            <div className={oneStyles.stageGrid}>
+            <div className={oneStyles.stageGrid} data-expanded={expanded || undefined}>
               <TrackPanel
                 model={sModel} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers}
                 lapTimes={lapTimes} lapValid={sValid} refName={refShort}
-                expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
+                expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)} flat
               />
-              <section aria-label="Inputs" className={oneStyles.strips}>
-                <DetailedStrips model={sModel} geometry={geometry} annotations={annotations} handlers={handlers} focusCorner={focusCorner} lapValid={sValid} youName={youName} refName={refName} />
-              </section>
+              {!expanded && (
+                <section aria-label="Inputs" className={oneStyles.strips}>
+                  {view === "simplified" ? (
+                    <>
+                      <div className={oneStyles.wheelsBar}><StripMenu viewControl={viewSwitch} /></div>
+                      <SimplifiedWheels model={sModel} youName={youName} refName={refName} />
+                    </>
+                  ) : (
+                    <DetailedStrips model={sModel} geometry={geometry} annotations={annotations} handlers={handlers} focusCorner={focusCorner} lapValid={sValid} youName={youName} refName={refName} stage={{ viewControl: viewSwitch }} />
+                  )}
+                </section>
+              )}
             </div>
           }
           transport={
             <Transport
-              model={sModel} trackMap={trackMap} refName={refShort ?? undefined} priorityCornerIds={priorityCorners}
+              compact model={sModel} trackMap={trackMap} refName={refShort ?? undefined} priorityCornerIds={priorityCorners}
               scrubberLayer={<><ScrubberOffTrack model={sModel} valid={sValid} /><ScrubberSections annotations={annotations} duration={sModel.duration} /></>}
               scrubberBadges={<ScrubberBadges annotations={annotations} duration={sModel.duration} h={handlers} />}
             />
