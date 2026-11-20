@@ -34,3 +34,19 @@ export function gearName(g: number): string {
 export function shiftLabel(s: Shift): string {
   return `${gearName(s.from)}→${gearName(s.to)}`;
 }
+
+/**
+ * Which shift labels to draw. `xs` are the label start positions (any unit, ascending) and `widths` the label widths in
+ * the same unit. A label is kept when it starts at least `gap` after the end of the last kept label, so close shifts
+ * (a quick downshift sequence) are thinned at the current zoom and come back as the view zooms in.
+ */
+export function thinShiftLabels(xs: ArrayLike<number>, widths: ArrayLike<number>, gap: number): boolean[] {
+  const keep: boolean[] = [];
+  let end = -Infinity;
+  for (let k = 0; k < xs.length; k++) {
+    const ok = xs[k] >= end + gap;
+    keep.push(ok);
+    if (ok) end = xs[k] + widths[k];
+  }
+  return keep;
+}

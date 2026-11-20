@@ -6,7 +6,7 @@ import type { Annotation } from "../lib/annotations";
 import { aidRuns, type AidRuns, type Run } from "../lib/driverAids";
 import { BALANCE_HINT, balanceEnabled, balanceFromContract, type BalanceRuns } from "../lib/carBalance";
 import { offTrackRuns } from "../lib/offTrack";
-import { cleanGear, gearName, gearShifts, shiftLabel, type Shift } from "../lib/gearShifts";
+import { cleanGear, gearName, gearShifts, shiftLabel, thinShiftLabels, type Shift } from "../lib/gearShifts";
 import { formatDelta } from "../lib/format";
 import type { PlaybackModel } from "../lib/model";
 import { distanceAtTime, formatSteering, indexAtTime, timeAtDistance } from "../lib/playback";
@@ -366,13 +366,20 @@ function drawShiftMarks(u: uPlot, shifts: Shift[], color: string, row: number) {
   ctx.textBaseline = "top";
   // The lap's markers sit at the top, the comparison lap's on a second row below, so labels of the two do not overlap.
   const y0 = bbox.top + row * 12 * dpr;
+  const vis: { s: Shift; x: number }[] = [];
   for (const s of shifts) {
     const m = xs[s.i];
     if (m < lo - 5 || m > hi + 5) continue;
-    const x = bbox.left + u.valToPos(m, "x", true);
-    ctx.fillRect(x - dpr / 2, y0, dpr, SHIFT_TICK_PX * dpr);
-    ctx.fillText(shiftLabel(s), x + 2 * dpr, y0 + dpr);
+    vis.push({ s, x: bbox.left + u.valToPos(m, "x", true) });
   }
+  // Ticks for every shift; labels only where they do not run into the previous one.
+  const labelX = vis.map((v) => v.x + 2 * dpr);
+  const widths = vis.map((v) => ctx.measureText(shiftLabel(v.s)).width);
+  const keep = thinShiftLabels(labelX, widths, 3 * dpr);
+  vis.forEach((v, k) => {
+    ctx.fillRect(v.x - dpr / 2, y0, dpr, SHIFT_TICK_PX * dpr);
+    if (keep[k]) ctx.fillText(shiftLabel(v.s), labelX[k], y0 + dpr);
+  });
   ctx.restore();
 }
 
