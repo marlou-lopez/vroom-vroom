@@ -73,6 +73,44 @@ describe("one-app prototype (?ui=one)", () => {
     expect(loc.search).toMatch(/ui=one/);
   });
 
+  it("steps through laps with the buttons and the arrow keys, and shows each lap's gap", async () => {
+    renderAt("/?ui=one");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    const select = screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement;
+    expect(Array.from(select.options).some((o) => /· (best|\+\d+\.\d{3})$/.test(o.textContent ?? ""))).toBe(true);
+    const ids = Array.from(select.options).map((o) => o.value);
+    expect(ids.length).toBeGreaterThan(2);
+    const at = () => new URLSearchParams(loc.search).get("lap");
+    await waitFor(() => expect(at()).toBe(select.value));
+    const start = ids.indexOf(select.value);
+    const next = screen.getByRole("button", { name: "Next lap" }) as HTMLButtonElement;
+    const prev = screen.getByRole("button", { name: "Previous lap" }) as HTMLButtonElement;
+    if (start < ids.length - 1) {
+      await userEvent.click(next);
+      await waitFor(() => expect(at()).toBe(ids[start + 1]));
+      await userEvent.keyboard("{ArrowUp}");
+      await waitFor(() => expect(at()).toBe(ids[start]));
+    } else {
+      expect(next.disabled).toBe(true);
+      await userEvent.click(prev);
+      await waitFor(() => expect(at()).toBe(ids[start - 1]));
+    }
+  });
+
+  it("goes back to the current lap from the session scope", async () => {
+    renderAt("/?ui=one");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBeTruthy());
+    const lapId = new URLSearchParams(loc.search).get("lap");
+    const where = screen.getByRole("navigation", { name: "Where you are" });
+    await userEvent.click(within(where).getByRole("button", { name: /·/ }));
+    await screen.findByText(/timed and valid/, undefined, { timeout: 5000 });
+    await userEvent.click(screen.getByRole("button", { name: /Back to the lap/ }));
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    expect(loc.search).not.toMatch(/scope=/);
+    expect(new URLSearchParams(loc.search).get("lap")).toBe(lapId);
+  });
+
   it("leaves the current UI alone without the flag", async () => {
     renderAt("/");
     await screen.findByRole("complementary", { name: "Laps" }, { timeout: 5000 });
