@@ -2,11 +2,12 @@
 // `?ui=one`. Two scopes, each answering one question: the Session view ("how did the session go, which lap do I look
 // at?") and the Lap view ("where did this lap lose time, and what do I try?"). It reuses the existing components and
 // data hooks; nothing here is wired into the default UI.
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useSessionReport, useSessions } from "../../api/queries";
 import { effectiveValid, type CompareCandidate, type CompareResponse, type Corner, type LapWithRef, type SessionMeta, type TrackMap } from "../../api/types";
 import { lapGap } from "../../lib/compareName";
+import { bestLapTime, lapGapText, lapKeyDir, stepLapId, timedLaps } from "../../lib/lapStep";
 import { cornerRailRows } from "../../lib/cornerRail";
 import { formatLapTime, formatShortDate } from "../../lib/format";
 import { plainCorners, plainGap, plainRefName, plainSeconds, PLAIN_MIN_S } from "../../lib/plainCorner";
@@ -69,6 +70,11 @@ export function OneSessionView() {
       <ScopeBar session={session}>
         <span className={styles.sep}>›</span>
         <SessionPicker session={session} onPick={(id) => setParams((p) => withParams(p, { session: id }))} />
+        {params.get("lap") && (
+          <button type="button" className={styles.back} onClick={() => setParams((p) => withParams(p, { scope: null, session: null }))} title="Back to the lap you were looking at">
+            ‹ Back to the lap
+          </button>
+        )}
       </ScopeBar>
       <div className={styles.page}>
         <header className={styles.headline}>
@@ -116,7 +122,24 @@ export function OneLapView(p: OneLapProps) {
   const refName = plainRefName(refCand, laps);
   const gap = lapGap(lap.lap_time_s, refCand?.lap_time_s ?? null, cmp.delta[cmp.delta.length - 1] ?? null);
   const self = cmp.lap_id === cmp.ref_lap_id;
-  const timed = laps.filter((l) => (l.kind === "flying" && l.lap_time_s) || l.lap_id === lap.lap_id);
+  const timed = useMemo(() => timedLaps(laps, lap.lap_id), [laps, lap.lap_id]);
+  const best = useMemo(() => bestLapTime(laps), [laps]);
+  const prevId = stepLapId(timed, lap.lap_id, -1);
+  const nextId = stepLapId(timed, lap.lap_id, 1);
+  const { onSelectLap } = p;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const dir = lapKeyDir(e, e.target instanceof Element ? e.target : null);
+      if (!dir) return;
+      const id = dir === 1 ? nextId : prevId;
+      if (!id) return;
+      e.preventDefault();
+      onSelectLap(id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [prevId, nextId, onSelectLap]);
 
   return (
     <div className={styles.root}>
@@ -126,11 +149,16 @@ export function OneLapView(p: OneLapProps) {
           {formatShortDate(session.started_at)} · {session.session_type}
         </button>
         <span className={styles.sep}>›</span>
-        <select className={styles.select} aria-label="Lap" value={lap.lap_id} onChange={(e) => p.onSelectLap(e.target.value)}>
-          {timed.map((l) => (
-            <option key={l.lap_id} value={l.lap_id}>Lap {l.lap_no} · {formatLapTime(l.lap_time_s)}{effectiveValid(l) ? "" : " (invalid)"}</option>
-          ))}
+        <button type="button" className={styles.step} aria-label="Previous lap" title="Previous lap (↑)" disabled={!prevId} onClick={() => prevId && onSelectLap(prevId)}>‹</button>
+        <select className={styles.select} aria-label="Lap" value={lap.lap_id} onChange={(e) => onSelectLap(e.target.value)}>
+          {timed.map((l) => {
+            const g = lapGapText(l, best);
+            return (
+              <option key={l.lap_id} value={l.lap_id}>Lap {l.lap_no} · {formatLapTime(l.lap_time_s)}{effectiveValid(l) ? "" : " (invalid)"}{g ? ` · ${g}` : ""}</option>
+            );
+          })}
         </select>
+        <button type="button" className={styles.step} aria-label="Next lap" title="Next lap (↓)" disabled={!nextId} onClick={() => nextId && onSelectLap(nextId)}>›</button>
         <span className={styles.vs}>compared with</span>
         <div className={styles.segmented} role="group" aria-label="Compare with">
           <button type="button" aria-pressed={!!reference && cmp.ref_lap_id === reference.lap_id} onClick={() => p.onSelectRef(null)} title="Your fastest lap on this track and car">Your best lap</button>
