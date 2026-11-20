@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { useQueries, type QueryObserverResult } from "@tanstack/react-query";
 import { sessionLapsOptions, useCalibrate, useLandmarkMutation, useLapTrace, useSessions, useTrackMap } from "../api/queries";
-import { errorInfo, type CalibrationResult, type GridChannel, type LapWithRef, type Landmark, type LandmarkKind, type NewLandmark, type SessionMeta } from "../api/types";
-import { ADD_LANDMARK_BTN_ID, AddLandmarkForm, LandmarkEditor } from "../components/LandmarkEditor";
+import { errorInfo, type CalibrationResult, type GridChannel, type LapWithRef, type Landmark, type LandmarkKind, type NewLandmark } from "../api/types";
+import { ADD_LANDMARK_BTN_ID, AddLandmarkForm, LandmarkEditor } from "./LandmarkEditor";
 import { landmarkFill, landmarkStroke } from "../lib/landmarks";
 import { bestValidLap } from "../lib/laps";
 import { nearestCorner, nearestPoint, pointAtDistance, polylinePath, cornerSegmentPath, type Projection } from "../lib/trackmap";
@@ -10,8 +10,8 @@ import { buildProjection } from "../lib/model";
 import { boundsOf, placeMapLabels } from "../lib/mapLabels";
 import { cx } from "../lib/cx";
 import { loadTracksAdvanced, saveTracksAdvanced } from "../lib/tracksAdvanced";
-import ui from "../components/ui.module.css";
-import styles from "./TracksPage.module.css";
+import ui from "./ui.module.css";
+import styles from "./TrackMapSection.module.css";
 
 const PAD = 6;
 const FONT_FRAC = 0.03; // label font size as a share of the track's longer side
@@ -34,10 +34,13 @@ interface Geometry {
   basePath: string;
 }
 
-export function TracksPage() {
+/**
+ * The labelled track map and corner table of the Track and car view (vroom-pnw.65). The landmark editor and re-calibration sit behind
+ * Advanced. Mount it with `key={trackId}` so a track change starts clean (unmounting commits a held delete).
+ */
+export function TrackMapSection({ trackId: activeId }: { trackId: string }) {
   const sessionsQ = useSessions();
   const sessions = sessionsQ.data ?? null;
-  const [trackId, setTrackId] = useState<string | null>(null);
   // Advanced: the landmark editor and calibration. Closed on first visit, then remembered.
   const [advanced, setAdvanced] = useState(loadTracksAdvanced);
   const toggleAdvanced = () => {
@@ -68,16 +71,6 @@ export function TracksPage() {
   };
   const svgRef = useRef<SVGSVGElement>(null);
   const mapBoxRef = useRef<HTMLDivElement>(null);
-
-  // Tracks come from the sessions' distinct track ids, newest first.
-  const tracks = useMemo(() => {
-    const seen = new Map<string, { id: string; name: string; newest: SessionMeta }>();
-    for (const s of [...(sessions ?? [])].sort((a, b) => b.started_at.localeCompare(a.started_at))) {
-      if (!seen.has(s.track_id)) seen.set(s.track_id, { id: s.track_id, name: s.track_name, newest: s });
-    }
-    return [...seen.values()];
-  }, [sessions]);
-  const activeId = trackId && tracks.some((t) => t.id === trackId) ? trackId : (tracks[0]?.id ?? null);
 
   const mapQ = useTrackMap(activeId);
   const map = mapQ.data ?? null;
@@ -129,16 +122,6 @@ export function TracksPage() {
   const error: Err | null = failure ? errorInfo(failure) : null;
   const busy = landmarkM.isPending;
   const calibrating = calibrateM.isPending;
-
-  const selectTrack = (id: string) => {
-    commitRef.current();
-    setTrackId(id);
-    setSelectedCorner(null);
-    setCalResult(null);
-    setAdding(null);
-    landmarkM.reset();
-    calibrateM.reset();
-  };
 
   const deleteLandmark = (id: string) => {
     const landmark = map?.landmarks.find((l) => l.id === id);
@@ -222,28 +205,22 @@ export function TracksPage() {
     />
   );
 
-  if (sessions === null && !error) return <div className={styles.status}>Loading…</div>;
-  if (tracks.length === 0) return <div className={styles.status}>{error ? `${error.code}: ${error.message}` : "No tracks yet. Import a recording first."}</div>;
 
   const visibleLandmarks = (map?.landmarks ?? []).filter((l) => l.id !== pending?.id && (!selectedCorner || l.corner_id === selectedCorner));
   const selectedName = map?.corners.find((c) => c.id === selectedCorner)?.name ?? "all corners";
   const matched = calResult ? calResult.map.corners.length - calResult.missing.length : 0;
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} role="group" aria-label="Track map and corners">
       <div className={styles.toolbar}>
-        {tracks.map((t) => (
-          <button key={t.id} type="button" aria-pressed={t.id === activeId} onClick={() => selectTrack(t.id)} className={ui.chip}>
-            {t.name}
-          </button>
-        ))}
+        <div className={ui.heading}>CORNERS ON THE MAP</div>
         <div className={styles.spacer} />
         <button type="button" aria-expanded={advanced} aria-controls="tracks-advanced" onClick={toggleAdvanced} className={cx(ui.btn, styles.calibrate)}>
           Advanced {advanced ? "▴" : "▾"}
         </button>
       </div>
       <p className={styles.purpose}>
-        The corners of each track you have driven, named and placed on the map. Click a corner to pick it out; the coach uses these names when it talks about your laps.
+        The corners of this track, named and placed on the map. Click a corner to pick it out; the coach uses these names when it talks about your laps.
       </p>
       {advanced && (
         <div id="tracks-advanced" className={styles.advanced}>

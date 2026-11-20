@@ -27,7 +27,7 @@ vi.mock("uplot", () => ({
 
 const mock = setupMockServer();
 
-// The landmark editor sits behind the Tracks page's Advanced control, closed by default and remembered in localStorage.
+// The landmark editor sits behind the Track and car view's Advanced control, closed by default and remembered in localStorage.
 function openAdvanced() {
   localStorage.setItem(TRACKS_ADVANCED_KEY, "open");
   onTestFinished(() => localStorage.removeItem(TRACKS_ADVANCED_KEY));
@@ -49,7 +49,7 @@ describe("pages", () => {
     renderApp("/no-such-page");
     expect(screen.getByRole("heading", { name: "Page not found" })).toBeTruthy();
     expect(screen.getByText("/no-such-page")).toBeTruthy();
-    expect(screen.getByRole("navigation", { name: "Main" })).toBeTruthy();
+    expect(screen.getByRole("banner")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Back to Telemetry" }).getAttribute("href")).toBe("/");
   });
 
@@ -142,19 +142,48 @@ describe("pages", () => {
     expect(within(list).queryAllByRole("link", { name: /Open →/ })).toHaveLength(0);
   });
 
-  it("Tracks shows the corners table", async () => {
-    renderApp("/tracks");
+  it("Track and car shows every corner in the table, with no scroll box", async () => {
+    renderApp("/sessions");
     const panel = await screen.findByRole("region", { name: "Corners" });
     const table = await within(panel).findByRole("table");
     expect(within(table).getByRole("columnheader", { name: "Name" })).toBeTruthy();
-    expect(await within(table).findAllByRole("row")).not.toHaveLength(1);
+    await waitFor(() => expect(within(table).getAllByRole("row").length).toBeGreaterThan(1));
+    const rows = within(table).getAllByRole("row");
+    expect(panel.textContent).toContain(`CORNERS · ${rows.length - 1}`);
+  });
+  it("Track and car opens on the combo of ?session=<id>, not just the newest", async () => {
+    const sessions = (await mock.engine().sessions()) as { session_id: string; track_id: string; car_id: string }[];
+    const first = sessions.slice().sort((a, b) => (b as never as { started_at: string }).started_at.localeCompare((a as never as { started_at: string }).started_at))[0];
+    const other = sessions.find((x) => x.track_id !== first.track_id || x.car_id !== first.car_id)!;
+    renderApp(`/sessions?session=${other.session_id}`);
+    await screen.findByRole("region", { name: "Session list" });
+    const pressed = within(screen.getByRole("group", { name: "Track and car" })).getAllByRole("button").filter((b) => b.getAttribute("aria-pressed") === "true");
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0].textContent).not.toBe(within(screen.getByRole("group", { name: "Track and car" })).getAllByRole("button")[0].textContent);
+  });
+  it("the Tracks route is gone", async () => {
+    renderApp("/tracks");
+    expect(await screen.findByRole("heading", { name: "Page not found" })).toBeTruthy();
+  });
+  it("Track and car puts the labelled map below the session list, for the selected track and car", async () => {
+    renderApp("/sessions");
+    await screen.findByRole("region", { name: "Session list" });
+    const svg = await screen.findByRole("img", { name: "Track map" });
+    expect(svg.querySelectorAll("text").length).toBeGreaterThan(2);
+    // Picking another track and car switches the map.
+    const chips = within(screen.getByRole("group", { name: "Track and car" })).getAllByRole("button");
+    if (chips.length > 1) {
+      fireEvent.click(chips[1]);
+      await waitFor(() => expect(chips[1].getAttribute("aria-pressed")).toBe("true"));
+      expect(await screen.findByRole("img", { name: "Track map" })).toBeTruthy();
+    }
   });
   it("Tracks opens with the labelled map and a purpose line, and the landmark editor behind a closed Advanced control", async () => {
     localStorage.removeItem(TRACKS_ADVANCED_KEY);
-    renderApp("/tracks");
+    renderApp("/sessions");
     const svg = await screen.findByRole("img", { name: "Track map" });
     expect(svg.querySelectorAll("text").length).toBeGreaterThan(2); // corner names
-    expect(screen.getByText(/The corners of each track you have driven/)).toBeTruthy();
+    expect(screen.getByText(/The corners of this track/)).toBeTruthy();
     const adv = screen.getByRole("button", { name: /^Advanced/ });
     expect(adv.getAttribute("aria-expanded")).toBe("false");
     expect(screen.queryByRole("region", { name: "Landmarks" })).toBeNull();
@@ -163,13 +192,13 @@ describe("pages", () => {
   it("Tracks opens Advanced on click, remembers it across a reload, and closes it again", async () => {
     localStorage.removeItem(TRACKS_ADVANCED_KEY);
     onTestFinished(() => localStorage.removeItem(TRACKS_ADVANCED_KEY));
-    const first = renderApp("/tracks");
+    const first = renderApp("/sessions");
     fireEvent.click(await screen.findByRole("button", { name: /^Advanced/ }));
     expect(await screen.findByRole("region", { name: "Landmarks" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Re-calibrate/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Advanced/ }).getAttribute("aria-expanded")).toBe("true");
     first.unmount();
-    renderApp("/tracks"); // a reload
+    renderApp("/sessions"); // a reload
     expect(await screen.findByRole("region", { name: "Landmarks" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /^Advanced/ }));
     expect(screen.queryByRole("region", { name: "Landmarks" })).toBeNull();
@@ -178,7 +207,7 @@ describe("pages", () => {
   it("Tracks still opens, closed, when storage throws", async () => {
     const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
     onTestFinished(() => spy.mockRestore());
-    renderApp("/tracks");
+    renderApp("/sessions");
     expect((await screen.findByRole("button", { name: /^Advanced/ })).getAttribute("aria-expanded")).toBe("false");
   });
   it("Tracks resets the Add landmark form on a second Alt-click without cancelling", async () => {
@@ -195,7 +224,7 @@ describe("pages", () => {
       const pt = { x: 0, y: 0, matrixTransform: () => ({ x: pt.x, y: pt.y }) };
       return pt;
     };
-    renderApp("/tracks");
+    renderApp("/sessions");
     const svg = await screen.findByRole("img", { name: "Track map" });
     const names = Array.from(svg.querySelectorAll("text"));
     expect(names.length).toBeGreaterThan(2);
@@ -228,7 +257,7 @@ describe("pages", () => {
   });
   it("Tracks adds a landmark by keyboard path: button, prefilled apex distance, editable distance", async () => {
     openAdvanced();
-    renderApp("/tracks");
+    renderApp("/sessions");
     const svg = await screen.findByRole("img", { name: "Track map" });
     const names = Array.from(svg.querySelectorAll("text"));
     const target = names[1];
@@ -256,7 +285,7 @@ describe("pages", () => {
   });
   it("Tracks deletes a landmark with an undo toast that restores it, and groups landmarks under corner names", async () => {
     openAdvanced();
-    renderApp("/tracks");
+    renderApp("/sessions");
     const panel = within(await screen.findByRole("region", { name: "Landmarks" }));
     const del = (await panel.findAllByRole("button", { name: /^Delete / }))[0];
     const label = del.getAttribute("aria-label")!.replace("Delete ", "");

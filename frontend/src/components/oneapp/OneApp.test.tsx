@@ -60,6 +60,9 @@ describe("one app Lap view", () => {
     expect(screen.queryByRole("complementary", { name: "Laps" })).toBeNull();
     expect(screen.getAllByRole("button", { name: /Replay this corner/ }).length).toBeGreaterThan(0);
     expect(story.textContent).toMatch(/slower than/);
+    // The first crumb opens the Track and car view on this session's own track and car (vroom-pnw.65).
+    const crumb = within(screen.getByRole("navigation", { name: "Where you are" })).getAllByRole("link")[0];
+    expect(crumb.getAttribute("href")).toMatch(/^\/sessions\?session=/);
   });
 
   it("has no inputs tabs, and keeps view, zoom and Choose strips in one strip menu (vroom-pnw.63)", async () => {

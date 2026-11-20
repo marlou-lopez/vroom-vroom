@@ -45,14 +45,14 @@ describe("AppShell", () => {
         <Routes>
           <Route element={<AppShell />}>
             <Route path="bad" element={<Boom />} />
-            <Route path="tracks" element={<p>tracks page</p>} />
+            <Route index element={<p>home page</p>} />
           </Route>
         </Routes>
       </MemoryRouter>,
     );
     expect(screen.getByRole("alert").textContent).toMatch(/page exploded/);
-    fireEvent.click(screen.getByRole("link", { name: "Tracks" }));
-    expect(screen.getByText("tracks page")).toBeTruthy();
+    fireEvent.click(screen.getByRole("link", { name: "RACECOACH" }));
+    expect(screen.getByText("home page")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });

@@ -16,20 +16,7 @@
   flex-wrap: wrap;
 }
 
-.brand { font-weight: 700; letter-spacing: 0.14em; font-size: var(--font-size-small); color: var(--color-text); }
-
-.nav { display: flex; gap: 2px; }
-
-.link {
-  padding: 4px 8px;
-  border-radius: var(--radius);
-  text-decoration: none;
-  background: transparent;
-  color: var(--color-muted);
-  font-weight: 400;
-}
-.link:hover { background: var(--color-hover); color: var(--color-text); }
-.link.active { background: var(--color-selected); color: var(--color-text); font-weight: 600; }
+.brand { font-weight: 700; letter-spacing: 0.14em; font-size: var(--font-size-small); color: var(--color-text); text-decoration: none; }
 
 .spacer { flex: 1; }
 

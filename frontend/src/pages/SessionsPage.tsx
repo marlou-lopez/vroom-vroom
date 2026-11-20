@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { lapLink, sessionLink } from "../lib/urlParams";
 import { sessionLapsOptions, sessionSummaryOptions, useSessions } from "../api/queries";
 import type { SessionMeta, SessionSummary } from "../api/types";
@@ -8,6 +8,7 @@ import { formatDelta, formatLapTime, formatShortDate } from "../lib/format";
 import { bestValidLap } from "../lib/laps";
 import { comboKey, focusOutcome, groupCombos, headline, trendPaths, type FocusTone } from "../lib/sessions";
 import { cx } from "../lib/cx";
+import { TrackMapSection } from "../components/TrackMapSection";
 import ui from "../components/ui.module.css";
 import styles from "./SessionsPage.module.css";
 
@@ -35,9 +36,13 @@ export function SessionsPage() {
   const sessionsQ = useSessions();
   const sessions = sessionsQ.data ?? null;
   const [selected, setSelected] = useState<string | null>(null);
+  // The first crumb of a session links here with `?session=<id>`: open that session's track and car.
+  const [params] = useSearchParams();
+  const fromSession = (sessions ?? []).find((s) => s.session_id === params.get("session"));
 
   const combos = useMemo(() => groupCombos(sessions ?? []), [sessions]);
-  const comboKeyNow = selected && combos.some((c) => c.key === selected) ? selected : (combos[0]?.key ?? null);
+  const wanted = selected ?? (fromSession ? comboKey(fromSession) : null);
+  const comboKeyNow = wanted && combos.some((c) => c.key === wanted) ? wanted : (combos[0]?.key ?? null);
 
   // Summaries and best laps for the selected combo's sessions (oldest first).
   const mine = useMemo(
@@ -86,6 +91,8 @@ export function SessionsPage() {
       from: h.gapFrom ? `${h.gapFrom.type}, ${dateOf(h.gapFrom)}` : "no session with a best possible lap",
     },
   ];
+
+  const trackId = mine[0]?.track_id ?? null;
 
   return (
     <div className={styles.page}>
@@ -190,6 +197,8 @@ export function SessionsPage() {
           </table>
         )}
       </section>
+
+      {trackId && <TrackMapSection key={trackId} trackId={trackId} />}
     </div>
   );
 }
