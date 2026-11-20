@@ -63,6 +63,33 @@ describe("one-app prototype (?ui=one)", () => {
     expect(story.textContent).toMatch(/slower than/);
   });
 
+  it("has no inputs tabs, and keeps view, zoom and Choose strips in one strip menu (vroom-pnw.63)", async () => {
+    renderAt("/?ui=one");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Choose strips" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Playback speed" })).toBeNull();
+    await userEvent.click(await screen.findByRole("button", { name: "Strip menu" }));
+    const menu = await screen.findByRole("dialog", { name: "Strip menu" });
+    expect(within(menu).getByRole("radio", { name: "Wheel & pedals" })).toBeTruthy();
+    expect(within(menu).getByRole("button", { name: "Whole lap" })).toBeTruthy();
+    expect(within(menu).getByRole("list", { name: "Shown strips" })).toBeTruthy();
+    // The wheels view keeps the menu, so the user can switch back.
+    await userEvent.click(within(menu).getByRole("radio", { name: "Wheel & pedals" }));
+    await userEvent.keyboard("{Escape}");
+    await userEvent.click(await screen.findByRole("button", { name: "Strip menu" }));
+    expect(within(await screen.findByRole("dialog", { name: "Strip menu" })).getByRole("radio", { name: "Graphs" })).toBeTruthy();
+  });
+
+  it("puts the playback speeds in a menu next to Play", async () => {
+    renderAt("/?ui=one");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    await userEvent.click(await screen.findByRole("button", { name: /Playback speed: 1×/ }));
+    const menu = await screen.findByRole("dialog", { name: "Playback speed" });
+    await userEvent.click(within(menu).getByRole("radio", { name: "2×" }));
+    expect(await screen.findByRole("button", { name: /Playback speed: 2×/ })).toBeTruthy();
+  });
+
   it("opens the session scope with a short summary", async () => {
     renderAt("/?ui=one");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });

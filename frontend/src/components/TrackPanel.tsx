@@ -32,9 +32,11 @@ export interface TrackPanelProps {
   footer?: ReactNode;
   expanded: boolean;
   onToggleExpanded(): void;
+  /** The one app's replay stage (vroom-pnw.63): no panel border. */
+  flat?: boolean;
 }
 
-export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, lapValid, refName, footer, expanded, onToggleExpanded }: TrackPanelProps) {
+export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, lapValid, refName, footer, expanded, onToggleExpanded, flat }: TrackPanelProps) {
   const [viewId, setViewId] = useState<TrackViewId>(loadTrackView);
 
   const active = TRACK_VIEWS.find((v) => v.id === viewId) ?? TRACK_VIEWS[0];
@@ -60,7 +62,7 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
   }, []);
 
   return (
-    <section ref={panelRef} aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
+    <section ref={panelRef} aria-label="Track playback" className={styles.panel} data-expanded={expanded} data-flat={flat || undefined}>
       <ErrorBoundary label="track view" variant="panel" resetKeys={[model, active.id]}>
         <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} refName={refName ?? null} />
       </ErrorBoundary>

@@ -44,3 +44,6 @@
   .toolbar { order: 4; margin: 0; flex: 1 0 100%; }
   .viewToggle { flex-wrap: wrap; }
 }
+
+/* The one app's stage (vroom-pnw.63): the map sits on a surface without an outline. */
+.panel[data-flat] { border: 0; background: var(--color-bg); }

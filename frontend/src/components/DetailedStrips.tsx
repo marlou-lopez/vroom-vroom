@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import type { CompareResponse, TrackGeometry } from "../api/types";
@@ -53,6 +53,11 @@ export interface DetailedStripsProps {
   /** Names in the legend and the read-outs' colour key, e.g. "You · L8" and "Comparison · ★L2". */
   youName?: string;
   refName?: string;
+  /**
+   * The replay stage of the one app (vroom-pnw.63): no panel borders, and the zoom, Choose strips and `viewControl`
+   * (the Graphs / Wheel & pedals switch) sit in one "Strips" menu instead of the bar's loose controls.
+   */
+  stage?: { viewControl: ReactNode };
 }
 
 type Num = (number | null)[];
@@ -489,7 +494,7 @@ function makeOptions(spec: Spec, w: number, h: number, annRef: { current: Annota
   };
 }
 
-function StripPicker({ choice: stored, available, onChange }: { choice: StripId[]; available: StripId[]; onChange: (next: StripId[]) => void }) {
+function StripPickerLists({ choice: stored, available, onChange }: { choice: StripId[]; available: StripId[]; onChange: (next: StripId[]) => void }) {
   // A stored strip the data cannot draw (elevation on a flat track) stays stored but is not listed; edits keep it at the end.
   const choice = stored.filter((id) => available.includes(id));
   const hidden = stored.filter((id) => !available.includes(id));
@@ -497,36 +502,62 @@ function StripPicker({ choice: stored, available, onChange }: { choice: StripId[
   const rest = STRIP_OPTIONS.filter((o) => available.includes(o.id) && !choice.includes(o.id));
   const label = (id: StripId) => STRIP_OPTIONS.find((o) => o.id === id)!.label;
   return (
+    <>
+      <ul className={styles.pickerList} aria-label="Shown strips">
+        {choice.map((id, i) => (
+          <li key={id} className={styles.pickerRow}>
+            <span className={styles.pickerName}>{label(id)}<span className={styles.pickerDesc}>{STRIP_OPTIONS.find((o) => o.id === id)!.desc}</span></span>
+            <button type="button" aria-label={`Move ${label(id)} up`} disabled={i === 0} onClick={() => change(moveStrip(choice, id, -1))}>↑</button>
+            <button type="button" aria-label={`Move ${label(id)} down`} disabled={i === choice.length - 1} onClick={() => change(moveStrip(choice, id, 1))}>↓</button>
+            <button type="button" aria-label={`Remove ${label(id)}`} disabled={choice.length === 1} onClick={() => change(toggleStrip(choice, id))}>×</button>
+          </li>
+        ))}
+      </ul>
+      {(["basics", "advanced"] as const).map((g) => {
+        const items = rest.filter((o) => o.group === g);
+        if (items.length === 0) return null;
+        return (
+          <ul key={g} className={styles.pickerList} aria-label={g === "basics" ? "Basics" : "Advanced"}>
+            <li className={styles.pickerGroup}>{g === "basics" ? "Basics" : "Advanced"}</li>
+            {items.map((o) => (
+              <li key={o.id} className={styles.pickerRow}>
+                <span className={styles.pickerName}>{o.label}<span className={styles.pickerDesc}>{o.desc}</span></span>
+                <button type="button" aria-label={`Add ${o.label}`} onClick={() => change(toggleStrip(choice, o.id))}>+</button>
+              </li>
+            ))}
+          </ul>
+        );
+      })}
+    </>
+  );
+}
+
+function StripPicker(p: { choice: StripId[]; available: StripId[]; onChange: (next: StripId[]) => void }) {
+  return (
     <div className={styles.pickerBar}>
       <Popover.Root>
         <Popover.Trigger className={styles.pickerButton} aria-label="Choose strips">Choose strips</Popover.Trigger>
         <Popover.Portal>
           <Popover.Content className={styles.picker} align="end" sideOffset={4} aria-label="Choose strips">
-            <ul className={styles.pickerList} aria-label="Shown strips">
-              {choice.map((id, i) => (
-                <li key={id} className={styles.pickerRow}>
-                  <span className={styles.pickerName}>{label(id)}<span className={styles.pickerDesc}>{STRIP_OPTIONS.find((o) => o.id === id)!.desc}</span></span>
-                  <button type="button" aria-label={`Move ${label(id)} up`} disabled={i === 0} onClick={() => change(moveStrip(choice, id, -1))}>↑</button>
-                  <button type="button" aria-label={`Move ${label(id)} down`} disabled={i === choice.length - 1} onClick={() => change(moveStrip(choice, id, 1))}>↓</button>
-                  <button type="button" aria-label={`Remove ${label(id)}`} disabled={choice.length === 1} onClick={() => change(toggleStrip(choice, id))}>×</button>
-                </li>
-              ))}
-            </ul>
-            {(["basics", "advanced"] as const).map((g) => {
-              const items = rest.filter((o) => o.group === g);
-              if (items.length === 0) return null;
-              return (
-                <ul key={g} className={styles.pickerList} aria-label={g === "basics" ? "Basics" : "Advanced"}>
-                  <li className={styles.pickerGroup}>{g === "basics" ? "Basics" : "Advanced"}</li>
-                  {items.map((o) => (
-                    <li key={o.id} className={styles.pickerRow}>
-                      <span className={styles.pickerName}>{o.label}<span className={styles.pickerDesc}>{o.desc}</span></span>
-                      <button type="button" aria-label={`Add ${o.label}`} onClick={() => change(toggleStrip(choice, o.id))}>+</button>
-                    </li>
-                  ))}
-                </ul>
-              );
-            })}
+            <StripPickerLists {...p} />
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
+    </div>
+  );
+}
+
+/** The stage's one strip menu: the view switch, the zoom window and the strip choice. */
+export function StripMenu({ viewControl, zoom, picker }: { viewControl: ReactNode; zoom?: ReactNode; picker?: ReactNode }) {
+  return (
+    <div className={styles.pickerBar}>
+      <Popover.Root>
+        <Popover.Trigger className={styles.pickerButton} aria-label="Strip menu" title="View, zoom and which strips to show">Strips ▾</Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content className={styles.picker} align="end" sideOffset={4} collisionPadding={8} aria-label="Strip menu">
+            <div className={styles.menuSection}>{viewControl}</div>
+            {zoom}
+            {picker}
           </Popover.Content>
         </Popover.Portal>
       </Popover.Root>
@@ -538,7 +569,7 @@ function StripPicker({ choice: stored, available, onChange }: { choice: StripId[
  * Five uPlot strips (six when the track has an elevation capture). React renders this once per comparison / annotation set. Per frame, an effect subscribed to
  * the playback store moves each chart's x scale synchronously, the chip layer and the value read-outs imperatively.
  */
-export function DetailedStrips({ model, geometry, annotations, handlers, focusCorner = null, lapValid = true, youName = "You", refName = "Compared with" }: DetailedStripsProps) {
+export function DetailedStrips({ model, geometry, annotations, handlers, focusCorner = null, lapValid = true, youName = "You", refName = "Compared with", stage }: DetailedStripsProps) {
   const store = usePlaybackStore();
   const { cmp } = model;
   const [choice, setChoice] = useState<StripId[]>(() => loadStrips());
@@ -797,6 +828,7 @@ export function DetailedStrips({ model, geometry, annotations, handlers, focusCo
     <div
       ref={root}
       className={styles.strips}
+      data-flat={stage ? "" : undefined}
       // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- focusable, keyboard-operated group
       tabIndex={0}
       role="group"
@@ -814,13 +846,32 @@ export function DetailedStrips({ model, geometry, annotations, handlers, focusCo
           <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.you }} />{youName}</span>
           <span className={styles.legendItem}><i className={styles.swatch} style={{ background: colors.comparison }} />{refName}</span>
         </div>
-        <div className={styles.windowGroup}>
-          <span className={styles.hint}>Drag to move along the lap · scroll to zoom</span>
-          <button type="button" className={styles.windowButton} title="Window width: click to reset to 700 m (double-clicking the strips does the same)" onClick={() => { panRef.current = null; applyWidth(DEFAULT_WINDOW_M); }}>
-            {width >= lapSpan() ? "Whole lap" : `Zoom: ${Math.round(width)} m`}
-          </button>
-        </div>
-        <StripPicker choice={choice} available={allSpecs.map((x) => x.id)} onChange={changeChoice} />
+        {stage ? (
+          <StripMenu
+            viewControl={stage.viewControl}
+            zoom={
+              <div className={styles.menuSection} role="group" aria-label="Zoom">
+                <span className={styles.pickerGroup}>Zoom · {width >= lapSpan() ? "whole lap" : `${Math.round(width)} m`}</span>
+                <span className={styles.pickerDesc}>Scroll over the strips to zoom, drag to move.</span>
+                <div className={styles.zoomRow}>
+                  <button type="button" onClick={() => { panRef.current = null; applyWidth(DEFAULT_WINDOW_M); }}>Reset to {DEFAULT_WINDOW_M} m</button>
+                  <button type="button" onClick={() => { panRef.current = null; applyWidth(lapSpan()); }}>Whole lap</button>
+                </div>
+              </div>
+            }
+            picker={<StripPickerLists choice={choice} available={allSpecs.map((x) => x.id)} onChange={changeChoice} />}
+          />
+        ) : (
+          <>
+            <div className={styles.windowGroup}>
+              <span className={styles.hint}>Drag to move along the lap · scroll to zoom</span>
+              <button type="button" className={styles.windowButton} title="Window width: click to reset to 700 m (double-clicking the strips does the same)" onClick={() => { panRef.current = null; applyWidth(DEFAULT_WINDOW_M); }}>
+                {width >= lapSpan() ? "Whole lap" : `Zoom: ${Math.round(width)} m`}
+              </button>
+            </div>
+            <StripPicker choice={choice} available={allSpecs.map((x) => x.id)} onChange={changeChoice} />
+          </>
+        )}
       </div>
       {specList.map(({ id, label: name, experimental, hint, caption }, i) => (
         <div key={id} className={styles.strip}>
