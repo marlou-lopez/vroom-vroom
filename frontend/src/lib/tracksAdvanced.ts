@@ -1,4 +1,4 @@
-// Whether the Tracks page's Advanced section (landmark editor, calibration) is open. Closed by default, remembered per browser;
+// Whether the Track and car view's Advanced section (landmark editor, calibration) is open. Closed by default, remembered per browser;
 // every storage access is in try/catch (private windows and blocked site data throw).
 export const TRACKS_ADVANCED_KEY = "vroom.tracksAdvanced";
 

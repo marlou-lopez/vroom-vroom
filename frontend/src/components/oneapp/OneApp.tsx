@@ -28,7 +28,7 @@ import styles from "./OneApp.module.css";
 export function ScopeBar({ session, children }: { session: SessionMeta | null; children?: ReactNode }) {
   return (
     <nav className={styles.scope} aria-label="Where you are">
-      <Link to="/sessions" className={styles.crumb} title="Every session on this track and car">
+      <Link to={session ? `/sessions?session=${encodeURIComponent(session.session_id)}` : "/sessions"} className={styles.crumb} title="Progress and the labelled map for this track and car">
         {session ? `${session.track_name} · ${session.car_name}` : "All sessions"}
       </Link>
       {children}

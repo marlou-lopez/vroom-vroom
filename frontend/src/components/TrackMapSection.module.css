@@ -1,5 +1,4 @@
-.page { padding: var(--pad); display: flex; flex-direction: column; gap: var(--gap); }
-.status { padding: 16px; color: var(--color-muted); }
+.page { display: flex; flex-direction: column; gap: var(--gap); }
 
 .toolbar { display: flex; gap: var(--gap); flex-wrap: wrap; align-items: center; }
 .spacer { flex: 1; }
@@ -38,7 +37,7 @@ button.calibrate { padding: 5px 12px; }
 .landmark { pointer-events: none; stroke-width: 0.8; }
 
 .side { flex: 2 1 480px; display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
-.tableWrap { max-height: 260px; overflow: auto; }
+.tableWrap { overflow-x: auto; } /* every corner shows: no height cap (vroom-pnw.65) */
 .table { width: 100%; border-collapse: collapse; }
 .table th { color: var(--color-muted); font-weight: 500; padding: 4px 6px; text-align: right; }
 .table th.left, .table td.left { text-align: left; }
