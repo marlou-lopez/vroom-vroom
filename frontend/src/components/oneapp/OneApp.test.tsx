@@ -1,4 +1,4 @@
-// EXPERIMENTAL overhaul prototype (vroom-pnw.58): `?ui=one` shows the lap and session scopes; without it nothing changes.
+// The one app (vroom-pnw.58, default since vroom-pnw.64): the Lap view at `/`.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -53,18 +53,17 @@ function renderAt(url: string) {
 
 beforeEach(() => localStorage.clear());
 
-describe("one-app prototype (?ui=one)", () => {
-  it("shows the lap scope, labelled experimental, without the lap rail", async () => {
-    renderAt("/?ui=one");
+describe("one app Lap view", () => {
+  it("shows the lap scope, without a lap rail", async () => {
+    renderAt("/");
     const story = await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
-    expect(screen.getByText("Experimental UI")).toBeTruthy();
     expect(screen.queryByRole("complementary", { name: "Laps" })).toBeNull();
     expect(screen.getAllByRole("button", { name: /Replay this corner/ }).length).toBeGreaterThan(0);
     expect(story.textContent).toMatch(/slower than/);
   });
 
   it("has no inputs tabs, and keeps view, zoom and Choose strips in one strip menu (vroom-pnw.63)", async () => {
-    renderAt("/?ui=one");
+    renderAt("/");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     expect(screen.queryByRole("tab")).toBeNull();
     expect(screen.queryByRole("button", { name: "Choose strips" })).toBeNull();
@@ -82,7 +81,7 @@ describe("one-app prototype (?ui=one)", () => {
   });
 
   it("puts the playback speeds in a menu next to Play", async () => {
-    renderAt("/?ui=one");
+    renderAt("/");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     await userEvent.click(await screen.findByRole("button", { name: /Playback speed: 1×/ }));
     const menu = await screen.findByRole("dialog", { name: "Playback speed" });
@@ -91,17 +90,16 @@ describe("one-app prototype (?ui=one)", () => {
   });
 
   it("opens the session scope with a short summary", async () => {
-    renderAt("/?ui=one");
+    renderAt("/");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     const where = screen.getByRole("navigation", { name: "Where you are" });
     await userEvent.click(within(where).getByRole("button", { name: /·/ }));
     await screen.findByText(/timed and valid/, undefined, { timeout: 5000 });
     await waitFor(() => expect(loc.search).toMatch(/scope=session/));
-    expect(loc.search).toMatch(/ui=one/);
   });
 
   it("steps through laps with the buttons and the arrow keys, and shows each lap's gap", async () => {
-    renderAt("/?ui=one");
+    renderAt("/");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     const select = screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement;
     expect(Array.from(select.options).some((o) => /· (best|\+\d+\.\d{3})$/.test(o.textContent ?? ""))).toBe(true);
@@ -125,7 +123,7 @@ describe("one-app prototype (?ui=one)", () => {
   });
 
   it("goes back to the current lap from the session scope", async () => {
-    renderAt("/?ui=one");
+    renderAt("/");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBeTruthy());
     const lapId = new URLSearchParams(loc.search).get("lap");
@@ -139,7 +137,7 @@ describe("one-app prototype (?ui=one)", () => {
   });
 
   it("pins the lap sentence above the cards and counts every corner", async () => {
-    renderAt("/?ui=one");
+    renderAt("/");
     const story = await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     const head = story.querySelector("header")!;
     expect(head.textContent).toMatch(/Lap \d+/);
@@ -155,7 +153,7 @@ describe("one-app prototype (?ui=one)", () => {
   });
 
   it("puts Key, notes, Average and the coach in the ⋯ menu", async () => {
-    renderAt("/?ui=one");
+    renderAt("/");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     await userEvent.click(screen.getByRole("button", { name: /More: key/ }));
     const menu = await screen.findByRole("dialog", { name: "More" });
@@ -167,7 +165,7 @@ describe("one-app prototype (?ui=one)", () => {
   });
 
   it("keeps the scope line and story mounted while the next lap loads", { timeout: 20000 }, async () => {
-    renderAt("/?ui=one");
+    renderAt("/");
     const story = await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
     const scope = screen.getByRole("navigation", { name: "Where you are" });
     const select = screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement;
@@ -181,12 +179,5 @@ describe("one-app prototype (?ui=one)", () => {
     await waitFor(() => expect(story.querySelector("h1")?.textContent).toMatch(new RegExp(`Lap ${(select.selectedOptions[0].textContent ?? "").match(/Lap (\d+)/)![1]} `)), { timeout: 5000 });
     expect(story.isConnected && scope.isConnected).toBe(true);
     expect(screen.queryByText("Loading…")).toBeNull();
-  });
-
-  it("leaves the current UI alone without the flag", async () => {
-    renderAt("/");
-    await screen.findByRole("complementary", { name: "Laps" }, { timeout: 5000 });
-    expect(screen.queryByText("Experimental UI")).toBeNull();
-    expect(screen.queryByRole("navigation", { name: "Where you are" })).toBeNull();
   });
 });

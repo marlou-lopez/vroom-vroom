@@ -1,0 +1,7 @@
+.legendTitle { font-size: var(--font-size-small); letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-muted); font-weight: 600; }
+.swatch { flex: none; width: 14px; height: 6px; border-radius: 2px; }
+.legendRow { display: flex; align-items: center; gap: 8px; }
+.glyph {
+  min-width: 34px; text-align: center; border-radius: 999px; color: var(--color-bg); font-weight: 700; font-size: var(--font-size-small); padding: 1px 6px;
+}
+.tagKey { min-width: 64px; font-size: var(--font-size-small); font-weight: 700; letter-spacing: 0.06em; color: var(--color-muted); }

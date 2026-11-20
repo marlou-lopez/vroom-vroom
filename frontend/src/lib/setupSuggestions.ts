@@ -313,7 +313,7 @@ export function buildSuggestions(report: SessionReport, setup: CarSetup | null, 
   return { suggestions: ranked.slice(0, MAX_SUGGESTIONS), more: ranked.slice(MAX_SUGGESTIONS), observations, considered: out.considered };
 }
 
-/** `?suggest` (or `?suggest=1`) shows the experimental suggestions panel on the Session tab. Anything else leaves it off. */
+/** `?suggest` (or `?suggest=1`) shows the experimental suggestions panel in the Session view. Anything else leaves it off. */
 export function suggestEnabled(search: string): boolean {
   const v = new URLSearchParams(search).get("suggest");
   return v !== null && v !== "0" && v !== "false";

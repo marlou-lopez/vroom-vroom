@@ -66,8 +66,8 @@ describe("stepTime", () => {
 });
 
 describe("SHORTCUT_GROUPS", () => {
-  it("lists the rail keys", () => {
+  it("lists the playback and lap keys", () => {
     const all = SHORTCUT_GROUPS.flatMap((g) => g.rows.flatMap((r) => r.keys));
-    expect(all).toEqual(expect.arrayContaining(["Space", "J", "K", "L", "R", "?"]));
+    expect(all).toEqual(expect.arrayContaining(["Space", "J", "K", "L", "↑", "?"]));
   });
 });

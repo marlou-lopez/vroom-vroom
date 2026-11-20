@@ -162,6 +162,8 @@ The issue puts the tokens in scope, and the spec's non-goal says the UI is "dark
 
 ## Prototype
 
+> **Update 2026-11-21 (vroom-pnw.64):** direction B is now the default app. The `?ui=one` flag, the "Experimental UI" tag and the old layout (lap rail, Analysis bar, corner rail, inputs tabs, Corners tab, Session tab, Sessions lower half) are removed. The notes below describe the prototype as it was built.
+
 - **Where:** `npm run dev`, then `http://localhost:5173/?ui=one`. Every screen carries a dashed **"Experimental UI"** tag in the scope line. Remove `ui=one` from the address to get the current app. The session crumb opens `?ui=one&scope=session`. A click on a lap or an event there opens that lap back in the Lap view, keeping the flag.
 - **Code:** `frontend/src/components/oneapp/OneApp.tsx` (scope line, story column, Session view) and `OneApp.module.css` (the proposed tokens, kept local), `frontend/src/lib/oneUi.ts` (the flag) and `frontend/src/lib/sessionSummary.ts` (the vroom-34t summary, pure). `TelemetryPage.tsx` branches on the flag before its current layout, so without the flag nothing renders differently.
 - **Tests:** `lib/sessionSummary.test.ts` (counts, best and spread, headline event order, empty sessions) and `components/oneapp/OneApp.test.tsx` (the flag shows the labelled Lap view without the switch or the lap rail, the session crumb opens the summary, and without the flag the current UI renders with no "Experimental" tag).

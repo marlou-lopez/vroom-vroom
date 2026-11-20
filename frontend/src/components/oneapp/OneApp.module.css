@@ -1,4 +1,4 @@
-/* EXPERIMENTAL (vroom-pnw.58, ?ui=one). The proposed tokens are local here: 13 px body, 12 px floor, 15/20 px titles,
+/* The one app (vroom-pnw.58). The proposed tokens are local here: 13 px body, 12 px floor, 15/20 px titles,
    line height 1.45, 8 px spacing, 6 px radius, 28-32 px controls, surfaces instead of borders. */
 .root {
   --one-surface: #15171B;
@@ -30,10 +30,6 @@
 .segmented button { min-height: var(--one-control); padding: 0 12px; background: transparent; color: var(--color-muted); border: 0; cursor: pointer; }
 .segmented button + button { border-left: 1px solid var(--color-border-strong); }
 .segmented button[aria-pressed="true"] { background: var(--one-surface-2); color: var(--color-text); box-shadow: inset 0 -2px 0 var(--color-comparison); }
-.exp {
-  border: 1px dashed var(--color-minor); color: var(--color-minor); border-radius: var(--one-radius);
-  padding: 2px 8px; font-size: max(12px, var(--font-size-small)); letter-spacing: 0.04em; white-space: nowrap; flex: none;
-}
 
 .message { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--color-muted); }
 
@@ -145,3 +141,5 @@
 
 .block { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .h2 { margin: 0; font-size: 15px; font-weight: 600; }
+
+.badge { border: 1px solid var(--color-minor); color: var(--color-minor); border-radius: var(--one-radius); padding: 2px 8px; font-size: max(12px, var(--font-size-small)); white-space: nowrap; flex: none; }

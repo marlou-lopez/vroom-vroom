@@ -1,7 +1,6 @@
-// EXPERIMENTAL prototype of the "one simpler app" overhaul (spike vroom-pnw.58, docs/ui-review/overhaul.md), behind
-// `?ui=one`. Two scopes, each answering one question: the Session view ("how did the session go, which lap do I look
-// at?") and the Lap view ("where did this lap lose time, and what do I try?"). It reuses the existing components and
-// data hooks; nothing here is wired into the default UI.
+// The one app (spike vroom-pnw.58, docs/ui-review/overhaul.md, made the default by vroom-pnw.64). Two scopes, each
+// answering one question: the Session view ("how did the session go, which lap do I look at?") and the Lap view
+// ("where did this lap lose time, and what do I try?").
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useSessionReport, useSessions } from "../../api/queries";
@@ -11,7 +10,7 @@ import { bestLapTime, lapGapText, lapKeyDir, stepLapId, timedLaps } from "../../
 import { lapStory } from "../../lib/lapStory";
 import { plainCoachError } from "../../lib/coachError";
 import * as Popover from "@radix-ui/react-popover";
-import { LegendRows } from "../AnalysisBar";
+import { LegendRows } from "./Legend";
 import { formatLapTime, formatShortDate } from "../../lib/format";
 import { plainGap, plainRefName, plainSeconds, PLAIN_MIN_S } from "../../lib/plainCorner";
 import { noPlayback } from "../../lib/sessionTab";
@@ -19,30 +18,21 @@ import { sessionSummary } from "../../lib/sessionSummary";
 import { withParams } from "../../lib/urlParams";
 import type { CoachState } from "../../state/useCoach";
 import { SessionTab, type OpenLap } from "../session/SessionTab";
+import { SetupChip } from "../SetupChip";
 import { LapGaugeTable } from "../LapGaugeTable";
 import { StintPanel } from "../StintPanel";
 import { cx } from "../../lib/cx";
 import styles from "./OneApp.module.css";
 
-/** The dashed label every prototype screen carries. */
-function ExperimentalTag() {
-  return (
-    <span className={styles.exp} title="Experimental prototype of the UI overhaul (vroom-pnw.58). Remove ui=one from the address to get the current app.">
-      Experimental UI
-    </span>
-  );
-}
-
 /** The scope line: track and car, then session, then lap. Each level is a place you can go to. */
 export function ScopeBar({ session, children }: { session: SessionMeta | null; children?: ReactNode }) {
   return (
     <nav className={styles.scope} aria-label="Where you are">
-      <Link to="/sessions?ui=one" className={styles.crumb} title="Every session on this track and car">
+      <Link to="/sessions" className={styles.crumb} title="Every session on this track and car">
         {session ? `${session.track_name} · ${session.car_name}` : "All sessions"}
       </Link>
       {children}
       <span className={styles.spacer} />
-      <ExperimentalTag />
     </nav>
   );
 }
@@ -186,6 +176,9 @@ export function OneLapView(p: OneLapProps) {
             {others.map((c) => <option key={c.lap_id} value={c.lap_id}>{c.label}{c.other_car ? " (different car)" : ""}</option>)}
           </select>
         )}
+        {cmp.warning
+          ? <span className={styles.badge} title={cmp.warning}>DIFFERENT CAR</span>
+          : <SetupChip lapSessionId={session.session_id} laps={laps} refLapId={cmp.ref_lap_id} refName={refName} />}
       </ScopeBar>
       <div className={cx(styles.lapGrid, p.loading && styles.loading)}>
         <Story {...p} refName={refName} gap={gap} self={self} />

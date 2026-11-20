@@ -66,12 +66,11 @@ describe("TrackPanel", () => {
       <PlaybackProvider>
         <TrackPanel
           model={model} trackMap={null} geometry={null} annotations={[]} handlers={{ onSeek: () => {} }}
-          footer={<span>engineer line</span>} expanded={false} onToggleExpanded={() => {}}
+          expanded={false} onToggleExpanded={() => {}}
         />
       </PlaybackProvider>,
     );
     expect(screen.getByRole("alert").textContent).toMatch(/renderer exploded/);
-    expect(screen.getByText("engineer line")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Expand track view" })).toBeTruthy();
   });
 });

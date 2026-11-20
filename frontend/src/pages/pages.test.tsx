@@ -5,8 +5,7 @@ import { http, HttpResponse } from "msw";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { AppRoutes } from "../AppRoutes";
-import { createTestClient, newestBest, setupMockServer, spaPairs } from "../test/mockServer";
-import { formatLapTime } from "../lib/format";
+import { createTestClient, newestBest, setupMockServer } from "../test/mockServer";
 import { TRACKS_ADVANCED_KEY } from "../lib/tracksAdvanced";
 
 // uPlot draws on a canvas 2D context, which jsdom doesn't have. Stub just the chart class.
@@ -57,16 +56,9 @@ describe("pages", () => {
   it("Telemetry loads the default lap, with no error", async () => {
     const { best } = await newestBest(mock.engine());
     renderApp("/");
-    expect(await screen.findByRole("button", { name: /Analyze lap/ })).toBeTruthy();
-    // The lap rail marks the studied lap, with its time.
-    const rail = await screen.findByRole("complementary", { name: "Laps" });
-    const studied = await waitFor(() => {
-      const b = rail.querySelector("button[aria-current]");
-      expect(b).not.toBeNull();
-      return b!;
-    });
-    expect(studied.textContent).toContain(`L${best.lap_no}`);
-    expect(studied.textContent).toContain(formatLapTime(best.lap_time_s));
+    expect(await screen.findByRole("button", { name: "Ask the coach" })).toBeTruthy();
+    // The scope line's lap select shows the studied lap.
+    await waitFor(() => expect((screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement).value).toBe(best.lap_id));
     await waitFor(() => expect(screen.queryByText(/unknown_lap|no_laps|Loading…/)).toBeNull());
   });
 
@@ -81,32 +73,10 @@ describe("pages", () => {
     expect(t).toBeLessThan(best.lap_time_s!);
   });
 
-  it("Sessions lists each valid lap against the best possible lap", async () => {
-    renderApp("/sessions");
-    expect(await screen.findByRole("region", { name: "Laps against the best possible lap" }, { timeout: 5000 })).toBeTruthy();
-    expect(await screen.findByRole("region", { name: "Best possible lap breakdown" })).toBeTruthy();
-  });
-
-  it("Telemetry keeps the Analysis bar counts when notes are hidden", async () => {
-    // The default lap is its own reference (no findings), so open a lap that has a different reference.
-    const [pair] = await spaPairs(mock.engine(), 1);
-    renderApp(`/?lap=${pair.lap}&ref=${pair.ref}`);
-    const analyze = await screen.findByRole("button", { name: /Analyze lap/ });
-    await waitFor(() => expect((analyze as HTMLButtonElement).disabled).toBe(false));
-    fireEvent.click(analyze);
-    const hide = await screen.findByRole("button", { name: "Hide notes" }, { timeout: 5000 });
-    const countRe = /\d+ (big loss(es)?|small loss(es)?|good corners?|corners? you drive)/;
-    const before = (await screen.findAllByText(countRe, {}, { timeout: 5000 })).map((e) => e.textContent);
-    expect(before.length).toBeGreaterThan(0);
-    fireEvent.click(hide);
-    expect(await screen.findByRole("button", { name: "Show notes" })).toBeTruthy();
-    expect(screen.getAllByText(countRe).map((e) => e.textContent)).toEqual(before);
-  }, 20000);
-
   it("Telemetry renders a track without geometry (unknown_track) as a flat track, with no error", async () => {
     mock.server.use(http.get("*/api/tracks/:id/geometry", () => HttpResponse.json({ code: "unknown_track", message: "No geometry" }, { status: 404 })));
     renderApp("/");
-    expect(await screen.findByRole("button", { name: /Analyze lap/ })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Ask the coach" })).toBeTruthy();
     expect(await screen.findByRole("region", { name: "Track playback" })).toBeTruthy();
     await new Promise((r) => setTimeout(r, 100));
     expect(screen.queryByText(/unknown_track|No geometry|Loading…/)).toBeNull();
@@ -121,26 +91,20 @@ describe("pages", () => {
     expect(within(screen.getByRole("main")).getByRole("link", { name: "Sessions" }).getAttribute("href")).toBe("/sessions");
   });
 
-  it("Telemetry opens on a lap that is not the reference, with no self-comparison note", async () => {
-    const { best, laps } = await newestBest(mock.engine());
+  it("Telemetry opens on a lap that is not the reference, with no self-comparison message", async () => {
+    const { best } = await newestBest(mock.engine());
     expect(best.is_reference).toBe(false);
-    const ref = laps.find((l) => l.is_reference);
     renderApp("/");
-    await screen.findByRole("button", { name: /Analyze lap/ });
-    const rail = await screen.findByRole("complementary", { name: "Laps" });
-    await waitFor(() => expect(rail.querySelector("button[aria-current]")?.textContent).toContain(`L${best.lap_no}`));
-    expect(screen.queryByRole("note")).toBeNull();
-    if (ref) expect(await screen.findByText(/compared with your best lap/)).toBeTruthy();
+    await screen.findByRole("button", { name: "Ask the coach" });
+    await waitFor(() => expect((screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement).value).toBe(best.lap_id));
+    expect(screen.queryByText(/This is the lap you compare with/)).toBeNull();
   });
 
-  it("Telemetry notes a self-comparison and offers the best possible lap", async () => {
+  it("Telemetry says so on a self-comparison", async () => {
     const { laps } = await newestBest(mock.engine());
     const ref = laps.find((l) => l.is_reference)!;
     renderApp(`/?lap=${ref.lap_id}&ref=${ref.lap_id}`);
-    const note = await screen.findByRole("note");
-    expect(note.textContent).toMatch(/comparing with/);
-    fireEvent.click(within(note).getByRole("button", { name: "Compare with the best possible lap" }));
-    await waitFor(() => expect(screen.queryByRole("note")).toBeNull());
+    expect(await screen.findByText(/This is the lap you compare with/)).toBeTruthy();
   });
 
   it("Sessions lists a row per session of the selected track and car", async () => {
@@ -152,16 +116,19 @@ describe("pages", () => {
     expect(within(table).getAllByRole("link", { name: /Open/ }).length).toBeGreaterThan(0);
   });
 
-  it("Sessions: one selector (the table rows), lap table opens on a session with traces, cards name their session", async () => {
+  it("Sessions: the page is the track-and-car view only, with no lap table, and the date opens the Session view", async () => {
     renderApp("/sessions");
     const list = await screen.findByRole("region", { name: "Session list" });
-    await within(list).findByRole("table");
-    expect(screen.queryByRole("group", { name: "Session for the lap table" })).toBeNull();
-    expect(await screen.findByRole("region", { name: "Laps against the best possible lap" }, { timeout: 5000 })).toBeTruthy();
+    const table = await within(list).findByRole("table");
+    expect(screen.queryByRole("region", { name: "Laps against the best possible lap" })).toBeNull();
+    expect(screen.queryByText(/SELECTED SESSION/)).toBeNull();
     expect(within(screen.getByRole("region", { name: "Summary" })).getAllByText(/session/i).length).toBeGreaterThan(1);
+    const dates = within(table).getAllByRole("link").filter((a) => a.getAttribute("title") === "Open the session");
+    expect(dates.length).toBeGreaterThan(0);
+    expect(dates[0].getAttribute("href")).toMatch(/scope=session/);
   });
 
-  it("Sessions: a stats-only session (no lap has a trace) is tagged, its laps are listed without links, and its stint follows", async () => {
+  it("Sessions: a stats-only session (no lap has a trace) is tagged and has no lap to open", async () => {
     const sessions = (await mock.engine().sessions());
     const ids = new Set(sessions.map((x) => x.session_id));
     mock.server.use(http.get("*/api/sessions/:id/laps", async ({ params }) => {
@@ -172,55 +139,7 @@ describe("pages", () => {
     const list = await screen.findByRole("region", { name: "Session list" });
     const tags = await within(list).findAllByText("numbers only, no replay");
     expect(tags.length).toBeGreaterThan(0);
-    const laps = await screen.findByRole("region", { name: "Laps against the best possible lap" }, { timeout: 5000 });
-    expect(within(laps).getAllByText("numbers only, no replay").length).toBeGreaterThan(0);
-    expect(within(laps).queryAllByRole("link", { name: /Open lap/ })).toHaveLength(0);
-  });
-
-  it("Sessions: switching combo or session leaves only the selected session's lap table and ideal breakdown (vroom-pnw.51)", async () => {
-    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    onTestFinished(() => errors.mockRestore());
-    renderApp("/sessions");
-    await screen.findByRole("region", { name: "Laps against the best possible lap" }, { timeout: 5000 });
-    await screen.findByRole("region", { name: "Best possible lap breakdown" });
-    const group = screen.getByRole("group", { name: "Track and car" });
-    const chips = within(group).getAllByRole("button");
-    expect(chips.length).toBeGreaterThan(1);
-    const first = chips.find((b) => b.getAttribute("aria-pressed") === "true")!;
-    const other = chips.find((b) => b.getAttribute("aria-pressed") === "false")!;
-    const settle = async () => {
-      await screen.findByRole("region", { name: "Laps against the best possible lap" }, { timeout: 5000 });
-      await screen.findByRole("region", { name: "Best possible lap breakdown" }, { timeout: 5000 });
-    };
-    const onlyOne = () => {
-      expect(screen.getAllByRole("region", { name: "Laps against the best possible lap" })).toHaveLength(1);
-      expect(screen.getAllByRole("region", { name: "Best possible lap breakdown" })).toHaveLength(1);
-      expect(screen.getAllByText(/SELECTED SESSION/)).toHaveLength(1);
-    };
-    // Go to the other combo and back: the second visit is served from the query cache, so the tables swap within one render.
-    fireEvent.click(other);
-    await settle();
-    onlyOne();
-    fireEvent.click(first);
-    onlyOne();
-    await settle();
-    onlyOne();
-    // Pick another session of the combo (a row of the session list): its tables replace the previous ones.
-    const list = screen.getByRole("region", { name: "Session list" });
-    const rows = within(within(list).getByRole("table")).getAllByRole("row").slice(1);
-    const headingBefore = screen.getByText(/SELECTED SESSION/).textContent;
-    const target = rows.find((r) => !r.className.includes("selected"));
-    if (target) {
-      fireEvent.click(target);
-      // Not cached yet: the old tables are gone at once (never two of either), then the new ones load.
-      expect(screen.queryAllByRole("region", { name: "Laps against the best possible lap" }).length).toBeLessThanOrEqual(1);
-      expect(screen.queryAllByRole("region", { name: "Best possible lap breakdown" }).length).toBeLessThanOrEqual(1);
-      await settle();
-      onlyOne();
-      expect(screen.getByText(/SELECTED SESSION/).textContent).not.toBe(headingBefore);
-    }
-    // The two tables of one selected session must never share a React key.
-    expect(errors.mock.calls.some((c) => String(c[0]).includes("same key"))).toBe(false);
+    expect(within(list).queryAllByRole("link", { name: /Open →/ })).toHaveLength(0);
   });
 
   it("Tracks shows the corners table", async () => {

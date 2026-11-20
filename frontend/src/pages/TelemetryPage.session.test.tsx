@@ -1,4 +1,4 @@
-// The Session tab on the Telemetry page (vroom-bi4.12): events and laps open a lap in playback; a session without traces gets its own view.
+// The Session view on the Telemetry page (vroom-bi4.12, vroom-pnw.62): events and laps open a lap in playback; a session without traces has only that view.
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, useLocation } from "react-router-dom";
@@ -40,15 +40,14 @@ function open(path: string) {
   );
 }
 
-describe("Telemetry page, Session tab", () => {
+describe("Telemetry page, Session view", () => {
   it("opens a lap clicked in the lap-time chart against the session's best lap", async () => {
     const race = (await engine().sessions()).find((s) => s.started_at.startsWith("2026-11-10"))!;
     const laps = await engine().sessionLaps(race.session_id);
     const report = await engine().sessionReport(race.session_id);
     const best = report.laps.filter((l) => l.kind === "flying" && l.valid && l.has_trace && l.lap_time_s).sort((a, b) => a.lap_time_s! - b.lap_time_s!)[0];
     const target = laps.find((l) => l.lap_no === 4 && l.lap_id !== best.lap_id)!;
-    open(`/?lap=${target.lap_id === laps[0].lap_id ? laps[1].lap_id : laps[0].lap_id}`);
-    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Session" }));
+    open(`/?scope=session&lap=${target.lap_id === laps[0].lap_id ? laps[1].lap_id : laps[0].lap_id}`);
     fireEvent.click(await screen.findByRole("button", { name: /^Lap 4 / }));
     await waitFor(() => expect(search().get("lap")).toBe(target.lap_id));
     expect(search().get("ref")).toBe(best.lap_id);
@@ -60,8 +59,7 @@ describe("Telemetry page, Session tab", () => {
     const report = await engine().sessionReport(race.session_id);
     const ev = report.events.find((e) => e.distance_m !== null && report.laps.find((l) => l.lap_no === e.lap_from)?.has_trace)!;
     const lap = report.laps.find((l) => l.lap_no === ev.lap_from)!;
-    open(`/?lap=${lap.lap_id}`);
-    fireEvent.mouseDown(await screen.findByRole("tab", { name: "Session" }));
+    open(`/?scope=session&lap=${lap.lap_id}`);
     const groups = await screen.findAllByRole("button", { name: new RegExp(ev.sentence.slice(0, 25).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) });
     fireEvent.click(groups[0]);
     await waitFor(() => expect(search().get("at")).toBe(String(Math.round(ev.distance_m!))));
@@ -76,6 +74,6 @@ describe("Telemetry page, Session tab", () => {
     const monza = (await engine().sessions()).find((s) => s.started_at.startsWith("2026-11-09"))!;
     open(`/?session=${monza.session_id}`);
     await screen.findByText(/Playback is not available for this session/);
-    expect(screen.queryByRole("tab", { name: "Session" })).toBeNull();
+    expect(screen.queryByRole("slider", { name: "Lap position" })).toBeNull();
   });
 });
