@@ -79,15 +79,21 @@ describe("lap rail", () => {
 
   it("studies a lap on Enter, keeping other params, and sets it as the comparison on R", async () => {
     const user = userEvent.setup();
+    const slow = { timeout: 10000 }; // the first load of the 5 MB recording can take seconds on a busy runner
     renderAt("/?debug=0");
-    const laps = await screen.findByRole("complementary", { name: "Laps" });
-    const rows = await within(laps).findAllByRole("button", { name: /^L\d/ });
+    // Let the page settle first, or the keys below go to an element that is about to be replaced (vroom-4la):
+    // 1) the default lap is written to the URL, 2) the comparison candidates have loaded (R does nothing
+    // before that, and the rows render before it; a row's Compare button only exists once its lap is a candidate).
+    await waitFor(() => expect(loc.search).toContain("lap="), slow);
+    const laps = await screen.findByRole("complementary", { name: "Laps" }, slow);
+    await within(laps).findAllByRole("button", { name: /^Compare with L/ }, slow);
+    const rows = await within(laps).findAllByRole("button", { name: /^L\d/ }, slow);
     const studied = rows.find((b) => b.hasAttribute("aria-current"))!;
     const others = rows.filter((b) => b !== studied && !b.hasAttribute("aria-current"));
     const target = others[0];
     target.focus();
     await user.keyboard("r");
-    await waitFor(() => expect(loc.search).toContain("ref="), { timeout: 5000 });
+    await waitFor(() => expect(loc.search).toContain("ref="), slow);
     const refId = new URLSearchParams(loc.search).get("ref");
     expect(refId).toBe(target.getAttribute("data-lap-id"));
     expect(loc.search).toContain("debug=0");
@@ -95,7 +101,7 @@ describe("lap rail", () => {
     const next = others[1];
     next.focus();
     await user.keyboard("{Enter}");
-    await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBe(next.getAttribute("data-lap-id")));
+    await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBe(next.getAttribute("data-lap-id")), slow);
     expect(loc.search).toContain("debug=0");
   }, 20000);
 
