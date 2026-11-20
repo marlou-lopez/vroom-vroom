@@ -20,7 +20,7 @@ const timesOk = (g: Map<string, unknown>) => g.size > 0;
  * and a segment strip, beside the ideal lap's breakdown (vroom-bi4.2). Any lap with a trace opens in Telemetry; a lap without one
  * is "stats only" and does not link (vroom-x19). "valid only" hides everything but valid flying laps, as the Telemetry lap rail does.
  */
-export function LapGaugeTable({ sessionId }: { sessionId: string }) {
+export function LapGaugeTable({ sessionId, linkFor }: { sessionId: string; /** Where "Open" goes (default: the Telemetry page, keeping the current params). */ linkFor?: (lapId: string, atM?: number) => { pathname: string; search: string } }) {
   const { search } = useLocation();
   const [validOnly, setValidOnly] = useState(false);
   const lapsQ = useSessionLaps(sessionId);
@@ -78,7 +78,7 @@ export function LapGaugeTable({ sessionId }: { sessionId: string }) {
                   <td>{g ? <SegmentStrip cells={g.cells} lapId={l.lap_id} label={`L${l.lap_no} segments`} /> : <span className={styles.dim}>—</span>}</td>
                   <td className={styles.open}>
                     {l.has_trace ? (
-                      <Link to={lapLink(search, l.lap_id)} className={styles.openLink} aria-label={`Open lap ${l.lap_no}`}>Open →</Link>
+                      <Link to={linkFor ? linkFor(l.lap_id) : lapLink(search, l.lap_id)} className={styles.openLink} aria-label={`Open lap ${l.lap_no}`}>Open →</Link>
                     ) : (
                       <span className={styles.dim} title="No trace to open">—</span>
                     )}
@@ -89,7 +89,7 @@ export function LapGaugeTable({ sessionId }: { sessionId: string }) {
           </tbody>
         </table>
       </section>
-      {hasIdeal && <IdealBreakdown ideal={ideal} />}
+      {hasIdeal && <IdealBreakdown ideal={ideal} linkFor={linkFor} />}
     </div>
   );
 }

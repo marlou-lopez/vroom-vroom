@@ -76,3 +76,8 @@
 .considered { color: var(--color-muted); }
 .considered summary { cursor: pointer; }
 .considered li { padding: 2px 0; overflow-wrap: anywhere; }
+
+/* The full-width Session view (vroom-pnw.62): the page scrolls, not the report, and the charts sit two to a row when there is room. */
+.rootFull { overflow: visible; flex: none; }
+.miniChartsFull { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
+.more { align-self: flex-start; }
