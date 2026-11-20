@@ -19,6 +19,8 @@ import { LapRail } from "../components/workspace/LapRail";
 import { OneLapView, OneSessionView } from "../components/oneapp/OneApp";
 import oneStyles from "../components/oneapp/OneApp.module.css";
 import { oneUiEnabled } from "../lib/oneUi";
+import type { CoachState } from "../state/useCoach";
+import { lapStory, relabelByStory } from "../lib/lapStory";
 import { SessionTab, type OpenLap } from "../components/session/SessionTab";
 import { TracelessSession } from "../components/session/TracelessSession";
 import wsStyles from "../components/workspace/Workspace.module.css";
@@ -92,6 +94,8 @@ function Telemetry() {
   }, [lapParam, ctx, setParams]);
 
   const model = useMemo(() => (cmp ? buildModel(cmp) : null), [cmp]);
+  const keptOne = useRef<{ ctx: NonNullable<typeof ctx>; cmp: NonNullable<typeof cmp>; model: NonNullable<typeof model>; coach: CoachState } | null>(null);
+  // The one app (?ui=one) keeps its scope line, story and map mounted while the next comparison loads (vroom-pnw.60).
 
   useEffect(() => {
     if (!model) return;
@@ -120,10 +124,17 @@ function Telemetry() {
     () => (cmp && trackMap ? toAnnotations(coach.results, cmp, trackMap) : []),
     [cmp, trackMap, coach.results],
   );
+  // The one app numbers the map's issues by the story's ranking (biggest loss first), so the map and the cards agree.
+  const oneUi = oneUiEnabled(params);
+  const storyLosses = useMemo(
+    () => (oneUi && cmp && trackMap ? lapStory(cmp, trackMap.corners, {}, "").losses : []),
+    [oneUi, cmp, trackMap],
+  );
+  const mapAnnotations = useMemo(() => (oneUi ? relabelByStory(allAnnotations, storyLosses) : allAnnotations), [oneUi, allAnnotations, storyLosses]);
   // What the map, strips and scrubber draw: nothing while notes are hidden.
   const annotations = useMemo<Annotation[]>(
-    () => (coach.showNotes ? allAnnotations : EMPTY_ANNOTATIONS),
-    [coach.showNotes, allAnnotations],
+    () => (coach.showNotes ? mapAnnotations : EMPTY_ANNOTATIONS),
+    [coach.showNotes, mapAnnotations],
   );
 
   // A corner click (badge, rail, scrubber, table) fits the strips' window to that corner once; the window then follows the playhead.
@@ -250,31 +261,38 @@ function Telemetry() {
   ];
 
   // EXPERIMENTAL overhaul prototype (vroom-pnw.58, ?ui=one): the lap scope, with no lap rail or corner rail.
-  if (oneUiEnabled(params)) {
-    if (!(ctx && cmp && model)) return <Message>{error ? `${error.code}: ${error.message}` : "Loading…"}</Message>;
+  if (oneUi) {
+    // Lap, comparison, model and coach are kept as one set, so while the next comparison loads the story never mixes two laps.
+    const live = ctx && cmp && model ? { ctx, cmp, model, coach } : null;
+    const shown = live ?? keptOne.current;
+    if (live) keptOne.current = live;
+    if (error || !shown) return <Message>{error ? `${error.code}: ${error.message}` : "Loading…"}</Message>;
+    const { ctx: sCtx, cmp: sCmp, model: sModel, coach: sCoach } = shown;
+    const loading = !live;
+    const sValid = effectiveValid(sCtx.lap);
     return (
       <AnnotationCardProvider value={cardActions}>
         <OneLapView
-          session={ctx.session} laps={ctx.laps} lap={ctx.lap} cmp={cmp} trackMap={trackMap} candidates={candidates} coach={coach}
+          session={sCtx.session} laps={sCtx.laps} lap={sCtx.lap} cmp={sCmp} trackMap={trackMap} candidates={candidates} coach={sCoach} loading={loading}
           onSelectLap={selectLap} onSelectRef={selectRef} onSeek={seekToCorner}
           onReplay={(c) => { seekToCorner(c); store.play(); }}
           stage={
             <div className={oneStyles.stageGrid}>
               <TrackPanel
-                model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers}
-                lapTimes={lapTimes} lapValid={lapValid} refName={refShort}
+                model={sModel} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers}
+                lapTimes={lapTimes} lapValid={sValid} refName={refShort}
                 expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
               />
               <section aria-label="Inputs" className={oneStyles.strips}>
-                <DetailedStrips model={model} geometry={geometry} annotations={annotations} handlers={handlers} focusCorner={focusCorner} lapValid={lapValid} youName={youName} refName={refName} />
+                <DetailedStrips model={sModel} geometry={geometry} annotations={annotations} handlers={handlers} focusCorner={focusCorner} lapValid={sValid} youName={youName} refName={refName} />
               </section>
             </div>
           }
           transport={
             <Transport
-              model={model} trackMap={trackMap} refName={refShort ?? undefined} priorityCornerIds={priorityCorners}
-              scrubberLayer={<><ScrubberOffTrack model={model} valid={lapValid} /><ScrubberSections annotations={annotations} duration={model.duration} /></>}
-              scrubberBadges={<ScrubberBadges annotations={annotations} duration={model.duration} h={handlers} />}
+              model={sModel} trackMap={trackMap} refName={refShort ?? undefined} priorityCornerIds={priorityCorners}
+              scrubberLayer={<><ScrubberOffTrack model={sModel} valid={sValid} /><ScrubberSections annotations={annotations} duration={sModel.duration} /></>}
+              scrubberBadges={<ScrubberBadges annotations={annotations} duration={sModel.duration} h={handlers} />}
             />
           }
         />

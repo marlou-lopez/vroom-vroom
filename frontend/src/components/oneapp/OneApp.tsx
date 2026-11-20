@@ -8,9 +8,12 @@ import { useSessionReport, useSessions } from "../../api/queries";
 import { effectiveValid, type CompareCandidate, type CompareResponse, type Corner, type LapWithRef, type SessionMeta, type TrackMap } from "../../api/types";
 import { lapGap } from "../../lib/compareName";
 import { bestLapTime, lapGapText, lapKeyDir, stepLapId, timedLaps } from "../../lib/lapStep";
-import { cornerRailRows } from "../../lib/cornerRail";
+import { lapStory } from "../../lib/lapStory";
+import { plainCoachError } from "../../lib/coachError";
+import * as Popover from "@radix-ui/react-popover";
+import { LegendRows } from "../AnalysisBar";
 import { formatLapTime, formatShortDate } from "../../lib/format";
-import { plainCorners, plainGap, plainRefName, plainSeconds, PLAIN_MIN_S } from "../../lib/plainCorner";
+import { plainGap, plainRefName, plainSeconds, PLAIN_MIN_S } from "../../lib/plainCorner";
 import { noPlayback } from "../../lib/sessionTab";
 import { sessionSummary } from "../../lib/sessionSummary";
 import { withParams } from "../../lib/urlParams";
@@ -18,6 +21,7 @@ import type { CoachState } from "../../state/useCoach";
 import { SessionTab, type OpenLap } from "../session/SessionTab";
 import { LapGaugeTable } from "../LapGaugeTable";
 import { StintPanel } from "../StintPanel";
+import { cx } from "../../lib/cx";
 import styles from "./OneApp.module.css";
 
 /** The dashed label every prototype screen carries. */
@@ -117,6 +121,8 @@ export interface OneLapProps {
   /** Seek to a corner without playing (a row click). */
   onSeek(corner: Corner): void;
   /** The map and strips, the transport: the page renders them so they keep their playback wiring. */
+  /** The next comparison is loading: the page keeps showing the previous one, dimmed, instead of unmounting. */
+  loading?: boolean;
   stage: ReactNode;
   transport: ReactNode;
 }
@@ -152,7 +158,7 @@ export function OneLapView(p: OneLapProps) {
   }, [prevId, nextId, onSelectLap]);
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} aria-busy={p.loading || undefined}>
       <ScopeBar session={session}>
         <span className={styles.sep}>›</span>
         <button type="button" className={styles.crumb} onClick={() => setParams((q) => withParams(q, { scope: "session", session: session.session_id }))} title="The session report: every lap, tyres, brakes and events">
@@ -181,7 +187,7 @@ export function OneLapView(p: OneLapProps) {
           </select>
         )}
       </ScopeBar>
-      <div className={styles.lapGrid}>
+      <div className={cx(styles.lapGrid, p.loading && styles.loading)}>
         <Story {...p} refName={refName} gap={gap} self={self} />
         <div className={styles.stage}>{p.stage}</div>
       </div>
@@ -190,74 +196,114 @@ export function OneLapView(p: OneLapProps) {
   );
 }
 
-/** The left column: the lap's answer, then every corner, losses first, with a plain tip and Replay on the big ones. */
-function Story({ lap, cmp, trackMap, coach, refName, gap, self, onReplay, onSeek }: OneLapProps & { refName: string; gap: number | null; self: boolean }) {
+/** The "⋯" menu: the Key, notes on or off, Ask again, Average and what the coach has cost. */
+function StoryMenu({ coach, loading }: { coach: CoachState; loading?: boolean }) {
+  const [showKey, setShowKey] = useState(false);
+  const { results, running, showNotes, setShowNotes, run } = coach;
+  const costs = [results.analyze, results.average].filter((r) => r?.cost_usd != null);
+  const cost = costs.reduce((sum, r) => sum + (r?.cost_usd ?? 0), 0);
+  const busy = running !== null || !!loading;
+  return (
+    <Popover.Root onOpenChange={(o) => !o && setShowKey(false)}>
+      <Popover.Trigger className={styles.more} aria-label="More: key, notes, coach" title="Key, notes and the coach">⋯</Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content align="end" sideOffset={4} collisionPadding={8} className={styles.menu} aria-label="More">
+          <button type="button" className={styles.menuItem} aria-expanded={showKey} onClick={() => setShowKey((x) => !x)}>Key {showKey ? "▾" : "▸"}</button>
+          {showKey && <div className={styles.menuKey}><LegendRows /></div>}
+          <button type="button" className={styles.menuItem} aria-pressed={showNotes} onClick={() => setShowNotes(!showNotes)}>{showNotes ? "Hide notes" : "Show notes"}</button>
+          {results.analyze && <button type="button" className={styles.menuItem} disabled={busy} onClick={() => void run("analyze")}>Ask again</button>}
+          <button type="button" className={styles.menuItem} disabled={busy} onClick={() => void run("average")}>Average: check consistency across laps</button>
+          {costs.length > 0 && <div className={styles.menuNote} title="What the language model charged for the analyses of this lap. Telemetry itself is free.">Coach cost ${cost.toFixed(3)}</div>}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+
+/** Seconds since mount, for the coach's busy line. */
+function Elapsed() {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    const t0 = Date.now();
+    const id = setInterval(() => setSecs(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <>{secs}s</>;
+}
+
+/**
+ * The left column: the lap and gap sentence stay pinned at the top, and only the cards below scroll. Then the three
+ * biggest losses (what happened, the coach's fix or a computed tip, Replay), Ask the coach, and every corner.
+ */
+function Story({ lap, cmp, trackMap, coach, loading, refName, gap, self, onReplay, onSeek }: OneLapProps & { refName: string; gap: number | null; self: boolean }) {
   const [showAll, setShowAll] = useState(false);
-  const rows = useMemo(() => (trackMap ? cornerRailRows(cmp, trackMap.corners) : []), [cmp, trackMap]);
-  const losses = rows.filter((r) => r.deltaS >= PLAIN_MIN_S).sort((a, b) => b.deltaS - a.deltaS);
-  const top = losses.slice(0, 3);
-  const rest = rows.filter((r) => !top.includes(r));
   const plainRef = refName.replace(/ \(lap \d+\)$/, "");
-  const plains = plainCorners(top.map((r) => ({ metrics: cmp.corners.find((m) => m.corner_id === r.corner.id)!, name: r.corner.name })), plainRef);
-  const coachFix = useMemo(() => {
-    const out = new Map<string, string>();
-    for (const r of [coach.results.analyze, coach.results.average]) for (const f of r?.findings ?? []) if (!out.has(f.corner_id) && f.kind !== "strength") out.set(f.corner_id, f.fix);
-    return out;
-  }, [coach.results]);
+  const story = useMemo(() => (trackMap ? lapStory(cmp, trackMap.corners, coach.results, plainRef) : null), [cmp, trackMap, coach.results, plainRef]);
+  const cards = story?.cards ?? [];
+  const rows = story?.rows ?? [];
   const analyzed = !!coach.results.analyze;
   const max = Math.max(0.001, ...rows.map((r) => Math.abs(r.deltaS)));
-  const sumLoss = losses.reduce((s, r) => s + r.deltaS, 0);
+  const { error, failedCommand, running } = coach;
 
   return (
     <aside className={styles.story} aria-label="Where the time goes">
-      <header className={styles.headline}>
-        <h1 className={styles.h1}>Lap {lap.lap_no} · {formatLapTime(lap.lap_time_s)}</h1>
+      <header className={styles.storyHead}>
+        <div className={styles.storyTitle}>
+          <h1 className={styles.h1}>Lap {lap.lap_no} · {formatLapTime(lap.lap_time_s)}</h1>
+          <StoryMenu coach={coach} loading={loading} />
+        </div>
         <p className={styles.lede}>
           {self ? "This is the lap you compare with, so there is no gap to show. Compare with the best possible lap instead." : gap === null ? null : (
             <>This lap was <strong className={gap > 0 ? styles.slower : styles.faster}>{plainGap(gap, refName)}</strong>.
-              {top.length > 0 && <> {top.length === 1 ? "The biggest loss is" : `The ${top.length} biggest losses are`} {top.map((r) => r.corner.name).join(", ").replace(/, ([^,]*)$/, " and $1")}.</>}
+              {cards.length > 0 && <> {cards.length === 1 ? "The biggest loss is" : `The ${cards.length} biggest losses are`} {cards.map((c) => c.row.corner.name).join(", ").replace(/, ([^,]*)$/, " and $1")}.</>}
             </>
           )}
         </p>
       </header>
       {!self && (
-        <>
+        <div className={styles.storyBody}>
           <ol className={styles.losses}>
-            {top.map((r, i) => {
-              const fix = coachFix.get(r.corner.id);
-              const pc = plains[i];
-              return (
-                <li key={r.corner.id} className={styles.loss}>
-                  <div className={styles.lossHead}>
-                    <span className={styles.rank} aria-hidden="true">{i + 1}</span>
-                    <button type="button" className={styles.cornerBtn} onClick={() => onSeek(r.corner)} title="Show this corner on the map and strips">{r.corner.name}</button>
-                    <span className={styles.slower}>{plainSeconds(r.deltaS)} slower</span>
-                  </div>
-                  <p className={styles.what}>{pc.what}</p>
-                  {fix ? <p className={styles.tip}><b>Coach:</b> {fix}</p> : pc.tip && <p className={styles.tip}><b>Try:</b> {pc.tip}</p>}
-                  <button type="button" className={styles.replay} onClick={() => onReplay(r.corner)}>▶ Replay this corner</button>
-                </li>
-              );
-            })}
+            {cards.map((c) => (
+              <li key={c.row.corner.id} className={styles.loss}>
+                <div className={styles.lossHead}>
+                  <span className={styles.rank} aria-hidden="true">{c.rank}</span>
+                  <button type="button" className={styles.cornerBtn} onClick={() => onSeek(c.row.corner)} title="Show this corner on the map and strips">{c.row.corner.name}</button>
+                  <span className={styles.slower}>{plainSeconds(c.row.deltaS)} slower</span>
+                </div>
+                <p className={styles.what}>{c.what}</p>
+                {c.advice && <p className={styles.tip}><b>{c.advice.by === "coach" ? "Coach:" : "Try:"}</b> {c.advice.text}</p>}
+                <button type="button" className={styles.replay} onClick={() => onReplay(c.row.corner)}>▶ Replay this corner</button>
+              </li>
+            ))}
           </ol>
           <div className={styles.coachRow}>
-            {analyzed ? (
+            {running ? (
+              <span className={styles.busy} role="status">
+                <span className={styles.spinner} aria-hidden="true" />
+                {running === "average" ? "Averaging" : "The coach is looking at your lap"}… <Elapsed />
+                <button type="button" className={styles.replay} onClick={coach.cancel}>Cancel</button>
+              </span>
+            ) : analyzed ? (
               <span className={styles.muted}>Tips marked “Coach” come from the AI coach; the others are worked out from your laps.</span>
             ) : (
               <>
-                <button type="button" className={styles.primary} disabled={coach.running !== null} onClick={() => void coach.run("analyze")}>
-                  {coach.running ? "The coach is looking at your lap…" : "Ask the coach"}
-                </button>
+                <button type="button" className={styles.primary} disabled={loading} onClick={() => void coach.run("analyze")}>Ask the coach</button>
                 <span className={styles.muted}>The tips above are worked out from your laps. The coach (a paid AI call) writes its own.</span>
               </>
             )}
+            {error && (
+              <span role="alert" className={styles.error} title={`${error.code}: ${error.message}`}>
+                {plainCoachError(error.code)}
+                {failedCommand && failedCommand !== "corner" && <button type="button" className={styles.replay} onClick={() => void coach.run(failedCommand)}>Retry</button>}
+              </span>
+            )}
           </div>
           <button type="button" className={styles.disclosure} aria-expanded={showAll} onClick={() => setShowAll((x) => !x)}>
-            {showAll ? "▾" : "▸"} The other {rest.length} corners · {plainSeconds(sumLoss)} lost across all losing corners
+            {showAll ? "▾" : "▸"} Every corner · {rows.length}
           </button>
           {showAll && (
-            <ul className={styles.all}>
-              {rest.map((r) => (
+            <ul className={styles.all} aria-label="Every corner">
+              {rows.map((r) => (
                 <li key={r.corner.id}>
                   <button type="button" className={styles.allRow} onClick={() => onSeek(r.corner)}>
                     <span className={styles.allName}>{r.corner.name}</span>
@@ -270,7 +316,7 @@ function Story({ lap, cmp, trackMap, coach, refName, gap, self, onReplay, onSeek
               ))}
             </ul>
           )}
-        </>
+        </div>
       )}
     </aside>
   );

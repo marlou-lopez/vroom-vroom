@@ -50,8 +50,34 @@
 .stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .story {
   background: var(--one-surface); border-radius: var(--one-radius); padding: 12px 14px;
-  display: flex; flex-direction: column; gap: 12px; height: 0; min-height: 100%; overflow: auto; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 0; height: 0; min-height: 100%; overflow: hidden; box-sizing: border-box; min-width: 0;
 }
+/* The lap and gap sentence stay put; only .storyBody scrolls. */
+.storyHead { flex: none; max-height: 40%; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; padding-bottom: 10px; border-bottom: 1px solid var(--color-border); }
+.storyTitle { display: flex; align-items: center; gap: 8px; }
+.storyTitle .h1 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.storyBody { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }
+.loading { opacity: 0.6; transition: opacity 0.15s; }
+.more {
+  flex: none; min-width: var(--one-control); min-height: var(--one-control); background: var(--one-surface-2); color: var(--color-text);
+  border: 1px solid var(--color-border-strong); border-radius: var(--one-radius); cursor: pointer; font-size: 18px; line-height: 1; padding: 0;
+}
+.more:hover { background: var(--color-hover); }
+.menu {
+  background: var(--color-popup); border: 1px solid var(--color-border-strong); border-radius: var(--one-radius);
+  padding: 6px; width: min(340px, calc(100vw - 16px)); max-height: min(80vh, 640px); overflow-y: auto; display: flex; flex-direction: column; gap: 2px; z-index: 50;
+  font-size: 13px; line-height: 1.45; color: var(--color-text);
+}
+.menuItem { text-align: left; min-height: 30px; padding: 0 8px; background: none; border: 0; border-radius: var(--one-radius); color: var(--color-text); font: inherit; cursor: pointer; }
+.menuItem:hover:not(:disabled) { background: var(--color-hover); }
+.menuItem:disabled { color: var(--color-muted); cursor: default; }
+.menuKey { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px 8px; }
+.menuNote { padding: 6px 8px 2px; color: var(--color-muted); font-family: var(--font-mono); border-top: 1px solid var(--color-border); margin-top: 4px; }
+.busy { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.spinner { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--color-border-strong); border-top-color: var(--color-you); animation: spin 0.8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+.error { color: var(--color-issue); display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .slower { color: var(--color-issue); font-weight: 600; }
 .faster { color: var(--color-strength); font-weight: 600; }
 .muted { color: var(--color-muted); }
@@ -65,8 +91,8 @@
 }
 .cornerBtn { background: none; border: 0; padding: 0; color: var(--color-text); font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; text-align: left; flex: 1; }
 .cornerBtn:hover { text-decoration: underline; }
-.what { margin: 0; color: var(--color-text-soft); }
-.tip { margin: 0; }
+.what { margin: 0; overflow-wrap: anywhere; color: var(--color-text-soft); }
+.tip { margin: 0; overflow-wrap: anywhere; }
 .tip b { color: var(--color-you); font-weight: 600; }
 .replay {
   align-self: flex-start; min-height: 28px; padding: 0 12px; margin-top: 2px; border-radius: var(--one-radius);
