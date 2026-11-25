@@ -49,6 +49,9 @@ export function LegendRows() {
       {TAGS.map(([tag, text]) => (
         <div key={tag} className={styles.legendRow}><span className={styles.tagKey}>{tag}</span>{text}</div>
       ))}
+      <div className={styles.legendTitle}>Keys</div>
+      <div className={styles.legendRow}><span className={styles.tagKey}>R</span>compare with the next lap of the session (Shift+R: the previous one)</div>
+      <div className={styles.legendRow}><span className={styles.tagKey}>↑ ↓</span>previous or next lap</div>
       <div className={styles.legendRow}>Click a mark to open its card. Hover previews it after a moment.</div>
     </>
   );

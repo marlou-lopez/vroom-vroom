@@ -36,3 +36,24 @@ export function lapKeyDir(e: { key: string; ctrlKey: boolean; metaKey: boolean; 
   if (isTypingTarget(target) || target?.closest("[role=slider], [role=tab], [role=radio], [role=listbox], [role=option], [role=menuitem], [role=toolbar]")) return null;
   return e.key === "ArrowDown" ? 1 : -1;
 }
+
+/** The session laps that can be the reference for the lap being studied: timed flying laps except that lap itself. */
+export function refChoices(laps: LapWithRef[], currentId: string): LapWithRef[] {
+  return laps.filter((l) => l.kind === "flying" && l.lap_time_s && l.lap_id !== currentId);
+}
+
+/** The next (1) or previous (-1) reference lap in the list, wrapping round; from a reference outside the list, the first or last. Null for an empty list. */
+export function cycleRefId(choices: LapWithRef[], refId: string, dir: 1 | -1): string | null {
+  if (choices.length === 0) return null;
+  const i = choices.findIndex((l) => l.lap_id === refId);
+  if (i < 0) return choices[dir === 1 ? 0 : choices.length - 1].lap_id;
+  return choices[(i + dir + choices.length) % choices.length].lap_id;
+}
+
+/** R picks the next reference lap, Shift+R the previous; null for other keys, other modifiers, and typing or open popups. */
+export function refKeyDir(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }, target: Element | null): 1 | -1 | null {
+  if (e.ctrlKey || e.metaKey || e.altKey) return null;
+  if (e.key !== "r" && e.key !== "R") return null;
+  if (isTypingTarget(target)) return null;
+  return e.shiftKey ? -1 : 1;
+}
