@@ -27,6 +27,7 @@ describe("Session tab", () => {
     expect(screen.getByTestId("window-brake_c-front")).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Lap 1 / })).toBeTruthy();
     const list = screen.getByRole("region", { name: "Events" });
+    fireEvent.click(within(list).getByRole("button", { name: /^Show all / }));
     expect(within(list).getAllByRole("listitem").length).toBe(report.events.length);
     // the setting change marker carries the event's sentence
     expect(report.events.some((e) => e.kind === "setting_changed")).toBe(true);
@@ -60,6 +61,7 @@ describe("Session tab", () => {
     const report = await engine().sessionReport(race.session_id);
     renderTab(race.session_id);
     const list = await screen.findByRole("region", { name: "Events" });
+    fireEvent.click(within(list).getByRole("button", { name: /^Show all / }));
     const cat = report.events[0].category;
     const n = report.events.filter((e) => e.category === cat).length;
     const filters = within(screen.getByRole("group", { name: "Filter events by category" }));

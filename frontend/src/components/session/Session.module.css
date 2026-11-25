@@ -1,5 +1,5 @@
 /* The Session tab (vroom-bi4.12). Self-contained: the tab may move in a later UI overhaul. */
-.root { display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow-y: auto; min-height: 0; flex: 1; container: session / inline-size; }
+.root { display: flex; flex-direction: column; gap: 12px; min-width: 0; container: session / inline-size; }
 .note { margin: 0; padding: 4px 8px; background: var(--color-surface); border-radius: var(--radius); color: var(--color-muted); }
 .noteWarn { color: var(--color-minor); }
 .state { padding: 16px; text-align: center; color: var(--color-muted); }
@@ -42,7 +42,7 @@
 .swatchFront { background: var(--color-you); }
 .swatchRear { background: var(--color-minor); }
 .swatchWindow { background: var(--color-strength); opacity: 0.4; height: 8px; }
-.miniCharts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.miniCharts { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 12px; }
 
 .events { display: flex; flex-direction: column; gap: 8px; }
 .filters { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
@@ -73,7 +73,4 @@
 .considered summary { cursor: pointer; }
 .considered li { padding: 2px 0; overflow-wrap: anywhere; }
 
-/* The full-width Session view (vroom-pnw.62): the page scrolls, not the report, and the charts sit two to a row when there is room. */
-.rootFull { overflow: visible; flex: none; }
-.miniChartsFull { grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
 .more { align-self: flex-start; }

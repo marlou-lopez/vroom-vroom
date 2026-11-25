@@ -17,18 +17,17 @@ const SEVERITY_TEXT: Record<ReportSeverity, string> = { info: "for your informat
 /** What the page needs to open a lap: the reference is the session's best lap (null when the lap is that lap), `distanceM` moves the playhead. */
 export interface OpenLap { lapId: string; refLapId: string | null; distanceM: number | null }
 
-/** In the full-width Session view (`full`, vroom-pnw.62) the events show their first few and fold the rest. */
+/** The Session view shows the first few events and folds the rest. */
 export const EVENTS_SHOWN = 5;
 
 export interface SessionTabProps {
   sessionId: string;
   onOpen(target: OpenLap): void;
-  /** The full-width Session view: lap chart, events (folded past 5), tyre and brake charts, then `children`; "Not judged" is one line. */
-  full?: boolean;
+  /** Rendered after the report: lap chart, events (folded past 5), tyre and brake charts, then `children`. */
   children?: ReactNode;
 }
 
-export function SessionTab({ sessionId, onOpen, full, children }: SessionTabProps) {
+export function SessionTab({ sessionId, onOpen, children }: SessionTabProps) {
   const q = useSessionReport(sessionId);
   if (q.isPending) return <div className={styles.state} role="status">Loading the session report…</div>;
   if (q.error) {
@@ -39,10 +38,10 @@ export function SessionTab({ sessionId, onOpen, full, children }: SessionTabProp
       </div>
     );
   }
-  return <ReportBody key={sessionId} report={q.data} onOpen={onOpen} full={full}>{children}</ReportBody>;
+  return <ReportBody key={sessionId} report={q.data} onOpen={onOpen}>{children}</ReportBody>;
 }
 
-function ReportBody({ report, onOpen, full, children }: { report: SessionReport; onOpen(target: OpenLap): void; full?: boolean; children?: ReactNode }) {
+function ReportBody({ report, onOpen, children }: { report: SessionReport; onOpen(target: OpenLap): void; children?: ReactNode }) {
   const [showAllEvents, setShowAllEvents] = useState(false);
   const [categories, setCategories] = useState<ReadonlySet<ReportCategory>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
@@ -50,7 +49,7 @@ function ReportBody({ report, onOpen, full, children }: { report: SessionReport;
   const counts = useMemo(() => categoryCounts(report.events), [report.events]);
   const allGroups = useMemo(() => groupEvents(report.events, categories), [report.events, categories]);
   const eventTotal = allGroups.reduce((n, g) => n + g.events.length, 0);
-  const folded = !!full && !showAllEvents && eventTotal > EVENTS_SHOWN;
+  const folded = !showAllEvents && eventTotal > EVENTS_SHOWN;
   const groups = useMemo(() => (folded ? foldGroups(allGroups, EVENTS_SHOWN) : allGroups), [allGroups, folded]);
   const playbackOff = noPlayback(report);
   const suggestOn = useMemo(() => suggestEnabled(globalThis.location?.search ?? ""), []);
@@ -70,7 +69,7 @@ function ReportBody({ report, onOpen, full, children }: { report: SessionReport;
   if (report.laps.length === 0) return <div className={styles.state}>This session has no laps to report on.</div>;
 
   const chartsBlock = (
-    <div className={cx(styles.miniCharts, full && styles.miniChartsFull)}>
+    <div className={styles.miniCharts}>
       {CHARTS.map((c) => <MetricChart key={c.metric} metric={c.metric} laps={report.laps} windows={report.windows} events={report.events} onOpenLap={(l) => open(l, null)} />)}
     </div>
   );
@@ -105,7 +104,7 @@ function ReportBody({ report, onOpen, full, children }: { report: SessionReport;
           </ul>
         </div>
       ))}
-      {full && eventTotal > EVENTS_SHOWN && (
+      {eventTotal > EVENTS_SHOWN && (
         <button type="button" className={cx(ui.btn, styles.more)} aria-expanded={showAllEvents} onClick={() => setShowAllEvents((x) => !x)}>
           {showAllEvents ? `Show the first ${EVENTS_SHOWN} only` : `Show all ${eventTotal} events`}
         </button>
@@ -114,21 +113,16 @@ function ReportBody({ report, onOpen, full, children }: { report: SessionReport;
   );
 
   return (
-    <div className={cx(styles.root, full && styles.rootFull)}>
+    <div className={styles.root}>
       {playbackOff && <p className={styles.note} role="status">Playback is not available for this session: it was recorded without lap traces, so laps and events can be read here but not replayed.</p>}
-      {report.unavailable.length > 0 && (full ? (
+      {report.unavailable.length > 0 && (
         <p className={styles.note} role="status">Not judged for this session: {report.unavailable.map((u) => `${u.category} (${u.reason.replace(/\.$/, "")})`).join("; ")}.</p>
-      ) : (
-        <div className={cx(styles.note, styles.noteWarn)} role="status">
-          Not judged for this session:
-          <ul>{report.unavailable.map((u) => <li key={u.category}><strong>{u.category}</strong>: {u.reason}</li>)}</ul>
-        </div>
-      ))}
+      )}
       {notice && <p className={cx(styles.note, styles.noteWarn)} role="status">{notice}</p>}
       <LapTimeChart laps={report.laps} events={report.events} onOpenLap={(l) => open(l, null)} />
-      {full ? eventsBlock : chartsBlock}
+      {eventsBlock}
       {suggestOn && <SuggestionsPanel report={report} />}
-      {full ? chartsBlock : eventsBlock}
+      {chartsBlock}
       {children}
     </div>
   );
