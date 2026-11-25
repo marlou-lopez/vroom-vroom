@@ -35,6 +35,8 @@ export interface Kerb {
  * edgeMeasured: left and right, 1 where telemetry measured that edge (null for the stand-in edges); kerbs: empty for the stand-in.
  */
 export interface Scene {
+  /** Latitude and longitude (degrees, the recording's GPS frame) of x = 0, y = 0. */
+  origin: { lat0: number; lon0: number };
   lap: XY; ref: XY; centre: XY; edges: [XY, XY]; edgeMeasured: [Uint8Array, Uint8Array] | null; kerbs: Kerb[];
   gain: GainLine;
   /** The lap line where a wheel locked under braking or spun on throttle (vroom-pnw.14), one slice of `lap` per run, to draw over it. */
@@ -267,7 +269,7 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
   const border = (side: "left" | "right", floor: number | ArrayLike<number>) =>
     telemetry ? surfaceClearance(centre, [lap, ref], side, floor as ArrayLike<number>) : gainClearance(centre, [lap, ref], side, SURFACE_MARGIN_M, floor);
   const surface: [XY, XY] = [along(border("left", floorLeft), 1), along(border("right", floorRight), -1)];
-  return { lap, ref, centre, edges, edgeMeasured, kerbs, gain, slip, offTrack, surface, bounds: bounds([edges[0], edges[1], lap, ref]),
+  return { origin, lap, ref, centre, edges, edgeMeasured, kerbs, gain, slip, offTrack, surface, bounds: bounds([edges[0], edges[1], lap, ref]),
     lapDims: carDimsOrFallback(cmp.lap_car_dims), refDims: carDimsOrFallback(cmp.ref_car_dims),
     lapCarId: cmp.lap_car_id, refCarId: cmp.ref_car_id,
     edgeSource: telemetry ? (usedSurvey ? (aerial ? "aerial" : "survey") : "laps") : null };

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -71,14 +72,21 @@ EVENTS: dict[str, str] = {
     "last_sector2": "Last Sector2",
     "in_pits": "In Pits",
     "current_sector": "Current Sector",
+    "wetness": "Minimum Path Wetness",  # emitted on change; one row (0) on a dry day
 }
 
 
 def file_sha1(path: Path) -> str:
+    """sha1 of the recording and, when LMU left one, its `.wal` (which holds the last rows, so
+    growth in the log alone makes a different recording)."""
     h = hashlib.sha1()
-    with path.open("rb") as f:
-        while chunk := f.read(1 << 20):
-            h.update(chunk)
+    wal = path.with_name(path.name + ".wal")
+    for p in (path, wal) if wal.is_file() else (path,):
+        if p is wal:
+            h.update(b"\0wal\0")
+        with p.open("rb") as f:
+            while chunk := f.read(1 << 20):
+                h.update(chunk)
     return h.hexdigest()
 
 
@@ -88,6 +96,22 @@ def load_cars_config(path: Path | str | None = None) -> dict[str, Any]:
         return {}
     data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     return data if isinstance(data, dict) else {}
+
+
+def car_dims_for(car_id: str, cars_config: Path | str | None = None) -> dict[str, Any] | None:
+    """A car size from cars.yaml `car_dims` in the contract shape (`CarDims`), or None."""
+    d = (load_cars_config(cars_config).get("car_dims") or {}).get(car_id)
+    if not isinstance(d, dict):
+        return None
+    try:
+        out: dict[str, Any] = {"length_m": float(d["length_m"]), "width_m": float(d["width_m"])}
+        if d.get("wheelbase_m") is not None:
+            out["wheelbase_m"] = float(d["wheelbase_m"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not all(math.isfinite(v) and v > 0 for v in out.values()):
+        return None
+    return out
 
 
 def _steer_lock_from_setup(setup_json: str | None) -> float | None:
@@ -101,6 +125,24 @@ def _steer_lock_from_setup(setup_json: str | None) -> float | None:
         return None
     m = re.match(r"\s*(\d+(?:\.\d+)?)", str(text))
     return float(m.group(1)) if m and float(m.group(1)) > 0 else None
+
+
+def parse_setup(setup_json: str | None) -> dict[str, str]:
+    """`CarSetup` -> setting id -> display string (`stringValue`). Entries without a
+    `stringValue` (`gearGraph`, `symmetric`) are dropped; bad or missing JSON gives {}."""
+    if not setup_json:
+        return {}
+    try:
+        setup = json.loads(setup_json)
+    except ValueError:
+        return {}
+    if not isinstance(setup, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, item in setup.items():
+        if isinstance(item, dict) and isinstance(item.get("stringValue"), str):
+            out[str(key)] = item["stringValue"]
+    return out
 
 
 def _parse_recording_time(text: str) -> datetime:
@@ -211,4 +253,6 @@ def read_lmu_duckdb(path: Path | str, cars_config: Path | str | None = None) -> 
         driver=meta_rows.get("DriverName", ""),
         steering_range_deg=steering,
     )
-    return RawSession(meta=meta, channels=channels, events=events)
+    return RawSession(
+        meta=meta, channels=channels, events=events, setup=parse_setup(meta_rows.get("CarSetup"))
+    )

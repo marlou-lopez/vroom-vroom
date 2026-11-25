@@ -596,6 +596,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
       survey,
       aerial: isSpa && aerialFile ? mapAerial(aerialFile, lat, lon) : null,
       coverage: survey ? { left: round3(share(survey.left_m)), right: round3(share(survey.right_m)) } : null,
+      telemetry: null,
       transform: {
         local: { kind: "equirectangular", earth_radius_m: EARTH_RADIUS_M, origin_lat_deg: 60, origin_lon_deg: 0 },
         real_world: null,

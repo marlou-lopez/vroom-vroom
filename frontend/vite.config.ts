@@ -5,11 +5,11 @@ import { defineConfig, type Plugin } from 'vitest/config'
 import { devRootEndpoint } from './vite-dev-root.ts'
 
 /**
- * Vite copies all of public/ into dist/. Two folders there are for development only: the mock API's recordings with
+ * Vite copies all of public/ into dist/. Some things there are for development only: the mock API's recordings with
  * its service worker (mock/, mockServiceWorker.js) and the git-ignored car-model fallback (local-models/, which may hold
- * a user's licensed model). Remove them from the production output; `npm run dev` still serves them from public/.
+ * a user's licensed model), and ground textures made from aerial imagery (local-ground/). Remove them from the production output; `npm run dev` still serves them from public/.
  */
-const DEV_ONLY_PUBLIC = ['mock', 'mockServiceWorker.js', 'local-models'] as const
+const DEV_ONLY_PUBLIC = ['mock', 'mockServiceWorker.js', 'local-models', 'local-ground'] as const
 
 function stripDevOnlyPublicFiles(): Plugin {
   let outDir = ''

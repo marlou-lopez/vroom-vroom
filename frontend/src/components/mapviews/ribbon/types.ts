@@ -6,6 +6,7 @@ import type { RibbonMarks } from "./marks";
 import type { DashValues } from "./dashValues";
 import type { CarPose } from "./pose";
 import type { RefPaneFrame } from "./split";
+import type { GroundManifest } from "./ground";
 import type { ViewMode } from "./viewModes";
 
 /** What the 3D renderer draws besides the 2D scene: the road height per centreline grid index. */
@@ -37,6 +38,10 @@ export interface ScreenPoint { x: number; y: number; visible: boolean }
 export interface RibbonRenderer {
   setScene(s: RibbonScene): void;
   setMode(mode: ViewMode): void;
+  /** Ground texture beside the track (vroom-ueg.9), its tiles loaded from `baseUrl`; null removes it and frees its textures. Survives setScene. */
+  setGround(ground: { manifest: GroundManifest; baseUrl: string } | null): void;
+  /** Debug: hides the road surface and kerbs, to compare the edge lines with the ground picture under them. */
+  setRoadVisible(on: boolean): void;
   /** Cheap and idempotent: call on every ResizeObserver tick. */
   resize(v: Viewport, dpr: number): void;
   draw(f: RibbonFrame): void;
@@ -47,7 +52,7 @@ export interface RibbonRenderer {
   /** Screen position (CSS px, host coordinates) of a scene point at the last drawn camera (the reference pane's in the split view); visible is false behind the camera. */
   project(east: number, north: number, height: number, out: ScreenPoint): ScreenPoint;
   /** Draw calls and triangles of the last draw (debug HUD). */
-  stats(): { calls: number; triangles: number };
+  stats(): { calls: number; triangles: number; textures: number; ground: { tiles: number; of: number; textureMB: number; meshMB: number } | null };
   destroy(): void;
   /** Debug: loses the GPU context, then restores it after 1 s. False when the extension is missing. */
   simulateContextLoss(): boolean;

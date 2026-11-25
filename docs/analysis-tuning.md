@@ -4,9 +4,14 @@ Three heuristics were set from one Spa session. `tools/tune-thresholds.py` rerun
 recordings (copies first, never writes). Reviewed 2026-11-25: **8 recordings, 4 tracks beyond the
 original Spa session** (Fuji LMP3, Sebring GT3 x2, Bahrain GT3, Monza GT3 x2) plus two Spa GT3
 recordings from other days, 4 to 9 clean flying laps each (valid, within 107 % of the best), track
-temperature 16 to 44 C. **No wet recording was reviewed**: recordings do record wetness (the `Minimum Path Wetness` event,
-`docs/lmu-duckdb-schema.md`), but the backend reader does not read it into `LapMeta.conditions` yet,
-so this tool cannot pick wet laps out; the wet check stays open (follow-up filed).
+temperature 16 to 44 C. **No wet lap exists in the local recordings** (vroom-cy9, 2026-11-26): the reader now puts
+`Minimum Path Wetness` into `LapMeta.conditions["path_wetness"]` (the value held at the lap's start, or the
+highest value reached inside it; absent when the recording has no such table), and the tool splits laps with
+`path_wetness > 0` into their own `[wet]` rows (and prints how many it found). All 287 recordings in the
+local Telemetry folder were scanned (copies only): 286 have exactly one wetness event with value 0 (their
+`WeatherConditions` are Clear, Clouds or Cloudy) and 1 has no event. That makes **0 wet laps**, so no
+threshold was re-checked and none was changed. The wetness unit and scale (0 to 1 or 0 to 100) stay unverified
+until a wet recording exists. Rerun the tool after the first wet session.
 
 ```bash
 cd backend && uv run python -I ../tools/tune-thresholds.py <recording.duckdb>...
@@ -175,5 +180,5 @@ kerbs per recording and 0.15 up to 6 more (one-off sweep, not in the tool), none
 
 ## Not covered
 
-- Wet conditions (see above).
+- Wet conditions: the tool can now split them out, but there are no wet laps yet (see above).
 - Other car classes at the extremes (Hypercar, LMP2 at speed): Fuji LMP3 is the only prototype.

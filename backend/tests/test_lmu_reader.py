@@ -140,3 +140,15 @@ def test_missing_file_and_non_lmu_file(tmp_path: Path) -> None:
     con.close()
     with pytest.raises(ValueError, match="not an LMU recording"):
         read_lmu_duckdb(other)
+
+
+def test_setup_is_key_to_display_string(raw) -> None:
+    assert len(raw.setup) > 100
+    assert raw.setup["VM_BRAKE_BALANCE"] == "52.2:47.8"
+    assert "gearGraph" not in raw.setup
+
+
+def test_setup_empty_without_car_setup(spa_fixture: Path, tmp_path: Path) -> None:
+    src = tmp_path / "nosetup.duckdb"
+    _strip_steer_lock(spa_fixture, src)  # CarSetup becomes "{}"
+    assert read_lmu_duckdb(src).setup == {}

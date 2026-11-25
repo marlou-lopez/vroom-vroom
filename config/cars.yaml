@@ -5,6 +5,17 @@ cars:
   "Garage 59 2026 #58:LM": mclaren-720s-gt3-evo
 steering_range_deg:
   mclaren-720s-gt3-evo: 524
+# Car size in metres per car_id, served as SessionMeta.car_dims and compare's lap_car_dims / ref_car_dims (vroom-opp).
+# Only values with a citable public source; a car without an entry gets null. Nothing from game files.
+# `visual_offset` is not set: it comes from LMU's shared memory, so it stays absent.
+car_dims:
+  mclaren-720s-gt3-evo:
+    # Sources: https://lemansultimate.com/cars/mclaren-720s-lmgt3-evo/ (public spec sheet: length 4,543 mm, width 2,161 mm);
+    # https://www.conceptcarz.com/s32741/mclaren-720s-gt3-evo.aspx (length, width, wheelbase 2,670 mm; the wheelbase is that
+    # site's figure only and equals the road 720S's).
+    length_m: 4.543
+    width_m: 2.161
+    wheelbase_m: 2.670
 # The fuel-weight effect per SessionMeta.car_class, for the fuel-corrected fall-off (vroom-d4g, docs/stint/fuel-corrected-falloff.md).
 # An assumption, not a measurement. A class without an entry gets no corrected fall-off (null). Keep in step with
 # FUEL_EFFECT_BY_CLASS in frontend/src/api/mock/stint.ts.

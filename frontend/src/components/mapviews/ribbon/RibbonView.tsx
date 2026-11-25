@@ -18,6 +18,7 @@ import { loadSetting, loadString, saveString } from "../shared/storage";
 import { AerialCredit } from "../shared/AerialCredit";
 import { loadEdgeSource } from "../shared/edgeSetting";
 import type { TrackViewProps } from "../types";
+import { groundUrl, loadGround, type GroundManifest } from "./ground";
 import { dashAt } from "./dashValues";
 import { runRibbonBench, type RibbonBenchControl } from "./bench";
 import { deltaLabel, paneReadout, paneTitle } from "./split";
@@ -50,6 +51,10 @@ export const EXAGGERATION_DEFAULT = 1;
 const EXAGGERATION_KEY = "vroom.ribbonExaggeration";
 const MODE_KEY = "vroom.ribbonCamera";
 const SPLIT_KEY = "vroom.ribbonSplit";
+/** The ground texture beside the track (vroom-ueg.9, experimental), off by default. */
+const GROUND_KEY = "vroom.ribbonGround";
+/** Its files only exist on the dev server (public/local-ground is stripped from the build). */
+const GROUND_AVAILABLE = import.meta.env.DEV;
 
 const MODE_LABEL: Record<ViewMode, string> = { chase: "Chase", cockpit: "Cockpit", orbit: "Orbit", top: "Top" };
 
@@ -121,6 +126,10 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
   const [exag, setExagState] = useState(loadExaggeration);
   const [sync, setSyncState] = useState<CarSync>("time");
   const [split, setSplitState] = useState(loadSplit);
+  const [groundOn, setGroundOn] = useState(() => GROUND_AVAILABLE && loadString(GROUND_KEY) === "1");
+  /** The track's ground manifest; undefined while it has not been asked for, null when the track has none. */
+  const [ground, setGround] = useState<{ trackId: string; manifest: GroundManifest | null } | undefined>(undefined);
+  const [roadVisible, setRoadVisible] = useState(true);
 
   const rootRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef(scene);
@@ -143,6 +152,8 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
   const raf = useRef(0);
   const lastDist = useRef(0);
   const lastDrawT = useRef(0);
+  const groundRef = useRef<{ manifest: GroundManifest; baseUrl: string } | null>(null);
+  const roadVisibleRef = useRef(true);
   const badgeEls = useRef(new Map<string, HTMLButtonElement>());
   const invalidEl = useRef<HTMLButtonElement | null>(null);
   const invalidRef = useRef(invalidAtM ?? null);
@@ -153,6 +164,8 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
     onReady: (r) => {
       r.setScene({ scene: sceneRef.current, heights: heightsRef.current, marks: marksRef.current });
       r.setMode(modeRef.current);
+      if (groundRef.current) r.setGround(groundRef.current);
+      if (!roadVisibleRef.current) r.setRoadVisible(false);
     },
     failLabel: "3D renderer failed",
   });
@@ -164,7 +177,10 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
     debug, viewport: () => vp.current, makeControl, run: runRibbonBench,
     extraHud: () => {
       const st = rendererRef.current?.stats();
-      return st ? `  ${st.calls} calls  ${(st.triangles / 1000).toFixed(0)}k tris` : "";
+      if (!st) return "";
+      const g = st.ground;
+      const extra = g ? `  ground ${g.tiles}/${g.of} tiles ${g.textureMB.toFixed(0)} MB textures ${g.meshMB.toFixed(0)} MB mesh` : "";
+      return `  ${st.calls} calls  ${(st.triangles / 1000).toFixed(0)}k tris  ${st.textures} tex${extra}`;
     },
   });
 
@@ -280,6 +296,26 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
     requestDraw();
   }, [scene, heights, marks, attitude, refAttitude, limits, refLimits, refDelta, rendererRef, requestDraw]);
 
+  // The ground texture: its manifest is only fetched while the toggle is on.
+  const trackId = geometry?.track_id ?? null;
+  const groundTrack = ground?.manifest ? ground.trackId : null; // a found manifest is kept, a missing one is asked for again
+  useEffect(() => {
+    if (!groundOn || !trackId || groundTrack === trackId) return;
+    const abort = new AbortController();
+    void loadGround(trackId, abort.signal).then((manifest) => {
+      if (!abort.signal.aborted) setGround({ trackId, manifest });
+    });
+    return () => abort.abort();
+  }, [groundOn, trackId, groundTrack]);
+  const manifest = groundOn && ground && ground.trackId === trackId ? ground.manifest : null;
+  useEffect(() => {
+    const next = manifest && trackId ? { manifest, baseUrl: groundUrl(trackId) } : null;
+    if (!next && !groundRef.current) return;
+    groundRef.current = next;
+    rendererRef.current?.setGround(next);
+    requestDraw();
+  }, [manifest, trackId, rendererRef, requestDraw]);
+
   // While playing, tau changes once per frame inside the playback loop's own rAF: draw right then (no one-frame lag).
   useEffect(() => store.subscribe(() => {
     if (store.get().playing) {
@@ -344,6 +380,21 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
     const next = !splitRef.current;
     saveString(SPLIT_KEY, next ? "1" : "0");
     applySplit(next);
+  };
+
+  const selectGround = (v: string) => {
+    if (v !== "on" && v !== "off") return;
+    saveString(GROUND_KEY, v === "on" ? "1" : "0");
+    setGroundOn(v === "on");
+    if (v === "off" && !roadVisibleRef.current) toggleRoad(); // its button goes away with the ground
+  };
+
+  const toggleRoad = () => {
+    const next = !roadVisibleRef.current;
+    roadVisibleRef.current = next;
+    setRoadVisible(next);
+    rendererRef.current?.setRoadVisible(next);
+    requestDraw();
   };
 
   const loseContext = () => {
@@ -430,6 +481,20 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
                 <ToggleGroup.Item value="distance" className={ui.toggleItem}>Distance</ToggleGroup.Item>
               </ToggleGroup.Root>
             </OptionRow>
+            {GROUND_AVAILABLE && (
+              <OptionRow label="Ground (experimental)" hint="An aerial photo beside the track. Its heights follow the track, not the real terrain.">
+                <ToggleGroup.Root
+                  type="single" aria-label="Ground" className={styles.group} value={groundOn ? "on" : "off"} disabled={running}
+                  onValueChange={selectGround}
+                >
+                  <ToggleGroup.Item value="off" className={ui.toggleItem}>Off</ToggleGroup.Item>
+                  <ToggleGroup.Item value="on" className={ui.toggleItem}>Aerial photo</ToggleGroup.Item>
+                </ToggleGroup.Root>
+                {groundOn && ground?.trackId === trackId && !ground?.manifest && (
+                  <span className={styles.note} role="note">No ground photo for this track. Make one with tools/aerial-edges (see its README).</span>
+                )}
+              </OptionRow>
+            )}
             {hasElevation ? (
               <OptionRow label="Elevation" hint="Stretches the heights; 1x is the true shape.">
                 <label className={styles.exag}>
@@ -464,9 +529,13 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
             <button type="button" className={cx(ui.btn, styles.small)} disabled={running || gpu !== "ok"} onClick={loseContext}>
               Lose GPU context
             </button>
+            {groundOn && (
+              <button type="button" className={cx(ui.btn, styles.small)} aria-pressed={!roadVisible} onClick={toggleRoad}>Hide road</button>
+            )}
           </div>
         )}
         {scene.edgeSource === "aerial" && geometry?.aerial && <AerialCredit aerial={geometry.aerial} className={styles.credit} />}
+        {manifest && <AerialCredit aerial={manifest} className={styles.creditOnPhoto} what="Ground photo" />}
         {debug && showHud && hudText && <div className={styles.hud}>{hudText}</div>}
         {debug && rows.length > 0 && (
           <div className={styles.results}>
