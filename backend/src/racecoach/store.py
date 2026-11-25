@@ -11,6 +11,7 @@ from typing import Any
 import duckdb
 import polars as pl
 
+from racecoach.coach.schema import CoachResult
 from racecoach.model import LapKind, LapMeta, LapSource, LapTrace, SessionMeta
 
 SCHEMA = """
@@ -40,6 +41,15 @@ CREATE TABLE IF NOT EXISTS focus_items (
     text VARCHAR, status VARCHAR
 );
 CREATE SEQUENCE IF NOT EXISTS focus_items_seq;
+ALTER TABLE focus_items ADD COLUMN IF NOT EXISTS corner_id VARCHAR;
+ALTER TABLE focus_items ADD COLUMN IF NOT EXISTS metric VARCHAR;
+ALTER TABLE focus_items ADD COLUMN IF NOT EXISTS baseline_s DOUBLE;
+ALTER TABLE focus_items ADD COLUMN IF NOT EXISTS session_id VARCHAR;
+CREATE TABLE IF NOT EXISTS coach_results (
+    seq BIGINT PRIMARY KEY, id VARCHAR, command VARCHAR, lap_id VARCHAR, ref_lap_id VARCHAR,
+    result VARCHAR
+);
+CREATE SEQUENCE IF NOT EXISTS coach_results_seq;
 """
 
 LAP_COLUMNS = (
@@ -73,6 +83,14 @@ class AppStore:
     def close(self) -> None:
         self.con.close()
 
+    def view(self) -> AppStore:
+        """A store on the same database with its own cursor, for one request in a worker
+        thread (a DuckDB connection must not be shared between threads)."""
+        other = object.__new__(AppStore)
+        other.db_path, other.traces_dir = self.db_path, self.traces_dir
+        other.con = self.con.cursor()
+        return other
+
     def __enter__(self) -> AppStore:
         return self
 
@@ -93,6 +111,9 @@ class AppStore:
             raise
 
     # --- sessions and laps ---------------------------------------------------------------
+
+    def session(self, session_id: str) -> SessionMeta | None:
+        return next((s for s in self.sessions() if s.session_id == session_id), None)
 
     def has_session(self, session_id: str) -> bool:
         row = self.con.execute(
@@ -277,11 +298,15 @@ class AppStore:
 
     # --- focus items -----------------------------------------------------------------------
 
-    def add_focus_item(self, track_id: str, car_id: str, text: str) -> int:
+    def add_focus_item(
+        self, track_id: str, car_id: str, text: str, *, corner_id: str | None = None,
+        metric: str | None = None, baseline_s: float | None = None, session_id: str | None = None,
+    ) -> int:  # fmt: skip
         row = self.con.execute(
-            "INSERT INTO focus_items VALUES (nextval('focus_items_seq'),?,?,?,?,'open')"
-            " RETURNING id",
-            [_now(), track_id, car_id, text],
+            "INSERT INTO focus_items (id, created_at, track_id, car_id, text, status, corner_id,"
+            " metric, baseline_s, session_id)"
+            " VALUES (nextval('focus_items_seq'),?,?,?,?,'open',?,?,?,?) RETURNING id",
+            [_now(), track_id, car_id, text, corner_id, metric, baseline_s, session_id],
         ).fetchone()
         assert row is not None
         return int(row[0])
@@ -299,3 +324,48 @@ class AppStore:
                 args.append(val)
         sql = "SELECT * FROM focus_items" + (" WHERE " + " AND ".join(where) if where else "")
         return self._rows(sql + " ORDER BY id", args)
+
+    # --- coach results ---------------------------------------------------------------------
+
+    def save_coach_result(self, result: CoachResult) -> CoachResult:
+        """Store a result as the latest of its command for its (lap, reference) pair. A finding
+        on the same corner and kind as a reviewed finding of the result it replaces stays
+        reviewed (a re-analysis must not lose what the driver ticked off)."""
+        previous = self.latest_coach_results(result.lap_id, result.ref_lap_id).get(result.command)
+        if previous is not None:
+            kept = {(f.corner_id, f.kind) for f in previous.findings if f.reviewed}
+            for f in result.findings:
+                if (f.corner_id, f.kind) in kept:
+                    f.reviewed = True
+        self.con.execute(
+            "INSERT INTO coach_results VALUES (nextval('coach_results_seq'),?,?,?,?,?)",
+            [result.id, result.command, result.lap_id, result.ref_lap_id, result.model_dump_json()],
+        )
+        return result
+
+    def latest_coach_results(self, lap_id: str, ref_lap_id: str | None) -> dict[str, CoachResult]:
+        """command -> the newest stored result for the lap and reference (None: no reference)."""
+        rows = self.con.execute(
+            "SELECT command, result FROM coach_results WHERE lap_id = ?"
+            " AND ref_lap_id IS NOT DISTINCT FROM ? ORDER BY seq",
+            [lap_id, ref_lap_id],
+        ).fetchall()
+        return {r[0]: CoachResult.model_validate_json(r[1]) for r in rows}  # later rows win
+
+    def set_finding_reviewed(self, finding_id: str, reviewed: bool) -> CoachResult:
+        """Tick a finding off (or back on) in the newest result that holds it; KeyError if none."""
+        rows = self.con.execute(
+            "SELECT seq, result FROM coach_results WHERE result LIKE ? ORDER BY seq DESC",
+            [f'%"id":"{finding_id}"%'],
+        ).fetchall()
+        for seq, raw in rows:
+            result = CoachResult.model_validate_json(raw)
+            hit = [f for f in result.findings if f.id == finding_id]
+            if hit:
+                hit[0].reviewed = reviewed
+                self.con.execute(
+                    "UPDATE coach_results SET result = ? WHERE seq = ?",
+                    [result.model_dump_json(), seq],
+                )
+                return result
+        raise KeyError(finding_id)

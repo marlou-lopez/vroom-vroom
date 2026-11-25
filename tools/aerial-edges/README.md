@@ -1,5 +1,7 @@
 # aerial-edges
 
+**Not a supported edge source** (dropped by vroom-ueg.11, frozen experiment).
+
 Track edges and kerbs from open aerial imagery, in LMU's world frame (experimental, vroom-ueg.8). Method, numbers and
 licences: `docs/track-views/aerial-imagery.md`.
 
@@ -29,6 +31,8 @@ track file). A track needs `track_id` (the app's) in `tracks/<name>.json`.
 
 ## Add a track
 
+The Le Mans blind check failed (write-up, vroom-ueg.11): a lap that OSM's `highway=raceway` does not cover (public roads) fails at the alignment. Check `coarse.osm_median_m` first.
+
 1. Find an open source (the table in the write-up). Esri, Google and Bing imagery may not be used: their terms forbid extraction.
 2. If it has no adapter: copy `sources/wallonia.py` (a map service that renders any box) or `sources/agea_2024.py` (fixed
    tiles). An adapter is one file with a `Source` subclass and `SOURCE = ...`: the projection (`crs`), `attribution`, `licence`,
@@ -42,3 +46,5 @@ track file). A track needs `track_id` (the app's) in `tracks/<name>.json`.
 5. To show it in the app: write it to `frontend/public/mock/`, and serve it as `TrackGeometry.aerial` (see `src/api/mock/aerial.ts`).
 
 The tool needs only recordings. The survey is used for grading, never for the fit.
+
+A line that fails the confidence test (`confidence.py`) is written as unseen; `rejected_by_confidence` in the report counts those metres. Unit tests: `uv run --no-project --with numpy,scipy,pytest python -I -m pytest -q test_confidence.py` in this folder.
