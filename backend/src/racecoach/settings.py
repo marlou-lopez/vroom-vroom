@@ -5,11 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ANTHROPIC_DEFAULT_COACH_MODEL = "claude-sonnet-5-5"
-ANTHROPIC_DEFAULT_FAST_MODEL = "claude-haiku-5-5"
+# Default models per provider: (strong, fast). Gemini and Ollama have none: name them.
+DEFAULT_MODELS: dict[str, tuple[str, str]] = {
+    "openai": ("gpt-6.1-terra", "gpt-6-luna"),
+    "anthropic": ("claude-sonnet-5-5", "claude-haiku-5-5"),
+}
+OLLAMA_DEFAULT_BASE_URL = "http://127.0.0.1:11434/v1"
 
 
 class Settings(BaseSettings):
@@ -22,10 +26,29 @@ class Settings(BaseSettings):
 
     coach_name: str = "Engineer"
 
-    # LLM. Anthropic has defaults; OpenAI and Gemini need their models named.
-    llm_provider: Literal["anthropic", "openai", "gemini"] = "anthropic"
-    coach_model: str | None = None  # the post-session coach
-    fast_model: str | None = None  # short answers
+    # LLM (vroom-9ki.17: OpenAI by default, Anthropic one setting away). `llm_strong` serves
+    # Analyze and Corner, `llm_fast` serves Average. OpenAI and Anthropic have default models;
+    # Gemini and Ollama need both named.
+    llm_provider: Literal["anthropic", "openai", "gemini", "ollama"] = "openai"
+    llm_strong: str | None = None
+    llm_fast: str | None = None
+    # An OpenAI-compatible host (OpenRouter, Groq, DeepSeek) for "openai"; "ollama" defaults to
+    # the local server.
+    llm_base_url: str | None = None
+    # Keys: `RACECOACH_<NAME>` or the provider's usual variable.
+    anthropic_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("RACECOACH_ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY"),
+    )
+    openai_api_key: str | None = Field(
+        default=None, validation_alias=AliasChoices("RACECOACH_OPENAI_API_KEY", "OPENAI_API_KEY")
+    )
+    gemini_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "RACECOACH_GEMINI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"
+        ),
+    )
 
     # Folder watcher
     watch_poll_s: float = 5.0
@@ -33,14 +56,17 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _models(self) -> Settings:
-        if self.llm_provider == "anthropic":
-            self.coach_model = self.coach_model or ANTHROPIC_DEFAULT_COACH_MODEL
-            self.fast_model = self.fast_model or ANTHROPIC_DEFAULT_FAST_MODEL
-        elif not self.coach_model or not self.fast_model:
+        defaults = DEFAULT_MODELS.get(self.llm_provider)
+        if defaults:
+            self.llm_strong = self.llm_strong or defaults[0]
+            self.llm_fast = self.llm_fast or defaults[1]
+        elif not self.llm_strong or not self.llm_fast:
             raise ValueError(
-                f"llm_provider={self.llm_provider!r} needs RACECOACH_COACH_MODEL and "
-                "RACECOACH_FAST_MODEL: it has no default models"
+                f"llm_provider={self.llm_provider!r} needs RACECOACH_LLM_STRONG and "
+                "RACECOACH_LLM_FAST: it has no default models"
             )
+        if self.llm_provider == "ollama":
+            self.llm_base_url = self.llm_base_url or OLLAMA_DEFAULT_BASE_URL
         return self
 
     @property

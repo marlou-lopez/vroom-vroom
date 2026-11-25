@@ -158,21 +158,28 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
 
 
-def test_settings_defaults_anthropic(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_settings_defaults_openai(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     _clean_env(monkeypatch, tmp_path)
     s = Settings()
-    assert s.coach_name == "Engineer" and s.llm_provider == "anthropic"
-    assert s.coach_model == "claude-sonnet-5-5" and s.fast_model == "claude-haiku-5-5"
+    assert s.coach_name == "Engineer" and s.llm_provider == "openai"
+    assert s.llm_strong == "gpt-6.1-terra" and s.llm_fast == "gpt-6-luna"
 
 
-def test_settings_requires_model_for_openai(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+def test_settings_anthropic_defaults(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     _clean_env(monkeypatch, tmp_path)
-    monkeypatch.setenv("RACECOACH_LLM_PROVIDER", "openai")
-    with pytest.raises(ValueError, match="COACH_MODEL"):
+    monkeypatch.setenv("RACECOACH_LLM_PROVIDER", "anthropic")
+    s = Settings()
+    assert s.llm_strong == "claude-sonnet-5-5" and s.llm_fast == "claude-haiku-5-5"
+
+
+def test_settings_requires_model_for_gemini(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    _clean_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("RACECOACH_LLM_PROVIDER", "gemini")
+    with pytest.raises(ValueError, match="LLM_STRONG"):
         Settings()
-    monkeypatch.setenv("RACECOACH_COACH_MODEL", "big")
-    monkeypatch.setenv("RACECOACH_FAST_MODEL", "small")
-    assert Settings().coach_model == "big"
+    monkeypatch.setenv("RACECOACH_LLM_STRONG", "big")
+    monkeypatch.setenv("RACECOACH_LLM_FAST", "small")
+    assert Settings().llm_strong == "big"
 
 
 def test_settings_derived_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
