@@ -204,6 +204,16 @@ export interface TrackSurvey {
   edge_points: [lat: number, lon: number][]; kerb_outer_points: [lat: number, lon: number][];
 }
 
+/**
+ * Edges and kerbs rebuilt from telemetry (docs/track-views/edges-kerbs.md). `left_m` / `right_m` are half-widths (metres, positive)
+ * per grid metre, null where no lap measured that side. `coverage` is the measured share (0..1) per side, `laps` how many laps fed it.
+ * Kerbs have kind "other" and no width.
+ */
+export interface TelemetryEdges {
+  left_m: (number | null)[]; right_m: (number | null)[]; kerbs: SurveyKerb[];
+  coverage: { left: number; right: number }; laps: number;
+}
+
 /** A kerb stretch on one side, inclusive grid metres. flat = LMU's flat kerb, razor = the raised kerb. `width_m` is the measured kerb width, null when unknown. */
 export interface SurveyKerb { side: "left" | "right"; start_m: number; end_m: number; kind: "flat" | "razor" | "other"; width_m: number | null }
 
@@ -280,6 +290,12 @@ export interface TrackGeometry {
    * interpolated across gaps of at most 8 m between samples. Lets later work (3D, coach facts) skip unmeasured stretches. null when there is no survey.
    */
   coverage: { left: number; right: number } | null;
+  /**
+   * Fallback edges and kerbs from telemetry (`path_lateral`, `track_edge`, the kerb flag), built once per track from all its
+   * laps, for a track with no survey (vroom-ohw). null when the track has a survey (a survey always wins) or the API has no
+   * fallback (the mock). Unmeasured stretches are null, never interpolated.
+   */
+  telemetry: TelemetryEdges | null;
   transform: { local: LocalTransform; real_world: RealWorldFit | null };
 }
 

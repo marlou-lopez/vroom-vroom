@@ -228,9 +228,18 @@ def track_data_files(data_dir: Path, track_id: str) -> dict[str, Path]:
 
 
 def build_geometry(
-    track_id: str, length_m: float, lat: np.ndarray, lon: np.ndarray, data_dir: Path
+    track_id: str,
+    length_m: float,
+    lat: np.ndarray,
+    lon: np.ndarray,
+    data_dir: Path,
+    telemetry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """The `TrackGeometry` JSON for a centreline (a flying lap) and the track's data files."""
+    """The `TrackGeometry` JSON for a centreline (a flying lap) and the track's data files.
+
+    `telemetry` is the fallback from `racecoach.edges.telemetry_edges`; it is served only when the
+    track has no survey (a survey always wins).
+    """
     files = track_data_files(data_dir, track_id)
     lat, lon = np.asarray(lat, float), np.asarray(lon, float)
     elev, survey, aerial = (_load(files[k]) for k in ("elevation", "survey", "aerial"))
@@ -251,6 +260,7 @@ def build_geometry(
         "survey": surveyed,
         "aerial": map_aerial(aerial, matcher) if aerial else None,
         "coverage": coverage,
+        "telemetry": telemetry if surveyed is None else None,
         "transform": {
             "local": {
                 "kind": "equirectangular", "earth_radius_m": EARTH_RADIUS_M,

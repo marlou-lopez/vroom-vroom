@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
+import numpy as np
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
@@ -26,6 +27,7 @@ from racecoach.api.errors import ApiError
 from racecoach.coach.packet import build_packet  # noqa: F401  (kept importable for tests)
 from racecoach.coach.schema import CoachResult, Command
 from racecoach.coach.service import run_coach
+from racecoach.edges import telemetry_edges
 from racecoach.geometry import build_geometry, track_data_files
 from racecoach.importer import import_file
 from racecoach.model import GRID_CHANNELS, LapKind, LapMeta, LapSource, LapTrace, SessionMeta
@@ -272,6 +274,32 @@ def _centreline_lap(store: AppStore, track_id: str) -> tuple[LapMeta, float] | N
 
 
 _geometry_lock = threading.Lock()
+_EDGE_CHANNELS = ("path_lateral", "track_edge", "kerb", "speed_kmh")
+
+
+def _telemetry_fallback(store: AppStore, track_id: str, n: int) -> dict[str, Any]:
+    """Edges and kerbs from every lap of the track that has a trace (vroom-ohw)."""
+    laps = []
+    for lap_id in _track_lap_ids(store, track_id):
+        trace = store.read_trace(lap_id)
+        if not all(c in trace.ch for c in _EDGE_CHANNELS):
+            continue
+        # An out-lap's grid starts where it left the pits: index by distance, not position.
+        idx = trace.distance.astype(int)
+        keep = (idx >= 0) & (idx < n)
+        lap = {}
+        for c in _EDGE_CHANNELS:
+            full = np.full(n, np.nan)
+            full[idx[keep]] = trace.ch[c][keep]
+            lap[c] = full
+        laps.append(lap)
+    return telemetry_edges(laps, n)
+
+
+def _track_lap_ids(store: AppStore, track_id: str) -> tuple[str, ...]:
+    sids = {s.session_id for s in store.sessions() if s.track_id == track_id}
+    laps = (x for x in store.laps() if x.session_id in sids)
+    return tuple(x.lap_id for x in laps if store.trace_path(x.lap_id).is_file())
 
 
 @router.get("/tracks/{track_id}/geometry")
@@ -285,7 +313,9 @@ def track_geometry(
     lap, length = found
     files = track_data_files(settings.track_data_path, track_id)
     stamp = tuple(f.stat().st_mtime_ns if f.is_file() else None for f in files.values())
-    key = (track_id, lap.lap_id, stamp)
+    # No survey: edges and kerbs come from all the track's laps, so a new lap refreshes them.
+    fallback = not files["survey"].is_file()
+    key = (track_id, lap.lap_id, stamp, _track_lap_ids(store, track_id) if fallback else None)
     with _geometry_lock:
         if not hasattr(request.app.state, "geometry_cache"):
             request.app.state.geometry_cache = {}
@@ -294,8 +324,9 @@ def track_geometry(
             ch = need_trace(store, lap.lap_id).ch
             for k in [k for k in cache if k[0] == track_id]:
                 cache.pop(k, None)
+            tel = _telemetry_fallback(store, track_id, len(ch["lat"])) if fallback else None
             cache[key] = build_geometry(
-                track_id, length, ch["lat"], ch["lon"], settings.track_data_path
+                track_id, length, ch["lat"], ch["lon"], settings.track_data_path, tel
             )
         return cache[key]
 
