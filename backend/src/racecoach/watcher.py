@@ -29,12 +29,28 @@ FIRST_RETRY_S = 30.0
 MAX_RETRY_S = 600.0
 
 
+def _wal(path: Path) -> Path:
+    return path.with_name(path.name + ".wal")
+
+
+def _key(path: Path) -> tuple[int, int]:
+    """(newest mtime_ns, total size) of the recording and its `.wal`, so growth in either
+    counts as a change."""
+    st = path.stat()
+    try:
+        w = _wal(path).stat()
+    except OSError:
+        return (st.st_mtime_ns, st.st_size)
+    return (max(st.st_mtime_ns, w.st_mtime_ns), st.st_size + w.st_size)
+
+
 def is_finished(path: Path | str, quiet_s: float, now: float | None = None) -> bool:
-    """True when the file's mtime is older than `quiet_s` seconds and it opens read-only."""
+    """True when the file's (and its `.wal`'s) mtime is older than `quiet_s` seconds and it
+    opens read-only."""
     path = Path(path)
     now = time.time() if now is None else now
     try:
-        if now - path.stat().st_mtime < quiet_s:
+        if now - _key(path)[0] / 1e9 < quiet_s:
             return False
         with path.open("rb") as f:
             f.read(1)
@@ -72,10 +88,9 @@ def scan_once(
         return results
     for path in paths:
         try:
-            st = path.stat()
+            key = _key(path)
         except OSError:
             continue  # vanished or unreadable; the next scan looks again
-        key = (st.st_mtime_ns, st.st_size)
         try:
             if seen is not None and seen.get(path) == key:
                 continue
