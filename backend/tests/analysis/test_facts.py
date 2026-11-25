@@ -145,6 +145,18 @@ def test_steering_extrema_counts_reversals():
     assert steering_extrema(np.zeros(n), c) == 0
 
 
+def test_steering_extrema_ignores_wobble_in_a_low_lock_kink():
+    # largest steering 0.2: 10 % is 0.02, under the 0.04 floor, so a 0.03 wobble is no correction;
+    # only the unwind back to zero is a reversal (without the floor it would count 3)
+    n = 600
+    steer = np.zeros(n)
+    steer[200:300] = 0.2
+    steer[300:340] = 0.17
+    steer[340:420] = 0.2
+    c = Corner(id="c", name="C", start_m=150, apex_m=250, end_m=450)
+    assert steering_extrema(steer, c) == 1
+
+
 def test_corner_understeer_peak_and_mean():
     bal = np.full(100, np.nan)
     bal[10:20] = [0, 2, 6, 8, 4, 1, -3, 7, 3, 0]

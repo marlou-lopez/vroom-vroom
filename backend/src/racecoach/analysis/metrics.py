@@ -24,6 +24,9 @@ COAST_PEDAL = 0.05
 COAST_MIN_KMH = 50.0
 OVERLAP_PEDAL = 0.1
 STEER_PROMINENCE = 0.1
+# Absolute floor under the relative prominence (steering is -1..1): in a kink whose largest
+# steering is small, 10 % of it is sensor-level wobble, not a correction (vroom-9ki.15).
+STEER_MIN_PROMINENCE = 0.04
 STEER_SMOOTH_M = 5
 
 
@@ -61,10 +64,10 @@ def _smooth_walk(steering: np.ndarray, walk: Walk, wrap: bool) -> np.ndarray:
 
 def steering_extrema(steering: np.ndarray, corner: Corner) -> int:
     """Direction reversals of the smoothed steering (+-5 m) whose prominence is at least 10 %
-    of the corner's largest smoothed steering."""
+    of the corner's largest smoothed steering and at least STEER_MIN_PROMINENCE."""
     walk = corner_walk(corner, len(steering))
     v = _smooth_walk(np.asarray(steering, dtype=float), walk, corner.start_m > corner.end_m)
-    thr = STEER_PROMINENCE * float(np.abs(v).max())
+    thr = max(STEER_PROMINENCE * float(np.abs(v).max()), STEER_MIN_PROMINENCE)
     if not thr > 0:
         return 0
     direction, ext, count = 0, float(v[0]), 0
