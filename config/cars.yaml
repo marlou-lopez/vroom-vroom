@@ -1,0 +1,7 @@
+# Maps LMU entry (livery) names to a car model id, and gives each model's steering range.
+# LMU's `CarName` is the entry, not the model; an unlisted entry falls back to slug(CarName).
+# `steering_range_deg` is only a fallback for recordings whose CarSetup has no VM_STEER_LOCK.
+cars:
+  "Garage 59 2026 #58:LM": mclaren-720s-gt3-evo
+steering_range_deg:
+  mclaren-720s-gt3-evo: 524
