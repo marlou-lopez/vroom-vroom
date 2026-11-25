@@ -75,10 +75,16 @@ EVENTS: dict[str, str] = {
 
 
 def file_sha1(path: Path) -> str:
+    """sha1 of the recording and, when LMU left one, its `.wal` (which holds the last rows, so
+    growth in the log alone makes a different recording)."""
     h = hashlib.sha1()
-    with path.open("rb") as f:
-        while chunk := f.read(1 << 20):
-            h.update(chunk)
+    wal = path.with_name(path.name + ".wal")
+    for p in (path, wal) if wal.is_file() else (path,):
+        if p is wal:
+            h.update(b"\0wal\0")
+        with p.open("rb") as f:
+            while chunk := f.read(1 << 20):
+                h.update(chunk)
     return h.hexdigest()
 
 
