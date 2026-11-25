@@ -3,7 +3,7 @@
 // ("where did this lap lose time, and what do I try?").
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { useSessionReport, useSessions } from "../../api/queries";
+import { usePatchLap, useSessionReport, useSessions } from "../../api/queries";
 import { effectiveValid, type CompareCandidate, type CompareResponse, type Corner, type LapWithRef, type SessionMeta, type TrackMap } from "../../api/types";
 import { lapGap } from "../../lib/compareName";
 import { bestLapTime, cycleRefId, lapGapText, lapKeyDir, refChoices, refKeyDir, stepLapId, timedLaps } from "../../lib/lapStep";
@@ -185,7 +185,7 @@ export function OneLapView(p: OneLapProps) {
         <button type="button" className={styles.step} aria-label="Next lap" title="Next lap (↓)" disabled={!nextId} onClick={() => nextId && onSelectLap(nextId)}>›</button>
         <span className={styles.vs}>compared with</span>
         <div className={styles.segmented} role="group" aria-label="Compare with">
-          <button type="button" aria-pressed={!!reference && cmp.ref_lap_id === reference.lap_id} onClick={() => p.onSelectRef(null)} title="Your fastest lap on this track and car">Your best lap</button>
+          <button type="button" aria-pressed={!!reference && cmp.ref_lap_id === reference.lap_id} onClick={() => p.onSelectRef(null)} title="The reference for this track and car: the lap you pinned, otherwise your fastest">Your best lap</button>
           {ideal && <button type="button" aria-pressed={cmp.ref_lap_id === ideal.lap_id} onClick={() => p.onSelectRef(ideal.lap_id)} title="Your best corners joined into one lap">Best possible lap</button>}
         </div>
         <select className={styles.select} aria-label="Reference lap" title="Compare with another lap of this session (R, Shift+R)" value={[...refLaps, ...others].some((l) => l.lap_id === cmp.ref_lap_id) ? cmp.ref_lap_id : ""} onChange={(e) => e.target.value && p.onSelectRef(e.target.value)}>
@@ -208,8 +208,11 @@ export function OneLapView(p: OneLapProps) {
   );
 }
 
-/** The "⋯" menu: the Key, notes on or off, Ask again, Average and what the coach has cost. */
-function StoryMenu({ coach, loading }: { coach: CoachState; loading?: boolean }) {
+/** The "⋯" menu: pin the lap as the reference, mark it valid or invalid, the Key, notes on or off, Ask again, Average and what the coach has cost. */
+function StoryMenu({ coach, loading, lap }: { coach: CoachState; loading?: boolean; lap: LapWithRef }) {
+  const patch = usePatchLap();
+  const valid = effectiveValid(lap);
+  const setValid = (next: boolean) => patch.mutate({ lapId: lap.lap_id, patch: { valid_override: next === lap.valid ? null : next, ...(!next && lap.pinned_reference ? { pinned_reference: false } : {}) } });
   const [showKey, setShowKey] = useState(false);
   const { results, running, showNotes, setShowNotes, run } = coach;
   const costs = [results.analyze, results.average].filter((r) => r?.cost_usd != null);
@@ -217,9 +220,11 @@ function StoryMenu({ coach, loading }: { coach: CoachState; loading?: boolean })
   const busy = running !== null || !!loading;
   return (
     <Popover.Root onOpenChange={(o) => !o && setShowKey(false)}>
-      <Popover.Trigger className={styles.more} aria-label="More: key, notes, coach" title="Key, notes and the coach">⋯</Popover.Trigger>
+      <Popover.Trigger className={styles.more} aria-label="More: lap, key, notes, coach" title="Lap actions, key, notes and the coach">⋯</Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="end" sideOffset={4} collisionPadding={8} className={styles.menu} aria-label="More">
+          <button type="button" className={styles.menuItem} disabled={patch.isPending || (!lap.pinned_reference && !valid)} title={!lap.pinned_reference && !valid ? "An invalid lap can't be the reference" : "The reference is the lap your laps are compared with by default"} onClick={() => patch.mutate({ lapId: lap.lap_id, patch: { pinned_reference: !lap.pinned_reference } })}>{lap.pinned_reference ? "Unpin as reference" : "Pin as reference"}</button>
+          <button type="button" className={styles.menuItem} disabled={patch.isPending} onClick={() => setValid(!valid)}>{valid ? "Mark lap invalid" : "Mark lap valid"}</button>
           <button type="button" className={styles.menuItem} aria-expanded={showKey} onClick={() => setShowKey((x) => !x)}>Key {showKey ? "▾" : "▸"}</button>
           {showKey && <div className={styles.menuKey}><LegendRows /></div>}
           <button type="button" className={styles.menuItem} aria-pressed={showNotes} onClick={() => setShowNotes(!showNotes)}>{showNotes ? "Hide notes" : "Show notes"}</button>
@@ -263,7 +268,7 @@ function Story({ lap, cmp, trackMap, coach, loading, refName, gap, self, onRepla
       <header className={styles.storyHead}>
         <div className={styles.storyTitle}>
           <h1 className={styles.h1}>Lap {lap.lap_no} · {formatLapTime(lap.lap_time_s)}</h1>
-          <StoryMenu coach={coach} loading={loading} />
+          <StoryMenu coach={coach} loading={loading} lap={lap} />
         </div>
         <p className={styles.lede}>
           {self ? "This is the lap you compare with, so there is no gap to show. Compare with the best possible lap instead." : gap === null ? null : (
