@@ -355,7 +355,16 @@ it for 252 points:
 - At these 28 points LMU's Spa has the real heights. They are only a weak test of the sideways alignment.
 - "Level with the track" is fine for the first 10 m and wrong beyond. **Worth a follow-up**: the tool would write a height per mesh node (4 m grid) into
   the manifest, which also removes the one-second stop. The bare-earth model has no buildings or trees; SPW's surface model (MNS) has, as rough shapes.
-- Its licence was not read here: do that first. Point queries are too slow for a 4 m grid (over 100,000 nodes); a download or raster export is needed.
+- Licence and access (read first-hand 2026-11-25, vroom-ueg.13): the **data** is CC BY 4.0 (metawal records `a004e570-99d6-4fe5-b83d-49b774409278`, 50 cm,
+  and `fe13bc84-e371-46ca-9632-8ad4139f1ee5`, 1 m): "L'utilisateur peut utiliser et modifier les données pour en dériver une œuvre. Il peut publier les
+  données et l'œuvre dérivée à condition de citer les sources." Credit: "Source : Service public de Wallonie (SPW) - Relief de la Wallonie - Modèle
+  Numérique de Terrain (MNT) 2021-2022 (2024-01-23) https://geodata.wallonie.be/id/a004e570-99d6-4fe5-b83d-49b774409278". Local use is allowed. The
+  viewing service's own terms (LicServicesSPW.pdf v1.1) add: no disproportionate calls, keep the service's credit, do not alter the data.
+- **Access is the blocker.** (a) The MapServer's `export` returns an 8-bit colour render, not heights: 20 distinct colours over a 400 m square at Spa
+  (a ramp over -200..700 m), far too coarse for 0.5 m; dynamic raster renderers are refused (400) and the service has no WCS/ImageServer
+  (`exportTilesAllowed: false`). The INSPIRE GeoServer's WCS lists no coverage. (b) The only downloads are province zips holding one mosaic GeoTIFF
+  (zip64, deflate; Liège 1 m is several GB), the server ignores `Range` and streams at about 0.4 MB/s, so a clip is not possible without the whole
+  file. (c) Point queries answer in about 1.5 s each: a 4 m grid is over 100,000 calls, and even a 16 m lattice is thousands against a public server.
 
 ## Risks
 
