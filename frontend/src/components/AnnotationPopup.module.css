@@ -24,7 +24,7 @@
 
 .what { color: var(--color-text-soft); line-height: 1.45; }
 .fix { line-height: 1.45; }
-.fixLabel { color: var(--color-you); font-weight: 600; }
+.fixLabel { color: var(--color-text); font-weight: 600; }
 .cue {
   font-size: var(--font-size-small);
   font-weight: 700;

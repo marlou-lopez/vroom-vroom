@@ -8,7 +8,7 @@
 .num { text-align: right; font-family: var(--font-mono); }
 th.num { font-family: inherit; }
 .mono { font-family: var(--font-mono); }
-.best { color: var(--color-you); }
+.best { color: var(--color-text); font-weight: 600; }
 .open { text-align: right; white-space: nowrap; }
 .openLink { color: var(--color-text); text-decoration: none; }
 .openLink:hover { text-decoration: underline; }

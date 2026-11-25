@@ -17,7 +17,7 @@
 .readout { display: flex; flex-direction: column; gap: 2px; min-width: 0; order: 1; }
 .corner { font-size: 18px; font-weight: 700; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
 /* Understeer verdict: only inside a corner, much smaller than the corner name. */
-.balance { font-size: var(--font-size-stage); font-weight: 600; color: var(--color-you); }
+.balance { font-size: var(--font-size-stage); font-weight: 600; color: var(--color-understeer); }
 .mono { font-family: var(--font-mono); }
 .muted { color: var(--color-muted); }
 

@@ -30,4 +30,4 @@ button.chip:hover, button.chip[data-state="open"] { background: var(--color-hove
 .row { display: flex; gap: 6px; justify-content: space-between; padding: 1px 4px; }
 .label { color: var(--color-text); }
 .values { font-family: var(--font-mono); color: var(--color-muted); white-space: nowrap; }
-.to { color: var(--color-you); }
+.to { color: var(--color-text); }
