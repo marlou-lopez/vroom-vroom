@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LapWithRef } from "../api/types";
-import { bestLapTime, lapGapText, lapKeyDir, stepLapId, timedLaps } from "./lapStep";
+import { bestLapTime, cycleRefId, lapGapText, lapKeyDir, refChoices, refKeyDir, stepLapId, timedLaps } from "./lapStep";
 
 const lap = (id: string, no: number, t: number | null, kind = "flying", valid = true) =>
   ({ lap_id: id, lap_no: no, lap_time_s: t, kind, valid, user_valid: null }) as unknown as LapWithRef;
@@ -38,5 +38,30 @@ describe("lap stepping", () => {
     const slider = document.createElement("div");
     slider.setAttribute("role", "slider");
     expect(lapKeyDir(key("ArrowDown"), slider)).toBeNull();
+  });
+});
+
+describe("reference lap choice (vroom-r1t)", () => {
+  const mk = (id: string, t: number | null = 90) => ({ lap_id: id, kind: "flying", lap_time_s: t }) as never;
+  const rl = [mk("a"), mk("b"), mk("c"), mk("o", null)];
+  it("lists timed flying laps except the current one", () => {
+    expect(refChoices(rl, "b").map((l) => l.lap_id)).toEqual(["a", "c"]);
+  });
+  it("cycles with wrap, and starts at an end from an outside reference", () => {
+    const ch = refChoices(rl, "b");
+    expect(cycleRefId(ch, "a", 1)).toBe("c");
+    expect(cycleRefId(ch, "c", 1)).toBe("a");
+    expect(cycleRefId(ch, "a", -1)).toBe("c");
+    expect(cycleRefId(ch, "ideal:x", 1)).toBe("a");
+    expect(cycleRefId(ch, "ideal:x", -1)).toBe("c");
+    expect(cycleRefId([], "a", 1)).toBeNull();
+  });
+  it("reads R and Shift+R, not in fields or with modifiers", () => {
+    const k = (key: string, o = {}) => ({ key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...o });
+    expect(refKeyDir(k("r"), null)).toBe(1);
+    expect(refKeyDir(k("R", { shiftKey: true }), null)).toBe(-1);
+    expect(refKeyDir(k("r", { ctrlKey: true }), null)).toBeNull();
+    expect(refKeyDir(k("x"), null)).toBeNull();
+    expect(refKeyDir(k("r"), document.createElement("input"))).toBeNull();
   });
 });
