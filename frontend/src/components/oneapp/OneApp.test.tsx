@@ -125,6 +125,29 @@ describe("one app Lap view", () => {
     }
   });
 
+  it("says where an invalid lap was invalidated, and nothing on a valid lap (vroom-ake)", async () => {
+    renderAt("/");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    const select = screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement;
+    const invalid = Array.from(select.options).find((o) => /\(invalid\)/.test(o.textContent ?? ""));
+    const valid = Array.from(select.options).find((o) => !/\(invalid\)/.test(o.textContent ?? "") && o.value !== select.value);
+    expect(invalid).toBeTruthy();
+    // A valid lap: no notice.
+    if (select.selectedOptions[0]?.textContent?.includes("(invalid)")) await userEvent.selectOptions(select, valid!.value);
+    await waitFor(() => expect(screen.getByRole("combobox", { name: "Lap" })).toHaveProperty("value", select.value));
+    expect(screen.queryByTestId("invalid-notice")).toBeNull();
+    // The invalid lap: one sentence naming the place, no metres, and it is a button that seeks.
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "Lap" }), invalid!.value);
+    const note = await screen.findByTestId("invalid-notice", undefined, { timeout: 5000 });
+    expect(note.textContent).toMatch(/^This lap is invalid\. It was most likely invalidated (at|near) /);
+    expect(note.textContent).not.toMatch(/\d+\s*m\b/);
+    const clock = () => document.body.textContent?.match(/(\d+:\d\d\.\d) \/ \d+:\d\d\.\d/)?.[1];
+    await waitFor(() => expect(clock()).toBe("0:00.0"));
+    await userEvent.click(within(note).getByRole("button"));
+    // The click moves the playhead to the spot.
+    await waitFor(() => expect(clock()).not.toBe("0:00.0"));
+  });
+
   it("goes back to the current lap from the session scope", async () => {
     renderAt("/");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });

@@ -62,3 +62,21 @@
 }
 
 .offLegend { position: absolute; left: 4px; bottom: 2px; font-size: var(--font-size-stage); line-height: 1; color: var(--color-muted); pointer-events: none; }
+
+/* The invalid-lap mark: a red round button above the scrubber, like a badge. */
+.invalidMark {
+  position: absolute;
+  top: -11px;
+  transform: translateX(-50%);
+  width: var(--control);
+  height: var(--control);
+  padding: 0;
+  border: 2px solid var(--color-bg);
+  border-radius: 50%;
+  background: var(--color-off-track);
+  color: var(--color-bg);
+  font-size: var(--font-size-stage);
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}

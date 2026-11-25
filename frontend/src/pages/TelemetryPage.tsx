@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { withParams } from "../lib/urlParams";
 import { AnnotationCardProvider, type AnnotationCardActions } from "../components/AnnotationPopup";
-import { ScrubberBadges, ScrubberOffTrack, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
+import { ScrubberBadges, ScrubberInvalidMark, ScrubberOffTrack, ScrubberSections, type BadgeHandlers } from "../components/AnnotationOverlays";
 import { DetailedStrips, StripMenu } from "../components/DetailedStrips";
 import { SimplifiedWheels } from "../components/SimplifiedWheels";
 import { TrackPanel } from "../components/TrackPanel";
@@ -126,7 +126,6 @@ function Telemetry() {
     [cmp, store, focusCornerSpan],
   );
   // Stable between renders, so the memoised track views only render when something they draw changes.
-  const handlers = useMemo<BadgeHandlers>(() => ({ onSeek: seekTo }), [seekTo]);
   const seekToCornerStart = useCallback(
     (startM: number) => {
       if (!cmp) return;
@@ -138,6 +137,16 @@ function Telemetry() {
     [cmp, trackMap, store, focusCornerSpan],
   );
   const seekToCorner = useCallback((c: Corner) => seekToCornerStart(c.start_m), [seekToCornerStart]);
+  // The invalid-lap sentence and marks seek to the spot itself, paused there (vroom-ake).
+  const seekToDistance = useCallback(
+    (m: number) => {
+      if (!cmp) return;
+      store.pause();
+      store.seek(timeAtDistance(cmp.lap.t, cmp.distance, m));
+    },
+    [cmp, store],
+  );
+  const handlers = useMemo<BadgeHandlers>(() => ({ onSeek: seekTo, onSeekDistance: seekToDistance }), [seekTo, seekToDistance]);
 
   // Page-wide playback keys. Corner steps use every corner's lead-in time; issue steps use corners with a finding or a loss.
   const cornerStarts = useMemo(() => (cmp && trackMap ? trackMap.corners.map((c) => leadInTime(cmp, { startM: c.start_m })) : []), [cmp, trackMap]);
@@ -252,7 +261,7 @@ function Telemetry() {
     <AnnotationCardProvider value={cardActions}>
       <OneLapView
         session={sCtx.session} laps={sCtx.laps} lap={sCtx.lap} cmp={sCmp} trackMap={trackMap} candidates={candidates} coach={sCoach} loading={loading}
-        onSelectLap={selectLap} onSelectRef={selectRef} onSeek={seekToCorner}
+        onSelectLap={selectLap} onSelectRef={selectRef} onSeek={seekToCorner} onSeekDistance={seekToDistance}
         onReplay={(c) => { seekToCorner(c); store.play(); }}
         stage={
           <div className={oneStyles.stageGrid} data-expanded={expanded || undefined}>
@@ -279,7 +288,7 @@ function Telemetry() {
           <Transport
             compact model={sModel} trackMap={trackMap} refName={refShort ?? undefined} priorityCornerIds={priorityCorners}
             scrubberLayer={<><ScrubberOffTrack model={sModel} valid={sValid} /><ScrubberSections annotations={annotations} duration={sModel.duration} /></>}
-            scrubberBadges={<ScrubberBadges annotations={annotations} duration={sModel.duration} h={handlers} />}
+            scrubberBadges={<><ScrubberBadges annotations={annotations} duration={sModel.duration} h={handlers} /><ScrubberInvalidMark model={sModel} valid={sValid} onSeekDistance={seekToDistance} /></>}
           />
         }
       />

@@ -42,3 +42,8 @@
 .swOff { background: var(--color-off-track); }
 .swLock { background: var(--color-lockup); }
 .swSpin { background: var(--color-wheelspin); }
+
+/* The invalid-lap mark (vroom-ake): a red disc with a cross; the map svg is otherwise not clickable. */
+.invalidMark { cursor: pointer; }
+.invalidMark circle { fill: var(--color-off-track); stroke: var(--color-bg); stroke-width: 1.5; }
+.invalidMark text { fill: var(--color-bg); font-size: 9px; font-weight: 700; pointer-events: none; }
