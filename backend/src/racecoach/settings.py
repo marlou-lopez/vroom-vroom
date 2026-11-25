@@ -13,6 +13,7 @@ DEFAULT_MODELS: dict[str, tuple[str, str]] = {
     "openai": ("gpt-6.1-terra", "gpt-6-luna"),
     "anthropic": ("claude-sonnet-5-5", "claude-haiku-5-5"),
 }
+REPO_ROOT = Path(__file__).resolve().parents[3]
 OLLAMA_DEFAULT_BASE_URL = "http://127.0.0.1:11434/v1"
 
 
@@ -25,6 +26,9 @@ class Settings(BaseSettings):
     lmu_telemetry_dir: Path | None = None  # the folder the watcher polls
 
     coach_name: str = "Engineer"
+    # Track maps (YAML per track) and the driver profile the coach is told, from the repo.
+    tracks_dir: Path = REPO_ROOT / "tracks"
+    profile_path: Path = REPO_ROOT / "config" / "profile.yaml"
 
     # LLM (vroom-9ki.17: OpenAI by default, Anthropic one setting away). `llm_strong` serves
     # Analyze and Corner, `llm_fast` serves Average. OpenAI and Anthropic have default models;

@@ -1,0 +1,6 @@
+# What the coach is told about the driver (vroom-9ki.12). Edit freely; it goes into every fact packet.
+driver: "casual sim racer, load-cell pedals, metric units"
+focus_areas:
+  - "minimum corner speeds"
+  - "exits onto long straights"
+  - "consistency"
