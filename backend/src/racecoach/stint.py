@@ -3,16 +3,21 @@
 Ports `tools/extract-stint.py` (vroom-pnw.26). Wheel order is FL, FR, RL, RR. The stats are
 computed once at import (`compute_stint_stats`), stored per lap, and `session_stints` splits the
 laps into stints after each in lap, in the shape of `Stint` in `frontend/src/api/types.ts`.
-The fall-off fields stay null here: vroom-9ki.20 computes them.
+The raw and fuel-corrected fall-off (vroom-9ki.20) are computed on read from the stored laps, a
+port of `frontend/src/lib/stint.ts`; the fuel-weight constant per car class is in
+`config/cars.yaml`.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import numpy as np
 from pydantic import BaseModel
 
+from racecoach.lmu.reader import load_cars_config
 from racecoach.model import Channel, LapKind, LapMeta, RawSession
 from racecoach.store import AppStore
 
@@ -62,11 +67,117 @@ class StintFalloff(BaseModel):
     n_laps: int
 
 
+class FuelAssumption(BaseModel):
+    kg_per_l: float
+    lap_fraction_per_kg: float
+    source: str
+
+
+class StintFalloffFuelCorrected(BaseModel):
+    slope_s_per_lap: float
+    fuel_gain_s_per_lap: float
+    kg_per_lap: float
+    s_per_kg: float
+    assumption: FuelAssumption
+
+
 class Stint(BaseModel):
     stint_no: int
     laps: list[StintLap]
     falloff: StintFalloff | None = None
-    falloff_fuel_corrected: dict[str, Any] | None = None  # vroom-9ki.20
+    falloff_fuel_corrected: StintFalloffFuelCorrected | None = None
+
+
+# ---- Fall-off (port of frontend/src/lib/stint.ts, spike vroom-d4g) ----
+
+SLOW_LAP_FACTOR = 1.02  # a lap slower than this multiple of the median clean lap is left out
+MIN_FIT_LAPS = 3
+
+
+def _median(xs: list[float]) -> float:
+    return float(np.median(xs))
+
+
+def _fitted(laps: list[StintLap]) -> list[StintLap]:
+    """The laps in the fit: flying, valid, timed, not slower than 1.02 x the median clean lap.
+
+    Out, in and incomplete laps are left out by kind, invalid ones by their time of 0.
+    """
+    clean = [lap for lap in laps if lap.kind == LapKind.FLYING and lap.valid and lap.lap_time_s]
+    cut = _median([lap.lap_time_s for lap in clean]) * SLOW_LAP_FACTOR if clean else float("inf")  # type: ignore[misc]
+    return [
+        lap
+        for lap in laps
+        if lap.kind == LapKind.FLYING and lap.valid and lap.lap_time_s and lap.lap_time_s <= cut
+    ]
+
+
+def _fit_slope(pts: list[tuple[float, float]]) -> float | None:
+    """Least-squares slope of y on x; None with fewer than 3 points or no spread in x."""
+    if len(pts) < MIN_FIT_LAPS:
+        return None
+    x = np.array([p[0] for p in pts])
+    y = np.array([p[1] for p in pts])
+    sxx = float(((x - x.mean()) ** 2).sum())
+    if sxx == 0:
+        return None
+    return float(((x - x.mean()) * (y - y.mean())).sum() / sxx)
+
+
+def _used(start: float, end: float) -> float | None:
+    """Litres used on a lap; None when the tank was filled during it."""
+    return None if end > start else start - end
+
+
+def _burnt_before_midlap(laps: list[StintLap]) -> dict[int, float]:
+    """lap_no -> litres burnt from the stint's start fuel to the lap's middle.
+
+    From fuel levels, as in `lib/stint.ts`, so a missing reading does not shift later laps.
+    After a refuel inside the stint this goes negative (the car is heavier than at the start),
+    and the correction then takes time off.
+    """
+    start = laps[0].fuel_start_l
+    return {lap.lap_no: start - (lap.fuel_start_l + lap.fuel_end_l) / 2 for lap in laps}
+
+
+def stint_falloffs(
+    laps: list[StintLap], effect: dict[str, Any] | None
+) -> tuple[StintFalloff | None, StintFalloffFuelCorrected | None]:
+    """The raw and fuel-corrected fall-off of one stint.
+
+    `effect` is the car class's entry in `config/cars.yaml` (`kg_per_l`, `lap_fraction_per_kg`,
+    `source`); None gives no corrected fall-off. The correction adds back to each fitted lap
+    what the fuel burnt since the stint's start would have gained: s/kg x kg/L x litres burnt
+    to mid-lap, with s/kg = lap_fraction_per_kg x the median fitted lap time.
+    """
+    fit = _fitted(laps)
+    raw_slope = _fit_slope([(lap.lap_no, lap.lap_time_s) for lap in fit])  # type: ignore[misc]
+    if raw_slope is None:
+        return None, None
+    raw = StintFalloff(slope_s_per_lap=raw_slope, n_laps=len(fit))
+    if not effect:
+        return raw, None
+    kg_per_l = float(effect["kg_per_l"])
+    fraction = float(effect["lap_fraction_per_kg"])
+    sec_per_kg = fraction * _median([lap.lap_time_s for lap in fit])  # type: ignore[misc]
+    burnt = _burnt_before_midlap(laps)
+    slope = _fit_slope(
+        [(lap.lap_no, lap.lap_time_s + sec_per_kg * kg_per_l * burnt[lap.lap_no]) for lap in fit]  # type: ignore[operator]
+    )
+    if slope is None:
+        return raw, None
+    used = [u for lap in fit if (u := _used(lap.fuel_start_l, lap.fuel_end_l)) is not None]
+    kg_per_lap = sum(used) / len(used) * kg_per_l if used else 0.0
+    corrected = StintFalloffFuelCorrected(
+        slope_s_per_lap=slope,
+        fuel_gain_s_per_lap=sec_per_kg * kg_per_lap,
+        kg_per_lap=kg_per_lap,
+        s_per_kg=sec_per_kg,
+        assumption=FuelAssumption(
+            kg_per_l=kg_per_l, lap_fraction_per_kg=fraction, source=str(effect["source"])
+        ),
+    )
+    return raw, corrected
 
 
 def _at(ch: Channel, t: float) -> np.ndarray | float:
@@ -156,21 +267,44 @@ def compute_stint_stats(raw: RawSession, laps: list[LapMeta]) -> dict[str, dict[
     return out
 
 
-def split_stints(laps: list[StintLap]) -> list[Stint]:
-    """Split after each in lap: the next lap (an out lap) starts the next stint."""
+def split_stints(laps: list[StintLap], effect: dict[str, Any] | None = None) -> list[Stint]:
+    """Split after each in lap: the next lap (an out lap) starts the next stint.
+
+    Each stint carries its fall-off; `effect` is the car class's fuel constant (see
+    `stint_falloffs`).
+    """
     stints: list[Stint] = []
+
+    def add(cur: list[StintLap]) -> None:
+        raw, corrected = stint_falloffs(cur, effect)
+        stints.append(
+            Stint(
+                stint_no=len(stints) + 1,
+                laps=cur,
+                falloff=raw,
+                falloff_fuel_corrected=corrected,
+            )
+        )
+
     cur: list[StintLap] = []
     for lap in laps:
         cur.append(lap)
         if lap.kind == LapKind.IN:
-            stints.append(Stint(stint_no=len(stints) + 1, laps=cur))
+            add(cur)
             cur = []
     if cur:
-        stints.append(Stint(stint_no=len(stints) + 1, laps=cur))
+        add(cur)
     return stints
 
 
-def session_stints(store: AppStore, session_id: str) -> list[Stint]:
+def fuel_effect_for(car_class: str, cars_config: Path | str | None = None) -> dict[str, Any] | None:
+    """The fuel-weight constant of a car class from `config/cars.yaml` (`fuel_effect`), or None."""
+    return (load_cars_config(cars_config).get("fuel_effect") or {}).get(car_class)
+
+
+def session_stints(
+    store: AppStore, session_id: str, cars_config: Path | str | None = None
+) -> list[Stint]:
     """`GET /sessions/{id}/stints`: the session's stints, [] when it has no stint stats.
 
     Raises `KeyError` for an unknown session.
@@ -183,4 +317,48 @@ def session_stints(store: AppStore, session_id: str) -> list[Stint]:
         for lap in store.laps(session_id)
         if lap.lap_id in stats
     ]
-    return split_stints(rows)
+    car_class = next(m.car_class for m in store.sessions() if m.session_id == session_id)
+    return split_stints(rows, fuel_effect_for(car_class, cars_config))
+
+
+# ---- Coach facts ----
+
+
+@dataclass(frozen=True)
+class StintFacts:
+    """What the coach may say about one stint's fall-off. Numbers are rounded as they may be
+    quoted: the LLM only phrases them. `fuel_corrected_s_per_lap` is None for a car class
+    without a constant, and `assumption` then is None too."""
+
+    stint_no: int
+    n_laps: int
+    raw_s_per_lap: float
+    fuel_corrected_s_per_lap: float | None
+    fuel_gain_s_per_lap: float | None
+    assumption: str | None
+
+
+def stint_facts(stints: list[Stint]) -> list[StintFacts]:
+    """Fall-off facts of the stints that have a fit (3 or more fitted laps)."""
+    out: list[StintFacts] = []
+    for s in stints:
+        if s.falloff is None:
+            continue
+        c = s.falloff_fuel_corrected
+        a = c.assumption if c else None
+        out.append(
+            StintFacts(
+                stint_no=s.stint_no,
+                n_laps=s.falloff.n_laps,
+                raw_s_per_lap=round(s.falloff.slope_s_per_lap, 3),
+                fuel_corrected_s_per_lap=round(c.slope_s_per_lap, 3) if c else None,
+                fuel_gain_s_per_lap=round(c.fuel_gain_s_per_lap, 3) if c else None,
+                assumption=(
+                    f"{a.source}: {a.lap_fraction_per_kg * 100:.2f} % of the lap per kg, "
+                    f"{a.kg_per_l} kg/L; an assumption, not measured"
+                )
+                if a
+                else None,
+            )
+        )
+    return out
