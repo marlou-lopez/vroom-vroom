@@ -30,3 +30,5 @@ To refresh the app's copy: `--out ../../frontend/public/mock/spa-aerial-2023.jso
 5. To show it in the app: write it to `frontend/public/mock/`, and serve it as `TrackGeometry.aerial` (see `src/api/mock/aerial.ts`).
 
 The tool needs only recordings. The survey is used for grading, never for the fit.
+
+A line that fails the confidence test (`confidence.py`) is written as unseen; `rejected_by_confidence` in the report counts those metres. Unit tests: `uv run --no-project --with numpy,scipy,pytest python -I -m pytest -q test_confidence.py` in this folder.

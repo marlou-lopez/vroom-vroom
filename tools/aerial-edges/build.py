@@ -14,6 +14,7 @@ from PIL import Image
 from pyproj import Transformer
 from scipy.spatial import cKDTree
 
+import confidence as cf
 import extract as ex
 import frame as fr
 import sources
@@ -183,13 +184,19 @@ def main() -> None:
     d1, _ = cKDTree(osm).query(fr.apply(t, centre))
     report["refined"] = {"scale": t[0], "rotation_deg": math.degrees(t[1]), **fit, "osm_median_m": float(np.median(d1)),
                          "shift_from_coarse_m": float(np.hypot(*(fr.apply(t, centre.mean(0)[None]) - fr.apply(t0, centre.mean(0)[None]))[0]))}
-    half, seen = [el, er], [sl, sr]
+    half = [el, er]
+    seen = [cf.trusted(e, sn, rw, pr) for e, sn, rw, pr in zip(half, (sl, sr), raw, prior)]
+    report["rejected_by_confidence"] = [int((a & ~b).sum()) for a, b in zip((sl, sr), seen)]
+    sl, sr = seen
     fine = strip.get(t, centre, ex.DS)
     q = np.arange(0, len(centre), ex.DS)
     kerbs, painted, stripes = [], [], []
     for k, (name, edge) in enumerate((("left", el), ("right", er))):
         fine_edge = np.interp(q, np.arange(len(centre)), edge, period=len(centre))
         kr, pr = ex.kerb_runs(fine[k], fine_edge, name)
+        # no kerb is drawn beside an edge we do not trust (a bridge, a wrong line): more than half of it unseen
+        s_fine = np.interp(q, np.arange(len(centre)), seen[k].astype(float), period=len(centre)) > 0.5
+        kr = [r for r in kr if s_fine[int(r["start"] / ex.DS):int(r["end"] / ex.DS) + 1].mean() >= 0.5]
         stripes.append(ex.stripe_signal(ex.beside(fine[k], fine_edge))[0])
         kerbs += kr
         painted += pr
