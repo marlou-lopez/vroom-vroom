@@ -1,0 +1,235 @@
+track_id: circuit-de-spa-francorchamps-circuit-de-spa-francorchamps
+length_m: 6979.79
+corners:
+- id: lasource
+  name: La Source
+  start_m: 79.0
+  apex_m: 279.0
+  end_m: 429.0
+  complex: null
+  approx: true
+- id: eaurouge
+  name: Eau Rouge
+  start_m: 707.0
+  apex_m: 907.0
+  end_m: 958.0
+  complex: Raidillon
+  approx: true
+- id: raidillon
+  name: Raidillon
+  start_m: 958.0
+  apex_m: 1008.0
+  end_m: 1158.0
+  complex: Raidillon
+  approx: true
+- id: lescombes1
+  name: Les Combes 1
+  start_m: 2109.0
+  apex_m: 2309.0
+  end_m: 2354.0
+  complex: Les Combes
+  approx: true
+- id: lescombes2
+  name: Les Combes 2
+  start_m: 2354.0
+  apex_m: 2400.0
+  end_m: 2550.0
+  complex: Les Combes
+  approx: true
+- id: bruxelles
+  name: Bruxelles
+  start_m: 2742.0
+  apex_m: 2942.0
+  end_m: 3061.0
+  complex: null
+  approx: true
+- id: t9
+  name: T9
+  start_m: 3061.0
+  apex_m: 3180.0
+  end_m: 3330.0
+  complex: null
+  approx: true
+- id: pouhon1
+  name: Pouhon 1
+  start_m: 3526.0
+  apex_m: 3726.0
+  end_m: 3868.0
+  complex: Pouhon
+  approx: true
+- id: pouhon2
+  name: Pouhon 2
+  start_m: 3868.0
+  apex_m: 4010.0
+  end_m: 4160.0
+  complex: Pouhon
+  approx: true
+- id: fagnes1
+  name: Fagnes 1
+  start_m: 4205.0
+  apex_m: 4400.0
+  end_m: 4470.0
+  complex: Fagnes
+  approx: true
+- id: fagnes2
+  name: Fagnes 2
+  start_m: 4470.0
+  apex_m: 4539.0
+  end_m: 4680.0
+  complex: Fagnes
+  approx: true
+- id: stavelot
+  name: Stavelot
+  start_m: 4680.0
+  apex_m: 4821.0
+  end_m: 4922.0
+  complex: null
+  approx: true
+- id: paulfrere
+  name: Paul Frère
+  start_m: 4922.0
+  apex_m: 5022.0
+  end_m: 5172.0
+  complex: null
+  approx: true
+- id: blanchimont
+  name: Blanchimont
+  start_m: 5825.0
+  apex_m: 6025.0
+  end_m: 6175.0
+  complex: null
+  approx: true
+- id: busstop
+  name: Bus Stop
+  start_m: 6469.0
+  apex_m: 6669.0
+  end_m: 6819.0
+  complex: Bus Stop
+  approx: true
+landmarks:
+- id: lasource-board150
+  label: 150 board
+  kind: brake_board
+  distance_m: -21.0
+  corner_id: lasource
+  confidence: low
+- id: lasource-board100
+  label: 100 board
+  kind: brake_board
+  distance_m: 29.0
+  corner_id: lasource
+  confidence: low
+- id: lasource-board50
+  label: 50 board
+  kind: brake_board
+  distance_m: 79.0
+  corner_id: lasource
+  confidence: low
+- id: lescombes1-board150
+  label: 150 board
+  kind: brake_board
+  distance_m: 2009.0
+  corner_id: lescombes1
+  confidence: low
+- id: lescombes1-board100
+  label: 100 board
+  kind: brake_board
+  distance_m: 2059.0
+  corner_id: lescombes1
+  confidence: low
+- id: lescombes1-board50
+  label: 50 board
+  kind: brake_board
+  distance_m: 2109.0
+  corner_id: lescombes1
+  confidence: low
+- id: bruxelles-board150
+  label: 150 board
+  kind: brake_board
+  distance_m: 2642.0
+  corner_id: bruxelles
+  confidence: low
+- id: bruxelles-board100
+  label: 100 board
+  kind: brake_board
+  distance_m: 2692.0
+  corner_id: bruxelles
+  confidence: low
+- id: bruxelles-board50
+  label: 50 board
+  kind: brake_board
+  distance_m: 2742.0
+  corner_id: bruxelles
+  confidence: low
+- id: t9-board150
+  label: 150 board
+  kind: brake_board
+  distance_m: 2961.0
+  corner_id: t9
+  confidence: low
+- id: t9-board100
+  label: 100 board
+  kind: brake_board
+  distance_m: 3011.0
+  corner_id: t9
+  confidence: low
+- id: t9-board50
+  label: 50 board
+  kind: brake_board
+  distance_m: 3061.0
+  corner_id: t9
+  confidence: low
+- id: pouhon1-board150
+  label: 150 board
+  kind: brake_board
+  distance_m: 3426.0
+  corner_id: pouhon1
+  confidence: low
+- id: pouhon1-board100
+  label: 100 board
+  kind: brake_board
+  distance_m: 3476.0
+  corner_id: pouhon1
+  confidence: low
+- id: pouhon1-board50
+  label: 50 board
+  kind: brake_board
+  distance_m: 3526.0
+  corner_id: pouhon1
+  confidence: low
+- id: fagnes1-board150
+  label: 150 board
+  kind: brake_board
+  distance_m: 4105.0
+  corner_id: fagnes1
+  confidence: low
+- id: fagnes1-board100
+  label: 100 board
+  kind: brake_board
+  distance_m: 4155.0
+  corner_id: fagnes1
+  confidence: low
+- id: fagnes1-board50
+  label: 50 board
+  kind: brake_board
+  distance_m: 4205.0
+  corner_id: fagnes1
+  confidence: low
+- id: busstop-board150
+  label: 150 board
+  kind: brake_board
+  distance_m: 6369.0
+  corner_id: busstop
+  confidence: low
+- id: busstop-board100
+  label: 100 board
+  kind: brake_board
+  distance_m: 6419.0
+  corner_id: busstop
+  confidence: low
+- id: busstop-board50
+  label: 50 board
+  kind: brake_board
+  distance_m: 6469.0
+  corner_id: busstop
+  confidence: low
