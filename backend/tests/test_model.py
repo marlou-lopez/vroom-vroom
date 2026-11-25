@@ -59,3 +59,8 @@ def test_make_raw_session_structure():
     assert list(raw.events["In Pits"].v) == [1, 0, 1]
     assert np.all(np.diff(raw.channels["Lap Dist"].t) > 0)
     assert raw.channels["Lap Dist"].v.max() <= 2000
+
+
+def test_late_braking_stays_continuous():
+    lap = make_lap(CORNERS, brake_shift_m=20)
+    assert np.abs(np.diff(lap.ch["speed_kmh"])).max() < 5

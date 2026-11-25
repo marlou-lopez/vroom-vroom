@@ -47,10 +47,9 @@ def _speed_profile(
         for off in (-n, 0, n):
             p, apex = target + off, c.apex_m + off
             before = np.sqrt(vmin**2 + 2 * a_b * np.clip(p - s, 0, None))
-            after = np.sqrt(vmin**2 + 2 * a_a * np.clip(s - apex, 0, None))
+            after = np.sqrt(vmin**2 + 2 * a_a * np.clip(s - max(p, apex), 0, None))
+            # braking ends at p; between p and the apex (early shift) hold the minimum speed
             cap = np.where(s < p, before, np.where(s <= apex, vmin, after))
-            # positive shift: braking ends after the apex, minimum speed at p
-            cap = np.where((s >= apex) & (s < p), before, cap) if p > apex else cap
             v = np.minimum(v, cap)
     return v
 
@@ -223,7 +222,7 @@ def make_raw_session(
         events={
             "Lap": ev(lap_events),
             "Lap Time": ev(laptime_events),
-            "In Pits": ev([(0.0, 1.0), (pit_exit_t + 0.0 + 1.0, 0.0), (pit_entry_t, 1.0)]),
+            "In Pits": ev([(0.0, 1.0), (pit_exit_t + 0.02, 0.0), (pit_entry_t - 0.5, 1.0)]),
         },
     )
 
