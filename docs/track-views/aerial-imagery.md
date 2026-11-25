@@ -188,8 +188,8 @@ track is checked. Kerbs from imagery stay experimental until their ends can be j
 | Constant width difference | | 0.23 m | -0.71 m |
 | Coverage, left / right | | 8.9 / 10.1 % | 80.1 / 84.3 % |
 | Rejected by the confidence test, left / right | | 413 / 549 m | 426 / 237 m |
-| Wrong but seen, left / right / both | < 2 % | **all of it** (about 2,600 m) | 193 m (1.8 %) / 364 m (3.2 %) / **557 m (2.5 %)** |
-| Unclear by eye | | | 131 m / 75 m (3.4 % in all if every one is wrong) |
+| Wrong but seen, left / right / both | < 2 % | **all of it** (about 2,600 m) | 364 m (3.3 %) / 193 m (1.7 %) / **557 m (2.5 %)** |
+| Unclear by eye | | | 75 m / 131 m (3.4 % in all if every one is wrong) |
 | Kerb runs | | 1 (false) | 25 |
 
 - **Set-up:** `tools/aerial-edges/sources/ign_bdortho.py` (20 cm, Lambert-93, 128 m tiles, flown 2025-07-09 according to IGN's mosaic
@@ -205,15 +205,17 @@ track is checked. Kerbs from imagery stay experimental until their ends can be j
 - **Pictures:** all 39 of the frozen run were looked at on a contact sheet (forest, fields, car parks). All 39 of the diagnostic run were
   looked at by two Opus subagents, enlarged where doubtful; wrong means over 1 m from the line. The session looked at five of them and found
   the same. A person should not expect better than about 1-2 m on each boundary.
-- **What is wrong (diagnostic run):** the verge, a wall or house fronts where the road's dashes are faint (right 3,600 to 3,836 m, 185 m; right
-  2,617 to 2,692 m, 70 m; left 7,873 to 8,013 m, 136 m; left about 6,250 and 6,381 m, 37 m); other roads' lines at junctions;
-  a truck, a van and a hatched island. One run on the permanent circuit: right 12,313 to 12,328 m, an escape road's line. None of it
-  was caught by the confidence test, because the recorded width there is 1 to 2.5 m wider than the line (next point).
-- **The painted line is not LMU's edge on the public roads.** Per kilometre, imagery minus recorded width: within 0.3 m at the median on the
-  permanent circuit (0 to 2 km, 12 to 13.6 km), but -0.4 to -2.5 m on 2 to 11 km, on both sides. LMU's road is wider than the painted
-  lane there (or the painted line is not its limit). So even a perfectly traced line gives the wrong edge on much of this lap. Which one
-  LMU enforces needs a survey or a look in the game.
-- **Kerbs (diagnostic run):** no false run; three clearly too wide (right about 860 to 925, 1,055 to 1,092 and 13,251 to 13,273 m); many
+- **Sides:** in the check pictures the right side of travel is on top (`np.rot90` in `build.py`). The reviews first assumed the opposite;
+  the sides here are corrected.
+- **What is wrong (diagnostic run):** the verge, a wall or house fronts where the road's dashes are faint (left 3,600 to 3,836 m, 185 m; left
+  2,617 to 2,692 m, 70 m; right 7,873 to 8,013 m, 136 m; right about 6,250 and 6,381 m, 37 m); other roads' lines at junctions;
+  a truck, a van and a hatched island. One run on the permanent circuit: left 12,313 to 12,328 m, an escape road's line. None of it
+  was caught by the confidence test: these runs lie 0.3 to 1.4 m (median per run) outside the recorded width, and the test allows 4 m. That
+  also means many of them are nearer LMU's recorded edge than the paint is: "wrong" here is against the painted line.
+- **The painted line and LMU's recorded edge disagree on the public roads.** Per kilometre, imagery minus recorded width: within 0.3 m at the median on the
+  permanent circuit (0 to 2 km, 12 to 13.6 km), but -0.4 to -2.5 m on 2 to 11 km, on both sides. Possibly LMU's road is wider than the painted
+  lane, or the fit is off there; without a survey the cause is unproven. Which one LMU enforces needs a survey or a look in the game.
+- **Kerbs (diagnostic run):** no false run; three clearly too wide (left about 860 to 925, 1,055 to 1,092 and 13,251 to 13,273 m); many
   missed (about 30 stretches), mostly on the chicanes and the Porsche curves.
 - **Post-hoc split, not part of the test:** on the permanent circuit (0 to 2,000 and 11,550 to 13,621 m) wrong-but-seen is 15 m (0.2 %), with 112 m unclear. Its limit was not
   set beforehand, and residual and coverage were not recomputed for that part.
@@ -233,8 +235,8 @@ Not legal advice. None of the derived Le Mans data is committed or served.
    blind test on a permanent track (Paul Ricard has no recordings here; Portimão, Fuji and Bahrain do, but only Portimão has an open source).
 3. **Keep working on it** (other road classes in the alignment, a judgement of vehicles, faint lines). Le Mans would then be a tuning track.
 
-**Recommendation: drop (option 1), as the acceptance criteria say for a missed limit.** Both limits are missed, and the main fault (paint
-is not LMU's edge on a road course) is not one a threshold can fix.
+**Recommendation: drop (option 1), as the acceptance criteria say for a missed limit.** Both limits are missed, on the frozen run and
+on the diagnostic one.
 
 ## Decision (autopilot)
 
@@ -242,7 +244,8 @@ is not LMU's edge on a road course) is not one a threshold can fix.
 overrule). The survey is the only supported source.
 
 - The criteria say to recommend dropping on a miss, and the frozen run fails. The diagnostic run also misses, and is not blind.
-- On public roads the recorded width is 0.4 to 2.5 m wider than the paint, which no threshold fixes. The post-hoc figure on the
+- On public roads the recorded width is 0.4 to 2.5 m wider than the paint; the judge read this as beyond any threshold, but the cause
+  is unproven (corrected after review, as were the sides; the totals did not change). The post-hoc figure on the
   permanent circuit does not rescue the result, and every track would still need its pictures reviewed by hand.
 - **Spa option in the app:** stays as it is (experimental, Spa only, off by default, credit shown, never input to the coach or metrics): its
   accuracy was measured against a survey. No other track is served.
