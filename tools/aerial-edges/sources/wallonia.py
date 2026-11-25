@@ -16,6 +16,8 @@ class Wallonia(Source):
     crs = "EPSG:31370"
     attribution = "Service public de Wallonie (SPW), Orthophotos 2023 Été, CC BY 4.0 (modified: edges and kerbs extracted)"
     licence = "CC BY 4.0"
+    licence_url = "https://creativecommons.org/licenses/by/4.0/"
+    source_url = "https://geodata.wallonie.be/id/ad55c2ce-62ad-4c3c-b3cf-8fbc270a6b6e"
     tile_px = TILE_M * 4
 
     def tile_of(self, x, y):

@@ -340,7 +340,7 @@ describe("edges from a track survey (#97)", () => {
   });
 
   it("draws aerial edges and kerbs when asked (vroom-ueg.8), and the survey when the track has none", () => {
-    const aerial = { edge_points: [], attribution: "someone", kerbs: [{ side: "right", start_m: 100, end_m: 130, kind: "flat", width_m: 1.2 }] } as AerialEdges;
+    const aerial = { edge_points: [], attribution: "someone", licence_url: null, kerbs: [{ side: "right", start_m: 100, end_m: 130, kind: "flat", width_m: 1.2 }] } as AerialEdges;
     const s = buildScene(withSurvey(), { ...opts, edges: "aerial", aerial });
     expect(s.edgeSource).toBe("aerial");
     expect(s.kerbs.map((k) => [k.side, k.start, k.width])).toEqual([["right", 100, 1.2]]);

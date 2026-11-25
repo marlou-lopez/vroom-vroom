@@ -1,6 +1,7 @@
 """Northern Italy (Monza): AGEA national orthophoto 2024, open WMTS tiles, zoom 18 (0.42 m at Monza), web Mercator.
 
-CC BY 4.0. The 20 cm download needs an email address and a captcha, so it is not automated here. The 2022 and 2023
+Licence unverified: the press reports CC BY 4.0, but AGEA's own notice has not been read. Do not commit output derived from it.
+The 20 cm download needs an email address and a captcha, so it is not automated here. The 2022 and 2023
 flights (Imola is 2023) are the same service with another year in the URL.
 """
 import math
@@ -14,12 +15,12 @@ TILE = 2 * HALF / 2**ZOOM
 
 class Agea(Source):
     crs = "EPSG:3857"
-    licence = "CC BY 4.0"
+    licence = "unverified (reported as CC BY 4.0); do not commit derived data"
     tile_px = 256
 
     def __init__(self, year: int):
         self.name = f"agea_{year}"
-        self.attribution = f"AGEA, Ortofoto {year}, CC BY 4.0 (modified: edges and kerbs extracted)"
+        self.attribution = f"AGEA, Ortofoto {year}, licence unverified (modified: edges and kerbs extracted)"
         self.url = f"https://geoportale.agea.gov.it/image/rest/services/AgEA/Ortofoto_AgEA_{year}/ImageServer/tile/{ZOOM}"
 
     def tile_of(self, x, y):

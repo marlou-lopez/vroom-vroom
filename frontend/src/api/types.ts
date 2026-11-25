@@ -209,10 +209,10 @@ export interface SurveyKerb { side: "left" | "right"; start_m: number; end_m: nu
 
 /**
  * Edges and kerbs extracted from open aerial imagery (vroom-ueg.8, experimental). `edge_points` are [lat, lon] in the recording's
- * GPS frame, on the outer side of the painted edge line, unsided like the survey's. `attribution` is the imagery licence's credit line:
+ * GPS frame, on the outer side of the painted edge line, unsided like the survey's. `attribution` is the imagery licence's credit line and `licence_url` its licence:
  * show it wherever this is drawn.
  */
-export interface AerialEdges { edge_points: [lat: number, lon: number][]; kerbs: SurveyKerb[]; attribution: string }
+export interface AerialEdges { edge_points: [lat: number, lon: number][]; kerbs: SurveyKerb[]; attribution: string; licence_url: string | null }
 
 export interface CompareCandidate {
   lap_id: string;

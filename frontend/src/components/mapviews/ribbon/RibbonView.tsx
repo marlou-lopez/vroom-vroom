@@ -15,6 +15,7 @@ import { ExperimentalTag, OptionRow, ViewOptions } from "../shared/ViewOptions";
 import { useBenchHud } from "../shared/useBenchHud";
 import { useGpuRenderer } from "../shared/useGpuRenderer";
 import { loadSetting, loadString, saveString } from "../shared/storage";
+import { AerialCredit } from "../shared/AerialCredit";
 import { loadEdgeSource } from "../shared/edgeSetting";
 import type { TrackViewProps } from "../types";
 import { dashAt } from "./dashValues";
@@ -465,7 +466,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
             </button>
           </div>
         )}
-        {scene.edgeSource === "aerial" && geometry?.aerial && <div className={styles.credit}>Edges and kerbs (experimental): {geometry.aerial.attribution}</div>}
+        {scene.edgeSource === "aerial" && geometry?.aerial && <AerialCredit aerial={geometry.aerial} className={styles.credit} />}
         {debug && showHud && hudText && <div className={styles.hud}>{hudText}</div>}
         {debug && rows.length > 0 && (
           <div className={styles.results}>

@@ -9,6 +9,7 @@ export interface AerialFile {
   track: string;
   attribution: string;
   licence: string;
+  licence_url?: string;
   edges: [x: number, z: number, side: 0 | 1][];
   kerbs: { side: "left" | "right"; start: [x: number, z: number]; end: [x: number, z: number]; width_m: number }[];
 }
@@ -27,7 +28,7 @@ export function mapAerial(file: AerialFile, lat: ArrayLike<number>, lon: ArrayLi
     const a = match(...k.start), b = match(...k.end);
     if (a !== null && b !== null && a < b) kerbs.push({ side: k.side, start_m: a, end_m: b, kind: "flat", width_m: k.width_m });
   }
-  return { edge_points, kerbs, attribution: file.attribution };
+  return { edge_points, kerbs, attribution: file.attribution, licence_url: file.licence_url || null };
 }
 
 /** The imagery as the survey the scene draws: its edge points and kerbs, with the real survey's widths as the fallback where no line was seen. */

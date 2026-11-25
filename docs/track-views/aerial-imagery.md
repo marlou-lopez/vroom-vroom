@@ -8,7 +8,8 @@ wheel contacts, without driving a survey. Kerbs are found (no false run against 
 target. Monza works with known local errors.
 
 **Status:** experimental. In the app: View options, Track edges, **Aerial (experimental)** in the Close-up view (Spa mock only).
-The 3D view follows that remembered choice when it is opened. The imagery credit is shown while it is drawn. Tool and steps for
+The 3D view follows that remembered choice when it is opened. The imagery credit is shown while it is drawn. On Spa,
+metres without a seen line fall back to the survey's LMU width, so the drawn picture is not survey-free. Tool and steps for
 the next track: `tools/aerial-edges/README.md`.
 
 ## Method
@@ -70,7 +71,7 @@ Spa kerbs against the survey's kerb runs (wheel hits):
 |---|---|
 | Survey runs (5 m or longer) | 65 |
 | Matched | 36 |
-| Missed | 29, none with a stripe swing beside the line in the image |
+| Missed | 29: 27 without any stripe swing beside the line in the image, 2 with a partial one (12 % and 24 % of the run) |
 | False runs | 0 of 47 imagery runs (each overlaps a survey run) |
 | Painted run-off | 16 solid coloured stretches, counted apart, none taken as a kerb |
 | Start error | median +1.8 m, median absolute 1.9 m, p90 16 m, 14 % within 1 m |
@@ -132,6 +133,7 @@ and searches, to check before writing an adapter. The track list is as of Novemb
 - **Corners where no lap used one side**: the recorded width is interpolated there and can be metres off; the line must be near it.
 - **Edge definition**: the outer side of the paint, not where LMU's tarmac ends (0.1 to 0.2 m further out on Spa).
 - **Services move**: both adapters depend on public URLs without a promise to last.
+- **Finish line**: a kerb that crosses metre 0 is split in two, and a piece under 4 m is lost.
 
 ## Options
 
@@ -141,3 +143,17 @@ and searches, to check before writing an adapter. The track list is as of Novemb
 
 **Recommendation: keep**, option 2 first (it removes the survey driving), experimental until the Monza faults are fixed and a third
 track is checked. Kerbs from imagery stay experimental until their ends can be judged against something better than wheel hits.
+
+## Decision (autopilot)
+
+**Keep, as experimental: option 2, edges only** (Opus judge, 2026-11-25; the user may overrule).
+
+- Spa meets the edge target without the survey in the fit, against 43 / 44 % of metres with a wheel contact in the survey. That can save a
+  survey drive per track.
+- It is one track, and the one used for tuning. On Monza, unseen, wrong lines were marked as seen, so coverage is not
+  correctness. The survey stays preferred and no second track is served until the faults are fixed.
+- Kerbs miss the 1 m target even after the correction and 29 of 65 survey runs are unmatched: drawing only, labelled experimental,
+  never input to the coach or to metrics.
+- Option 1 is deferred: its gain on Spa is unmeasured.
+- Licences: the Spa vector file is acceptable in the public repo, and the SPW reading is accepted for Spa. AGEA is not accepted for
+  committing derived data until its own notice is read. This does not extend to imagery or textures (vroom-ueg.9 needs its own decision).

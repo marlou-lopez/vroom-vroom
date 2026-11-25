@@ -39,6 +39,8 @@ class Source:
     crs: str  # a pyproj name, e.g. "EPSG:31370"
     attribution: str  # shown wherever data derived from this imagery is drawn
     licence: str
+    licence_url: str = ""
+    source_url: str = ""
     tile_px: int
 
     def tile_of(self, x: float, y: float) -> tuple[int, int]:

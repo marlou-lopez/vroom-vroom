@@ -7,8 +7,8 @@ from scipy.ndimage import gaussian_filter1d, uniform_filter1d
 DL = 0.1  # lateral step, m
 DS = 0.25  # along-track step of the kerb strip, m
 REACH = 18.0  # half width of the strip, m
-LINE_HALF_M = 0.1  # half a painted edge line; the edge is its outer side, where LMU's tarmac ends
-PRIOR_SIGMA_M = 3.0  # trust in LMU's recorded half-width (it is off by 0.2 m at the median, 0.8 m at p90)
+LINE_HALF_M = 0.1  # half a painted edge line; the edge is its outer side (LMU's tarmac ends 0.1 to 0.2 m further out on Spa)
+PRIOR_SIGMA_M = 3.0  # trust in LMU's recorded half-width (interpolated where no lap used that side, so off by metres at p90 on Spa)
 MAX_STEP = 4  # lateral steps of DL per metre the edge may move
 MIN_SCORE = 14.0  # grey levels of line against the asphalt beside it
 

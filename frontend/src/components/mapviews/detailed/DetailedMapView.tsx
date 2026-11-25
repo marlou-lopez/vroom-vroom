@@ -20,6 +20,7 @@ import { buildScene, carPositions, type CarSync, type EdgeSource, type LineSourc
 import { AnnotationBadges } from "../shared/AnnotationBadges";
 import { ExperimentalTag, OptionRow, ViewOptions } from "../shared/ViewOptions";
 import { loadFlag, loadSetting, saveFlag, saveSetting } from "../shared/storage";
+import { AerialCredit } from "../shared/AerialCredit";
 import { loadEdgeSource, saveEdgeSource } from "../shared/edgeSetting";
 import styles from "./DetailedMapView.module.css";
 import { useBenchHud } from "../shared/useBenchHud";
@@ -481,7 +482,7 @@ export function DetailedMapView({ model, trackMap, geometry, annotations, handle
           )}
         </div>
         )}
-        {scene.edgeSource === "aerial" && geometry?.aerial && <div className={styles.credit}>Edges and kerbs (experimental): {geometry.aerial.attribution}</div>}
+        {scene.edgeSource === "aerial" && geometry?.aerial && <AerialCredit aerial={geometry.aerial} className={styles.credit} />}
         {debug && showHud && hudText && <div className={styles.hud}>{hudText}</div>}
         {debug && rows.length > 0 && (
           <div className={styles.results}>

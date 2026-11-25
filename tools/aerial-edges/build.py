@@ -102,7 +102,7 @@ def grade(survey, centre, half, seen, kerbs, painted, stripes=None) -> dict:
         off = ((p - centre[i]) * nn[i]).sum(1)
         return i, off, d < 18
 
-    pts = np.array([c[:2] for c in survey["contacts"] if c[2] == "edge"])
+    pts = np.array([c[:2] for c in survey["contacts"] if c[2] == "edge"], float).reshape(-1, 2)
     i, off, ok = project(pts)
     res: dict = {"edges": {}, "kerbs": {}}
     truth = {}
@@ -111,9 +111,11 @@ def grade(survey, centre, half, seen, kerbs, painted, stripes=None) -> dict:
         gi, gv = i[m], sign * off[m]
         med = np.full(n, np.nan)
         for k in np.unique(gi):
-            near = gv[np.abs(gi - k) <= 10]
+            gap = np.abs(gi - k)
+            near = gv[np.minimum(gap, n - gap) <= 10]
             v = gv[gi == k]
-            v = v[np.abs(v - np.median(near)) < 0.75]  # the app's outlier rule
+            if len(near) >= 3:  # the app's outlier rule (rejectOutliers in trackSurvey.ts)
+                v = v[np.abs(v - np.median(near)) <= 0.75]
             if len(v):
                 med[k] = np.median(v)
         truth[name] = med
@@ -121,9 +123,9 @@ def grade(survey, centre, half, seen, kerbs, painted, stripes=None) -> dict:
         err = half[s][both] - med[both]
         res["edges"][name] = {
             "coverage": round(float(seen[s].mean()), 3), "survey_metres": int(np.isfinite(med).sum()), "compared": int(both.sum()),
-            "median_abs_m": round(float(np.median(np.abs(err))), 3), "p90_abs_m": round(float(np.percentile(np.abs(err), 90)), 3),
-            "bias_m": round(float(np.median(err)), 3), "share_under_0.3": round(float((np.abs(err) < 0.3).mean()), 3)}
-    k = np.array([c[:2] for c in survey["kerbs"]])
+            **({} if not len(err) else {"median_abs_m": round(float(np.median(np.abs(err))), 3), "p90_abs_m": round(float(np.percentile(np.abs(err), 90)), 3),
+            "bias_m": round(float(np.median(err)), 3), "share_under_0.3": round(float((np.abs(err) < 0.3).mean()), 3)})}
+    k = np.array([c[:2] for c in survey["kerbs"]], float).reshape(-1, 2)
     side = np.array([c[2] for c in survey["kerbs"]])
     kind = np.array([c[3] for c in survey["kerbs"]])
     d, gi = tree.query(k)
@@ -139,15 +141,17 @@ def grade(survey, centre, half, seen, kerbs, painted, stripes=None) -> dict:
                 tot["start_err"].append(round(min(h[0] for h in hit) - a, 1))
                 tot["end_err"].append(round(max(h[1] for h in hit) - b, 1))
             else:
-                # stripes: share of the run where the image shows a stripe swing. Few: nothing painted there in the image.
+                # the last number is the share of the run where the image shows a stripe swing
                 striped = float((stripes[s][a * 4:(b + 1) * 4] > ex.MIN_AMP).mean()) if stripes else 0.0
-                tot["missed"].append([name, int(a), int(b), "stripes" if striped > 0.3 else "nothing striped in the image"])
+                tot["missed"].append([name, int(a), int(b), round(striped, 2)])
         tot["false_runs"] += [[name, m[0], m[1]] for m in mine if not any(m[0] <= b and m[1] >= a for a, b in sv)]
     for key in ("start_err", "end_err"):
         v = np.array(tot[key])
         tot[key + "_summary"] = {"median": float(np.median(v)), "median_abs": float(np.median(np.abs(v))), "p90_abs": float(np.percentile(np.abs(v), 90)), "within_1m": round(float((np.abs(v) <= 1).mean()), 2)} if len(v) else None
     # A survey hit sits at the car's centre, but a front or rear wheel 1.24 m away made it, so survey runs are that much too long at both ends.
     for key, sg in (("start_err", -1), ("end_err", 1)):
+        if not tot[key]:
+            continue
         v = np.array(tot[key]) + sg * WHEEL_M
         tot[key + "_wheel_corrected"] = {"median": round(float(np.median(v)), 2), "median_abs": round(float(np.median(np.abs(v))), 2), "within_1m": round(float((np.abs(v) <= 1).mean()), 2), "within_3m": round(float((np.abs(v) <= 3).mean()), 2)}
     tot["painted_runoff"] = len(painted)
@@ -201,7 +205,7 @@ def main() -> None:
     print(json.dumps(report, indent=1, default=float))
 
     pts = [world_points(centre, half[k], sg) for k, sg in ((0, 1), (1, -1))]
-    out = {"source": "aerial imagery", "track": cfg["track"], "attribution": src.attribution, "licence": src.licence,
+    out = {"source": "aerial imagery", "track": cfg["track"], "attribution": src.attribution, "licence": src.licence, "licence_url": src.licence_url, "source_url": src.source_url,
            "osm_attribution": "Alignment: © OpenStreetMap contributors, ODbL", "transform": {"scale": t[0], "rotation_deg": math.degrees(t[1])},
            "edges": [[round(float(pts[k][i, 0]), 2), round(float(pts[k][i, 1]), 2), k] for k in (0, 1) for i in np.flatnonzero(seen[k])],
            "kerbs": []}

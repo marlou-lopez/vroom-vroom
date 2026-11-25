@@ -197,7 +197,7 @@ describe("mockApi: real Spa laps", () => {
     it("serves the Spa aerial edges beside the survey, with their credit line, and none for Monza", async () => {
       const aerial = { source: "t", track: "t", attribution: "credit", licence: "CC BY 4.0", edges: [], kerbs: [] };
       const api = createMockApi({ coachDelayMs: 0, loadSpa, loadMonza, loadSurvey: async () => survey, loadAerial: async () => aerial });
-      expect((await api.trackGeometry(TRACK)).aerial).toEqual({ edge_points: [], kerbs: [], attribution: "credit" });
+      expect((await api.trackGeometry(TRACK)).aerial).toEqual({ edge_points: [], kerbs: [], attribution: "credit", licence_url: null });
       expect((await api.trackGeometry(TRACK)).survey).not.toBeNull();
       expect((await api.trackGeometry("monza-grand-prix")).aerial).toBeNull();
       const broken = createMockApi({ coachDelayMs: 0, loadSpa, loadAerial: async () => { throw new Error("x"); } });
