@@ -83,6 +83,14 @@ class AppStore:
     def close(self) -> None:
         self.con.close()
 
+    def view(self) -> AppStore:
+        """A store on the same database with its own cursor, for one request in a worker
+        thread (a DuckDB connection must not be shared between threads)."""
+        other = object.__new__(AppStore)
+        other.db_path, other.traces_dir = self.db_path, self.traces_dir
+        other.con = self.con.cursor()
+        return other
+
     def __enter__(self) -> AppStore:
         return self
 
