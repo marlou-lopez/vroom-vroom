@@ -137,10 +137,11 @@ def make_raw_session(
 ) -> RawSession:
     """Out-lap from the pit exit, `n_laps` flying laps, then an in-lap, in LMU's recording format.
 
-    `Ground Speed` (km/h) runs at 100 Hz and `Lap Dist` (m, quantised to 0.5) at 50 Hz. Events
-    `Lap` (lap number at each line crossing, lap 0 = out-lap), `Lap Time` (previous lap's time at
-    each lap start, 0 = invalid, none for the out-lap) and `In Pits` (1 at the start, 0 at pit
-    exit, 1 at pit entry).
+    The reader's internal names: `speed_kmh` (km/h) runs at 100 Hz and `lap_dist` (m, quantised to
+    0.5) at 50 Hz. Events `lap` (lap number at each line crossing, lap 0 = out-lap), `lap_time`
+    (previous lap's time at each lap start, 0 = invalid, none for the out-lap), `last_sector1` and
+    `last_sector2` (cumulative, with the lap time; 0 when invalid) and `in_pits` (1 at the start,
+    0 at pit exit, 1 at pit entry).
     """
     n = int(track_length_m)
     lap = make_lap(corners, track_length_m=n, **lap_kwargs)  # pyright: ignore[reportArgumentType]
@@ -168,6 +169,7 @@ def make_raw_session(
     speeds: list[tuple[np.ndarray, np.ndarray]] = []
     lap_events: list[tuple[float, float]] = []
     laptime_events: list[tuple[float, float]] = []
+    sector_events: list[tuple[float, float, float]] = []
     t_cursor = 0.0
     pit_exit_t = 0.0
     prev_time: float | None = None
@@ -175,7 +177,9 @@ def make_raw_session(
         lap_events.append((t_cursor, float(lap_no)))
         if lap_no >= 2:
             invalid = (lap_no - 1) in invalid_laps
-            laptime_events.append((t_cursor, 0.0 if invalid else prev_time or 0.0))
+            lt = 0.0 if invalid else prev_time or 0.0
+            laptime_events.append((t_cursor, lt))
+            sector_events.append((t_cursor, 0.3 * lt, 0.7 * lt))
         # the segment's own time axis: scale the lap profile to this segment's duration
         t_lap_a = float(np.interp(a, d_all, t_all))
         t_lap_b = float(np.interp(b, d_all, t_all))
@@ -218,11 +222,13 @@ def make_raw_session(
     )
     return RawSession(
         meta=meta,
-        channels={"Ground Speed": cat(speeds), "Lap Dist": cat(dists)},
+        channels={"speed_kmh": cat(speeds), "lap_dist": cat(dists)},
         events={
-            "Lap": ev(lap_events),
-            "Lap Time": ev(laptime_events),
-            "In Pits": ev([(0.0, 1.0), (pit_exit_t + 0.02, 0.0), (pit_entry_t - 0.5, 1.0)]),
+            "lap": ev(lap_events),
+            "lap_time": ev(laptime_events),
+            "last_sector1": ev([(t, a) for t, a, _ in sector_events]),
+            "last_sector2": ev([(t, b) for t, _, b in sector_events]),
+            "in_pits": ev([(0.0, 1.0), (pit_exit_t + 0.02, 0.0), (pit_entry_t - 0.5, 1.0)]),
         },
     )
 

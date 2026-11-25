@@ -53,12 +53,12 @@ def test_brake_shift_moves_brake_onset():
 
 def test_make_raw_session_structure():
     raw = make_raw_session(3, CORNERS, invalid_laps=(2,))
-    assert [int(x) for x in raw.events["Lap"].v] == [0, 1, 2, 3, 4]
-    lt = raw.events["Lap Time"].v
+    assert [int(x) for x in raw.events["lap"].v] == [0, 1, 2, 3, 4]
+    lt = raw.events["lap_time"].v
     assert len(lt) == 3 and lt[1] == 0.0 and lt[0] > 0
-    assert list(raw.events["In Pits"].v) == [1, 0, 1]
-    assert np.all(np.diff(raw.channels["Lap Dist"].t) > 0)
-    assert raw.channels["Lap Dist"].v.max() <= 2000
+    assert list(raw.events["in_pits"].v) == [1, 0, 1]
+    assert np.all(np.diff(raw.channels["lap_dist"].t) > 0)
+    assert raw.channels["lap_dist"].v.max() <= 2000
 
 
 def test_late_braking_stays_continuous():
