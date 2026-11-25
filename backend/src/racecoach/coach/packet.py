@@ -10,7 +10,8 @@ are landmark phrases, an offset from the apex ("just after the apex") or an own-
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from bisect import bisect_right
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,7 @@ from racecoach.analysis.balance import LapBalance, compare_balance
 from racecoach.analysis.consistency import (
     LapPair,
     NotEnoughLaps,
+    NoValidLaps,
     corner_spreads,
     corner_time,
     session_consistency,
@@ -30,10 +32,11 @@ from racecoach.analysis.delta import delta_time
 from racecoach.analysis.facts import CornerFacts, corner_facts, lap_facts
 from racecoach.analysis.landmarks import own_lap_cue, usable_landmarks
 from racecoach.analysis.metrics import SideMetrics
+from racecoach.api.views import IDEAL_PREFIX, stitch_ideal
 from racecoach.coach.errors import CoachError
 from racecoach.coach.guard import allowed_numbers
 from racecoach.coach.schema import Command, FindingKind
-from racecoach.model import LapMeta, LapTrace, SessionMeta
+from racecoach.model import LapKind, LapMeta, LapTrace, SessionMeta
 from racecoach.store import AppStore
 from racecoach.tracks import Corner, Landmark, TrackMap, map_for
 
@@ -256,11 +259,37 @@ class Ctx:
     lap: LapTrace
     ref: LapTrace
     limit: float | None
+    joins: list[int] = field(default_factory=list)  # ideal reference: segment boundaries
+
+
+def _across_join(cf: CornerFacts, corner: Corner, joins: list[int]) -> tuple[CornerFacts, bool]:
+    """On an ideal reference, a braking or throttle point that lies in another segment than the
+    apex comes from a different lap than the corner's own run. Drop those points (and the cues
+    built on them) so no fact reads across a join. Returns the facts and whether any was dropped."""
+
+    def crossed(pos: int | None) -> bool:
+        return pos is not None and bisect_right(joins, pos) != bisect_right(joins, corner.apex_m)
+
+    drop_brake, drop_throttle = crossed(cf.ref.brake_onset_m), crossed(cf.ref.throttle_pickup_m)
+    if not (drop_brake or drop_throttle):
+        return cf, False
+    ref = cf.ref
+    if drop_brake:
+        ref = replace(ref, brake_onset_m=None)
+    if drop_throttle:
+        ref = replace(ref, throttle_pickup_m=None)
+    cues = replace(
+        cf.cues,
+        brake_ref=None if drop_brake else cf.cues.brake_ref,
+        throttle_ref=None if drop_throttle else cf.cues.throttle_ref,
+    )
+    return replace(cf, ref=ref, cues=cues), True
 
 
 def _corner_dict(
     cf: CornerFacts, corner: Corner, kind: FindingKind, ctx: Ctx, time_s: float
 ) -> dict[str, Any]:
+    cf, joined = _across_join(cf, corner, ctx.joins) if ctx.joins else (cf, False)
     anchors = usable_landmarks([lm for lm in ctx.tmap.landmarks if lm.corner_id == corner.id])
     la = corner_aids(ctx.lap, corner, ctx.limit)
     ra = corner_aids(ctx.ref, corner, ctx.limit)
@@ -268,7 +297,7 @@ def _corner_dict(
     ref_side = _side(cf.ref, ra, corner, cf.cues.brake_ref, cf.cues.throttle_ref, ctx.tmap, anchors)
     cause, confidence, basis = cause_of(cf.lap, cf.ref)
     pairs = pair_sides(lap_side, ref_side) | understeer_pair(cf.lap, cf.ref)
-    return {
+    out = {
         "corner_id": corner.id,
         "corner": corner.name,
         "kind": kind,
@@ -283,6 +312,12 @@ def _corner_dict(
         "this lap against the reference": pairs,
         "landmarks": landmark_roles(corner, anchors, ctx.tmap.length_m),
     }
+    if joined:
+        out["note on the reference"] = (
+            "the reference is stitched from several laps and its braking or throttle point here "
+            "falls on a stretch from another lap, so it is left out (n/a): do not compare it"
+        )
+    return out
 
 
 def _trace_rows(lap: LapTrace, corner: Corner) -> list[list[str]]:
@@ -340,6 +375,13 @@ _NOTES = {
 }
 
 
+_IDEAL_NOTE = (
+    "the reference is the ideal lap: the best stretch of each corner and straight from this "
+    "session's valid laps joined together, not one lap anyone drove. Never say the driver drove "
+    "it or name a lap number for it"
+)
+
+
 def load_profile(path: Path | str | None) -> dict[str, Any]:
     if path is None or not Path(path).is_file():
         return dict(DEFAULT_PROFILE)
@@ -376,6 +418,7 @@ def _header(
     command: Command, session: SessionMeta, lap: LapMeta, ref: LapMeta | None,
     profile: dict[str, Any],
 ) -> dict[str, Any]:  # fmt: skip
+    ideal = ref is not None and ref.lap_id.startswith(IDEAL_PREFIX)
     return {
         "command": command,
         "track": session.track_name,
@@ -383,7 +426,10 @@ def _header(
         "session": f"{session.session_type.lower()}, {session.started_at:%-d %b %Y}",
         "lap": f"lap {lap.lap_no}, {lap_time_text(lap.lap_time_s or 0.0)}",
         "reference": (
-            None if ref is None else f"lap {ref.lap_no}, {lap_time_text(ref.lap_time_s or 0.0)}"
+            None if ref is None
+            else f"the ideal lap of this session (stitched), {lap_time_text(ref.lap_time_s or 0.0)}"
+            if ideal
+            else f"lap {ref.lap_no}, {lap_time_text(ref.lap_time_s or 0.0)}"
         ),
         "profile": profile,
     }  # fmt: skip
@@ -436,6 +482,25 @@ def _session_laps(store: AppStore, session_id: str) -> list[LapPair]:
     return out
 
 
+def _ideal_reference(
+    store: AppStore, lap: tuple[LapMeta, LapTrace], session: SessionMeta, tracks_dir: Path | str
+) -> tuple[tuple[LapMeta, LapTrace, TrackMap], list[int]]:
+    """The session's ideal lap as a reference: (meta, stitched trace, track map) and the joins.
+    Raises NoValidLaps when the session has no valid timed lap."""
+    laps = _session_laps(store, session.session_id)
+    pool = timed_laps(laps)
+    if not pool:
+        raise NoValidLaps("There is no valid timed lap to build an ideal lap from.")
+    best = min(pool, key=lambda p: p[0].lap_time_s or 0.0)
+    tmap = map_for(tracks_dir, session.track_id, best[1])
+    trace, joins, time_s = stitch_ideal(laps, tmap, lap)
+    meta = replace(
+        lap[0], lap_id=trace.lap_id, kind=LapKind.FLYING, lap_time_s=time_s,
+        pinned_reference=False,
+    )  # fmt: skip
+    return (meta, trace, tmap), joins
+
+
 def build_packet(
     store: AppStore,
     command: Command,
@@ -453,7 +518,16 @@ def build_packet(
     if command == "average":
         return _average(store, lap, session, tracks_dir, profile)
 
-    if ref_lap_id is None:
+    joins: list[int] = []
+    ideal_ref: tuple[LapMeta, LapTrace, TrackMap] | None = None
+    if ref_lap_id is not None and ref_lap_id.startswith(IDEAL_PREFIX):
+        if ref_lap_id != f"{IDEAL_PREFIX}{session.session_id}":
+            raise CoachError(
+                "unknown_lap", f"The ideal lap {ref_lap_id} is not this lap's session's."
+            )
+        ideal_ref, joins = _ideal_reference(store, lap, session, tracks_dir)
+        ref_meta = ideal_ref[0]
+    elif ref_lap_id is None:
         ref_meta = store.reference_for(session.track_id, session.car_id)
         if ref_meta is None:
             raise CoachError("no_reference", "There is no valid flying lap to compare against yet.")
@@ -467,8 +541,11 @@ def build_packet(
         raise CoachError(
             "no_reference", "This lap is the reference: pick another lap to compare it with."
         )
-    ref = _load(store, ref_meta.lap_id)
-    tmap = map_for(tracks_dir, session.track_id, ref[1])
+    if ideal_ref is not None:
+        ref, tmap = (ideal_ref[0], ideal_ref[1]), ideal_ref[2]
+    else:
+        ref = _load(store, ref_meta.lap_id)
+        tmap = map_for(tracks_dir, session.track_id, ref[1])
     if corner_id is not None and all(c.id != corner_id for c in tmap.corners):
         raise CoachError("unknown_corner", f"Corner {corner_id} is not on the track map.")
     if command == "corner" and corner_id is None:
@@ -476,7 +553,7 @@ def build_packet(
 
     bal_lap, bal_ref = _balances(store, lap, ref)
     facts = lap_facts(tmap, lap[1], ref[1], bal_lap, bal_ref)
-    ctx = Ctx(tmap, lap[1], ref[1], rev_limit(lap[1], ref[1]))
+    ctx = Ctx(tmap, lap[1], ref[1], rev_limit(lap[1], ref[1]), joins)
     corners_by_id = {c.id: c for c in tmap.corners}
     header = _header(command, session, lap[0], ref[0], profile)
     total = facts.total_delta_s
@@ -485,7 +562,9 @@ def build_packet(
         "Reference": lap_time_text(ref[0].lap_time_s or 0.0),
         "Delta": f"{total:+.3f} s",
     }
-    base: dict[str, Any] = {**header, "notes": _NOTES}
+    base: dict[str, Any] = {
+        **header, "notes": {**_NOTES, "ideal": _IDEAL_NOTE} if ideal_ref else _NOTES
+    }
 
     if command == "analyze":
         chosen = select_analyze(facts.corners, {c.id: c.complex for c in tmap.corners})
