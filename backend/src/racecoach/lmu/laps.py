@@ -86,6 +86,12 @@ def _conditions(raw: RawSession, t_a: float, t_b: float) -> dict[str, float]:
             m = (ch[name].t >= t_a) & (ch[name].t <= t_b)
             held = step_at(ch[name], np.array([t_a]))[0]
             cond[key] = float(np.mean(ch[name].v[m]) if m.any() else held)
+    wet = raw.events.get("wetness")
+    if wet is not None and len(wet.t):
+        # Events are emitted on change: the value held at the start, and any change inside the lap.
+        inside = wet.v[(wet.t > t_a) & (wet.t <= t_b)]
+        held = float(step_at(wet, np.array([t_a]))[0])
+        cond["path_wetness"] = float(max(held, *inside)) if len(inside) else held
     if "fuel" in ch:
         cond["fuel_start_l"] = float(step_at(ch["fuel"], np.array([t_a]))[0])
     if "tyre_wear" in ch:

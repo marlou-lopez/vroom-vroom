@@ -95,6 +95,19 @@ def test_build_laps_on_fixture(fixture_laps):
     assert fixture_laps[-1][0].kind == LapKind.INCOMPLETE
 
 
+def test_path_wetness_in_conditions_and_null_without_the_channel():
+    raw = make_raw_session(3, CORNERS)
+    starts = raw.events["lap"].t  # lap 0 .. lap 4 start times
+    assert all("path_wetness" not in m.conditions for m, _ in build_laps(raw))  # no channel
+    # dry at the start, rain arrives half-way through lap 2, still held on lap 3
+    mid2 = float((starts[2] + starts[3]) / 2)
+    raw.events["wetness"] = Channel(np.array([0.0, mid2]), np.array([0.0, 35.0]))
+    by_no = {m.lap_no: m.conditions for m, _ in build_laps(raw)}
+    assert by_no[1]["path_wetness"] == 0.0
+    assert by_no[2]["path_wetness"] == 35.0  # a change inside the lap counts
+    assert by_no[3]["path_wetness"] == 35.0  # carried in from the previous lap
+
+
 def test_race_start_lap_that_crosses_the_line_is_kept_from_the_line():
     raw = make_raw_session(2, CORNERS, pit_exit_fraction=0.3)
     ld = raw.channels["lap_dist"]
