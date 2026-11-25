@@ -403,6 +403,12 @@ describe("track map and landmarks", () => {
     expect(steeringCorrections(clean, wobbly, 0, 199)).toBe(0);
   });
 
+  it("steering wobble under the absolute floor (0.04) is no correction in a low-lock kink", () => {
+    // largest steering 0.2: 10 % is 0.02, under the floor, so a 0.03 dip is ignored; only the unwind counts
+    const v = Array.from({ length: 200 }, (_, i) => (i < 20 || i >= 180 ? 0 : i >= 90 && i < 120 ? 0.17 : 0.2));
+    expect(steeringExtrema(v, 0, 199)).toBe(1);
+  });
+
   it("lap 4 Bus Stop brake onset comes from the lead-in rule, not the window edge", async () => {
     const { api } = await setup();
     const bus = (await api.trackMap(TRACK)).corners.find((c) => c.id === "busstop")!;

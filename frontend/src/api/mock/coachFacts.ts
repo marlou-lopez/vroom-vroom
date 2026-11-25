@@ -50,6 +50,8 @@ export interface Narrative {
 }
 
 const STEER_PROMINENCE = 0.1;
+// Absolute floor (steering is -1..1): in a low-lock kink 10 % of the max is wobble (vroom-9ki.15).
+const STEER_MIN_PROMINENCE = 0.04;
 const STEER_SMOOTH_M = 5;
 const THROTTLE_PICKUP = 0.5;
 
@@ -87,12 +89,12 @@ function smooth(a: ArrayLike<number>, idx: number[], wrap: boolean): number[] {
   });
 }
 
-/** Local extrema of the smoothed steering inside [start, end] (start > end: over the start line) whose prominence is >= 10 % of the corner's max |smoothed steering|. */
+/** Local extrema of the smoothed steering inside [start, end] (start > end: over the start line) whose prominence is >= 10 % of the corner's max |smoothed steering| and at least 0.04. */
 export function steeringExtrema(steering: ArrayLike<number>, start: number, end: number): number {
   const last = steering.length - 1;
   const corner = { start_m: start, end_m: end } as Corner;
   const v = smooth(steering, cornerWalk(corner, last).map((w) => w.i), start > end);
-  const thr = STEER_PROMINENCE * Math.max(...v.map(Math.abs));
+  const thr = Math.max(STEER_PROMINENCE * Math.max(...v.map(Math.abs)), STEER_MIN_PROMINENCE);
   if (!(thr > 0)) return 0;
   let dir = 0;
   let ext = v[0];

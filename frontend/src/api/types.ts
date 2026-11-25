@@ -177,7 +177,7 @@ export interface CornerSideMetrics {
   coast_s: number;
   /** Seconds with both pedals pressed (throttle and brake > 0.1). First guess, tuned in #25. */
   overlap_s: number;
-  /** Direction reversals of the smoothed steering (+-5 m, 10 % prominence). Compare with the reference's count: the difference is the extra corrections. */
+  /** Direction reversals of the smoothed steering (+-5 m, 10 % prominence of the corner's largest steering, at least 0.04). Compare with the reference's count: the difference is the extra corrections. */
   steer_corrections: number;
   /**
    * Peak understeer in the corner in deg/s of yaw rate (the largest balance, 0 when the car never understeered). null when the
