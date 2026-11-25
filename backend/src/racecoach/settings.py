@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     data_dir: Path = Path.home() / ".local" / "share" / "racecoach"
     lmu_telemetry_dir: Path | None = None  # the folder the watcher polls
 
+    # Per-track derived data for the geometry route: `<track_id>/{elevation,survey,aerial}.json`.
+    # Default `<data_dir>/track-data`.
+    track_data_dir: Path | None = None
+
     coach_name: str = "Engineer"
     # Track maps (YAML per track) and the driver profile the coach is told, from the repo.
     tracks_dir: Path = REPO_ROOT / "tracks"
@@ -72,6 +76,10 @@ class Settings(BaseSettings):
         if self.llm_provider == "ollama":
             self.llm_base_url = self.llm_base_url or OLLAMA_DEFAULT_BASE_URL
         return self
+
+    @property
+    def track_data_path(self) -> Path:
+        return self.track_data_dir or self.data_dir / "track-data"
 
     @property
     def raw_dir(self) -> Path:
