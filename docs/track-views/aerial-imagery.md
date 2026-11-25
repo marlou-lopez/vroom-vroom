@@ -118,7 +118,7 @@ and searches, to check before writing an adapter. The track list is as of Novemb
 | Track | Source | Resolution | Licence |
 |---|---|---|---|
 | Spa | SPW Orthophotos 2023 Été | 25 cm | Data CC BY 4.0; the viewing service has its own terms, see below |
-| Monza | AGEA 2024, open tiles; 20 cm download | 42 cm; 20 cm | CC BY 4.0 according to press on AGEA's legal notes (Aug 2026); the tile service itself names no licence |
+| Monza | AGEA 2024, open tiles; 20 cm download | 42 cm; 20 cm | CC BY 4.0 in AGEA's own legal notes (read first-hand 2026-11-25, see below) for the downloadable GeoTIFF orthophotos; the tile service's metadata names no licence |
 | Imola | AGEA 2023, same portal | about 42 cm; 20 cm | as Monza |
 | Le Mans | IGN BD ORTHO (`data.geopf.fr`) | 20 cm | Etalab 2.0 |
 | Paul Ricard | IGN BD ORTHO | 20 cm | Etalab 2.0 |
@@ -133,6 +133,18 @@ and searches, to check before writing an adapter. The track list is as of Novemb
   altered, and whoever copies data from the service follows the data's licence. The tool fetches about 80 tiles once, half a second
   apart. Reading that use as covered by CC BY 4.0 is this spike's interpretation. The strictly clean route is the CC BY download,
   but the Liège file is 49.8 GB and the server ignores range requests, so one tile cannot be pulled from it.
+- **AGEA legal notice (read first-hand, vroom-ueg.12, 2026-11-25).** Page: <https://geoportale.agea.gov.it/legal-notes> ("Note legali",
+  section "Copyright"). It is an Angular app, so the text is not in the HTML; it is in the page's translation file
+  `https://geoportale.agea.gov.it/assets/i18n/en.json` (`legalNotes.copyright`, Last-Modified 15 Sep 2026) and `it.json`. Wording (English):
+  "The RGB orthophotos, available in GeoTIFF format and downloadable from the AgEA GeoPortal, are made available for re-use under the
+  terms of the Creative Commons Attribution 4.0 (CC BY 4.0) licence." Italian: "Le ortofoto RGB, in formato GeoTiff, scaricabili dal
+  GeoPortale AgEA sono messe a disposizione per il riutilizzo alle condizioni della licenza Creative Commons BY 4.0." The notice cites
+  Implementing Regulation (EU) 2023/138 (high-value datasets, Earth observation). It carries no date of its own.
+  **What is confirmed:** AGEA's orthophotos are CC BY 4.0 (the licence's own terms: credit AGEA, indicate changes). **What is not:** the notice names the GeoTIFF
+  download, not the tile service. The tile service's ImageServer metadata (`copyrightText`, `description`) is empty (checked 2026-11-25).
+  It serves the same imagery, and press reports say the WMTS records in the national catalogue carry CC BY 4.0, but those were not
+  read here. So the Monza-derived JSON **stays out of git** until the tile service is covered in writing (or the vectors are
+  regenerated from the 20 cm download, which needs the captcha portal and a person).
 - **AGEA's 20 cm download** asks for an email address and a captcha, so it is not automated. The tile service needs neither.
 - **In git:** `spa-aerial-2023.json` (262 KB): coordinates of edges and kerbs with the attribution. CC BY allows this with credit
   and a note of the change. No imagery, tiles or rendered pictures are committed; `tools/aerial-edges/cache/` is git-ignored. OSM
@@ -170,8 +182,8 @@ track is checked. Kerbs from imagery stay experimental until their ends can be j
 - Kerbs miss the 1 m target even after the correction and 29 of 65 survey runs are unmatched: drawing only, labelled experimental,
   never input to the coach or to metrics.
 - Option 1 is deferred: its gain on Spa is unmeasured.
-- Licences: the Spa vector file is acceptable in the public repo, and the SPW reading is accepted for Spa. AGEA is not accepted for
-  committing derived data until its own notice is read. This does not extend to imagery or textures (vroom-ueg.9 needs its own decision).
+- Licences: the Spa vector file is acceptable in the public repo, and the SPW reading is accepted for Spa. AGEA's own notice is now read (CC BY 4.0 for the downloadable orthophotos), but
+  it does not name the tile service, so AGEA-derived data is still not committed (vroom-ueg.12). This does not extend to imagery or textures (vroom-ueg.9 needs its own decision).
 
 ## Blind check on Le Mans (vroom-ueg.11)
 
