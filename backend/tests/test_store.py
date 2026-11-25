@@ -187,3 +187,20 @@ def test_settings_derived_paths(monkeypatch: pytest.MonkeyPatch, tmp_path: Path)
     monkeypatch.setenv("RACECOACH_DATA_DIR", str(tmp_path / "d"))
     s = Settings()
     assert s.raw_dir == tmp_path / "d" / "raw" and s.db_path.name == "app.duckdb"
+
+
+def test_session_setup_round_trip_and_session_without_one(store: AppStore) -> None:
+    raw = make_raw_session(2, CORNERS)
+    store.add_session(raw.meta, build_laps(raw), "raw.duckdb", setup={"VM_REAR_WING": "6.7 deg"})
+    assert store.session_setup(raw.meta.session_id) == {"VM_REAR_WING": "6.7 deg"}
+    other = replace(raw.meta, session_id="b" * 40)
+    store.add_session(other, build_laps(replace(raw, meta=other)), "raw.duckdb")
+    assert store.session_setup(other.session_id) == {}  # also what a pre-setup import looks like
+
+
+def test_setup_label() -> None:
+    from racecoach.setup_labels import setup_label
+
+    assert setup_label("VM_REAR_WING") == "Rear wing"
+    assert setup_label("WM_CAMBER-W_FL") == "Front left camber"
+    assert setup_label("VM_UNKNOWN") == "VM_UNKNOWN"

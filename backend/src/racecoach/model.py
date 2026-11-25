@@ -79,6 +79,7 @@ class RawSession:
     meta: SessionMeta
     channels: dict[str, Channel]
     events: dict[str, Channel]
+    setup: dict[str, str] = field(default_factory=dict)  # garage setting id -> display string
 
 
 @dataclass(frozen=True)

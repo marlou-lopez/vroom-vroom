@@ -331,6 +331,14 @@ def test_import_route(env, tmp_path: Path):
     assert c.post("/api/import", json={"path": str(fixture)}).json()["skipped"] is True
     stints = c.get(f"/api/sessions/{first['session_id']}/stints")
     assert stints.status_code == 200 and stints.json()
+    setup = c.get(f"/api/sessions/{first['session_id']}/setup")
+    assert setup.status_code == 200
+    entries = {e["key"]: e for e in setup.json()["entries"]}
+    assert len(entries) > 100
+    assert all(set(e) == {"key", "label", "value"} for e in entries.values())
+    assert entries["VM_BRAKE_BALANCE"]["label"] == "Brake balance"
+    assert entries["VM_BRAKE_BALANCE"]["value"] == "52.2:47.8"
+    assert "gearGraph" not in entries and "symmetric" not in entries
 
 
 def test_serves_frontend_dist(tmp_path: Path):

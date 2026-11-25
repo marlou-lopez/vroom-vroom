@@ -51,7 +51,7 @@ def import_file(
             raise RuntimeError(f"{src} changed while it was being imported; try again")
         laps = build_laps(raw, source)
         stats = compute_stint_stats(raw, [lap for lap, _ in laps])
-        store.add_session(raw.meta, laps, copy, stats)
+        store.add_session(raw.meta, laps, copy, stats, raw.setup)
     except BaseException:
         if made_copy:
             copy.unlink(missing_ok=True)
