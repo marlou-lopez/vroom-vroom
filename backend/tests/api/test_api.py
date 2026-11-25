@@ -476,3 +476,21 @@ def test_geometry_spa_files_match_mock_shapes(env):
     assert len(g["elevation_m"]) == n and sum(v is not None for v in g["elevation_m"]) > 0.9 * n
     assert len(g["survey"]["left_m"]) == n and g["coverage"]["left"] > 0.5
     assert g["survey"]["kerbs"] and g["aerial"]["edge_points"]
+
+
+def test_report_lists_unavailable_categories_and_never_an_empty_pass(env):
+    c, store, _ = env
+    rep = c.get(f"/api/sessions/{SID}/report").json()
+    reasons = {u["category"]: u["reason"] for u in rep["unavailable"]}
+    assert "no stint stats" in reasons["tyres"] and "in-car setting events" in reasons["settings"]
+    assert {"tyres", "brakes", "conditions", "settings"} <= set(reasons)
+    for lap in rep["laps"]:
+        assert lap["settings"] is None and lap["tyre_surface_c"] is None
+    for e in rep["events"]:
+        assert e["category"] in ("driving", "pace")  # only what the stored data can judge
+        assert set(e) == {
+            "id", "category", "kind", "severity", "lap_from", "lap_to", "corner", "distance_m",
+            "numbers", "coincides", "sentence",
+        }  # fmt: skip
+    assert rep["windows"] == [] or rep["car_class"] in ("GT3", "Hypercar", "LMP2")
+    err(c.get("/api/sessions/nope/report"), 404, "unknown_session")
