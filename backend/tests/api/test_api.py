@@ -528,3 +528,22 @@ def test_coach_ideal_without_a_valid_lap_is_422(env):
             "command": "analyze", "lap_id": lap_id(3), "ref_lap_id": f"ideal:{SID}"}),
         422, "no_valid_laps",
     )
+
+
+@pytest.mark.skipif(not (MOCK / "spa-elevation-2026-11-05.json").is_file(), reason="mock data")
+def test_geometry_route_for_the_spa_fixture_after_install(env):
+    from racecoach.track_data import SPA_TRACK_ID, install_track_data
+
+    c, _, settings = env
+    fixture = Path(__file__).parent.parent / "fixtures" / "spa_720s.duckdb"
+    sid = c.post("/api/import", json={"path": str(fixture)}).json()["session_id"]
+    track_id = next(s["track_id"] for s in c.get("/api/sessions").json() if s["session_id"] == sid)
+    assert track_id == SPA_TRACK_ID
+    before = c.get(f"/api/tracks/{track_id}/geometry").json()
+    assert before["elevation_m"] is None and before["aerial"] is None
+    install_track_data("spa", settings.track_data_path, source_dir=MOCK)
+    g = c.get(f"/api/tracks/{track_id}/geometry").json()
+    n = len(g["centre"]["lat"])
+    assert sum(v is not None for v in g["elevation_m"]) > 0.9 * n
+    assert g["survey"]["left_m"] and g["coverage"]["left"] > 0.5
+    assert g["aerial"]["attribution"] and g["aerial"]["edge_points"]

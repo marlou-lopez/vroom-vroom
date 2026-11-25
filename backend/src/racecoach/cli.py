@@ -14,6 +14,38 @@ from .lmu.rates import DEFAULT_RATES, UnknownChannelError, set_channel_rates
 app = typer.Typer(help="AI sim racing engineer: backend tools.", no_args_is_help=True)
 rates_app = typer.Typer(help="LMU recording rates.", no_args_is_help=True)
 app.add_typer(rates_app, name="rates")
+track_data_app = typer.Typer(help="Derived track geometry data.", no_args_is_help=True)
+app.add_typer(track_data_app, name="track-data")
+
+
+@track_data_app.command("install")
+def track_data_install(
+    preset: Annotated[str, typer.Argument(help="Which track's data to install: spa")] = "spa",
+    source: Annotated[
+        Path | None,
+        typer.Option(help="Folder with the mock JSON files (default: frontend/public/mock)"),
+    ] = None,
+    track_id: Annotated[
+        str | None, typer.Option(help="Track id to install under (default: the preset's own)")
+    ] = None,
+    force: Annotated[bool, typer.Option(help="Overwrite files that already exist")] = False,
+) -> None:
+    """Copy a track's elevation, survey and aerial files into the track data folder."""
+    from .settings import Settings
+    from .track_data import TrackDataError, install_track_data
+
+    settings = Settings()
+    try:
+        done = install_track_data(
+            preset, settings.track_data_path, source_dir=source, track_id=track_id, force=force
+        )
+    except TrackDataError as err:
+        typer.echo(f"error: {err}", err=True)
+        raise typer.Exit(1) from err
+    for item in done:
+        typer.echo(
+            f"{'wrote' if item.written else 'kept (exists; --force overwrites)'} {item.path}"
+        )
 
 
 @rates_app.command("apply")
