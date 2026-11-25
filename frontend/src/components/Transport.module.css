@@ -54,7 +54,7 @@ button.play { padding: 3px 12px; font-weight: 700; min-width: 64px; }
   white-space: nowrap;
 }
 .tick:hover { color: var(--color-text); background: var(--color-hover); }
-.tick.current { color: var(--color-you); }
+.tick.current { color: var(--color-text); }
 
 /* The one app (vroom-pnw.63): speeds in a menu on Play, no rule above the bar. */
 .transport[data-compact] { border-top: 0; }

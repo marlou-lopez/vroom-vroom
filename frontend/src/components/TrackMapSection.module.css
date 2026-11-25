@@ -12,7 +12,7 @@ button.calibrate { padding: 5px 12px; }
 .mapPanel { flex: 1 1 380px; min-width: 0; }
 .mapHead { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .legend { font-size: var(--font-size-small); color: var(--color-muted); }
-.confirmed { color: var(--color-you); }
+.confirmed { color: var(--color-text); }
 .detected { color: var(--color-strength); }
 
 .mapBox { position: relative; width: min(100%, calc(min(72vh, 680px) * var(--aspect, 1))); margin: 8px auto 0; }
