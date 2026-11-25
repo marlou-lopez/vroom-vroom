@@ -1,5 +1,7 @@
 # aerial-edges
 
+**Not a supported edge source** (dropped by vroom-ueg.11, frozen experiment).
+
 Track edges and kerbs from open aerial imagery, in LMU's world frame (experimental, vroom-ueg.8). Method, numbers and
 licences: `docs/track-views/aerial-imagery.md`.
 
@@ -16,6 +18,8 @@ written out), blue = kerb's outer side. Look at them before trusting a new track
 To refresh the app's copy: `--out ../../frontend/public/mock/spa-aerial-2023.json`.
 
 ## Add a track
+
+The Le Mans blind check failed (write-up, vroom-ueg.11): a lap that OSM's `highway=raceway` does not cover (public roads) fails at the alignment. Check `coarse.osm_median_m` first.
 
 1. Find an open source (the table in the write-up). Esri, Google and Bing imagery may not be used: their terms forbid extraction.
 2. If it has no adapter: copy `sources/wallonia.py` (a map service that renders any box) or `sources/agea_2024.py` (fixed
