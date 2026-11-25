@@ -14,15 +14,21 @@ npm run build     # tsc -b && vite build
 npm run preview   # serve the production build
 ```
 
-## Mock API
+## Real API and mock API
 
-`.env.development` sets `VITE_API=mock`. With it, `npm run dev` starts an MSW service worker
-that answers `/api/*` from `src/api/mock/`. The mock is built on real recordings in
-`public/mock/`: Spa (`spa-2026-11-03.json`, with its elevation and edge survey) and Monza
-(`monza-2026-11-05.json`).
+`.env.development` sets `VITE_API=real`: `npm run dev` talks to the backend, which Vite proxies
+from `/api` to `127.0.0.1:8765` (start it first, see the root README).
 
-The Vite dev server also proxies `/api` to `127.0.0.1:8765`, where the future backend will
-run.
+`VITE_API=mock npm run dev` starts an MSW service worker instead, answering `/api/*` from
+`src/api/mock/`. The mock is built on real recordings in `public/mock/`: Spa
+(`spa-2026-11-03.json`, with its elevation and edge survey) and Monza (`monza-2026-11-05.json`).
+`npm run shots` starts its own mock server unless a dev server for this folder is already on 5173
+(that one keeps whatever `VITE_API` it was started with).
+
+`npm run gen:api` regenerates `src/api/schema.gen.ts` from the running backend's
+`/openapi.json`. `src/api/contract.test.ts` checks that every route and request body in
+`client.ts` / `types.ts` exists in that schema. The backend routes have no response models yet, so
+response shapes are not checked.
 
 ## Debug tools
 

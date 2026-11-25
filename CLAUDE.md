@@ -75,7 +75,7 @@ uv run racecoach --help
 ## Commands (run in `frontend/`)
 
 ```bash
-npm run dev     # http://localhost:5173; VITE_API=mock in .env.development starts MSW
+npm run dev     # http://localhost:5173; VITE_API=real in .env.development (backend on 8765); VITE_API=mock npm run dev starts MSW
 npm run test    # vitest
 npm run test:coverage  # vitest with v8 coverage, report in coverage/
 npm run lint    # oxlint
