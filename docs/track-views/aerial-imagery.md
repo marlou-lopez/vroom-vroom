@@ -159,7 +159,7 @@ and searches, to check before writing an adapter. The track list is as of Novemb
 **Recommendation: keep**, option 2 first (it removes the survey driving), experimental until the Monza kerb faults are fixed and a third
 track is checked. Kerbs from imagery stay experimental until their ends can be judged against something better than wheel hits.
 
-## Decision (autopilot)
+## Decision (autopilot, vroom-ueg.8; superseded by the decision at the end)
 
 **Keep, as experimental: option 2, edges only** (Opus judge, 2026-11-25; the user may overrule).
 
@@ -235,3 +235,18 @@ Not legal advice. None of the derived Le Mans data is committed or served.
 
 **Recommendation: drop (option 1), as the acceptance criteria say for a missed limit.** Both limits are missed, and the main fault (paint
 is not LMU's edge on a road course) is not one a threshold can fix.
+
+## Decision (autopilot)
+
+**Drop** open aerial imagery as a supported source of track edges for tracks without a survey (Opus judge, 2026-11-25; the user may
+overrule). The survey is the only supported source.
+
+- The criteria say to recommend dropping on a miss, and the frozen run fails. The diagnostic run also misses, and is not blind.
+- On public roads the recorded width is 0.4 to 2.5 m wider than the paint, which no threshold fixes. The post-hoc figure on the
+  permanent circuit does not rescue the result, and every track would still need its pictures reviewed by hand.
+- **Spa option in the app:** stays as it is (experimental, Spa only, off by default, credit shown, never input to the coach or metrics): its
+  accuracy was measured against a survey. No other track is served.
+- **Tool and adapter:** stay as a frozen experiment and the evidence for this decision. No Le Mans data is committed. vroom-ueg.9
+  is not decided by this.
+- **Follow-ups:** none. Reopen only on user request, with limits set beforehand and an unseen permanent circuit. The judge also advises
+  deferring vroom-ueg.12 (AGEA licence).

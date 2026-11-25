@@ -1,5 +1,7 @@
 # aerial-edges
 
+**Not a supported edge source** (dropped by vroom-ueg.11, frozen experiment).
+
 Track edges and kerbs from open aerial imagery, in LMU's world frame (experimental, vroom-ueg.8). Method, numbers and
 licences: `docs/track-views/aerial-imagery.md`.
 
