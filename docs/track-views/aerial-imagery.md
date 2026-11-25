@@ -251,7 +251,7 @@ it for 252 points:
 - Things that stand up (trees, grandstands, barriers, parked and racing cars) lie flat, shadows are baked in, and close to the camera 25 cm is blurred.
 - The pit lane and other roads show in the picture although the app draws none.
 - A track that crosses itself (a bridge) gets one ground height there.
-- Licence: the picture comes from SPW's viewing service. The reading of its terms in the first part covers edges; here about 85 more tiles are fetched and kept on
+- Licence: the picture comes from SPW's viewing service. The reading of its terms in the first part covers edges; here about 120 more tiles are fetched and kept on
   the user's own machine only. Whether the picture may be shipped or served to others is not decided here, nor is AGEA's.
 
 ## Options
