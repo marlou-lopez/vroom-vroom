@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import TracebackType
@@ -21,6 +22,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     session_type VARCHAR, game_build VARCHAR, started_at TIMESTAMPTZ, driver VARCHAR,
     steering_range_deg DOUBLE, raw_path VARCHAR
 );
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS source_path VARCHAR;
 CREATE TABLE IF NOT EXISTS laps (
     lap_id VARCHAR PRIMARY KEY, session_id VARCHAR, lap_no INTEGER, kind VARCHAR,
     lap_time_s DOUBLE, sectors_s DOUBLE[], valid BOOLEAN, valid_override BOOLEAN,
@@ -134,24 +136,56 @@ class AppStore:
         raw_path: Path | str,
         stint_stats: dict[str, dict[str, Any]] | None = None,
         setup: dict[str, str] | None = None,
+        source_path: Path | str | None = None,
+        replaces: str | None = None,
     ) -> None:
         """Insert a session, its laps and their traces. The metadata goes in one transaction;
-        if anything fails, the trace files written for it are removed again."""
+        if anything fails, the trace files written for it are removed again.
+
+        `replaces` is the id of an earlier import of the same recording: in the same transaction
+        it is removed, and its manual validity overrides and pin carry over to the laps that
+        still match (same lap number, kind and time). Its trace files go after the commit."""
         if self.has_session(meta.session_id):
             raise ValueError(f"session {meta.session_id} is already in the store")
+        old_laps: list[LapMeta] = []
+        if replaces is not None:
+            old_laps = self.laps(replaces)
+            old = {(x.lap_no, x.kind, x.lap_time_s): x for x in old_laps}
+            carried: list[tuple[LapMeta, LapTrace]] = []
+            for lap, trace in laps:
+                prev = old.get((lap.lap_no, lap.kind, lap.lap_time_s))
+                if prev is not None:
+                    lap = replace(
+                        lap, valid_override=prev.valid_override,
+                        pinned_reference=prev.pinned_reference,
+                    )  # fmt: skip
+                carried.append((lap, trace))
+            laps = carried
         written: list[Path] = []
         try:
             for _, trace in laps:
                 written.append(self.write_trace(trace))
             stmts: list[tuple[str, list[Any]]] = [(
-                "INSERT INTO sessions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO sessions VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 [
                     meta.session_id, meta.track_name, meta.track_layout, meta.track_id,
                     meta.track_length_m, meta.car_name, meta.car_id, meta.car_class,
                     meta.session_type, meta.game_build, meta.started_at, meta.driver,
                     meta.steering_range_deg, str(raw_path),
+                    str(source_path) if source_path is not None else None,
                 ],
             )]  # fmt: skip
+            if replaces is not None:
+                stmts[:0] = [
+                    ("DELETE FROM lap_stint_stats WHERE session_id = ?", [replaces]),
+                    ("DELETE FROM session_setup WHERE session_id = ?", [replaces]),
+                    ("DELETE FROM laps WHERE session_id = ?", [replaces]),
+                    ("DELETE FROM sessions WHERE session_id = ?", [replaces]),
+                    (
+                        "UPDATE focus_items SET session_id = ? WHERE session_id = ?",
+                        [meta.session_id, replaces],
+                    ),
+                ]  # fmt: skip
             for lap, _ in laps:
                 stmts.append((
                     f"INSERT INTO laps ({LAP_COLUMNS}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
@@ -177,6 +211,20 @@ class AppStore:
             for p in written:
                 p.unlink(missing_ok=True)
             raise
+        for x in old_laps:
+            self.trace_path(x.lap_id).unlink(missing_ok=True)
+
+    def session_from_source(self, source_path: Path | str) -> tuple[SessionMeta, str | None] | None:
+        """The newest import of a recording file, with the raw copy's path, or None."""
+        row = self.con.execute(
+            "SELECT session_id, raw_path FROM sessions WHERE source_path = ?"
+            " ORDER BY rowid DESC LIMIT 1",  # the latest import
+            [str(source_path)],
+        ).fetchone()
+        if row is None:
+            return None
+        meta = self.session(row[0])
+        return (meta, row[1]) if meta else None
 
     def session_setup(self, session_id: str) -> dict[str, str]:
         """Setting id -> display string of the recording's garage setup; empty when it has none
