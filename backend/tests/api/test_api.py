@@ -484,3 +484,29 @@ def test_geometry_spa_files_match_mock_shapes(env):
     assert len(g["elevation_m"]) == n and sum(v is not None for v in g["elevation_m"]) > 0.9 * n
     assert len(g["survey"]["left_m"]) == n and g["coverage"]["left"] > 0.5
     assert g["survey"]["kerbs"] and g["aerial"]["edge_points"]
+
+
+def test_coach_against_the_ideal_lap(env):
+    c, _, _ = env
+    ideal = f"ideal:{SID}"
+    r = c.post("/api/coach", json={"command": "analyze", "lap_id": lap_id(3), "ref_lap_id": ideal})
+    assert r.status_code == 200, r.text
+    assert r.json()["ref_lap_id"] == ideal
+    got = c.get("/api/coach/results", params={"lap": lap_id(3), "ref": ideal}).json()
+    assert got["analyze"]["id"] == r.json()["id"]
+    err(
+        c.post("/api/coach", json={
+            "command": "analyze", "lap_id": lap_id(3), "ref_lap_id": f"ideal:{'x' * 40}"}),
+        404, "unknown_lap",
+    )
+
+
+def test_coach_ideal_without_a_valid_lap_is_422(env):
+    c, store, _ = env
+    for no in (1, 2, 3, 4):
+        store.set_valid_override(lap_id(no), False)
+    err(
+        c.post("/api/coach", json={
+            "command": "analyze", "lap_id": lap_id(3), "ref_lap_id": f"ideal:{SID}"}),
+        422, "no_valid_laps",
+    )
