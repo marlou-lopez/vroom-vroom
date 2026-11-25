@@ -29,6 +29,7 @@ from racecoach.coach.service import run_coach
 from racecoach.geometry import build_geometry, track_data_files
 from racecoach.importer import import_file
 from racecoach.model import GRID_CHANNELS, LapKind, LapMeta, LapSource, LapTrace, SessionMeta
+from racecoach.report import ReportInput, ReportLapInput, build_report, trace_facts
 from racecoach.settings import Settings
 from racecoach.setup_labels import setup_label
 from racecoach.stint import session_stints
@@ -510,43 +511,36 @@ def stints(session_id: str, store: Store) -> list[dict[str, Any]]:
     return [s.model_dump(mode="json") for s in found]
 
 
-def _axles(w: dict[str, float] | None) -> dict[str, float] | None:
-    if not w:
-        return None
-    return {"front": (w["fl"] + w["fr"]) / 2, "rear": (w["rl"] + w["rr"]) / 2}
-
-
 @router.get("/sessions/{session_id}/report")
-def session_report(session_id: str, store: Store) -> dict[str, Any]:
-    """A first report: the per-lap series from the stint stats. The rules that find events are
-    not ported to the backend yet, so `events` is empty and every category is unavailable."""
+def session_report(session_id: str, store: Store, settings: Cfg) -> dict[str, Any]:
+    """The session report: per-lap series, the events the fixed rules find (`racecoach.report`,
+    a port of `frontend/src/lib/sessionReport.ts`) and the working windows. Categories whose input
+    is not stored (the in-car setting events, stint stats, traces) are listed as unavailable."""
     s = need_session(store, session_id)
-    stats = store.stint_stats(session_id)
-    laps = []
-    for m in store.laps(session_id):
-        st = stats.get(m.lap_id)
-        laps.append({
-            "lap_id": m.lap_id, "lap_no": m.lap_no, "kind": m.kind.value,
-            "lap_time_s": m.lap_time_s, "valid": m.effective_valid,
-            "has_trace": store.trace_path(m.lap_id).is_file(),
-            "tyre_surface_c": _axles(st and st.get("tyre_surface_c")),
-            "tyre_carcass_c": _axles(st and st.get("tyre_carcass_c")),
-            "tyre_pressure_kpa": _axles(st and st.get("tyre_pressure_kpa")),
-            "brake_c": _axles(st and st.get("brake_c")),
-            "track_temp_c": st.get("track_temp_c") if st else None,
-            "fuel_end_l": st.get("fuel_end_l") if st else None,
-            "energy_end_pct": st.get("energy_end_pct") if st else None,
-            "settings": None,
-        })  # fmt: skip
-    reason = "The report's rules are not built in the backend yet."
-    return {
-        "session_id": session_id, "car_class": s.car_class, "compound": "dry",
-        "laps": laps, "events": [], "windows": [],
-        "unavailable": [
-            {"category": c, "reason": reason}
-            for c in ("tyres", "brakes", "driving", "settings", "pace", "conditions")
-        ],
-    }  # fmt: skip
+    stints = session_stints(store, session_id)
+    stats = [lap for st in stints for lap in st.laps] or None
+    try:
+        corners = need_map(store, settings, s.track_id).corners
+    except ApiError:
+        corners = []
+    metas = store.laps(session_id)
+    inputs, traces, activation = [], {}, {}
+    for m in metas:
+        has_trace = store.trace_path(m.lap_id).is_file()
+        inputs.append(ReportLapInput(
+            m.lap_id, m.lap_no, m.kind.value, m.lap_time_s, m.effective_valid, has_trace
+        ))  # fmt: skip
+        if has_trace:
+            facts = trace_facts(store.read_trace(m.lap_id), corners)
+            traces[m.lap_no] = facts
+            if facts.aids:
+                activation[m.lap_no] = {
+                    k: float(sum(e - b + 1 for b, e in facts.aids[a]))
+                    for k, a in (("abs_m", "abs"), ("tc_m", "tc"))
+                }  # fmt: skip
+    return build_report(ReportInput(
+        session_id, s.car_class, inputs, stats, stints, corners, traces, activation
+    ))  # fmt: skip
 
 
 # --- import and usage --------------------------------------------------------------------------
