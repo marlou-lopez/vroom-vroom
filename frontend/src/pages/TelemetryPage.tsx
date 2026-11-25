@@ -8,6 +8,7 @@ import { DetailedStrips, StripMenu } from "../components/DetailedStrips";
 import { SimplifiedWheels } from "../components/SimplifiedWheels";
 import { TrackPanel } from "../components/TrackPanel";
 import { Transport } from "../components/Transport";
+import { invalidNotice } from "../lib/invalidLap";
 import { cornerRailRows } from "../lib/cornerRail";
 import { OneLapView, OneSessionView } from "../components/oneapp/OneApp";
 import oneStyles from "../components/oneapp/OneApp.module.css";
@@ -257,6 +258,7 @@ function Telemetry() {
   const { ctx: sCtx, cmp: sCmp, model: sModel, coach: sCoach } = shown;
   const loading = !live;
   const sValid = effectiveValid(sCtx.lap);
+  const invalidAtM = invalidNotice(sValid, sCmp.lap, sCmp.distance, trackMap)?.atM ?? null;
   return (
     <AnnotationCardProvider value={cardActions}>
       <OneLapView
@@ -267,7 +269,7 @@ function Telemetry() {
           <div className={oneStyles.stageGrid} data-expanded={expanded || undefined}>
             <TrackPanel
               model={sModel} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers}
-              lapTimes={lapTimes} lapValid={sValid} refName={refShort}
+              lapTimes={lapTimes} lapValid={sValid} invalidAtM={invalidAtM} refName={refShort}
               expanded={expanded} onToggleExpanded={() => setExpanded((x) => !x)}
             />
             {!expanded && (

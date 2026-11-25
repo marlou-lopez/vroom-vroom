@@ -9,3 +9,4 @@
   pointer-events: auto; cursor: pointer; visibility: hidden;
 }
 .badge:hover, .badge:focus-visible { border-color: var(--color-text); outline: none; }
+.invalid { background: var(--color-off-track); width: 16px; height: 16px; margin: -8px 0 0 -8px; font-size: 10px; }

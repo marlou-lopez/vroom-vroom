@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type PointerEvent } from "react";
 import { aidRuns, mapSpan } from "../../lib/driverAids";
 import { balanceEnabled, balanceFromContract } from "../../lib/carBalance";
 import { CORNER_LEAD_M } from "../../lib/annotations";
-import { likelyInvalidRun, offTrackRuns } from "../../lib/offTrack";
+import { offTrackRuns } from "../../lib/offTrack";
 import { MAP_H, MAP_PAD, MAP_W } from "../../lib/model";
 import { distanceAtTime, timeAtDistance } from "../../lib/playback";
 import { cornerAt, readoutCorner, MAP_HIT_PX, pointAtDistance, SCRUB_WINDOW_M, scrubTarget, cornerSegmentPath, segmentPath } from "../../lib/trackmap";
@@ -29,7 +29,7 @@ interface Drag {
   resume: boolean;
 }
 
-export function ClassicMapView({ model, trackMap, annotations, handlers, lapValid }: TrackViewProps) {
+export function ClassicMapView({ model, trackMap, annotations, handlers, lapValid, invalidAtM }: TrackViewProps) {
   const store = usePlaybackStore();
   const tau = usePlayback((s) => s.tau);
   const { cmp, proj } = model;
@@ -73,13 +73,10 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
   }, [oversteerOn, cmp, proj]);
 
   // Where the lap was most likely invalidated (vroom-ake): a clickable cross at the first wheels-off stretch of an invalid lap.
-  const invalidAt = useMemo(() => {
-    if (lapValid !== false) return null;
-    const run = likelyInvalidRun(offTrackRuns(cmp.lap));
-    if (!run) return null;
-    const m = cmp.distance[run.start] ?? run.start;
-    return { m, ...pointAtDistance(proj, cmp.distance, m) };
-  }, [lapValid, cmp.lap, cmp.distance, proj]);
+  const invalidAt = useMemo(
+    () => (invalidAtM == null ? null : { m: invalidAtM, ...pointAtDistance(proj, cmp.distance, invalidAtM) }),
+    [invalidAtM, cmp.distance, proj],
+  );
 
   const toMap = (e: PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;

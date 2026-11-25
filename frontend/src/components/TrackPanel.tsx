@@ -26,13 +26,15 @@ export interface TrackPanelProps {
   handlers: BadgeHandlers;
   lapTimes?: { lap: number | null; ref: number | null };
   lapValid?: boolean;
+  /** Where the lap was most likely invalidated (metres), or null: see `TrackViewProps`. */
+  invalidAtM?: number | null;
   /** Short name of the comparison ("ideal", "reference", "L7"), so the read-out says who you are ahead of or behind. */
   refName?: string | null;
   expanded: boolean;
   onToggleExpanded(): void;
 }
 
-export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, lapValid, refName, expanded, onToggleExpanded }: TrackPanelProps) {
+export function TrackPanel({ model, trackMap, geometry, annotations, handlers, lapTimes, lapValid, invalidAtM, refName, expanded, onToggleExpanded }: TrackPanelProps) {
   const [viewId, setViewId] = useState<TrackViewId>(loadTrackView);
 
   const active = TRACK_VIEWS.find((v) => v.id === viewId) ?? TRACK_VIEWS[0];
@@ -60,7 +62,7 @@ export function TrackPanel({ model, trackMap, geometry, annotations, handlers, l
   return (
     <section ref={panelRef} aria-label="Track playback" className={styles.panel} data-expanded={expanded}>
       <ErrorBoundary label="track view" variant="panel" resetKeys={[model, active.id]}>
-        <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} refName={refName ?? null} />
+        <View model={model} trackMap={trackMap} geometry={geometry} annotations={annotations} handlers={handlers} lapTimes={lapTimes} lapValid={lapValid} invalidAtM={invalidAtM ?? null} refName={refName ?? null} />
       </ErrorBoundary>
       <div ref={topRef} className={styles.top}>
       <Readout model={model} trackMap={trackMap} refName={refName ?? null} view={active.id} />
