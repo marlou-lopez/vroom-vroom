@@ -502,3 +502,29 @@ def test_report_lists_unavailable_categories_and_never_an_empty_pass(env):
         }  # fmt: skip
     assert rep["windows"] == [] or rep["car_class"] in ("GT3", "Hypercar", "LMP2")
     err(c.get("/api/sessions/nope/report"), 404, "unknown_session")
+
+
+def test_coach_against_the_ideal_lap(env):
+    c, _, _ = env
+    ideal = f"ideal:{SID}"
+    r = c.post("/api/coach", json={"command": "analyze", "lap_id": lap_id(3), "ref_lap_id": ideal})
+    assert r.status_code == 200, r.text
+    assert r.json()["ref_lap_id"] == ideal
+    got = c.get("/api/coach/results", params={"lap": lap_id(3), "ref": ideal}).json()
+    assert got["analyze"]["id"] == r.json()["id"]
+    err(
+        c.post("/api/coach", json={
+            "command": "analyze", "lap_id": lap_id(3), "ref_lap_id": f"ideal:{'x' * 40}"}),
+        404, "unknown_lap",
+    )
+
+
+def test_coach_ideal_without_a_valid_lap_is_422(env):
+    c, store, _ = env
+    for no in (1, 2, 3, 4):
+        store.set_valid_override(lap_id(no), False)
+    err(
+        c.post("/api/coach", json={
+            "command": "analyze", "lap_id": lap_id(3), "ref_lap_id": f"ideal:{SID}"}),
+        422, "no_valid_laps",
+    )
