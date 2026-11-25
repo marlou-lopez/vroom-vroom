@@ -2,7 +2,7 @@ import { useMemo, type CSSProperties, type Ref } from "react";
 import { MAP_W, type PlaybackModel } from "../lib/model";
 import type { Annotation } from "../lib/annotations";
 import { mapSpan } from "../lib/driverAids";
-import { offTrackRuns } from "../lib/offTrack";
+import { likelyInvalidRun, offTrackRuns } from "../lib/offTrack";
 import { timeAtDistance } from "../lib/playback";
 import { chipFraction } from "../lib/strips";
 import { cornerSegmentPath, pointAtDistance, splitWrapping } from "../lib/trackmap";
@@ -13,6 +13,8 @@ import { AnnotationHoverCard } from "./AnnotationPopup";
 /** Click wiring shared by every badge and chip. Hover cards come from `AnnotationHoverCard`. */
 export interface BadgeHandlers {
   onSeek(a: Annotation): void;
+  /** Seek to a spot on the lap (metres), pausing there: the invalid-lap marker (vroom-ake). */
+  onSeekDistance?(m: number): void;
 }
 
 const CHIP_CHAR_EM = 0.6;
@@ -178,5 +180,27 @@ export function ScrubberOffTrack({ model, valid }: { model: PlaybackModel; valid
         );
       })}
     </>
+  );
+}
+
+/** Where the lap was most likely invalidated (vroom-ake): a clickable mark on the scrubber at the first wheels-off stretch of an invalid lap. */
+export function ScrubberInvalidMark({ model, valid, onSeekDistance }: { model: PlaybackModel; valid: boolean; onSeekDistance?: (m: number) => void }) {
+  const { cmp, duration } = model;
+  const run = useMemo(() => (valid ? null : likelyInvalidRun(offTrackRuns(cmp.lap))), [valid, cmp.lap]);
+  if (!run || duration <= 0) return null;
+  const m = cmp.distance[run.start] ?? run.start;
+  const t = timeAtDistance(cmp.lap.t, cmp.distance, m);
+  return (
+    <button
+      type="button"
+      data-testid="scrubber-invalid-mark"
+      aria-label="Where the lap was most likely invalidated"
+      title="Most likely where the lap was invalidated: click to go there"
+      className={styles.invalidMark}
+      style={{ left: `${(t / duration) * 100}%` }}
+      onClick={() => onSeekDistance?.(m)}
+    >
+      ✕
+    </button>
   );
 }

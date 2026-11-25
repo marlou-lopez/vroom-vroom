@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type PointerEvent } from "react";
 import { aidRuns, mapSpan } from "../../lib/driverAids";
 import { balanceEnabled, balanceFromContract } from "../../lib/carBalance";
 import { CORNER_LEAD_M } from "../../lib/annotations";
-import { offTrackRuns } from "../../lib/offTrack";
+import { likelyInvalidRun, offTrackRuns } from "../../lib/offTrack";
 import { MAP_H, MAP_PAD, MAP_W } from "../../lib/model";
 import { distanceAtTime, timeAtDistance } from "../../lib/playback";
 import { cornerAt, readoutCorner, MAP_HIT_PX, pointAtDistance, SCRUB_WINDOW_M, scrubTarget, cornerSegmentPath, segmentPath } from "../../lib/trackmap";
@@ -71,6 +71,15 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
     const path = (rs: typeof b.runs.understeer) => rs.map((r) => segmentPath(proj, cmp.distance, ...mapSpan(r, last))).join("");
     return { understeer: path(b.runs.understeer), oversteer: path(b.runs.oversteer) };
   }, [oversteerOn, cmp, proj]);
+
+  // Where the lap was most likely invalidated (vroom-ake): a clickable cross at the first wheels-off stretch of an invalid lap.
+  const invalidAt = useMemo(() => {
+    if (lapValid !== false) return null;
+    const run = likelyInvalidRun(offTrackRuns(cmp.lap));
+    if (!run) return null;
+    const m = cmp.distance[run.start] ?? run.start;
+    return { m, ...pointAtDistance(proj, cmp.distance, m) };
+  }, [lapValid, cmp.lap, cmp.distance, proj]);
 
   const toMap = (e: PointerEvent<SVGSVGElement>) => {
     const svg = svgRef.current;
@@ -183,6 +192,16 @@ export function ClassicMapView({ model, trackMap, annotations, handlers, lapVali
       <circle cx={ref.x} cy={ref.y} r={3.6} className={styles.refDot} />
       <circle cx={you.x} cy={you.y} r={3.6} className={styles.youDot} />
       <MapBadges annotations={annotations} model={model} h={handlers} />
+      {invalidAt && (
+        <g
+          data-annotation-badge="" data-testid="map-invalid-mark" className={styles.invalidMark}
+          onClick={() => handlers.onSeekDistance?.(invalidAt.m)}
+        >
+          <title>Most likely where the lap was invalidated: click to go there</title>
+          <circle cx={invalidAt.x} cy={invalidAt.y} r={7} />
+          <text x={invalidAt.x} y={invalidAt.y} textAnchor="middle" dominantBaseline="central">✕</text>
+        </g>
+      )}
     </svg>
     </>
   );

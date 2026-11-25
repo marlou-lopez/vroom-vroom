@@ -8,6 +8,7 @@ import { effectiveValid, type CompareCandidate, type CompareResponse, type Corne
 import { lapGap } from "../../lib/compareName";
 import { bestLapTime, cycleRefId, lapGapText, lapKeyDir, refChoices, refKeyDir, stepLapId, timedLaps } from "../../lib/lapStep";
 import { lapStory } from "../../lib/lapStory";
+import { invalidNotice } from "../../lib/invalidLap";
 import { plainCoachError } from "../../lib/coachError";
 import * as Popover from "@radix-ui/react-popover";
 import { LegendRows } from "./Legend";
@@ -110,6 +111,8 @@ export interface OneLapProps {
   onReplay(corner: Corner): void;
   /** Seek to a corner without playing (a row click). */
   onSeek(corner: Corner): void;
+  /** Seek to a spot on the lap (metres), paused: the invalid-lap sentence. */
+  onSeekDistance?(m: number): void;
   /** The map and strips, the transport: the page renders them so they keep their playback wiring. */
   /** The next comparison is loading: the page keeps showing the previous one, dimmed, instead of unmounting. */
   loading?: boolean;
@@ -244,11 +247,12 @@ function Elapsed() {
  * The left column: the lap and gap sentence stay pinned at the top, and only the cards below scroll. Then the three
  * biggest losses (what happened, the coach's fix or a computed tip, Replay), Ask the coach, and every corner.
  */
-function Story({ lap, cmp, trackMap, coach, loading, refName, gap, self, onReplay, onSeek }: OneLapProps & { refName: string; gap: number | null; self: boolean }) {
+function Story({ lap, cmp, trackMap, coach, loading, refName, gap, self, onReplay, onSeek, onSeekDistance }: OneLapProps & { refName: string; gap: number | null; self: boolean }) {
   const [showAll, setShowAll] = useState(false);
   const plainRef = refName.replace(/ \(lap \d+\)$/, "");
   const story = useMemo(() => (trackMap ? lapStory(cmp, trackMap.corners, coach.results, plainRef) : null), [cmp, trackMap, coach.results, plainRef]);
   const cards = story?.cards ?? [];
+  const invalid = useMemo(() => invalidNotice(effectiveValid(lap), cmp.lap, cmp.distance, trackMap), [lap, cmp, trackMap]);
   const rows = story?.rows ?? [];
   const analyzed = !!coach.results.analyze;
   const max = Math.max(0.001, ...rows.map((r) => Math.abs(r.deltaS)));
@@ -268,6 +272,13 @@ function Story({ lap, cmp, trackMap, coach, loading, refName, gap, self, onRepla
             </>
           )}
         </p>
+        {invalid && (
+          <p className={styles.invalidNote} data-testid="invalid-notice">
+            {invalid.atM === null ? invalid.text : (
+              <button type="button" className={styles.invalidBtn} onClick={() => onSeekDistance?.(invalid.atM!)} title="Go to this spot in the replay">{invalid.text}</button>
+            )}
+          </p>
+        )}
       </header>
       {!self && (
         <div className={styles.storyBody}>
