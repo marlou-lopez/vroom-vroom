@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -17,6 +18,7 @@ from racecoach.analysis.consistency import (
 )
 from racecoach.analysis.delta import corner_delta, delta_time
 from racecoach.analysis.metrics import SideMetrics, corner_side
+from racecoach.lmu.reader import car_dims_for
 from racecoach.model import GRID_CHANNELS, LapMeta, LapTrace, SessionMeta
 from racecoach.store import AppStore
 from racecoach.tracks import TrackMap
@@ -37,10 +39,10 @@ def series(arr: np.ndarray, nd: int = 3) -> list[float]:
     return np.round(a, nd).tolist()
 
 
-def session_json(s: SessionMeta) -> dict[str, Any]:
+def session_json(s: SessionMeta, cars_config: Path | str | None = None) -> dict[str, Any]:
     d = asdict(s)
     d["started_at"] = s.started_at.isoformat()
-    d["car_dims"] = None  # no source for car sizes in the backend yet
+    d["car_dims"] = car_dims_for(s.car_id, cars_config)
     return d
 
 
@@ -135,7 +137,7 @@ def stitch_ideal(
 def compare_json(
     lap: LapPair, ref: LapPair, lap_s: SessionMeta, ref_s: SessionMeta | None, tmap: TrackMap,
     *, ref_id: str, ref_kind: str, ref_car_name: str, ref_range: float | None,
-    joins: list[int], warning: str | None,
+    joins: list[int], warning: str | None, cars_config: Path | str | None = None,
 ) -> dict[str, Any]:  # fmt: skip
     lap_t, ref_t = lap[1], ref[1]
     n = min(len(lap_t.distance), len(ref_t.distance))
@@ -158,7 +160,8 @@ def compare_json(
         "delta": series(delta[:n]),
         "warning": warning,
         "lap_steering_range_deg": lap_s.steering_range_deg, "ref_steering_range_deg": ref_range,
-        "lap_car_dims": None, "ref_car_dims": None,
+        "lap_car_dims": car_dims_for(lap_s.car_id, cars_config),
+        "ref_car_dims": car_dims_for(ref_s.car_id if ref_s else lap_s.car_id, cars_config),
         "lap_car_id": lap_s.car_id,
         "ref_car_id": ref_s.car_id if ref_s else lap_s.car_id,
         "lap_car_name": lap_s.car_name, "ref_car_name": ref_car_name,

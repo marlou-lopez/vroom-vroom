@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -95,6 +96,22 @@ def load_cars_config(path: Path | str | None = None) -> dict[str, Any]:
         return {}
     data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
     return data if isinstance(data, dict) else {}
+
+
+def car_dims_for(car_id: str, cars_config: Path | str | None = None) -> dict[str, Any] | None:
+    """A car size from cars.yaml `car_dims` in the contract shape (`CarDims`), or None."""
+    d = (load_cars_config(cars_config).get("car_dims") or {}).get(car_id)
+    if not isinstance(d, dict):
+        return None
+    try:
+        out: dict[str, Any] = {"length_m": float(d["length_m"]), "width_m": float(d["width_m"])}
+        if d.get("wheelbase_m") is not None:
+            out["wheelbase_m"] = float(d["wheelbase_m"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not all(math.isfinite(v) and v > 0 for v in out.values()):
+        return None
+    return out
 
 
 def _steer_lock_from_setup(setup_json: str | None) -> float | None:
