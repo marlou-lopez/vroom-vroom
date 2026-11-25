@@ -198,7 +198,7 @@ a line is visible. The search starts from the drawn edge (a wide prior, sigma 3 
   exit of La Source (from about 347 m). The survey has no contacts there (11 to 17 m to the nearest for most of it) and falls back on LMU's width,
   so the drawn edge is probably off, not the photo. (The aerial edges follow the paint there, but they come from the same photo.)
 - The aerial rows come from the same photo and fit: they check the placing of the tiles, not the fit. The survey rows do test the fit.
-- **Kerbs**: across the track, the inner side of the photo's striped band lies 0.2 to 0.4 m (survey) or 0.1 to 0.2 m (aerial) from the drawn kerb's at the three
+- **Kerbs**: across the track, the inner side of the photo's striped band lies 0.1 to 0.4 m (survey) or 0.1 to 0.2 m (aerial) from the drawn kerb's at the three
   corners, and within 1 m on every run checked: 19 survey runs (median 0.3 m) and 25 aerial runs (0.2 m) of 12 m or longer. Runs whose photo shows no
   stripes, and shorter ones, are left out. Their ends are about 2 m off along the track (first part), and Spa's are red and yellow in the photo.
 - The measuring scripts for this section were not kept in the repo.
