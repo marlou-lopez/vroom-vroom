@@ -118,6 +118,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
     title: "Laps",
     rows: [
       { keys: ["↑", "↓"], what: "Step to the previous or next timed lap" },
+      { keys: ["R", "Shift+R"], what: "Compare with the next or previous lap of the session" },
     ],
   },
 ];

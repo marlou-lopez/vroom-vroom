@@ -1,5 +1,5 @@
 // The one app (vroom-pnw.58, default since vroom-pnw.64): the Lap view at `/`.
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect } from "react";
@@ -123,6 +123,48 @@ describe("one app Lap view", () => {
       await userEvent.click(prev);
       await waitFor(() => expect(at()).toBe(ids[start - 1]));
     }
+  });
+
+  it("chooses the reference lap from the scope line and with R, never the lap itself (vroom-r1t)", async () => {
+    renderAt("/");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    const lapSel = screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement;
+    const param = (k: string) => new URLSearchParams(loc.search).get(k);
+    await waitFor(() => expect(param("lap")).toBe(lapSel.value));
+    const current = lapSel.value;
+    const refSel = () => screen.getByRole("combobox", { name: "Reference lap" }) as HTMLSelectElement;
+    const lapOptions = () => Array.from(refSel().options).filter((o) => /^Lap \d+ · /.test(o.textContent ?? ""));
+    expect(lapOptions().length).toBeGreaterThan(1);
+    expect(lapOptions().some((o) => o.value === current)).toBe(false); // not its own reference
+    const [first, second] = lapOptions().map((o) => o.value);
+    await userEvent.selectOptions(refSel(), first);
+    await waitFor(() => expect(param("ref")).toBe(first));
+    expect(param("lap")).toBe(current);
+    await waitFor(() => expect(refSel().value).toBe(first));
+    // R goes to the next reference lap, Shift+R back; a field keeps the key.
+    (document.activeElement as HTMLElement).blur();
+    await userEvent.keyboard("r");
+    await waitFor(() => expect(param("ref")).toBe(second));
+    await userEvent.keyboard("{Shift>}r{/Shift}");
+    await waitFor(() => expect(param("ref")).toBe(first));
+    const box = document.createElement("input");
+    document.body.append(box);
+    box.focus();
+    await userEvent.keyboard("r");
+    expect(param("ref")).toBe(first);
+    box.remove();
+  });
+
+  it("shows the lap from ?ref as the selected reference", async () => {
+    renderAt("/");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    const sel = screen.getByRole("combobox", { name: "Reference lap" }) as HTMLSelectElement;
+    const lap = (screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement).value;
+    const target = Array.from(sel.options).map((o) => o.value).filter((v) => v && v !== lap)[0];
+    await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBe(lap));
+    cleanup();
+    renderAt(`/?lap=${lap}&ref=${target}`);
+    await waitFor(() => expect((screen.getByRole("combobox", { name: "Reference lap" }) as HTMLSelectElement).value).toBe(target), { timeout: 5000 });
   });
 
   it("goes back to the current lap from the session scope", async () => {

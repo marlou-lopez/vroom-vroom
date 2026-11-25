@@ -6,7 +6,7 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useSessionReport, useSessions } from "../../api/queries";
 import { effectiveValid, type CompareCandidate, type CompareResponse, type Corner, type LapWithRef, type SessionMeta, type TrackMap } from "../../api/types";
 import { lapGap } from "../../lib/compareName";
-import { bestLapTime, lapGapText, lapKeyDir, stepLapId, timedLaps } from "../../lib/lapStep";
+import { bestLapTime, cycleRefId, lapGapText, lapKeyDir, refChoices, refKeyDir, stepLapId, timedLaps } from "../../lib/lapStep";
 import { lapStory } from "../../lib/lapStory";
 import { plainCoachError } from "../../lib/coachError";
 import * as Popover from "@radix-ui/react-popover";
@@ -125,6 +125,7 @@ export function OneLapView(p: OneLapProps) {
   const reference = candidates.find((c) => c.is_reference) ?? null;
   const ideal = candidates.find((c) => c.is_ideal) ?? null;
   const others = candidates.filter((c) => !c.is_ideal && !c.is_reference && !laps.some((l) => l.lap_id === c.lap_id));
+  const refLaps = useMemo(() => refChoices(laps, lap.lap_id), [laps, lap.lap_id]);
   const refName = plainRefName(refCand, laps);
   const gap = lapGap(lap.lap_time_s, refCand?.lap_time_s ?? null, cmp.delta[cmp.delta.length - 1] ?? null);
   const self = cmp.lap_id === cmp.ref_lap_id;
@@ -132,7 +133,21 @@ export function OneLapView(p: OneLapProps) {
   const best = useMemo(() => bestLapTime(laps), [laps]);
   const prevId = stepLapId(timed, lap.lap_id, -1);
   const nextId = stepLapId(timed, lap.lap_id, 1);
-  const { onSelectLap } = p;
+  const { onSelectLap, onSelectRef } = p;
+  const refId = cmp.ref_lap_id;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const dir = refKeyDir(e, e.target instanceof Element ? e.target : null);
+      if (!dir) return;
+      const id = cycleRefId(refLaps, refId, dir);
+      if (!id) return;
+      e.preventDefault();
+      onSelectRef(id);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [refLaps, refId, onSelectRef]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
@@ -170,12 +185,13 @@ export function OneLapView(p: OneLapProps) {
           <button type="button" aria-pressed={!!reference && cmp.ref_lap_id === reference.lap_id} onClick={() => p.onSelectRef(null)} title="Your fastest lap on this track and car">Your best lap</button>
           {ideal && <button type="button" aria-pressed={cmp.ref_lap_id === ideal.lap_id} onClick={() => p.onSelectRef(ideal.lap_id)} title="Your best corners joined into one lap">Best possible lap</button>}
         </div>
-        {others.length > 0 && (
-          <select className={styles.select} aria-label="Compare with another lap" value="" onChange={(e) => e.target.value && p.onSelectRef(e.target.value)}>
-            <option value="">Other lap…</option>
-            {others.map((c) => <option key={c.lap_id} value={c.lap_id}>{c.label}{c.other_car ? " (different car)" : ""}</option>)}
-          </select>
-        )}
+        <select className={styles.select} aria-label="Reference lap" title="Compare with another lap of this session (R, Shift+R)" value={[...refLaps, ...others].some((l) => l.lap_id === cmp.ref_lap_id) ? cmp.ref_lap_id : ""} onChange={(e) => e.target.value && p.onSelectRef(e.target.value)}>
+          <option value="">Other lap…</option>
+          {refLaps.map((l) => (
+            <option key={l.lap_id} value={l.lap_id}>Lap {l.lap_no} · {formatLapTime(l.lap_time_s)}{effectiveValid(l) ? "" : " (invalid)"}</option>
+          ))}
+          {others.map((c) => <option key={c.lap_id} value={c.lap_id}>{c.label}{c.other_car ? " (different car)" : ""}</option>)}
+        </select>
         {cmp.warning
           ? <span className={styles.badge} title={cmp.warning}>DIFFERENT CAR</span>
           : <SetupChip lapSessionId={session.session_id} laps={laps} refLapId={cmp.ref_lap_id} refName={refName} />}
