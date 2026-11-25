@@ -57,6 +57,11 @@ class Source:
 
     # ---- shared
 
+    @property
+    def imagery_attribution(self) -> str:
+        """The credit line without the note on what was done to the data."""
+        return self.attribution.split(" (modified")[0]
+
     def fetch(self, key: tuple[int, int], cache: Path) -> np.ndarray:
         f = cache / self.name / f"{key[0]}_{key[1]}.img"
         if not f.exists():

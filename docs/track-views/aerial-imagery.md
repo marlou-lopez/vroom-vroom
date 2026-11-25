@@ -265,3 +265,129 @@ overrule). The survey is the only supported source.
   is not decided by this.
 - **Follow-ups:** none. Reopen only on user request, with limits set beforehand and an unseen permanent circuit. The judge also advises
   deferring vroom-ueg.12 (AGEA licence).
+
+# Ground texture beside the track (vroom-ueg.9)
+
+**Question:** does the same orthophoto, draped over the ground beside the track, make the surroundings readable from the chase and
+cockpit cameras, in place and at an acceptable cost?
+
+**Answer:** yes on Spa for run-off, grass, gravel and painted areas, which sit in place. Buildings and trees are flat pictures. Ground height is
+the weak point: real terrain can leave the track's level by 7 m only 30 m away, and an open terrain model fits LMU's heights to 4 cm at the median (18 cm at most, 28 points).
+
+**Status:** experimental, off by default, dev server only. 3D view, View options, **Ground (experimental)**. The photo's credit is shown while it is drawn.
+
+## Method
+
+- **Tool:** `run.py ground spa` (see `tools/aerial-edges/README.md`). It repeats the fit of the first part and resamples the photo into 128 m
+  squares in LMU's world frame, so the app needs no other transform: 25 cm per pixel where the centreline passes within 20 m, 1 m elsewhere, out
+  to 150 m (`--reach`). `ground.json` holds each tile's position, the credit and the fit. Spa: 165 tiles (89 fine, 76 coarse), 5.0 MB of JPEG.
+- **In the app:** `public/local-ground/<track_id>/` is git-ignored and stripped from builds, like the car models. Nothing is fetched until the toggle is on.
+- **Mesh:** a 4 m grid, level with the nearest metre of track up to 12 m away, blending to a smooth mix of all track heights by 45 m, fading out from
+  113 to 150 m. It is then carved under the road and kerbs. On Spa it never pokes through the road (41,880 points); at the edges it lies 6 cm below
+  it (median), 15 cm at most.
+- **Debug:** "Hide road" in the debug bar hides the road and kerbs, so the edge lines can be compared with the paint.
+
+## Alignment
+
+The painted line was found again in the finished tiles and compared with the edges the 3D view draws, in metres. "Seen" is the share of metres where
+a line is visible. The search starts from the drawn edge (a wide prior, sigma 3 m), so it is not fully independent of it.
+
+| Drawn edges | Where | Left: seen, median / p90 / max | Right: seen, median / p90 / max |
+|---|---|---|---|
+| Survey (the default) | La Source | 83 %, 0.15 / 0.39 / 0.72 | 98 %, 0.41 / 1.59 / **2.27** |
+| | Eau Rouge | 100 %, 0.19 / 0.48 / 0.65 | 100 %, 0.21 / 0.36 / 0.43 |
+| | Bus Stop | 100 %, 0.12 / 0.38 / 0.93 | 98 %, 0.17 / 0.36 / 0.67 |
+| | Whole lap | 99 %, 0.22 / 0.45 / 0.97 | 100 %, 0.18 / 0.40 / 2.27 |
+| Aerial | La Source | 83 %, 0.01 / 0.04 / 0.87 | 97 %, 0.02 / 0.08 / 0.44 |
+| | Eau Rouge | 100 %, 0.01 / 0.06 / 0.08 | 100 %, 0.01 / 0.06 / 0.10 |
+| | Bus Stop | 100 %, 0.03 / 0.22 / 0.44 | 98 %, 0.01 / 0.05 / 0.42 |
+
+- **Edges within 1 m, with one exception**: with survey edges, 58 m on the right are off (99.2 % of the lap's right side is inside 1 m), nearly all at the
+  exit of La Source (from about 347 m). The survey has no contacts there (11 to 17 m to the nearest for most of it) and falls back on LMU's width,
+  so the drawn edge is probably off, not the photo. (The aerial edges follow the paint there, but they come from the same photo.)
+- The aerial rows come from the same photo and fit: they check the placing of the tiles, not the fit. The survey rows do test the fit.
+- **Kerbs**: across the track, the inner side of the photo's striped band lies 0.1 to 0.4 m (survey) or 0.1 to 0.2 m (aerial) from the drawn kerb's at the three
+  corners, and within 1 m on every run checked: 19 survey runs (median 0.3 m) and 25 aerial runs (0.2 m) of 12 m or longer. Runs whose photo shows no
+  stripes, and shorter ones, are left out. Their ends are about 2 m off along the track (first part), and Spa's are red and yellow in the photo.
+- The measuring scripts for this section were not kept in the repo.
+- By eye: chase, cockpit and top pictures at the three corners, from headless Chromium driven by Playwright, the road hidden in the top ones.
+  They hold imagery, so they are not committed.
+
+## Cost
+
+The benchmark HUD, uncapped frame rate, in headless Chromium on this machine's integrated AMD GPU (Mesa D3D12 under WSL). Window 2400 x 1500, 3D panel
+787 x 1294. Interleaved runs (`main` = c44cb87, off, on; three rounds). Values: median frames per second (p95 ms of a frame; p95 ms of the draw call), then
+the range of the frame rates. The first `main` run did not finish, so `main` has two.
+
+| Phase | `main` (2 runs) | Off (3) | On (3) |
+|---|---|---|---|
+| follow | 250 (5.9; 0.4), 237-263 | 257 (5.7; 0.4), 244-267 | 243 (6.0; 0.7), 241-247 |
+| scrub | 238 (6.3; 0.3), 226-250 | 240 (6.1; 0.3), 239-243 | 242 (6.4; 0.8), 218-264 |
+| orbit | 240 (6.2; 0.4), 219-262 | 256 (5.5; 0.3), 255-280 | 293 (5.6; 0.8), 231-306 |
+| cockpit | 207 (7.0; 0.9), 195-219 | 216 (5.3; 0.8), 214-218 | 212 (5.7; 1.6), 206-216 |
+| split | 279 (6.2; 0.5), 275-282 | 286 (5.8; 0.4), 284-289 | 249 (6.3; 0.8), 248-254 |
+| split-cockpit | 161 (8.0; 1.8), 161-161 | 161 (9.4; 3.0), 159-166 | 141 (**17.1; 11.5**), **82-145** |
+| Draw calls, triangles (end of run) | 10, 192k | 10, 192k | 21, 209k |
+| Textures on the GPU | not shown | 12 | 177 |
+| GPU memory of the ground | | 0 | 131 MB textures, 9 MB mesh |
+
+- **Off costs what `main` costs**: the same frame rates, draw calls and triangles; nothing is fetched or created.
+- **On** only shows in the split views: split cockpit (four passes, with both mirrors) drops from 161 to 141 fps, with p95 17 ms, over a 60 Hz frame,
+  and one of the three runs was much worse (82 fps, p95 42 ms). The draw call itself costs about 8 ms more there at p95.
+- Earlier single runs, taken while other work used the machine, scattered by up to 40 % and are not used.
+- **Memory** is computed (RGBA with mipmaps), as WebGL does not report it. A compressed texture format (KTX2) should cut it to a quarter or less; not tried.
+- Turning it on, or changing the lap while it is on, blocks once for about a second while the heights are computed (0.9 s for 92 of the 165 tiles, in node,
+  machine loaded). A worker, or a mesh built by the tool, would remove that. The tiles then upload one by one.
+
+## Terrain heights
+
+Wallonia's LiDAR terrain model (SPW, MNT 2021-2022, 50 cm) answers point queries on the same public server. `run.py ground spa --terrain 250` asked
+it for 252 points:
+
+| Where | Result |
+|---|---|
+| On the line, against LMU's recorded height (28 points, after a constant 394.4 m) | median 0.04 m, p90 0.14 m, max 0.18 m; slope 0.9993 |
+| 10 m beside the line: terrain minus the terrain on the line | median 0.27 m, p90 0.49 m, max 1.1 m |
+| 30 m beside | median 1.4 m, p90 7.4 m, max 12.4 m |
+| 75 m beside | median 9.0 m, p90 17 m, max 30 m |
+| 150 m beside | median 16 m, p90 30 m, max 48 m |
+
+- At these 28 points LMU's Spa has the real heights. They are only a weak test of the sideways alignment.
+- "Level with the track" is fine for the first 10 m and wrong beyond. **Worth a follow-up**: the tool would write a height per mesh node (4 m grid) into
+  the manifest, which also removes the one-second stop. The bare-earth model has no buildings or trees; SPW's surface model (MNS) has, as rough shapes.
+- Its licence was not read here: do that first. Point queries are too slow for a 4 m grid (over 100,000 nodes); a download or raster export is needed.
+
+## Risks
+
+- Things that stand up (trees, grandstands, barriers, parked and racing cars) lie flat, shadows are baked in, and close to the camera 25 cm is blurred.
+- The pit lane and other roads show in the picture although the app draws none.
+- A track that crosses itself (a bridge) gets one ground height there.
+- Licence: the picture comes from SPW's viewing service. The reading of its terms in the first part covers edges; here about 120 more tiles are fetched and kept on
+  the user's own machine only. Whether the picture may be shipped or served to others is not decided here, nor is AGEA's.
+
+## Options
+
+1. **Keep, experimental**, generated by each user for themselves, and do the terrain heights next.
+2. **Change**: first the terrain heights and compressed textures, then decide.
+3. **Drop**: the plain grass strip stays; the write-up and the terrain finding remain.
+
+**Recommendation: keep (option 1).** Off it does no work, on it shows run-off and paint where they are, and the terrain model is the clear next step.
+
+## Decision (autopilot)
+
+**Keep, as experimental: off by default, dev server only, Spa only** (Opus judge, 2026-11-25; the user may overrule).
+
+- It serves the spec's 3D goal with public data, and the ribbon stays procedural. Run-off, grass and paint read clearly at Eau Rouge and the Bus Stop. It adds
+  little at La Source, where the ground goes to a flat, blurred horizon. Placement is good; ground height is what limits it.
+- Off it costs nothing. The gaps are separable follow-ups, so not "change".
+- Not the default and not in a build while the one-second stop, the 131 MB and the split cockpit's p95 stand. Drawing only: never input to the coach,
+  metrics or landmarks.
+- **Criterion 2 (within about 1 m at the three corners): met, with a recorded exception.** The right side of La Source's exit, with survey edges, is up to 2.27 m
+  off (58 m of the lap), where the survey has no contacts. 17 % of La Source's left has no visible line, and kerb ends are not claimed within 1 m.
+- **Licence**: accepted for SPW and Spa only, tiles generated by each user and kept on their machine, with the credit shown. Never commit, ship, host or serve
+  tiles, screenshots or compressed copies. Reading the viewing service's terms as allowing about 200 tiles once is this project's interpretation; the user
+  should confirm it. **Spa only, with no expansion to other tracks unless the user reopens it.** No bulk terrain download before its licence is read.
+- **After the Le Mans check** (vroom-ueg.11, landed while this was being decided) a second Opus judge read both: keep stands. Le Mans failed on
+  OSM alignment and on finding lines; Spa's fit is checked against the survey. "Frozen" covers edge and kerb extraction, while `ground.py` stays editable.
+- **Follow-ups**: terrain heights on Spa (vroom-ueg.13). GPU memory and the one-second stop (vroom-ueg.14) were closed for now, to refile if this is
+  ever promoted. Filling the survey's gaps from aerial edges (vroom-ueg.15) was closed, as it contradicts "survey only".
