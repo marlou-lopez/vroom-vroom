@@ -377,5 +377,102 @@ def test_unknown_api_path_is_json_404_with_frontend(tmp_path: Path):
     (dist / "index.html").write_text("x")
     store, settings = make_store(tmp_path / "d")
     with TestClient(create_app(settings, store, frontend_dist=dist, watch=False)) as c:
-        r = c.get("/api/tracks/x/geometry")
+        r = c.get("/api/nothing/here")
         assert r.status_code == 404 and r.json()["code"] == "not_found"
+
+
+# --- track geometry (vroom-9ki.16) ---------------------------------------------------------------
+
+MOCK = Path(__file__).resolve().parents[3] / "frontend" / "public" / "mock"
+
+
+def test_geometry_without_derived_data(env):
+    c, _, _ = env
+    g = c.get("/api/tracks/synth-ring-gp/geometry").json()
+    assert set(g) == {
+        "track_id", "length_m", "centre", "elevation_m", "survey", "aerial", "coverage",
+        "transform",
+    }  # fmt: skip
+    assert g["track_id"] == "synth-ring-gp" and g["length_m"] == 2000.0
+    assert len(g["centre"]["lat"]) == len(g["centre"]["lon"]) == 2000
+    assert g["elevation_m"] is None and g["survey"] is None
+    assert g["aerial"] is None and g["coverage"] is None
+    assert g["transform"] == {
+        "local": {
+            "kind": "equirectangular", "earth_radius_m": 6371008.8,
+            "origin_lat_deg": 60.0, "origin_lon_deg": 0.0,
+        },
+        "real_world": None,
+    }  # fmt: skip
+    err(c.get("/api/tracks/nowhere/geometry"), 404, "unknown_track")
+
+
+def test_geometry_with_elevation_survey_and_aerial(env):
+    import json
+    import math
+
+    c, _, settings = env
+    # World x/z of the synthetic ring (lat 60 + 0.001 sin, lon 0.001 cos) carry a height ramp,
+    # edge samples, a kerb and an aerial edge line.
+    k = 6371008.8 * math.pi / 180
+    x_of = lambda a: 0.001 * math.cos(a) * k * 0.5  # noqa: E731
+    z_of = lambda a: 0.001 * math.sin(a) * k  # noqa: E731
+    ang = [2 * math.pi * i / 2000 for i in range(2000)]
+    pts = [[x_of(a), z_of(a), 100.0 + i * 0.01] for i, a in enumerate(ang)]
+    d = settings.track_data_path / "synth-ring-gp"
+    d.mkdir(parents=True)
+    (d / "elevation.json").write_text(
+        json.dumps({"points": pts, "laps": [{"start_index": 0, "end_index": 2000}]})
+    )
+    edges = [[x_of(a) + 1, z_of(a), 0, 4.5] for a in ang[100:1100]]
+    kerbs = [[x_of(a), z_of(a), 1, "flat"] for a in ang[300:320]]
+    (d / "survey.json").write_text(json.dumps({
+        "edges": edges, "kerbs": kerbs, "contacts": [[x_of(0.5), z_of(0.5), "edge"]],
+    }))  # fmt: skip
+    (d / "aerial.json").write_text(json.dumps({
+        "edges": [[x_of(0.2), z_of(0.2), 0]], "attribution": "credit",
+        "kerbs": [{"side": "left", "start": [x_of(ang[10]), z_of(ang[10])],
+                   "end": [x_of(ang[40]), z_of(ang[40])], "width_m": 1.4}],
+    }))  # fmt: skip
+    g = c.get("/api/tracks/synth-ring-gp/geometry").json()
+    el = g["elevation_m"]
+    assert len(el) == 2000 and el[0] == 100.0 and abs(el[1000] - 110.0) < 0.1
+    s = g["survey"]
+    assert len(s["left_m"]) == len(s["right_m"]) == len(s["bank_deg"]) == 2000
+    assert s["left_m"][500] == 4.5 and s["left_m"][1500] is None and s["right_m"][500] is None
+    assert [(k["side"], k["kind"]) for k in s["kerbs"]] == [("right", "flat")]
+    assert 295 <= s["kerbs"][0]["start_m"] <= 305 and 315 <= s["kerbs"][0]["end_m"] <= 325
+    assert len(s["edge_points"]) == 1 and s["kerb_outer_points"] == []
+    assert 0.45 < g["coverage"]["left"] < 0.55 and g["coverage"]["right"] == 0.0
+    a = g["aerial"]
+    assert a["attribution"] == "credit" and a["licence_url"] is None
+    assert len(a["edge_points"]) == 1
+    assert a["kerbs"] == [{
+        "side": "left", "start_m": 10, "end_m": 40, "kind": "flat", "width_m": 1.4,
+    }]  # fmt: skip
+
+
+@pytest.mark.skipif(not (MOCK / "spa-elevation-2026-11-05.json").is_file(), reason="mock data")
+def test_geometry_spa_files_match_mock_shapes(env):
+    """The real Spa capture and survey, on a Spa centreline, give arrays of the grid's length."""
+    import json
+    import shutil
+
+    from racecoach.geometry import build_geometry
+
+    spa = json.loads((MOCK / "spa-2026-11-03.json").read_text())["laps"]
+    lap = max((x for x in spa if x.get("lap_time_s")), key=lambda x: len(x["lat"]))
+    lat, lon = lap["lat"], lap["lon"]
+    _, _, settings = env
+    d = settings.track_data_path / "spa"
+    d.mkdir(parents=True)
+    for name, src in (
+        ("elevation", "spa-elevation-2026-11-05"), ("survey", "spa-survey-2026-11-06"),
+        ("aerial", "spa-aerial-2023"),
+    ):  # fmt: skip
+        shutil.copy(MOCK / f"{src}.json", d / f"{name}.json")
+    g = build_geometry("spa", 7004.0, lat, lon, settings.track_data_path)
+    n = len(lat)
+    assert len(g["elevation_m"]) == n and sum(v is not None for v in g["elevation_m"]) > 0.9 * n
+    assert len(g["survey"]["left_m"]) == n and g["coverage"]["left"] > 0.5
+    assert g["survey"]["kerbs"] and g["aerial"]["edge_points"]

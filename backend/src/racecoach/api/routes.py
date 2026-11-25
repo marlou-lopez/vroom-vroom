@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import uuid
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -25,6 +26,7 @@ from racecoach.api.errors import ApiError
 from racecoach.coach.packet import build_packet  # noqa: F401  (kept importable for tests)
 from racecoach.coach.schema import CoachResult, Command
 from racecoach.coach.service import run_coach
+from racecoach.geometry import build_geometry, track_data_files
 from racecoach.importer import import_file
 from racecoach.model import GRID_CHANNELS, LapKind, LapMeta, LapSource, LapTrace, SessionMeta
 from racecoach.settings import Settings
@@ -256,6 +258,44 @@ def compare_candidates(lap_id: str, store: Store, settings: Cfg) -> list[dict[st
 @router.get("/tracks/{track_id}/map")
 def track_map(track_id: str, store: Store, settings: Cfg) -> dict[str, Any]:
     return need_map(store, settings, track_id).model_dump(mode="json")
+
+
+def _centreline_lap(store: AppStore, track_id: str) -> tuple[LapMeta, float] | None:
+    """The track's reference lap (metadata only: no trace is read) and the track length."""
+    ref = track_reference(store, track_id)
+    if ref is None or not store.trace_path(ref.lap_id).is_file():
+        return None
+    length = next(s.track_length_m for s in store.sessions() if s.track_id == track_id)
+    return ref, length
+
+
+_geometry_lock = threading.Lock()
+
+
+@router.get("/tracks/{track_id}/geometry")
+def track_geometry(
+    track_id: str, request: Request, store: Store, settings: Cfg
+) -> dict[str, Any]:
+    """A track's centreline, elevation, edges and kerbs; cached until the line or data change."""
+    found = _centreline_lap(store, track_id)
+    if found is None:
+        raise ApiError("unknown_track", f"No laps on {track_id}, so no geometry.")
+    lap, length = found
+    files = track_data_files(settings.track_data_path, track_id)
+    stamp = tuple(f.stat().st_mtime_ns if f.is_file() else None for f in files.values())
+    key = (track_id, lap.lap_id, stamp)
+    with _geometry_lock:
+        if not hasattr(request.app.state, "geometry_cache"):
+            request.app.state.geometry_cache = {}
+        cache: dict[Any, dict[str, Any]] = request.app.state.geometry_cache
+        if key not in cache:
+            ch = need_trace(store, lap.lap_id).ch
+            for k in [k for k in cache if k[0] == track_id]:
+                cache.pop(k, None)
+            cache[key] = build_geometry(
+                track_id, length, ch["lat"], ch["lon"], settings.track_data_path
+            )
+        return cache[key]
 
 
 class NewLandmark(BaseModel):
