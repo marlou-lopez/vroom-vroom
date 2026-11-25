@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from racecoach.lmu.reader import load_cars_config
 from racecoach.model import Channel, LapKind, LapMeta, RawSession
@@ -312,11 +312,14 @@ def session_stints(
     if not store.has_session(session_id):
         raise KeyError(session_id)
     stats = store.stint_stats(session_id)
-    rows = [
-        StintLap(lap_id=lap.lap_id, lap_no=lap.lap_no, **stats[lap.lap_id])
-        for lap in store.laps(session_id)
-        if lap.lap_id in stats
-    ]
+    rows: list[StintLap] = []
+    for lap in store.laps(session_id):
+        if lap.lap_id not in stats:
+            continue
+        try:
+            rows.append(StintLap(lap_id=lap.lap_id, lap_no=lap.lap_no, **stats[lap.lap_id]))
+        except ValidationError:  # a short lap with no samples of a channel: left out
+            continue
     car_class = next(m.car_class for m in store.sessions() if m.session_id == session_id)
     return split_stints(rows, fuel_effect_for(car_class, cars_config))
 
