@@ -240,3 +240,143 @@ def test_matches_the_mock_on_the_monza_race():
     assert [lap.lap_no for lap in laps] == [r["lap_no"] for r in ref]
     for lap, r in zip(laps, ref, strict=True):
         assert stats[lap.lap_id] == {k: r[k] for k in stats[lap.lap_id]}
+
+
+# ---- fall-off (vroom-9ki.20) ----
+
+from racecoach.stint import fuel_effect_for, stint_facts, stint_falloffs  # noqa: E402
+
+GT3 = {"kg_per_l": 0.74, "lap_fraction_per_kg": 0.0002, "source": "test source"}
+
+
+def _timed(no: int, t: float | None, fuel_start: float, fuel_end: float, kind=LapKind.FLYING,
+           valid: bool = True) -> StintLap:  # fmt: skip
+    return _lap(no, kind).model_copy(
+        update={"lap_time_s": t, "fuel_start_l": fuel_start, "fuel_end_l": fuel_end, "valid": valid}
+    )
+
+
+def _run(times: list[float], fuel0: float = 50.0, per_lap: float = 2.0) -> list[StintLap]:
+    return [
+        _timed(i + 1, t, fuel0 - i * per_lap, fuel0 - (i + 1) * per_lap)
+        for i, t in enumerate(times)
+    ]
+
+
+def test_raw_slope_of_a_straight_line():
+    raw, corrected = stint_falloffs(_run([100.0, 100.1, 100.2, 100.3]), None)
+    assert raw is not None and raw.n_laps == 4
+    assert raw.slope_s_per_lap == pytest.approx(0.1)
+    assert corrected is None  # no constant for the class
+
+
+def test_no_fit_with_fewer_than_three_laps():
+    assert stint_falloffs(_run([100.0, 100.1]), GT3) == (None, None)
+
+
+def test_exclusions():
+    laps = _run([100.0, 100.1, 100.2, 100.3, 100.4, 100.5, 100.6])
+    laps[0] = laps[0].model_copy(update={"kind": LapKind.OUT})
+    laps[1] = laps[1].model_copy(update={"kind": LapKind.IN})
+    laps[2] = laps[2].model_copy(update={"kind": LapKind.INCOMPLETE})
+    laps[3] = laps[3].model_copy(update={"valid": False, "lap_time_s": 0.0})
+    laps[4] = laps[4].model_copy(update={"lap_time_s": 130.0})  # slow: > 1.02 x median
+    assert stint_falloffs(laps, None) == (None, None)  # only laps 6 and 7 are left: too few
+    # with one more clean lap the fit exists and uses exactly the clean laps
+    laps.append(_timed(8, 100.7, 30, 28))
+    raw, _ = stint_falloffs(laps, None)
+    assert raw is not None and raw.n_laps == 3
+    assert raw.slope_s_per_lap == pytest.approx(0.1)
+
+
+def test_correction_adds_burnt_fuel_back_so_the_slope_grows():
+    # constant lap times: the raw slope is 0, the car getting lighter hides tyre wear
+    laps = _run([100.0] * 5, per_lap=2.0)
+    raw, c = stint_falloffs(laps, GT3)
+    assert raw is not None and c is not None
+    assert raw.slope_s_per_lap == pytest.approx(0.0, abs=1e-9)
+    spk = 0.0002 * 100.0
+    assert c.s_per_kg == pytest.approx(spk)
+    assert c.kg_per_lap == pytest.approx(2.0 * 0.74)
+    assert c.fuel_gain_s_per_lap == pytest.approx(spk * 2.0 * 0.74)
+    assert c.slope_s_per_lap > 0  # sign: corrected lap times rise with the lap
+    assert c.slope_s_per_lap == pytest.approx(raw.slope_s_per_lap + c.fuel_gain_s_per_lap)
+    assert c.assumption.source == "test source" and c.assumption.kg_per_l == 0.74
+
+
+def test_refuel_inside_a_stint_takes_the_extra_weight_out():
+    base = _run([100.0] * 6, per_lap=2.0)
+    ref = stint_falloffs(base, GT3)[1]
+    assert ref is not None
+    # a 40 L top-up between laps 3 and 4 (no in lap); the heavier car is slower by s/kg x kg
+    spk = ref.s_per_kg
+    laps = list(base)
+    for i in range(3, 6):
+        laps[i] = laps[i].model_copy(
+            update={
+                "fuel_start_l": laps[i].fuel_start_l + 40,
+                "fuel_end_l": laps[i].fuel_end_l + 40,
+                "lap_time_s": (laps[i].lap_time_s or 0.0) + spk * 0.74 * 40,
+            }
+        )
+    c = stint_falloffs(laps, GT3)[1]
+    assert c is not None
+    assert c.slope_s_per_lap == pytest.approx(ref.slope_s_per_lap, abs=1e-3)
+    assert c.kg_per_lap == pytest.approx(2.0 * 0.74)
+
+
+def test_a_lap_filled_during_it_is_left_out_of_the_burn_mean():
+    laps = _run([100.0] * 5, per_lap=2.0)
+    laps[2] = laps[2].model_copy(update={"fuel_end_l": laps[2].fuel_start_l + 10})
+    _, c = stint_falloffs(laps, GT3)
+    assert c is not None and c.kg_per_lap == pytest.approx(2.0 * 0.74)
+
+
+def test_split_stints_attaches_falloff_by_class():
+    laps = [_lap(0, LapKind.OUT), *_run([100.0, 100.1, 100.2, 100.3]), _lap(9, LapKind.IN)]
+    laps = [lap.model_copy(update={"lap_no": i}) for i, lap in enumerate(laps)]
+    with_c = split_stints(laps, GT3)[0]
+    assert with_c.falloff and with_c.falloff.n_laps == 4
+    assert with_c.falloff_fuel_corrected is not None
+    without = split_stints(laps, None)[0]
+    assert without.falloff is not None and without.falloff_fuel_corrected is None
+
+
+def test_cars_yaml_has_gt3_and_no_constant_for_other_classes():
+    effect = fuel_effect_for("GT3")
+    assert effect is not None and effect["kg_per_l"] == 0.74
+    assert fuel_effect_for("LMP2") is None
+
+
+def test_session_stints_null_corrected_for_a_class_without_constant(tmp_path: Path):
+    raw = _with_stint_channels(make_raw_session(6, CORNERS))
+    raw = replace(raw, meta=replace(raw.meta, car_class="LMP2"))
+    laps = build_laps(raw)
+    with AppStore(tmp_path / "app.duckdb", tmp_path / "traces") as store:
+        stats = compute_stint_stats(raw, [x for x, _ in laps])
+        store.add_session(raw.meta, laps, "raw.duckdb", stats)
+        stints = session_stints(store, raw.meta.session_id)
+    assert all(s.falloff_fuel_corrected is None for s in stints)
+
+
+def test_facts_carry_both_slopes_and_the_assumption():
+    laps = _run([100.0, 100.1, 100.2, 100.3])
+    facts = stint_facts(split_stints(laps, GT3))
+    assert len(facts) == 1
+    f = facts[0]
+    assert f.raw_s_per_lap == 0.1 and f.fuel_corrected_s_per_lap is not None
+    assert f.fuel_corrected_s_per_lap > f.raw_s_per_lap
+    assert f.assumption is not None and "test source" in f.assumption
+    plain = stint_facts(split_stints(laps, None))[0]
+    assert plain.fuel_corrected_s_per_lap is None and plain.assumption is None
+    assert stint_facts(split_stints(_run([100.0, 100.1]), GT3)) == []
+
+
+def test_matches_the_mock_on_the_monza_race_file():
+    """The mock file's laps through the port give the numbers in the spike write-up."""
+    d = json.loads(MOCK.read_text())
+    laps = [StintLap(lap_id=f"m-{i}", **lap) for i, lap in enumerate(d["laps"])]
+    s1 = split_stints(laps, fuel_effect_for(d["car_class"]))[0]
+    assert s1.falloff and s1.falloff.slope_s_per_lap == pytest.approx(0.050, abs=0.0006)
+    assert s1.falloff_fuel_corrected
+    assert s1.falloff_fuel_corrected.slope_s_per_lap == pytest.approx(0.102, abs=0.0006)

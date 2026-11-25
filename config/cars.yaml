@@ -5,3 +5,11 @@ cars:
   "Garage 59 2026 #58:LM": mclaren-720s-gt3-evo
 steering_range_deg:
   mclaren-720s-gt3-evo: 524
+# The fuel-weight effect per SessionMeta.car_class, for the fuel-corrected fall-off (vroom-d4g, docs/stint/fuel-corrected-falloff.md).
+# An assumption, not a measurement. A class without an entry gets no corrected fall-off (null). Keep in step with
+# FUEL_EFFECT_BY_CLASS in frontend/src/api/mock/stint.ts.
+fuel_effect:
+  GT3:
+    kg_per_l: 0.74
+    lap_fraction_per_kg: 0.0002
+    source: "GT3 rule of thumb (0.02 % of the lap per kg, fuel 0.74 kg/L), an assumption"
