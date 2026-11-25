@@ -20,6 +20,8 @@ import { buildScene, carPositions, type CarSync, type EdgeSource, type LineSourc
 import { AnnotationBadges } from "../shared/AnnotationBadges";
 import { ExperimentalTag, OptionRow, ViewOptions } from "../shared/ViewOptions";
 import { loadFlag, loadSetting, saveFlag, saveSetting } from "../shared/storage";
+import { AerialCredit } from "../shared/AerialCredit";
+import { loadEdgeSource, saveEdgeSource } from "../shared/edgeSetting";
 import styles from "./DetailedMapView.module.css";
 import { useBenchHud } from "../shared/useBenchHud";
 import { useGpuRenderer } from "../shared/useGpuRenderer";
@@ -40,12 +42,6 @@ const GAIN_LOSS_KEY = "vroom.gainLoss";
 /** The remembered gain/loss style; default "side". An older "0" (toggle off) reads as "off". */
 const loadGainStyle = (): GainStyle => loadSetting(GAIN_LOSS_KEY, GAIN_STYLES, "side", { legacy: { "0": "off" } });
 
-/** Where the track edges come from (#36, experimental); default "stand-in". */
-const EDGES_KEY = "vroom.edges";
-
-const EDGE_SOURCES: readonly EdgeSource[] = ["stand-in", "telemetry"];
-const loadEdgeSource = (): EdgeSource => loadSetting(EDGES_KEY, EDGE_SOURCES, "stand-in");
-
 export function DetailedMapView({ model, trackMap, geometry, annotations, handlers, lapValid, invalidAtM }: TrackViewProps) {
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
@@ -54,7 +50,10 @@ export function DetailedMapView({ model, trackMap, geometry, annotations, handle
   const [sync, setSyncState] = useState<CarSync>("time");
   const [gpsHalf, setGpsHalf] = useState(4);
   const [edgeSource, setEdgeSourceState] = useState<EdgeSource>(loadEdgeSource);
-  const scene = useMemo(() => buildScene(cmp, { source, gpsHalf, edges: edgeSource, survey: geometry?.survey, lapValid }), [cmp, geometry, source, gpsHalf, edgeSource, lapValid]);
+  const scene = useMemo(() => buildScene(cmp, { source, gpsHalf, edges: edgeSource, survey: geometry?.survey, aerial: geometry?.aerial, lapValid }), [cmp, geometry, source, gpsHalf, edgeSource, lapValid]);
+
+  /** A remembered "aerial" on a track without it draws, and shows as, the measured edges. */
+  const shownEdges: EdgeSource = edgeSource === "aerial" && !geometry?.aerial ? "telemetry" : edgeSource;
 
   const [mode, setModeState] = useState<CameraMode>("follow");
   const [headingUp, setHeadingUpState] = useState(false);
@@ -420,15 +419,16 @@ export function DetailedMapView({ model, trackMap, geometry, annotations, handle
                 : "Estimated: the track centreline plus and minus 7 m. From laps: edges and kerbs rebuilt from the laps' telemetry."}
             >
               <ToggleGroup.Root
-                type="single" aria-label="Track edges" className={styles.group} value={edgeSource} disabled={running}
+                type="single" aria-label="Track edges" className={styles.group} value={shownEdges} disabled={running}
                 onValueChange={(v) => {
-                  if (v !== "stand-in" && v !== "telemetry") return;
+                  if (v !== "stand-in" && v !== "telemetry" && v !== "aerial") return;
                   setEdgeSourceState(v);
-                  saveSetting(EDGES_KEY, v);
+                  saveEdgeSource(v);
                 }}
               >
                 <ToggleGroup.Item value="stand-in" className={ui.toggleItem} title="The racing line plus and minus 7 m">Estimated</ToggleGroup.Item>
                 <ToggleGroup.Item value="telemetry" className={ui.toggleItem} title={geometry?.survey ? "Edges and kerbs from a survey of the track" : "Edges and kerbs rebuilt from the laps' telemetry"}>{geometry?.survey ? "Measured" : "From laps"}</ToggleGroup.Item>
+                {geometry?.aerial && <ToggleGroup.Item value="aerial" className={ui.toggleItem} title="Experimental: edges and kerbs read from open aerial photos">Aerial (experimental)</ToggleGroup.Item>}
               </ToggleGroup.Root>
             </OptionRow>
             <OptionRow label="Cars" hint="Time: both cars at the same moment. Distance: both cars at the same point of the track.">
@@ -482,6 +482,7 @@ export function DetailedMapView({ model, trackMap, geometry, annotations, handle
           )}
         </div>
         )}
+        {scene.edgeSource === "aerial" && geometry?.aerial && <AerialCredit aerial={geometry.aerial} className={styles.credit} />}
         {debug && showHud && hudText && <div className={styles.hud}>{hudText}</div>}
         {debug && rows.length > 0 && (
           <div className={styles.results}>

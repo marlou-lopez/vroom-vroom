@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CompareResponse, TrackSurvey } from "../../../api/types";
+import type { CompareResponse, AerialEdges, TrackSurvey } from "../../../api/types";
 import { originOf, pointAt, toLocalMetres } from "../../../lib/geo";
 import { lateralOffsets } from "../../../lib/racingLine";
 import { KERB_OFFSET_M, buildScene, carPositions, progressSplit, surfaceClearance } from "./scene";
@@ -337,6 +337,15 @@ describe("edges from a track survey (#97)", () => {
     expect(lateralOffsets(s.edges[1], s.centre)[305]).toBeCloseTo(8, 1); // gap interpolated
     expect(s.edgeMeasured![1][305]).toBe(0);
     expect(s.edgeMeasured![1][500]).toBe(0); // measured means: a wheel crossed the edge there
+  });
+
+  it("draws aerial edges and kerbs when asked (vroom-ueg.8), and the survey when the track has none", () => {
+    const aerial = { edge_points: [], attribution: "someone", licence_url: null, kerbs: [{ side: "right", start_m: 100, end_m: 130, kind: "flat", width_m: 1.2 }] } as AerialEdges;
+    const s = buildScene(withSurvey(), { ...opts, edges: "aerial", aerial });
+    expect(s.edgeSource).toBe("aerial");
+    expect(s.kerbs.map((k) => [k.side, k.start, k.width])).toEqual([["right", 100, 1.2]]);
+    expect(buildScene(withSurvey(), { ...opts, aerial }).edgeSource).toBe("survey");
+    expect(buildScene(withSurvey(), { ...opts, edges: "aerial", aerial: null }).edgeSource).toBe("survey");
   });
 
   it("places survey kerbs beside the survey edge with their kind", () => {
