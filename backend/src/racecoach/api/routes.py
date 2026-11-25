@@ -31,6 +31,7 @@ from racecoach.importer import import_file
 from racecoach.model import GRID_CHANNELS, LapKind, LapMeta, LapSource, LapTrace, SessionMeta
 from racecoach.report import ReportInput, ReportLapInput, build_report, trace_facts
 from racecoach.settings import Settings
+from racecoach.setup_labels import setup_label
 from racecoach.stint import session_stints
 from racecoach.store import AppStore
 from racecoach.tracks import Landmark, TrackMap, calibrate, load_map, map_for, save_map
@@ -470,7 +471,9 @@ def session_summary(session_id: str, store: Store, settings: Cfg) -> dict[str, A
 @router.get("/sessions/{session_id}/setup")
 def session_setup(session_id: str, store: Store) -> dict[str, Any]:
     need_session(store, session_id)
-    return {"entries": []}  # the setup is not read from the recording yet: unknown, not "none"
+    # empty when the recording has no setup: unknown, not "none"
+    setup = store.session_setup(session_id)
+    return {"entries": [{"key": k, "label": setup_label(k), "value": v} for k, v in setup.items()]}
 
 
 @router.get("/sessions/{session_id}/ideal")

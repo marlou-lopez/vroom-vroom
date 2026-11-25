@@ -103,6 +103,24 @@ def _steer_lock_from_setup(setup_json: str | None) -> float | None:
     return float(m.group(1)) if m and float(m.group(1)) > 0 else None
 
 
+def parse_setup(setup_json: str | None) -> dict[str, str]:
+    """`CarSetup` -> setting id -> display string (`stringValue`). Entries without a
+    `stringValue` (`gearGraph`, `symmetric`) are dropped; bad or missing JSON gives {}."""
+    if not setup_json:
+        return {}
+    try:
+        setup = json.loads(setup_json)
+    except ValueError:
+        return {}
+    if not isinstance(setup, dict):
+        return {}
+    out: dict[str, str] = {}
+    for key, item in setup.items():
+        if isinstance(item, dict) and isinstance(item.get("stringValue"), str):
+            out[str(key)] = item["stringValue"]
+    return out
+
+
 def _parse_recording_time(text: str) -> datetime:
     try:
         return datetime.strptime(text, "%Y-%m-%dT%H_%M_%SZ").replace(tzinfo=UTC)
@@ -211,4 +229,6 @@ def read_lmu_duckdb(path: Path | str, cars_config: Path | str | None = None) -> 
         driver=meta_rows.get("DriverName", ""),
         steering_range_deg=steering,
     )
-    return RawSession(meta=meta, channels=channels, events=events)
+    return RawSession(
+        meta=meta, channels=channels, events=events, setup=parse_setup(meta_rows.get("CarSetup"))
+    )

@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS laps (
 CREATE TABLE IF NOT EXISTS lap_stint_stats (
     lap_id VARCHAR PRIMARY KEY, session_id VARCHAR, stats VARCHAR
 );
+CREATE TABLE IF NOT EXISTS session_setup (
+    session_id VARCHAR PRIMARY KEY, entries VARCHAR
+);
 CREATE TABLE IF NOT EXISTS llm_calls (
     id BIGINT PRIMARY KEY, ts TIMESTAMP, purpose VARCHAR, provider VARCHAR, model VARCHAR,
     input_tokens INTEGER, output_tokens INTEGER, cost_usd DOUBLE, ok BOOLEAN, lap_id VARCHAR,
@@ -130,6 +133,7 @@ class AppStore:
         laps: list[tuple[LapMeta, LapTrace]],
         raw_path: Path | str,
         stint_stats: dict[str, dict[str, Any]] | None = None,
+        setup: dict[str, str] | None = None,
     ) -> None:
         """Insert a session, its laps and their traces. The metadata goes in one transaction;
         if anything fails, the trace files written for it are removed again."""
@@ -163,11 +167,24 @@ class AppStore:
                     "INSERT INTO lap_stint_stats VALUES (?,?,?)",
                     [lap_id, meta.session_id, json.dumps(stats)],
                 ))  # fmt: skip
+            if setup:
+                stmts.append((
+                    "INSERT INTO session_setup VALUES (?,?)",
+                    [meta.session_id, json.dumps(setup)],
+                ))  # fmt: skip
             self._transaction(stmts)
         except BaseException:
             for p in written:
                 p.unlink(missing_ok=True)
             raise
+
+    def session_setup(self, session_id: str) -> dict[str, str]:
+        """Setting id -> display string of the recording's garage setup; empty when it has none
+        (or the session was imported before the setup was stored)."""
+        row = self.con.execute(
+            "SELECT entries FROM session_setup WHERE session_id = ?", [session_id]
+        ).fetchone()
+        return json.loads(row[0]) if row else {}
 
     def stint_stats(self, session_id: str) -> dict[str, dict[str, Any]]:
         """lap_id -> the stored per-lap stint stats (vroom-9ki.18); empty when there are none."""
