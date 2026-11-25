@@ -53,6 +53,14 @@ OPTIONAL_CHANNELS: dict[str, str] = {
     "track_temp": "Track Temperature",  # C, 1 Hz
     "air_temp": "Ambient Temperature",  # C, 1 Hz
     "tyre_wear": "Tyres Wear",  # per wheel, FL FR RL RR
+    # stint stats (vroom-9ki.18); per wheel unless noted
+    "energy": "Virtual Energy",  # % left, 0 on a car without it
+    "tyre_temp_left": "TyresTempLeft",  # tread zones, C; left/right are the car's edges
+    "tyre_temp_centre": "TyresTempCentre",
+    "tyre_temp_right": "TyresTempRight",
+    "tyre_carcass": "TyresCarcassTemp",
+    "tyre_pressure": "TyresPressure",  # kPa
+    "brake_temp": "Brakes Temp",  # disc, C
 }
 EVENTS: dict[str, str] = {
     "gear": "Gear",
