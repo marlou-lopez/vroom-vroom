@@ -46,7 +46,7 @@ const EDGES_KEY = "vroom.edges";
 const EDGE_SOURCES: readonly EdgeSource[] = ["stand-in", "telemetry"];
 const loadEdgeSource = (): EdgeSource => loadSetting(EDGES_KEY, EDGE_SOURCES, "stand-in");
 
-export function DetailedMapView({ model, trackMap, geometry, annotations, handlers, lapValid }: TrackViewProps) {
+export function DetailedMapView({ model, trackMap, geometry, annotations, handlers, lapValid, invalidAtM }: TrackViewProps) {
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
@@ -81,6 +81,8 @@ export function DetailedMapView({ model, trackMap, geometry, annotations, handle
   const raf = useRef(0);
   const lastDrawT = useRef(0);
   const badgeEls = useRef(new Map<string, HTMLButtonElement>());
+  const invalidEl = useRef<HTMLButtonElement | null>(null);
+  const invalidRef = useRef(invalidAtM ?? null);
   const scaleBarEl = useRef<HTMLSpanElement>(null), scaleTextEl = useRef<HTMLSpanElement>(null), cornerEl = useRef<HTMLDivElement>(null);
   const trackMapRef = useRef(trackMap);
   const shownCorner = useRef("");
@@ -162,6 +164,12 @@ export function DetailedMapView({ model, trackMap, geometry, annotations, handle
       el.style.transform = `translate(${s.x.toFixed(1)}px, ${y.toFixed(1)}px)`;
       el.style.visibility = s.x < -10 || s.x > v.w + 10 || y < -10 || y > v.h + 10 ? "hidden" : "visible";
     }
+    const ie = invalidEl.current;
+    if (ie && invalidRef.current != null) {
+      const s = worldToScreen(cam, v, pointAt(sc.lap, invalidRef.current));
+      ie.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
+      ie.style.visibility = s.x < -10 || s.x > v.w + 10 || s.y < -10 || s.y > v.h + 10 ? "hidden" : "visible";
+    }
   }, [store, vp, lostRef, rendererRef, frames, draws, drawRec, benchRunning]);
 
   const requestDraw = useCallback(() => {
@@ -171,6 +179,7 @@ export function DetailedMapView({ model, trackMap, geometry, annotations, handle
     requestDrawRef.current = requestDraw;
   }, [requestDrawRef, requestDraw]);
   useLayoutEffect(() => { trackMapRef.current = trackMap; requestDraw(); }, [trackMap, requestDraw]);
+  useLayoutEffect(() => { invalidRef.current = invalidAtM ?? null; requestDraw(); }, [invalidAtM, requestDraw]);
 
   /** Sets the free camera where its rotation may change; pan and zoom keep the rotation and write the ref directly. */
   const setFreeCam = useCallback((c: Camera) => {
@@ -346,7 +355,7 @@ export function DetailedMapView({ model, trackMap, geometry, annotations, handle
         <div className={styles.corner} ref={cornerEl} data-testid="next-corner" hidden />
         <div className={styles.scaleRow}><span className={styles.scaleBar} ref={scaleBarEl} /><span ref={scaleTextEl} /></div>
       </div>
-      <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} />
+      <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} invalidAtM={invalidAtM} invalidEl={invalidEl} />
       {gpu !== "ok" && (
         <div className={styles.gpu} data-controls="" role="status">
           <span>

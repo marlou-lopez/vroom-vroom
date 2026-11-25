@@ -65,7 +65,7 @@ function loadSplit(): boolean {
 }
 
 /** Experimental 3D view (#39): the track as a ribbon with elevation, both cars, and chase / cockpit (#100) / orbit / top-down cameras. */
-export function RibbonView({ model, geometry, annotations, handlers, lapTimes, lapValid, refName }: TrackViewProps) {
+export function RibbonView({ model, geometry, annotations, handlers, lapTimes, lapValid, invalidAtM, refName }: TrackViewProps) {
   // A lap of another session is named by its full label, which already carries a time.
   const cmpName = refName && !/\d:\d\d\.\d{3}/.test(refName) ? refName[0].toUpperCase() + refName.slice(1) : "Comparison";
   const cmpLower = refName ?? "the comparison lap";
@@ -140,6 +140,8 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
   const lastDist = useRef(0);
   const lastDrawT = useRef(0);
   const badgeEls = useRef(new Map<string, HTMLButtonElement>());
+  const invalidEl = useRef<HTMLButtonElement | null>(null);
+  const invalidRef = useRef(invalidAtM ?? null);
   const screenPt = useRef<ScreenPoint>({ x: 0, y: 0, visible: false });
 
   const { hostRef, rendererRef, lostRef, vp, requestDrawRef, gpu, retry } = useGpuRenderer({
@@ -231,6 +233,13 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
       el.style.transform = `translate(${s.x.toFixed(1)}px, ${y.toFixed(1)}px)`;
       el.style.visibility = !s.visible || s.x < minX - 10 || s.x > v.w + 10 || y < -10 || y > v.h + 10 ? "hidden" : "visible";
     }
+    const ie = invalidEl.current, im = invalidRef.current;
+    if (ie && im != null) {
+      const p = pointAt(sc.lap, im);
+      r.project(p.x, p.y, heightAt(h, im) + BADGE_LIFT_M / k, s);
+      ie.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
+      ie.style.visibility = !s.visible || s.x < minX - 10 || s.x > v.w + 10 || s.y < -10 || s.y > v.h + 10 ? "hidden" : "visible";
+    }
   }, [store, vp, lostRef, rendererRef, setPaneText, frames, draws, drawRec, benchRunning]);
 
   const requestDraw = useCallback(() => {
@@ -250,8 +259,9 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
   useEffect(() => {
     cmpRef.current = cmp;
     annRef.current = annotations;
+    invalidRef.current = invalidAtM ?? null;
     requestDraw();
-  }, [cmp, annotations, requestDraw]);
+  }, [cmp, annotations, invalidAtM, requestDraw]);
 
   useEffect(() => {
     sceneRef.current = scene;
@@ -362,7 +372,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
   return (
     <div ref={rootRef} className={styles.root}>
       <div ref={hostRef} className={styles.host} aria-hidden="true" />
-      <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} />
+      <AnnotationBadges annotations={annotations} handlers={handlers} badgeEls={badgeEls} invalidAtM={invalidAtM} invalidEl={invalidEl} />
       {split && (
         <div className={styles.panes} role="group" aria-label={`Lap and ${cmpLower}, side by side`}>
           <div className={cx(styles.pane, styles.paneLap)}>

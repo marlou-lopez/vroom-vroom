@@ -8,6 +8,8 @@ import { describe, expect, it, vi } from "vitest";
 import { createMockApi } from "../api/mock/mockApi";
 import type { Recording } from "../api/mock/recording";
 import { effectiveValid } from "../api/types";
+import { invalidNotice } from "../lib/invalidLap";
+import { AnnotationBadges } from "./mapviews/shared/AnnotationBadges";
 import { likelyInvalidRun, offTrackRuns } from "../lib/offTrack";
 import { buildModel } from "../lib/model";
 import { PlaybackProvider } from "../state/playback";
@@ -43,7 +45,7 @@ describe("invalid-lap scrubber mark", () => {
 describe("invalid-lap map mark", () => {
   const view = (model: Awaited<ReturnType<typeof models>>["bad"], lapValid: boolean, onSeekDistance: (m: number) => void) => (
     <PlaybackProvider>
-      <ClassicMapView model={model} trackMap={null} geometry={null} annotations={[]} handlers={{ onSeek: () => {}, onSeekDistance }} lapValid={lapValid} />
+      <ClassicMapView model={model} trackMap={null} geometry={null} annotations={[]} handlers={{ onSeek: () => {}, onSeekDistance }} lapValid={lapValid} invalidAtM={invalidNotice(lapValid, model.cmp.lap, model.cmp.distance, null)?.atM ?? null} />
     </PlaybackProvider>
   );
   it("draws a clickable mark on an invalid lap", async () => {
@@ -58,5 +60,25 @@ describe("invalid-lap map mark", () => {
     const { good } = await models();
     render(view(good, true, () => {}));
     expect(screen.queryByTestId("map-invalid-mark")).toBeNull();
+  });
+});
+
+describe("invalid-lap mark in the WebGL views' shared badge layer", () => {
+  const layer = (atM: number | null, seek: (m: number) => void) => (
+    <AnnotationBadges annotations={[]} handlers={{ onSeek: () => {}, onSeekDistance: seek }} badgeEls={{ current: new Map() }} invalidAtM={atM} />
+  );
+  it("draws a clickable mark at the page's spot on an invalid lap", async () => {
+    const { bad } = await models();
+    const atM = invalidNotice(false, bad.cmp.lap, bad.cmp.distance, null)!.atM!;
+    const seek = vi.fn();
+    render(layer(atM, seek));
+    fireEvent.click(screen.getByTestId("view-invalid-mark"));
+    expect(seek).toHaveBeenCalledWith(atM);
+  });
+  it("draws none on a valid lap or when no spot was found", async () => {
+    const { good } = await models();
+    expect(invalidNotice(true, good.cmp.lap, good.cmp.distance, null)).toBeNull();
+    render(layer(null, () => {}));
+    expect(screen.queryByTestId("view-invalid-mark")).toBeNull();
   });
 });

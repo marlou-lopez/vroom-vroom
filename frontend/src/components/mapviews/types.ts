@@ -20,4 +20,6 @@ export interface TrackViewProps {
   refName?: string | null;
   /** Whether the lap counts as valid (`effectiveValid`); decides if its wheels-off marks are red (invalid) or grey close calls. Absent = valid. */
   lapValid?: boolean;
+  /** Where the lap was most likely invalidated, metres along the grid (`invalidNotice(...).atM`, computed once by the page); null or absent: no marker. Every view draws the same red cross there and a click seeks to it (vroom-ake, vroom-4pc). */
+  invalidAtM?: number | null;
 }
