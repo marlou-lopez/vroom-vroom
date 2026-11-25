@@ -27,3 +27,7 @@ uv run --with duckdb python -I extract-stint.py <copy.duckdb> <out.json> "<sourc
 ```
 
 Run it on a copy of the recording. No driver name is written. Channel facts: `docs/lmu-duckdb-schema.md`, "Stint channels".
+
+## aerial-edges
+
+Track edges and kerbs from open aerial imagery for one track, aligned to LMU's world (experimental, vroom-ueg.8). See `aerial-edges/README.md`.
