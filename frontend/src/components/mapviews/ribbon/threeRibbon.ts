@@ -21,6 +21,7 @@ import { invalidateCarModel, loadCarModel, placeModel, type PlacedModel } from "
 import { carModelStore } from "./carModelStore";
 import { visualForwardM } from "../detailed/renderer";
 import { toThree } from "./coords";
+import { GroundLayer, type GroundScene } from "./groundLayer";
 import { buildMarkPositions, type MarkSpan } from "./marks";
 import { buildKerbMesh, buildLinePositions, buildRibbonMesh, buildVergeMesh } from "./geometry";
 import type { CarPose } from "./pose";
@@ -208,10 +209,16 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
   let lapForward = 0, refForward = 0; // each car's visual centre ahead of the recorded point (m); the cockpit eye is measured from the visual centre
   let sceneMeshes: (Mesh | Line2)[] = [];
   let lastStats = { calls: 0, triangles: 0 };
+  /** The ground texture beside the track, only while its experimental toggle is on (vroom-ueg.9). */
+  let ground: GroundLayer | null = null;
+  let groundScene: GroundScene | null = null;
+  let roadVisible = true;
+  let roadMeshes: Mesh[] = [];
 
   const clearScene = () => {
     for (const m of sceneMeshes) { world.remove(m); disposeObject(m); }
     sceneMeshes = [];
+    roadMeshes = [];
     for (const m of lineMats) m.dispose();
     racing = [];
     lineMats.length = 0;
@@ -308,6 +315,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       surface.frustumCulled = false;
       world.add(surface);
       sceneMeshes.push(surface);
+      roadMeshes.push(surface);
       // Kerbs, merged into one mesh.
       const red = new Color(KERB_RED).toArray().slice(0, 3) as [number, number, number];
       const white = new Color(KERB_WHITE).toArray().slice(0, 3) as [number, number, number];
@@ -332,6 +340,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
         kerbs.frustumCulled = false;
         world.add(kerbs);
         sceneMeshes.push(kerbs);
+        roadMeshes.push(kerbs);
       }
       // Grass beside the road (cockpit view): one strip per side, following the road heights.
       const vergeMat = new MeshBasicMaterial({
@@ -380,6 +389,21 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       for (const s of slots) swapInModel(s.car, s.carId, s.dims, s.ghost);
       for (const m of lineMats) m.resolution.set(viewport.w, viewport.h);
       world.scale.y = exag;
+      for (const m of roadMeshes) m.visible = roadVisible;
+      groundScene = { centre: sc.centre, edges: sc.edges, origin: sc.origin, heights };
+      ground?.setScene(groundScene);
+    },
+    setGround(g) {
+      ground?.dispose();
+      ground = null;
+      if (!g) return;
+      ground = new GroundLayer(gl, g.manifest, g.baseUrl, events.onNeedsDraw);
+      world.add(ground.group);
+      if (groundScene) ground.setScene(groundScene);
+    },
+    setRoadVisible(on) {
+      roadVisible = on;
+      for (const m of roadMeshes) m.visible = on;
     },
     setMode(m) {
       mode = m;
@@ -406,9 +430,11 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       splitting = !!split;
       const cockpit = mode === "cockpit";
       // Cockpit scenery: grass, sky and haze (both panes share them; they are the same mode).
-      verges.visible = cockpit;
-      sky.visible = cockpit;
-      (scene.fog as Fog).color.copy(cockpit ? hazeColor : bgColor);
+      // The ground picture replaces the grass, and brings the sky to the chase view too.
+      const outdoor = cockpit || (ground !== null && mode === "chase");
+      verges.visible = cockpit && !ground;
+      sky.visible = outdoor;
+      (scene.fog as Fog).color.copy(outdoor ? hazeColor : bgColor);
 
       const place = (pane: Pane, pose: CarPose, aheadPt: { east: number; north: number; height: number }, att: { heading: number; dive: number; roll: number }, forward: number, jumped: boolean) => {
         const fr = pane.frame;
@@ -457,10 +483,8 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
         if (refCar) refCar.scale.setScalar(carScale(refDims));
         if (lapCar) lapCar.visible = !(cockpit && i === 0);
         if (refCar) refCar.visible = !(cockpit && i === 1);
-        if (cockpit) {
-          pane.dash.update(i === 0 ? f.dash : split!.dash, i === 0 ? f.limits : split!.limits);
-          sky.position.copy(pane.camera.position);
-        }
+        if (outdoor) sky.position.copy(pane.camera.position);
+        if (cockpit) pane.dash.update(i === 0 ? f.dash : split!.dash, i === 0 ? f.limits : split!.limits);
         gl.setViewport(r.x, viewport.h - r.y - r.h, r.w, r.h);
         gl.setScissor(r.x, viewport.h - r.y - r.h, r.w, r.h);
         setLines(w, h);
@@ -495,7 +519,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       out.y = r.y + (-v3.y * 0.5 + 0.5) * r.h;
       return out;
     },
-    stats: () => lastStats,
+    stats: () => ({ ...lastStats, textures: gl.info.memory.textures, ground: ground?.stats() ?? null }),
     simulateContextLoss() {
       const ext = gl.getContext().getExtension("WEBGL_lose_context");
       if (!ext) return false;
@@ -512,6 +536,7 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       canvas.removeEventListener("webglcontextrestored", onRestored);
       controls.dispose();
       clearScene();
+      ground?.dispose();
       disposeObject(sky);
       for (const pane of [lapPane, refPane]) {
         if (!pane) continue;

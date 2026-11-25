@@ -12,6 +12,9 @@ __pycache__/
 frontend/public/local-models/*
 !frontend/public/local-models/README.md
 
+# Ground textures made from aerial imagery are never committed; see tools/aerial-edges/README.md
+frontend/public/local-ground/
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db

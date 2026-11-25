@@ -15,6 +15,18 @@ written out), blue = kerb's outer side. Look at them before trusting a new track
 
 To refresh the app's copy: `--out ../../frontend/public/mock/spa-aerial-2023.json`.
 
+## Ground texture for the 3D view (experimental, vroom-ueg.9)
+
+```bash
+uv run --no-project --with numpy,scipy,pyproj,pillow python -I run.py ground spa
+```
+
+Writes JPEG tiles in LMU's world frame and `ground.json` (positions, credit line) to `frontend/public/local-ground/<track_id>/`, which is git-ignored and
+not in builds. **Never commit it, or a picture of it.** It replaces that folder's earlier output. Show it in `npm run dev`: 3D view, View options,
+Ground (experimental). `--reach 150` is how far it goes either side (the first run downloads about 85 tiles more than the edges need, some 10 minutes),
+`--out` writes elsewhere, `--terrain 250` only compares Wallonia's LiDAR terrain model with LMU's heights every 250 m (Spa only; needs `elevation` in the
+track file). A track needs `track_id` (the app's) in `tracks/<name>.json`.
+
 ## Add a track
 
 1. Find an open source (the table in the write-up). Esri, Google and Bing imagery may not be used: their terms forbid extraction.
