@@ -84,7 +84,7 @@
 .cornerBtn:hover { text-decoration: underline; }
 .what { margin: 0; overflow-wrap: anywhere; color: var(--color-text-soft); }
 .tip { margin: 0; overflow-wrap: anywhere; }
-.tip b { color: var(--color-you); font-weight: 600; }
+.tip b { color: var(--color-text); font-weight: 600; }
 .replay {
   align-self: flex-start; min-height: 28px; padding: 0 12px; margin-top: 2px; border-radius: var(--radius);
   border: 1px solid var(--color-border-strong); background: transparent; color: var(--color-text); cursor: pointer;

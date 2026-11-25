@@ -16,4 +16,4 @@
 .lap { font-family: var(--font-mono); color: var(--color-muted); }
 .time { font-family: var(--font-mono); text-align: right; }
 .go { color: var(--color-muted); text-align: right; }
-.row:hover .go { color: var(--color-you); }
+.row:hover .go { color: var(--color-text); }
