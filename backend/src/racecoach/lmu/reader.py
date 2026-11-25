@@ -47,6 +47,13 @@ WHEEL_CHANNELS: dict[str, str] = {
     "wheel_speed": "Wheel Speed",  # m/s
     "susp": "Susp Pos",
 }
+# Used for a lap's conditions; a recording without one still reads. Tyre wear is (n, 4), % left.
+OPTIONAL_CHANNELS: dict[str, str] = {
+    "fuel": "Fuel Level",  # litres
+    "track_temp": "Track Temperature",  # C, 1 Hz
+    "air_temp": "Ambient Temperature",  # C, 1 Hz
+    "tyre_wear": "Tyres Wear",  # per wheel, FL FR RL RR
+}
 EVENTS: dict[str, str] = {
     "gear": "Gear",
     "abs": "ABS",
@@ -155,6 +162,9 @@ def read_lmu_duckdb(path: Path | str, cars_config: Path | str | None = None) -> 
             channels[name] = Channel(ch.t, ch.v * scale) if scale != 1.0 else ch
         for name, table in WHEEL_CHANNELS.items():
             channels[name] = channel(table)
+        for name, table in OPTIONAL_CHANNELS.items():
+            if _table_exists(con, table) and freqs.get(table):
+                channels[name] = channel(table)
 
         events: dict[str, Channel] = {}
         for name, table in EVENTS.items():
