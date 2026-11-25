@@ -3,8 +3,8 @@
 The session report judges tyre and brake values against a window per car class and compound. **Every value here is an editable
 assumption**, in the same sense as the fuel-weight constant in `docs/stint/fuel-corrected-falloff.md`: LMU does not publish a
 window per car, so these come from community guidance and engineering rules of thumb. The code reads the same values from one
-module, `frontend/src/lib/reportWindows.ts` (a unit test checks that table against this file and against the car classes in the
-mock). Each report returns the windows it used with their source. Searched 2026-11-18; where no published figure exists the
+module per side, `frontend/src/lib/reportWindows.ts` and `backend/src/racecoach/report_windows.py` (a unit test checks the frontend table against this file and against the car classes in the
+mock; the golden file `backend/tests/fixtures/report_golden.json` makes the backend test fail when the two tables differ). Each report returns the windows it used with their source. Searched 2026-11-18; where no published figure exists the
 source says so rather than inventing one. The recording does not name the compound, so a window is for the class's dry default.
 
 Sources:
