@@ -81,7 +81,7 @@ export function OneSessionView() {
           {summary && <p className={styles.lede}>{summary.join(" ")}</p>}
           <p className={styles.hint}>{summary && report && !noPlayback(report) ? "Click a lap in the chart, an event, or a row in the lap table to open that lap." : null}</p>
         </header>
-        <SessionTab key={session.session_id} sessionId={session.session_id} onOpen={open} full>
+        <SessionTab key={session.session_id} sessionId={session.session_id} onOpen={open}>
           <section className={styles.block} aria-label="Laps">
             <h2 className={styles.h2}>Every lap</h2>
             <LapGaugeTable key={`laps-${session.session_id}`} sessionId={session.session_id} linkFor={openLink} />
