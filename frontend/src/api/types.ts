@@ -207,6 +207,13 @@ export interface TrackSurvey {
 /** A kerb stretch on one side, inclusive grid metres. flat = LMU's flat kerb, razor = the raised kerb. `width_m` is the measured kerb width, null when unknown. */
 export interface SurveyKerb { side: "left" | "right"; start_m: number; end_m: number; kind: "flat" | "razor" | "other"; width_m: number | null }
 
+/**
+ * Edges and kerbs extracted from open aerial imagery (vroom-ueg.8, experimental). `edge_points` are [lat, lon] in the recording's
+ * GPS frame, on the outer side of the painted edge line, unsided like the survey's. `attribution` is the imagery licence's credit line:
+ * show it wherever this is drawn.
+ */
+export interface AerialEdges { edge_points: [lat: number, lon: number][]; kerbs: SurveyKerb[]; attribution: string }
+
 export interface CompareCandidate {
   lap_id: string;
   label: string;
@@ -266,6 +273,8 @@ export interface TrackGeometry {
   elevation_m: (number | null)[] | null;
   /** Edges, kerbs and banking from a shared-memory survey (#97), on the same grid. null when the track has no survey. */
   survey: TrackSurvey | null;
+  /** Edges and kerbs from aerial imagery, beside the survey, not instead of it. Experimental; null when the track has none. */
+  aerial: AerialEdges | null;
   /**
    * Share of the grid (0..1) where each side's edge is known, i.e. non-null in `survey.left_m` / `right_m`: measured, or
    * interpolated across gaps of at most 8 m between samples. Lets later work (3D, coach facts) skip unmeasured stretches. null when there is no survey.

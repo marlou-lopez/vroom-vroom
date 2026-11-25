@@ -1,4 +1,4 @@
-import type { CarDims, CompareResponse, SurveyKerb, TrackSurvey } from "../../../api/types";
+import type { AerialEdges, CarDims, CompareResponse, SurveyKerb, TrackSurvey } from "../../../api/types";
 import { bounds, headingAt, originOf, pointAt, toLocalMetres, type Pt, type XY } from "../../../lib/geo";
 import { distanceAtTime } from "../../../lib/playback";
 import { KERB_W_M, carDimsOrFallback } from "./renderer";
@@ -6,6 +6,7 @@ import { aidRuns, mapSpan, type Run } from "../../../lib/driverAids";
 import { offTrackRuns } from "../../../lib/offTrack";
 import { gainRate } from "../../../lib/gainLoss";
 import { edgeHalfWidths, edgeLines, kerbRuns, type EdgeLap } from "../../../lib/trackEdges";
+import { aerialAsSurvey } from "../../../lib/aerialEdges";
 import { centreProjector, kerbWidth, surveyHalfWidths } from "../../../lib/trackSurvey";
 import { LATERAL_LIMIT_M, NORMAL_HALF_M, centreline, lateralOffsets, lineFromGps, lineFromLateral, normalsLeft } from "../../../lib/racingLine";
 
@@ -46,17 +47,19 @@ export interface Scene {
   /** `car_id` of each car, to look up an optional 3D model (#102). */
   lapCarId: string; refCarId: string;
   /** Where the telemetry-mode edges and kerbs came from: the track survey (#97) or the compared laps; null in stand-in mode. */
-  edgeSource: "survey" | "laps" | null;
+  edgeSource: "survey" | "aerial" | "laps" | null;
 }
 
 export type LineSource = "gps" | "lateral";
 export type CarSync = "time" | "distance";
-/** "stand-in": the centreline +/- 7 m; "telemetry": edges and kerbs from the track survey when the track geometry has one (#97), else rebuilt from the laps' track_edge and kerb channels (#36, experimental). */
-export type EdgeSource = "stand-in" | "telemetry";
+/** "stand-in": the centreline +/- 7 m; "telemetry": edges and kerbs from the track survey when the track geometry has one (#97), else rebuilt from the laps' track_edge and kerb channels (#36, experimental); "aerial": from aerial imagery (vroom-ueg.8, experimental), the same as "telemetry" on a track without it. */
+export type EdgeSource = "stand-in" | "telemetry" | "aerial";
 export interface SceneOptions {
   source: LineSource; gpsHalf: number; edges?: EdgeSource;
   /** The track's survey from `api.trackGeometry`; null or absent when the track has none (or it is still loading). */
   survey?: TrackSurvey | null;
+  /** The track's edges from aerial imagery, used with edges "aerial". */
+  aerial?: AerialEdges | null;
   /** Whether the lap is valid: its wheels-off marks are then grey close calls, else red (vroom-pnw.24). Default valid. */
   lapValid?: boolean;
 }
@@ -196,7 +199,8 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
     ref = lineFromLateral(centre, cmp.ref.path_lateral, lineFromGps(refRaw, opts.gpsHalf));
   }
   const normals = normalsLeft(centre, NORMAL_HALF_M);
-  const telemetry = opts.edges === "telemetry";
+  const aerial = opts.edges === "aerial" ? opts.aerial ?? null : null;
+  const telemetry = opts.edges === "telemetry" || opts.edges === "aerial";
   let edges: [XY, XY] = [offsetLine(centre, EDGE_OFFSET_M), offsetLine(centre, -EDGE_OFFSET_M)];
   let edgeMeasured: Scene["edgeMeasured"] = null;
   let kerbs: Kerb[] = [];
@@ -204,7 +208,7 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
   let floorLeft: number | ArrayLike<number> = EDGE_OFFSET_M, floorRight: number | ArrayLike<number> = EDGE_OFFSET_M;
   if (telemetry) {
     let te: ReturnType<typeof edgeHalfWidths>;
-    const survey = opts.survey ?? null;
+    const survey = aerial ? aerialAsSurvey(aerial, opts.survey) : opts.survey ?? null;
     const place = (side: "left" | "right", start: number, end: number, width = KERB_W_M): XY => {
       const half = side === "left" ? te.left : te.right, sign = side === "left" ? 1 : -1;
       const m = end - start + 1;
@@ -266,7 +270,7 @@ export function buildScene(cmp: CompareResponse, opts: SceneOptions = { source: 
   return { lap, ref, centre, edges, edgeMeasured, kerbs, gain, slip, offTrack, surface, bounds: bounds([edges[0], edges[1], lap, ref]),
     lapDims: carDimsOrFallback(cmp.lap_car_dims), refDims: carDimsOrFallback(cmp.ref_car_dims),
     lapCarId: cmp.lap_car_id, refCarId: cmp.ref_car_id,
-    edgeSource: telemetry ? (usedSurvey ? "survey" : "laps") : null };
+    edgeSource: telemetry ? (usedSurvey ? (aerial ? "aerial" : "survey") : "laps") : null };
 }
 
 /**

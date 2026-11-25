@@ -21,6 +21,8 @@ import { buildElevationIndex, elevationProfile, EARTH_RADIUS_M, type ElevationIn
 import { mapSurvey, type SurveyFile } from "../../lib/trackSurvey";
 import { formatLapTime } from "../../lib/format";
 import { fetchSpaElevation, type ElevationLoader } from "./elevation";
+import { fetchSpaAerial, type AerialLoader } from "./aerial";
+import { mapAerial, type AerialFile } from "../../lib/aerialEdges";
 import { fetchSpaSurvey, type SurveyLoader } from "./survey";
 import { balanceForApi, compareBalance, runsForApi } from "../../lib/carBalance";
 import { fetchMonzaStint, fetchSpaRaceStint, splitStints, type StintFile, type StintLoader } from "./stint";
@@ -51,6 +53,8 @@ export interface MockOptions {
    * `loadSpa` or `loadMonza` is given. A failed or null load only means `survey` is null in the track geometry.
    */
   loadSurvey?: SurveyLoader;
+  /** Supplies Spa's edges and kerbs from aerial imagery (vroom-ueg.8). Default: fetch /mock/spa-aerial-2023.json, or none like `loadSurvey`. */
+  loadAerial?: AerialLoader;
   /**
    * Supplies the Monza race of 9 Nov 2026, a session with lap metadata and stint stats only (no 1 m traces). Default: fetch
    * /mock/monza-stint-2026-11-09.json, or no such session when a custom `loadSpa` or `loadMonza` is given. A failure to load it
@@ -307,6 +311,8 @@ export function createMockApi(opts: MockOptions = {}): Api {
   let elevationIndex: ElevationIndex | null = null;
   const loadSurvey: SurveyLoader = opts.loadSurvey ?? (custom ? async () => null : fetchSpaSurvey);
   let surveyFile: SurveyFile | null = null;
+  const loadAerial: AerialLoader = opts.loadAerial ?? (custom ? async () => null : fetchSpaAerial);
+  let aerialFile: AerialFile | null = null;
   const loadStint: StintLoader = opts.loadStint ?? (custom ? async () => null : fetchMonzaStint);
   const loadSpaRace: RecordingLoader | null = opts.loadSpaRace ?? (custom ? null : fetchSpaRace);
   const loadSpaRaceStint: StintLoader = opts.loadSpaRaceStint ?? (custom ? async () => null : fetchSpaRaceStint);
@@ -503,11 +509,13 @@ export function createMockApi(opts: MockOptions = {}): Api {
       Promise.all(tracks.map((t) => loaders[t]!())),
       loadElevation().catch(() => null),
       loadSurvey().catch(() => null),
+      loadAerial().catch(() => null),
       loadStint().catch(() => null),
       loadSpaRace ? Promise.all([loadSpaRace(), loadSpaRaceStint()]).then(([rec, stint]) => (stint ? { rec, stint } : null)).catch(() => null) : null,
-    ]).then(([loaded, elev, survey, stint, race]) => {
+    ]).then(([loaded, elev, survey, aerial, stint, race]) => {
       elevationIndex = elev ? buildElevationIndex(elev) : null;
       surveyFile = survey;
+      aerialFile = aerial;
       build(Object.fromEntries(tracks.map((t, i) => [t, loaded[i]])), stint, race);
     }).catch((e) => {
       ready = null;
@@ -586,6 +594,7 @@ export function createMockApi(opts: MockOptions = {}): Api {
       centre: { lat, lon },
       elevation_m: isSpa && elevationIndex ? elevationProfile(elevationIndex, lat, lon) : null,
       survey,
+      aerial: isSpa && aerialFile ? mapAerial(aerialFile, lat, lon) : null,
       coverage: survey ? { left: round3(share(survey.left_m)), right: round3(share(survey.right_m)) } : null,
       transform: {
         local: { kind: "equirectangular", earth_radius_m: EARTH_RADIUS_M, origin_lat_deg: 60, origin_lon_deg: 0 },

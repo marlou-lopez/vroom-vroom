@@ -1,0 +1,3 @@
+{"track": "Circuit de Spa-Francorchamps", "source": "wallonia", "bbox": [50.415, 5.94, 50.452, 5.99],
+ "recordings": ["frontend/public/mock/spa-2026-11-03.json", "frontend/public/mock/spa-race-2026-11-10.json"],
+ "survey": "frontend/public/mock/spa-survey-2026-11-06.json"}

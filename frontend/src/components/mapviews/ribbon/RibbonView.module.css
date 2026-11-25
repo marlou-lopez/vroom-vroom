@@ -62,3 +62,6 @@
   padding: 2px 8px; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius);
   font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--color-text);
 }
+
+/* The imagery credit its licence asks for, while its edges are drawn. */
+.credit { max-width: 320px; color: var(--color-muted); font-size: var(--font-size-stage); text-align: right; padding: 2px 6px; text-shadow: 0 0 3px var(--color-bg), 0 0 3px var(--color-bg); }

@@ -43,7 +43,7 @@ function median(v: number[]): number {
 }
 
 /** Maps world x/z to the nearest grid index of one lap's polyline (null beyond `maxM`). */
-function polylineMatcher(lat: ArrayLike<number>, lon: ArrayLike<number>, maxM: number) {
+export function polylineMatcher(lat: ArrayLike<number>, lon: ArrayLike<number>, maxM: number) {
   const n = lat.length;
   const px = new Float64Array(n), pz = new Float64Array(n);
   for (let i = 0; i < n; i++) {

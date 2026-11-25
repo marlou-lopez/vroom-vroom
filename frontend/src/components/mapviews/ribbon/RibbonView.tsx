@@ -15,6 +15,7 @@ import { ExperimentalTag, OptionRow, ViewOptions } from "../shared/ViewOptions";
 import { useBenchHud } from "../shared/useBenchHud";
 import { useGpuRenderer } from "../shared/useGpuRenderer";
 import { loadSetting, loadString, saveString } from "../shared/storage";
+import { loadEdgeSource } from "../shared/edgeSetting";
 import type { TrackViewProps } from "../types";
 import { dashAt } from "./dashValues";
 import { runRibbonBench, type RibbonBenchControl } from "./bench";
@@ -72,7 +73,9 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
   const store = usePlaybackStore();
   const debug = debugEnabled(import.meta.env.DEV, location.search);
   const { cmp } = model;
-  const scene = useMemo(() => buildScene(cmp, { source: "lateral", gpsHalf: 4, edges: "telemetry", survey: geometry?.survey }), [cmp, geometry]);
+  // Follows the detailed view's remembered choice of edges when that is the aerial imagery (vroom-ueg.8).
+  const [edges] = useState(() => (loadEdgeSource() === "aerial" ? "aerial" as const : "telemetry" as const));
+  const scene = useMemo(() => buildScene(cmp, { source: "lateral", gpsHalf: 4, edges, survey: geometry?.survey, aerial: geometry?.aerial }), [cmp, geometry, edges]);
   const marks = useMemo(() => ribbonMarks(cmp.lap, scene.centre.x.length, lapValid), [cmp, scene, lapValid]);
   const { heights, hasElevation } = useMemo(() => {
     const h = roadHeights(geometry?.elevation_m, scene.centre.x.length);
@@ -462,6 +465,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
             </button>
           </div>
         )}
+        {scene.edgeSource === "aerial" && geometry?.aerial && <div className={styles.credit}>Edges and kerbs (experimental): {geometry.aerial.attribution}</div>}
         {debug && showHud && hudText && <div className={styles.hud}>{hudText}</div>}
         {debug && rows.length > 0 && (
           <div className={styles.results}>
