@@ -54,3 +54,16 @@ def fixture(
         typer.echo(f"error: {err}", err=True)
         raise typer.Exit(1) from err
     typer.echo(f"Wrote {out} ({out.stat().st_size / 1e6:.2f} MB)")
+
+
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="Interface to listen on")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port; the frontend's dev proxy expects 8765")] = 8765,
+) -> None:
+    """Run the API (and the built frontend from frontend/dist, when it exists)."""
+    import uvicorn
+
+    from .api.app import create_app
+
+    uvicorn.run(create_app(), host=host, port=port)
