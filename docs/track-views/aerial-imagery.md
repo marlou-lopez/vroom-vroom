@@ -101,14 +101,16 @@ differs by more than 1.5 m from the median of its own seen line over +-150 m. A 
 about 1 m and 2 m beyond; seen stretches under 6 m go. No kerb is kept beside an edge that is more than half unseen (this removes the
 bridge kerb: the line is unseen under the bridge). Result: Spa coverage 95.7 % left and 96.5 % right (was 98.3 %), median error against
 the survey 0.18 m and 0.14 m, p90 0.41 m and 0.33 m. Monza: 96.0 % and 97.6 %, 24 kerb runs; the chicane cut (about 425 to 505 m,
-right) is unseen. All 17 pictures were looked at again: no seen edge is off the line by more than about 1 m (one borderline: left,
+left) is unseen. All 17 pictures were looked at again: no seen edge is off the line by more than about 1 m (one borderline: right,
 about 4,005 to 4,030 m, about 1 m too far out), and there is no kerb on the bridge.
 
 The app's Spa copy (`spa-aerial-2023.json`) was regenerated with the test. Limits of rule (b): where under 50 m of the +-150 m window is seen it cannot judge, and a wrong line longer than about 150 m is its own median; check pictures stay necessary on a new track (vroom-ueg.11).
 
-Kerb outcomes on Monza are not fixed by this issue: two false runs (left, about 3,900 m on run-off and about 4,728 m at a gantry
-pole), one clearly missed kerb (right, about 2,855 to 2,898 m), two missed small ones (about 2,135 to 2,175 m) and several kerbs only
+Kerb outcomes on Monza are not fixed by this issue: two false runs (right, about 3,900 m on run-off and about 4,728 m at a gantry
+pole), one clearly missed kerb (left, about 2,855 to 2,898 m), two missed small ones (about 2,135 to 2,175 m) and several kerbs only
 partly covered (about 957 to 1,050 m, 3,277 to 3,305 m, 4,110 to 4,150 m). So Monza stays out of the app.
+
+**Sides in the Monza pictures (vroom-17j).** The check pictures (`--crops`, `tools/aerial-edges/build.py`) are built as `np.concatenate([fine[0][:, ::-1], fine[1]], 1)`: left first, right last (`fine[0]` is sampled along `+normals_left`, `fine[1]` along `-normals_left`). `np.rot90` then turns the last column into the top row, so **the right side of travel is on top**, as vroom-ueg.11 found; the code has not changed since vroom-ueg.8. The Monza side labels above (vroom-ueg.10) were read with left on top and are swapped here: chicane cut left, borderline right at about 4,005 m, false runs right, missed kerb left. This is inferred from the code, not re-read from the pictures (the imagery cache is gone). Computed figures are unaffected (coverage 96.5 / 98.8 % and 96.0 / 97.6 %, the 25 and 24 kerb runs), as are the picture findings that name no side, and the verdict: Monza stays out of the app.
 
 ## Sources and licences per LMU track
 
