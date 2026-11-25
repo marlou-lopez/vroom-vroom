@@ -528,3 +528,48 @@ def test_coach_ideal_without_a_valid_lap_is_422(env):
             "command": "analyze", "lap_id": lap_id(3), "ref_lap_id": f"ideal:{SID}"}),
         422, "no_valid_laps",
     )
+
+
+def test_car_dims_from_cars_yaml(env):
+    """A car with car_dims in cars.yaml gets them in SessionMeta and compare; else null."""
+    c, store, _ = env
+    add_session(
+        store, OTHER, track_id="synth-ring-gp", car_id="mclaren-720s-gt3-evo", laps=[1],
+        car_name="McLaren",
+    )  # fmt: skip
+    by_id = {s["session_id"]: s for s in c.get("/api/sessions").json()}
+    dims = by_id[OTHER]["car_dims"]
+    assert dims is not None and dims["length_m"] > 4 and dims["width_m"] > 1.8
+    assert by_id[SID]["car_dims"] is None
+    body = c.get("/api/compare", params={"lap": lap_id(2), "ref": f"{OTHER[:12]}-001"}).json()
+    assert body["lap_car_dims"] is None and body["ref_car_dims"] == dims
+    body = c.get("/api/compare", params={"lap": f"{OTHER[:12]}-001", "ref": lap_id(2)}).json()
+    assert body["lap_car_dims"] == dims and body["ref_car_dims"] is None
+
+
+def test_car_dims_for_config(tmp_path: Path):
+    from racecoach.lmu.reader import car_dims_for
+
+    p = tmp_path / "cars.yaml"
+    p.write_text(
+        "car_dims:\n  a: {length_m: 4.5, width_m: 2.0, wheelbase_m: 2.7}\n  b: {length_m: 4.5}\n"
+        "  c: {length_m: 4.4, width_m: 1.9}\n",
+        encoding="utf-8",
+    )
+    assert car_dims_for("a", p) == {"length_m": 4.5, "width_m": 2.0, "wheelbase_m": 2.7}
+    assert car_dims_for("b", p) is None  # incomplete
+    assert car_dims_for("c", p) == {"length_m": 4.4, "width_m": 1.9}
+    assert car_dims_for("zzz", p) is None
+
+
+def test_car_dims_for_rejects_bad_values(tmp_path: Path):
+    from racecoach.lmu.reader import car_dims_for
+
+    p = tmp_path / "cars.yaml"
+    p.write_text(
+        "car_dims:\n  a: {length_m: 4.5, width_m: 2.0, wheelbase_m: x}\n"
+        "  b: {length_m: 0, width_m: 2.0}\n",
+        encoding="utf-8",
+    )
+    assert car_dims_for("a", p) is None
+    assert car_dims_for("b", p) is None
