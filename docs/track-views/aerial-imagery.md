@@ -89,11 +89,26 @@ Spa kerbs against the survey's kerb runs (wheel hits):
 - By eye on Spa's check pictures: short gaps where a kerb is faded green or in shadow (Les Combes 2, Bruxelles, Pouhon), and
   widths too large at La Source, the Bus Stop and at the start of the pit straight, where stripes run into paint.
 
-Monza (no survey to grade against): coverage 96.5 % left and 98.8 % right, edges a median of 0.18 m (left) and 0.37 m (right) from
-the recorded widths, 25 kerb runs. Five of its 17 check pictures were looked at. Wrong there: at the first chicane both edges cut
-across the escape road instead of following the line, partly marked as seen; a false kerb on the bridge over the track (about
-3,580 m); red, white and green kerbs break into pieces and come out too wide, and some apex kerbs are missed. So Monza is not
-served in the app.
+Monza (no survey to grade against), first run: coverage 96.5 % left and 98.8 % right, 25 kerb runs. The check pictures showed: at the
+first chicane both edges cut across the escape road instead of following the line, partly marked as seen; a false kerb on the bridge
+over the track (about 3,580 m); kerbs that break into pieces, come out too wide or are missed.
+
+**Confidence test (vroom-ueg.10, `tools/aerial-edges/confidence.py`, unit tests in `test_confidence.py`).** A traced line is written
+as unseen when (a) within 15 m of a recorded LMU width it differs from it by more than 4 m (after the constant width bias; loose on
+purpose, because on Spa the recorded width is itself 1-3 m off the painted line over about 250 m while the survey agrees with the
+line), or (b) further from any recording, where the width is only interpolated (and was wrong by metres on Monza's pit straight), it
+differs by more than 1.5 m from the median of its own seen line over +-150 m. A rejected run extends to where the line is back within
+about 1 m and 2 m beyond; seen stretches under 6 m go. No kerb is kept beside an edge that is more than half unseen (this removes the
+bridge kerb: the line is unseen under the bridge). Result: Spa coverage 95.7 % left and 96.5 % right (was 98.3 %), median error against
+the survey 0.18 m and 0.14 m, p90 0.41 m and 0.33 m. Monza: 96.0 % and 97.6 %, 24 kerb runs; the chicane cut (about 425 to 505 m,
+right) is unseen. All 17 pictures were looked at again: no seen edge is off the line by more than about 1 m (one borderline: left,
+about 4,005 to 4,030 m, about 1 m too far out), and there is no kerb on the bridge.
+
+The app's Spa copy (`spa-aerial-2023.json`) was regenerated with the test. Limits of rule (b): where under 50 m of the +-150 m window is seen it cannot judge, and a wrong line longer than about 150 m is its own median; check pictures stay necessary on a new track (vroom-ueg.11).
+
+Kerb outcomes on Monza are not fixed by this issue: two false runs (left, about 3,900 m on run-off and about 4,728 m at a gantry
+pole), one clearly missed kerb (right, about 2,855 to 2,898 m), two missed small ones (about 2,135 to 2,175 m) and several kerbs only
+partly covered (about 957 to 1,050 m, 3,277 to 3,305 m, 4,110 to 4,150 m). So Monza stays out of the app.
 
 ## Sources and licences per LMU track
 
@@ -138,10 +153,10 @@ and searches, to check before writing an adapter. The track list is as of Novemb
 ## Options
 
 1. **Keep as a fill** for surveyed tracks: the survey's contacts first, imagery where there are none. Most accurate, needs both.
-2. **Keep as the source for tracks without a survey**: no survey driving. Needs the Monza faults fixed and a look at the pictures per track.
+2. **Keep as the source for tracks without a survey**: no survey driving. The Monza edge faults are fixed (kerb faults remain, see above); each track still needs a look at its pictures.
 3. **Drop**: the survey stays the only source, two weave laps of about 8 minutes per track plus the capture session.
 
-**Recommendation: keep**, option 2 first (it removes the survey driving), experimental until the Monza faults are fixed and a third
+**Recommendation: keep**, option 2 first (it removes the survey driving), experimental until the Monza kerb faults are fixed and a third
 track is checked. Kerbs from imagery stay experimental until their ends can be judged against something better than wheel hits.
 
 ## Decision (autopilot)
