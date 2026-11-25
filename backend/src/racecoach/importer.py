@@ -71,7 +71,7 @@ def import_file(
         ):
             replaces = earlier[0].session_id
         store.add_session(
-            raw.meta, laps, copy, stats, source_path=src.resolve(), replaces=replaces
+            raw.meta, laps, copy, stats, raw.setup, source_path=src.resolve(), replaces=replaces
         )
         if replaces is not None and earlier is not None and earlier[1]:
             old = Path(earlier[1])
