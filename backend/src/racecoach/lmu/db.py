@@ -11,6 +11,15 @@ from pathlib import Path
 import duckdb
 
 
+def copy_with_wal(src: Path, dst: Path) -> None:
+    """Copy a recording and its write-ahead log, if LMU left one: rows that are only in the log
+    (the last laps of a recording LMU has not checkpointed) are lost without it."""
+    shutil.copy2(src, dst)
+    wal = src.with_name(src.name + ".wal")
+    if wal.is_file():
+        shutil.copy2(wal, dst.with_name(dst.name + ".wal"))
+
+
 @contextmanager
 def recording_copy_path(src: Path | str) -> Generator[Path]:
     """Copy a recording to a temp folder and yield the copy's path (deleted on exit)."""
@@ -19,7 +28,7 @@ def recording_copy_path(src: Path | str) -> Generator[Path]:
         raise FileNotFoundError(src)
     with tempfile.TemporaryDirectory(prefix="racecoach-") as tmp:
         copy = Path(tmp) / "recording.duckdb"
-        shutil.copy2(src, copy)
+        copy_with_wal(src, copy)
         yield copy
 
 

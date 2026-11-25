@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from racecoach.lmu.db import copy_with_wal
 from racecoach.lmu.laps import build_laps
 from racecoach.lmu.reader import file_sha1, read_lmu_duckdb
 from racecoach.model import LapSource
+from racecoach.stint import compute_stint_stats
 from racecoach.store import AppStore
 
 
@@ -40,16 +41,20 @@ def import_file(
     made_copy = not copy.exists()
     if made_copy:
         tmp = copy.with_suffix(".part")
-        shutil.copy2(src, tmp)
+        copy_with_wal(src, tmp)
         tmp.replace(copy)
+        if tmp.with_name(tmp.name + ".wal").exists():
+            tmp.with_name(tmp.name + ".wal").replace(copy.with_name(copy.name + ".wal"))
     try:
         raw = read_lmu_duckdb(copy, cars_config)
         if raw.meta.session_id != sha1:
             raise RuntimeError(f"{src} changed while it was being imported; try again")
         laps = build_laps(raw, source)
-        store.add_session(raw.meta, laps, copy)
+        stats = compute_stint_stats(raw, [lap for lap, _ in laps])
+        store.add_session(raw.meta, laps, copy, stats)
     except BaseException:
         if made_copy:
             copy.unlink(missing_ok=True)
+            copy.with_name(copy.name + ".wal").unlink(missing_ok=True)
         raise
     return ImportResult(raw.meta.session_id, True, len(laps))

@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS laps (
     pinned_reference BOOLEAN, source VARCHAR, driver VARCHAR, track_id VARCHAR, car_id VARCHAR,
     conditions VARCHAR
 );
+CREATE TABLE IF NOT EXISTS lap_stint_stats (
+    lap_id VARCHAR PRIMARY KEY, session_id VARCHAR, stats VARCHAR
+);
 CREATE TABLE IF NOT EXISTS llm_calls (
     id BIGINT PRIMARY KEY, ts TIMESTAMP, purpose VARCHAR, provider VARCHAR, model VARCHAR,
     input_tokens INTEGER, output_tokens INTEGER, cost_usd DOUBLE, ok BOOLEAN, lap_id VARCHAR,
@@ -101,7 +104,11 @@ class AppStore:
         return self.traces_dir / f"{lap_id}.parquet"
 
     def add_session(
-        self, meta: SessionMeta, laps: list[tuple[LapMeta, LapTrace]], raw_path: Path | str
+        self,
+        meta: SessionMeta,
+        laps: list[tuple[LapMeta, LapTrace]],
+        raw_path: Path | str,
+        stint_stats: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         """Insert a session, its laps and their traces. The metadata goes in one transaction;
         if anything fails, the trace files written for it are removed again."""
@@ -130,11 +137,23 @@ class AppStore:
                         json.dumps(lap.conditions),
                     ],
                 ))  # fmt: skip
+            for lap_id, stats in (stint_stats or {}).items():
+                stmts.append((
+                    "INSERT INTO lap_stint_stats VALUES (?,?,?)",
+                    [lap_id, meta.session_id, json.dumps(stats)],
+                ))  # fmt: skip
             self._transaction(stmts)
         except BaseException:
             for p in written:
                 p.unlink(missing_ok=True)
             raise
+
+    def stint_stats(self, session_id: str) -> dict[str, dict[str, Any]]:
+        """lap_id -> the stored per-lap stint stats (vroom-9ki.18); empty when there are none."""
+        rows = self.con.execute(
+            "SELECT lap_id, stats FROM lap_stint_stats WHERE session_id = ?", [session_id]
+        ).fetchall()
+        return {r[0]: json.loads(r[1]) for r in rows}
 
     def sessions(self) -> list[SessionMeta]:
         rows = self.con.execute(
