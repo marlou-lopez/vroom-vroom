@@ -14,9 +14,10 @@ and GitHub Issues is disabled. Before starting, run `bd ready --exclude-type epi
 `bd list --status in_progress,review` for work in flight. Each milestone is a Beads epic (`bd list -t
 epic`). Each issue stands on its own and lists its dependencies. Don't rely on this file for progress.
 
-This section only records facts that change rarely (last checked 2026-11-21):
+This section only records facts that change rarely (last checked 2026-11-25):
 - **Phase:** the frontend runs on a mock API serving real Spa and Monza recordings. The backend
-  hasn't been started, and there's no `backend/` directory yet.
+  is scaffolded (`backend/`, vroom-9ki.1: uv project, LMU rate, probe and fixture tools); the
+  telemetry model, reader and API are not built yet.
 - **Agreed order:** the **Track views** milestone (detailed 2D, then 3D) closed on 2026-11-12. Next
   are the remaining `v1 – UI on mock data` issues, then the `Analysis features` milestone (new analysis
   split out of v1 on 2026-11-07), then the backend (milestone `v2 – Real backend`, Tasks 1–13), then
@@ -54,11 +55,19 @@ This section only records facts that change rarely (last checked 2026-11-21):
 | `tools/lmu-recorder-channels.py` | Lists the channel names LMU's built-in recorder knows (read from the game exe) and diffs them with `config.json`: `python3 -I tools/lmu-recorder-channels.py [--check "<name>" ...]`. Re-run after an LMU update (vroom-pnw.16, `docs/lmu-channels.md`) |
 | `tools/optimize-car-model.mjs` | Command-line twin of the Car popover's in-browser converter: turns a downloaded car glTF (folder, zip, .gltf, .glb) into one small GLB for `frontend/public/local-models/`. Imports `frontend/src/components/mapviews/ribbon/convert/` (the shared drop list, settings and pipeline; needs `npm ci` in `frontend/`, and network once for `sharp`). Its output is never committed (#102, `docs/track-views/car-model.md`) |
 | `spikes/local-llm/` | Coach LLM bench, from the local-LLM spike (vroom-9ki.17): facts packets from any mock recording (`build-packets.mjs --track`), models in `models.json` (Ollama, OpenAI or any OpenAI-compatible host, Anthropic), number guard, prose and hedge checks, round-tagged runs, blind rating and scoring (`summarize.py`). Scripts, not tests: they call real models and spend money. Steps in its `README.md`, results in `docs/coach-llm/local-llm-spike.md` |
+| `backend/` | Python package `racecoach` (uv, typer CLI). `racecoach rates apply <config.json>` sets the six lap-grid channels to 50 Hz in LMU's recorder config (with a timestamped backup); `racecoach probe <file.duckdb>` prints a recording's layout as Markdown; `racecoach fixture <src> <dst> --laps 3` trims a recording into `tests/fixtures/spa_720s.duckdb` (under 5 MB: FLOAT channels are rounded (2 decimals; 4 for metre channels and brake force), but Lap Dist, G, GPS, GPS Time, DOUBLE columns and events are exact; `DriverName` and `SteamID` are blanked; the one fixture committed, `.gitignore` allows `backend/tests/fixtures/*.duckdb`). Recordings are always copied to a temp folder first (`lmu/db.py`) |
 | `docs/spec.md` | Product spec: goals, non-goals, milestones as Beads epics, order of work |
 | `.claude/dispatch-loop.json` | Dispatch Loop config: the quality commands `/dl:ship` runs |
 
-The planned backend is a Python package `racecoach` in `backend/` (uv, FastAPI, DuckDB,
-polars, Pydantic AI), serving `127.0.0.1:8765`.
+The backend is a Python package `racecoach` in `backend/` (uv, FastAPI, DuckDB,
+polars, Pydantic AI planned), to serve `127.0.0.1:8765`.
+
+## Backend commands (run in `backend/`)
+
+```bash
+uv run pytest && uv run ruff check && uv run pyright   # the backend's quality gate (CI job `backend`)
+uv run racecoach --help
+```
 
 ## Commands (run in `frontend/`)
 
