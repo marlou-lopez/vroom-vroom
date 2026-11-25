@@ -17,6 +17,8 @@ To refresh the app's copy: `--out ../../frontend/public/mock/spa-aerial-2023.jso
 
 ## Add a track
 
+The Le Mans blind check failed (write-up, vroom-ueg.11): a lap that OSM's `highway=raceway` does not cover (public roads) fails at the alignment. Check `coarse.osm_median_m` first.
+
 1. Find an open source (the table in the write-up). Esri, Google and Bing imagery may not be used: their terms forbid extraction.
 2. If it has no adapter: copy `sources/wallonia.py` (a map service that renders any box) or `sources/agea_2024.py` (fixed
    tiles). An adapter is one file with a `Source` subclass and `SOURCE = ...`: the projection (`crs`), `attribution`, `licence`,
