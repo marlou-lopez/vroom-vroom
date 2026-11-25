@@ -399,7 +399,7 @@ def test_geometry_without_derived_data(env):
     g = c.get("/api/tracks/synth-ring-gp/geometry").json()
     assert set(g) == {
         "track_id", "length_m", "centre", "elevation_m", "survey", "aerial", "coverage",
-        "transform",
+        "telemetry", "transform",
     }  # fmt: skip
     assert g["track_id"] == "synth-ring-gp" and g["length_m"] == 2000.0
     assert len(g["centre"]["lat"]) == len(g["centre"]["lon"]) == 2000
@@ -452,6 +452,7 @@ def test_geometry_with_elevation_survey_and_aerial(env):
     assert 295 <= s["kerbs"][0]["start_m"] <= 305 and 315 <= s["kerbs"][0]["end_m"] <= 325
     assert len(s["edge_points"]) == 1 and s["kerb_outer_points"] == []
     assert 0.45 < g["coverage"]["left"] < 0.55 and g["coverage"]["right"] == 0.0
+    assert g["telemetry"] is None  # a survey always wins over the fallback
     a = g["aerial"]
     assert a["attribution"] == "credit" and a["licence_url"] is None
     assert len(a["edge_points"]) == 1
