@@ -72,6 +72,7 @@ EVENTS: dict[str, str] = {
     "last_sector2": "Last Sector2",
     "in_pits": "In Pits",
     "current_sector": "Current Sector",
+    "wetness": "Minimum Path Wetness",  # emitted on change; one row (0) on a dry day
 }
 
 
