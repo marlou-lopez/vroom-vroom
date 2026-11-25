@@ -178,6 +178,73 @@ describe("one app Lap view", () => {
     box.remove();
   });
 
+  it("marks the session-best lap invalid and valid again from the menu, and the gaps follow (vroom-rga)", async () => {
+    renderAt("/");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    const lapSel = () => screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement;
+    const bestOpt = () => Array.from(lapSel().options).find((o) => /· best$/.test(o.textContent ?? ""));
+    const bestId = bestOpt()!.value;
+    await userEvent.selectOptions(lapSel(), bestId);
+    await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBe(bestId));
+    const menu = async () => {
+      await userEvent.click(await screen.findByRole("button", { name: /^More:/ }));
+      return screen.findByRole("dialog", { name: "More" });
+    };
+    await userEvent.click(within(await menu()).getByRole("button", { name: "Mark lap invalid" }));
+    await waitFor(() => {
+      const o = Array.from(lapSel().options).find((x) => x.value === bestId)!;
+      expect(o.textContent).toMatch(/\(invalid\)/);
+      expect(bestOpt()?.value).not.toBe(bestId);
+    });
+    await userEvent.click(within(await screen.findByRole("dialog", { name: "More" })).getByRole("button", { name: "Mark lap valid" }));
+    await waitFor(() => expect(bestOpt()?.value).toBe(bestId));
+    expect(Array.from(lapSel().options).find((x) => x.value === bestId)!.textContent).not.toMatch(/\(invalid\)/);
+  });
+
+  it("pins a lap as the reference and unpins it from the menu (vroom-rga)", async () => {
+    renderAt("/");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    const lapSel = () => screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement;
+    const target = Array.from(lapSel().options).find((o) => !/\(invalid\)|best/.test(o.textContent ?? ""))!.value;
+    await userEvent.selectOptions(lapSel(), target);
+    await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBe(target));
+    const open = async () => {
+      await userEvent.click(await screen.findByRole("button", { name: /^More:/ }));
+      return screen.findByRole("dialog", { name: "More" });
+    };
+    await userEvent.click(within(await open()).getByRole("button", { name: "Pin as reference" }));
+    // The pinned lap is now the default reference: compared with itself, and the reference control shows it from another lap.
+    await waitFor(() => expect(screen.getByRole("complementary", { name: "Where the time goes" }).textContent).toMatch(/This is the lap you compare with/));
+    await userEvent.keyboard("{Escape}");
+    const other = Array.from(lapSel().options).find((o) => o.value !== target)!.value;
+    await userEvent.selectOptions(lapSel(), other);
+    await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBe(other));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Your best lap" }).getAttribute("aria-pressed")).toBe("true"));
+    await userEvent.selectOptions(lapSel(), target);
+    await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBe(target));
+    await userEvent.click(await screen.findByRole("button", { name: /^More:/ }));
+    await userEvent.click(within(await screen.findByRole("dialog", { name: "More" })).getByRole("button", { name: "Unpin as reference" }));
+    await waitFor(() => expect(screen.getByRole("complementary", { name: "Where the time goes" }).textContent).not.toMatch(/This is the lap you compare with/));
+  });
+
+  it("unpins a pinned lap when it is marked invalid (vroom-rga)", async () => {
+    renderAt("/");
+    await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
+    const lapSel = () => screen.getByRole("combobox", { name: "Lap" }) as HTMLSelectElement;
+    const target = Array.from(lapSel().options).find((o) => !/\(invalid\)|best/.test(o.textContent ?? ""))!.value;
+    await userEvent.selectOptions(lapSel(), target);
+    await waitFor(() => expect(new URLSearchParams(loc.search).get("lap")).toBe(target));
+    await userEvent.click(await screen.findByRole("button", { name: /^More:/ }));
+    const menu = await screen.findByRole("dialog", { name: "More" });
+    await userEvent.click(within(menu).getByRole("button", { name: "Pin as reference" }));
+    await within(menu).findByRole("button", { name: "Unpin as reference" });
+    await userEvent.click(within(menu).getByRole("button", { name: "Mark lap invalid" }));
+    await within(menu).findByRole("button", { name: "Mark lap valid" });
+    expect(within(menu).getByRole("button", { name: "Pin as reference" })).toBeTruthy();
+    await userEvent.click(within(menu).getByRole("button", { name: "Mark lap valid" }));
+    await within(menu).findByRole("button", { name: "Mark lap invalid" });
+  });
+
   it("shows the lap from ?ref as the selected reference", async () => {
     renderAt("/");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
@@ -223,7 +290,7 @@ describe("one app Lap view", () => {
   it("puts Key, notes, Average and the coach in the ⋯ menu", async () => {
     renderAt("/");
     await screen.findByRole("complementary", { name: "Where the time goes" }, { timeout: 5000 });
-    await userEvent.click(screen.getByRole("button", { name: /More: key/ }));
+    await userEvent.click(screen.getByRole("button", { name: /^More:/ }));
     const menu = await screen.findByRole("dialog", { name: "More" });
     expect(within(menu).getByRole("button", { name: /^Hide notes/ })).toBeTruthy();
     expect(within(menu).getByRole("button", { name: /Average/ })).toBeTruthy();
