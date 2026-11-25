@@ -106,7 +106,7 @@ Source: a survey of 244 recordings (copies, read-only) and two in detail: `Autod
 | Wind Speed, Wind Heading | 1 | m/s, deg | |
 | Engine Oil Temp, Engine Water Temp | 7 | C | |
 
-**Events:** `TyresCompound` (four values, one per wheel; 0 on the GT3, 1 on the Hypercar; names unverified), `FuelMixtureMap` (1 on the GT3, 6 on the Hypercar), `Minimum Path Wetness` and `OffpathWetness` (%; 0 / false on dry days), `CloudDarkness`. Events are emitted on change, so a dry session has one row each.
+**Events:** `TyresCompound` (four values, one per wheel; 0 on the GT3, 1 on the Hypercar; names unverified), `FuelMixtureMap` (1 on the GT3, 6 on the Hypercar), `Minimum Path Wetness` and `OffpathWetness` (%; 0 / false on dry days), `CloudDarkness`. Events are emitted on change, so a dry session has one row each. Checked 2026-11-26 on all 287 local recordings: `Minimum Path Wetness` is a single row of 0 in 286 and absent in 1; no wet recording exists, so its scale in rain is unverified. The backend reads it into `LapMeta.conditions["path_wetness"]` (vroom-cy9).
 
 **In-car brake bias is recorded** (vroom-k5s.2): the event table `Brake Bias Rear` holds the rear share (0.4775 = 52.25:47.75 front:rear), with `Brake Migration` beside it. The first event of a recording equals the setup's `VM_BRAKE_BALANCE` in 242 of 246 recordings. 6 recordings have in-car changes (one click is 0.0025 on the GT3 and 0.0045 on the Toyota Hypercar), e.g. Spa practice 10 Nov 2026 20:25 (25 events) and Spa race 16 Nov 2026 01:13 (35). No `Brake Migration` change was seen. `tools/extract-laps.mjs` does not extract either yet.
 

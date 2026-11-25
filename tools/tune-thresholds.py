@@ -23,13 +23,17 @@ from racecoach.analysis import metrics as metrics_mod
 from racecoach.analysis.corners import detect_corners
 from racecoach.lmu.laps import build_laps
 from racecoach.lmu.reader import read_lmu_duckdb
-from racecoach.model import LapKind, LapTrace
+from racecoach.model import LapKind, LapMeta, LapTrace
 from racecoach.tracks import Corner, TrackMap, draft_map
 
 BRAKE_ON = 0.1
 
 
-def load(path: str) -> tuple[str, list[LapTrace], dict[str, float]]:
+WET = 0.0  # a lap is wet when its path_wetness (Minimum Path Wetness, LMU's units) is above this
+
+
+def load(path: str) -> tuple[str, list[LapTrace], dict[str, float], list[LapTrace]]:
+    """(label, dry laps, conditions of the best lap, wet laps); wet laps are kept apart."""
     raw = read_lmu_duckdb(path)
     laps = build_laps(raw)
     flying = [
@@ -38,13 +42,20 @@ def load(path: str) -> tuple[str, list[LapTrace], dict[str, float]]:
         if m.kind == LapKind.FLYING and m.effective_valid and m.lap_time_s
     ]
     flying.sort(key=lambda mt: mt[0].lap_time_s or 1e9)
-    # Drop slow laps (traffic, mistakes): within 107 % of the best.
-    if flying:
-        best = flying[0][0].lap_time_s or 0
-        flying = [mt for mt in flying if (mt[0].lap_time_s or 0) <= best * 1.07]
-    cond = flying[0][0].conditions if flying else {}
     label = f"{raw.meta.track_id[:22]} / {raw.meta.car_class} / {raw.meta.car_id[:18]}"
-    return label, [t for _, t in flying], cond
+
+    def clean(group: list[tuple[LapMeta, LapTrace]]) -> list[tuple[LapMeta, LapTrace]]:
+        # Drop slow laps (traffic, mistakes): within 107 % of the group's best.
+        if not group:
+            return group
+        best = group[0][0].lap_time_s or 0
+        return [mt for mt in group if (mt[0].lap_time_s or 0) <= best * 1.07]
+
+    is_wet = lambda m: m.conditions.get("path_wetness", 0.0) > WET  # noqa: E731
+    dry = clean([mt for mt in flying if not is_wet(mt[0])])  # each group against its own best
+    wet = clean([mt for mt in flying if is_wet(mt[0])])
+    cond = dry[0][0].conditions if dry else {}
+    return label, [t for _, t in dry], cond, [t for _, t in wet]
 
 
 def corners_of(tmap: TrackMap) -> list[Corner]:
@@ -257,8 +268,13 @@ def susp_check(sessions: dict[str, tuple[list[LapTrace], TrackMap]]) -> list[str
 
 def main(paths: list[str]) -> None:
     sessions: dict[str, tuple[list[LapTrace], TrackMap]] = {}
+    n_wet = 0
     for p in paths:
-        label, laps, cond = load(p)
+        label, laps, cond, wet_laps = load(p)
+        n_wet += len(wet_laps)
+        if len(wet_laps) >= 3:  # wet laps get their own rows, never mixed with the dry ones
+            wlabel = label + " [wet]"
+            sessions[wlabel + f" ({Path(p).stem[-20:]})"] = (wet_laps, draft_map(wlabel, wet_laps[0]))
         if len(laps) < 3:
             print(f"skip {Path(p).name}: {len(laps)} usable laps", file=sys.stderr)
             continue
@@ -269,6 +285,7 @@ def main(paths: list[str]) -> None:
         wet = {k: round(v, 2) for k, v in cond.items() if "wet" in k or "rain" in k or "track" in k}
         print(f"loaded {key}: {len(laps)} laps, {len(tmap.corners)} corners {wet}", file=sys.stderr)
         sessions[key] = (laps, tmap)
+    print(f"Wet flying laps found (Minimum Path Wetness > {WET}): {n_wet}\n")
     print("## Steering corrections: parameter grid (all recordings)\n")
     print("\n".join(steering_table(sessions)))
     print("\n## Steering corrections by the corner's largest steering\n")
