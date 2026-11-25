@@ -390,8 +390,11 @@ export function createThreeRibbon(host: HTMLElement, events: RibbonEvents): Ribb
       for (const m of lineMats) m.resolution.set(viewport.w, viewport.h);
       world.scale.y = exag;
       for (const m of roadMeshes) m.visible = roadVisible;
-      groundScene = { centre: sc.centre, edges: sc.edges, origin: sc.origin, heights };
-      ground?.setScene(groundScene);
+      // Marks can change without the road (lap validity): the terrain is only rebuilt when the road or its heights did.
+      if (groundScene?.centre !== sc.centre || groundScene.edges !== sc.edges || groundScene.heights !== heights) {
+        groundScene = { centre: sc.centre, edges: sc.edges, origin: sc.origin, heights };
+        ground?.setScene(groundScene);
+      }
     },
     setGround(g) {
       ground?.dispose();

@@ -164,7 +164,7 @@ track is checked. Kerbs from imagery stay experimental until their ends can be j
 cockpit cameras, in place and at an acceptable cost?
 
 **Answer:** yes on Spa for run-off, grass, gravel and painted areas, which sit in place. Buildings and trees are flat pictures. Ground height is
-the weak point: real terrain can leave the track's level by 7 m only 30 m away, and an open terrain model fits LMU's heights to a few centimetres.
+the weak point: real terrain can leave the track's level by 7 m only 30 m away, and an open terrain model fits LMU's heights to 4 cm at the median (18 cm at most, 28 points).
 
 **Status:** experimental, off by default, dev server only. 3D view, View options, **Ground (experimental)**. The photo's credit is shown while it is drawn.
 
@@ -194,36 +194,39 @@ a line is visible. The search starts from the drawn edge (a wide prior, sigma 3 
 | | Eau Rouge | 100 %, 0.01 / 0.06 / 0.08 | 100 %, 0.01 / 0.06 / 0.10 |
 | | Bus Stop | 100 %, 0.03 / 0.22 / 0.44 | 98 %, 0.01 / 0.05 / 0.42 |
 
-- **Within 1 m, with one exception**: with survey edges, 58 m on the right are off (99.2 % of the lap's right side is inside 1 m), nearly all at the
+- **Edges within 1 m, with one exception**: with survey edges, 58 m on the right are off (99.2 % of the lap's right side is inside 1 m), nearly all at the
   exit of La Source (from about 347 m). The survey has no contacts there (11 to 17 m to the nearest for most of it) and falls back on LMU's width,
-  so the drawn edge is off, not the photo. The aerial edges follow the paint there.
+  so the drawn edge is probably off, not the photo. (The aerial edges follow the paint there, but they come from the same photo.)
 - The aerial rows come from the same photo and fit: they check the placing of the tiles, not the fit. The survey rows do test the fit.
-- Kerbs: their inner side is drawn on the edge, so the sideways figures hold for them; they were not measured apart. Their ends are about 2 m off
-  (first part), and Spa's are red and yellow in the photo.
+- **Kerbs**: across the track, the inner side of the photo's striped band lies 0.2 to 0.4 m (survey) or 0.1 to 0.2 m (aerial) from the drawn kerb's at the three
+  corners, and within 1 m on every run checked: 19 survey runs (median 0.3 m) and 25 aerial runs (0.2 m) of 12 m or longer. Runs whose photo shows no
+  stripes, and shorter ones, are left out. Their ends are about 2 m off along the track (first part), and Spa's are red and yellow in the photo.
+- The measuring scripts for this section were not kept in the repo.
 - By eye: chase, cockpit and top pictures at the three corners, from headless Chromium driven by Playwright, the road hidden in the top ones.
   They hold imagery, so they are not committed.
 
 ## Cost
 
 The benchmark HUD, uncapped frame rate, in headless Chromium on this machine's integrated AMD GPU (Mesa D3D12 under WSL). Window 2400 x 1500, 3D panel
-787 x 1294. One run per column: frames per second (p95 ms of a frame; p95 ms of the draw call).
+787 x 1294. Interleaved runs (`main` = c44cb87, off, on; three rounds). Values: median frames per second (p95 ms of a frame; p95 ms of the draw call), then
+the range of the frame rates. The first `main` run did not finish, so `main` has two.
 
-| Phase | `main` | Off | Off, again | Off, third | On |
-|---|---|---|---|---|---|
-| follow | 241 (6.4; 0.4) | 182 (11.0; 0.7) | 224 (6.8; 0.4) | 174 (13.3; 0.6) | 245 (7.4; 0.8) |
-| scrub | 253 (7.0; 0.4) | 184 (10.5; 0.6) | 201 (8.4; 0.4) | 171 (13.9; 0.7) | 242 (7.2; 1.0) |
-| orbit | 310 (5.8; 0.3) | 265 (6.7; 0.4) | 222 (6.8; 0.4) | 186 (12.8; 0.7) | 270 (6.3; 0.7) |
-| cockpit | 204 (8.2; 1.0) | 197 (7.5; 1.1) | 202 (7.5; 0.9) | 146 (15.0; 2.2) | 194 (8.3; 1.8) |
-| split | 267 (6.9; 0.5) | 237 (8.0; 0.6) | 240 (8.2; 0.6) | 256 (6.5; 0.5) | 245 (6.5; 0.8) |
-| split-cockpit | 159 (8.8; 1.7) | 164 (7.7; 1.6) | 152 (9.9; 2.4) | 147 (8.6; 1.8) | 125 (18.1; **10.7**) |
-| Draw calls, triangles (end of run) | 10, 192k | 10, 192k | 10, 192k | 10, 192k | 21, 209k |
-| Textures on the GPU | not shown | 12 | 12 | 12 | 177 |
-| GPU memory of the ground | | 0 | 0 | 0 | 131 MB textures, 9 MB mesh |
+| Phase | `main` (2 runs) | Off (3) | On (3) |
+|---|---|---|---|
+| follow | 250 (5.9; 0.4), 237-263 | 257 (5.7; 0.4), 244-267 | 243 (6.0; 0.7), 241-247 |
+| scrub | 238 (6.3; 0.3), 226-250 | 240 (6.1; 0.3), 239-243 | 242 (6.4; 0.8), 218-264 |
+| orbit | 240 (6.2; 0.4), 219-262 | 256 (5.5; 0.3), 255-280 | 293 (5.6; 0.8), 231-306 |
+| cockpit | 207 (7.0; 0.9), 195-219 | 216 (5.3; 0.8), 214-218 | 212 (5.7; 1.6), 206-216 |
+| split | 279 (6.2; 0.5), 275-282 | 286 (5.8; 0.4), 284-289 | 249 (6.3; 0.8), 248-254 |
+| split-cockpit | 161 (8.0; 1.8), 161-161 | 161 (9.4; 3.0), 159-166 | 141 (**17.1; 11.5**), **82-145** |
+| Draw calls, triangles (end of run) | 10, 192k | 10, 192k | 21, 209k |
+| Textures on the GPU | not shown | 12 | 177 |
+| GPU memory of the ground | | 0 | 131 MB textures, 9 MB mesh |
 
-- **Other work was running on the machine**, and the runs with the ground off differ by up to 40 %, so only the split cockpit's drop and the higher draw
-  times count as an effect of the ground. Every phase stays above 60 fps on average, but the split cockpit's p95 (18 ms) is over a 60 Hz frame.
-  In a smaller panel (467 x 698) the split cockpit's draw p95 was 5.2 ms on against 2.1 ms off.
-- **Off does the same work as `main`** (c44cb87): the same draw calls and triangles, and nothing is fetched or created. The frame rates scatter too much to prove more.
+- **Off costs what `main` costs**: the same frame rates, draw calls and triangles; nothing is fetched or created.
+- **On** only shows in the split views: split cockpit (four passes, with both mirrors) drops from 161 to 141 fps, with p95 17 ms, over a 60 Hz frame,
+  and one of the three runs was much worse (82 fps, p95 42 ms). The draw call itself costs about 8 ms more there at p95.
+- Earlier single runs, taken while other work used the machine, scattered by up to 40 % and are not used.
 - **Memory** is computed (RGBA with mipmaps), as WebGL does not report it. A compressed texture format (KTX2) should cut it to a quarter or less; not tried.
 - Turning it on, or changing the lap while it is on, blocks once for about a second while the heights are computed (0.9 s for 92 of the 165 tiles, in node,
   machine loaded). A worker, or a mesh built by the tool, would remove that. The tiles then upload one by one.
@@ -241,7 +244,7 @@ it for 252 points:
 | 75 m beside | median 9.0 m, p90 17 m, max 30 m |
 | 150 m beside | median 16 m, p90 30 m, max 48 m |
 
-- LMU's Spa has the real heights, and the alignment of the first part holds for them.
+- At these 28 points LMU's Spa has the real heights. They are only a weak test of the sideways alignment.
 - "Level with the track" is fine for the first 10 m and wrong beyond. **Worth a follow-up**: the tool would write a height per mesh node (4 m grid) into
   the manifest, which also removes the one-second stop. The bare-earth model has no buildings or trees; SPW's surface model (MNS) has, as rough shapes.
 - Its licence was not read here: do that first. Point queries are too slow for a 4 m grid (over 100,000 nodes); a download or raster export is needed.
@@ -261,3 +264,18 @@ it for 252 points:
 3. **Drop**: the plain grass strip stays; the write-up and the terrain finding remain.
 
 **Recommendation: keep (option 1).** Off it does no work, on it shows run-off and paint where they are, and the terrain model is the clear next step.
+
+## Decision (autopilot)
+
+**Keep, as experimental: off by default, dev server only, Spa only** (Opus judge, 2026-11-25; the user may overrule).
+
+- It serves the spec's 3D goal with public data, and the ribbon stays procedural. Run-off, grass and paint read clearly at Eau Rouge and the Bus Stop. It adds
+  little at La Source, where the ground goes to a flat, blurred horizon. Placement is good; ground height is what limits it.
+- Off it costs nothing. The gaps are separable follow-ups, so not "change".
+- Not the default and not in a build while the one-second stop, the 131 MB and the split cockpit's p95 stand. Drawing only: never input to the coach,
+  metrics or landmarks.
+- **Criterion 2 (within about 1 m at the three corners): met, with a recorded exception.** The right side of La Source's exit, with survey edges, is up to 2.27 m
+  off (58 m of the lap), where the survey has no contacts. 17 % of La Source's left has no visible line, and kerb ends are not claimed within 1 m.
+- **Licence**: accepted for SPW and Spa only, tiles generated by each user and kept on their machine, with the credit shown. Never commit, ship, host or serve
+  tiles, screenshots or compressed copies. Reading the viewing service's terms as allowing about 200 tiles once is this project's interpretation; the user
+  should confirm it. No ground for Monza before vroom-ueg.12. No bulk terrain download before its licence is read.

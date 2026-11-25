@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -23,6 +24,7 @@ import sources
 
 TILE_M = 128
 FINE_M, COARSE_M = 0.25, 1.0
+OURS = re.compile(r"ground\.json|-?\d+_-?\d+\.jpg")
 NEAR_M = 20  # a tile this close to the centreline is fine
 
 
@@ -68,11 +70,13 @@ def main(argv: list[str]) -> None:
         import terrain
         return terrain.check(cfg, local, t, centre, a.terrain, a.cache)
     out = a.out or build.REPO / "frontend/public/local-ground" / cfg["track_id"]
-    if out.exists():
-        if not (out / "ground.json").exists() and any(out.iterdir()):
-            raise SystemExit(f"{out} is not empty and has no ground.json: not overwriting it")
-        shutil.rmtree(out)
-    out.mkdir(parents=True)
+    work = out.with_name(out.name + ".part")  # swapped in at the end, so an interrupted run leaves the old output alone
+    for d in (out, work):
+        if d.exists() and any(not OURS.fullmatch(f.name) for f in d.iterdir()):
+            raise SystemExit(f"{d} holds other files than this tool writes: not replacing it")
+    if work.exists():
+        shutil.rmtree(work)
+    work.mkdir(parents=True)
     to_src = Transformer.from_crs(local, src.crs, always_xy=True)
     tiles, size = [], 0
     picked = pick_tiles(centre, a.reach)
@@ -86,14 +90,17 @@ def main(argv: list[str]) -> None:
         f = round(res / FINE_M)
         im = im.reshape(n // f, f, n // f, f, 3).mean((1, 3))
         name = f"{i}_{k}.jpg"
-        Image.fromarray(im.round().clip(0, 255).astype(np.uint8)).save(out / name, quality=82)
-        size += (out / name).stat().st_size
+        Image.fromarray(im.round().clip(0, 255).astype(np.uint8)).save(work / name, quality=82)
+        size += (work / name).stat().st_size
         tiles.append({"file": name, "x": i * TILE_M, "z": k * TILE_M, "px": n // f})
         if done % 20 == 0:
             print(f"{done + 1}/{len(picked)}", flush=True)
-    (out / "ground.json").write_text(json.dumps({
+    (work / "ground.json").write_text(json.dumps({
         "version": 1, "track": cfg["track"], "attribution": src.imagery_attribution + " (modified: resampled)",
         "licence": src.licence, "licence_url": src.licence_url, "source_url": src.source_url,
         "tile_m": TILE_M, "reach_m": a.reach, "fit": {"scale": t[0], "rotation_rad": t[1], **fit}, "tiles": tiles}))
+    if out.exists():
+        shutil.rmtree(out)
+    work.rename(out)
     fine = sum(1 for v in tiles if v["px"] == n)
     print(f"wrote {len(tiles)} tiles ({fine} at 25 cm, {len(tiles) - fine} at 1 m), {size / 1e6:.1f} MB, to {out}")

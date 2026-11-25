@@ -40,15 +40,19 @@ def check(cfg: dict, local: str, t, centre: np.ndarray, step: int, cache: Path) 
     nn = fr.normals_left(centre, 4)
     f = cache / "terrain_wallonia.json"
     known = json.loads(f.read_text()) if f.exists() else {}
-    rows = []
+    rows: list = []
     for m in range(0, len(centre), step):
+        row = [float(pts[tree.query(centre[m])[1], 2])]
         for off in OFFSETS:
-            key = f"{m}_{off}"
+            x, y = to_dtm.transform(*fr.apply(t, (centre[m] + off * nn[m])[None])[0])
+            key = f"{x:.2f},{y:.2f}"  # the place asked for, so another fit or track never reads old answers
             if key not in known:
-                loc = fr.apply(t, (centre[m] + off * nn[m])[None])[0]
-                known[key] = height(*to_dtm.transform(*loc))
-                f.write_text(json.dumps(known))
-        rows.append([float(pts[tree.query(centre[m])[1], 2])] + [np.nan if known[f"{m}_{o}"] is None else known[f"{m}_{o}"] for o in OFFSETS])
+                got = height(x, y)
+                if got is not None:  # a failed lookup is tried again next time
+                    known[key] = got
+                    f.write_text(json.dumps(known))
+            row.append(known.get(key, np.nan))
+        rows.append(row)
     v = np.array(rows)
     d = v[:, 1] - v[:, 0]
     off = np.nanmedian(d)

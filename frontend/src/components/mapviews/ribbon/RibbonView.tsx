@@ -298,14 +298,15 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
 
   // The ground texture: its manifest is only fetched while the toggle is on.
   const trackId = geometry?.track_id ?? null;
+  const groundTrack = ground?.manifest ? ground.trackId : null; // a found manifest is kept, a missing one is asked for again
   useEffect(() => {
-    if (!groundOn || !trackId) return;
+    if (!groundOn || !trackId || groundTrack === trackId) return;
     const abort = new AbortController();
     void loadGround(trackId, abort.signal).then((manifest) => {
       if (!abort.signal.aborted) setGround({ trackId, manifest });
     });
     return () => abort.abort();
-  }, [groundOn, trackId]);
+  }, [groundOn, trackId, groundTrack]);
   const manifest = groundOn && ground && ground.trackId === trackId ? ground.manifest : null;
   useEffect(() => {
     const next = manifest && trackId ? { manifest, baseUrl: groundUrl(trackId) } : null;
@@ -385,6 +386,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
     if (v !== "on" && v !== "off") return;
     saveString(GROUND_KEY, v === "on" ? "1" : "0");
     setGroundOn(v === "on");
+    if (v === "off" && !roadVisibleRef.current) toggleRoad(); // its button goes away with the ground
   };
 
   const toggleRoad = () => {
