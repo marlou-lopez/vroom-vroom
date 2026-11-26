@@ -3,233 +3,233 @@ length_m: 6979.79
 corners:
 - id: lasource
   name: La Source
-  start_m: 79.0
-  apex_m: 279.0
-  end_m: 429.0
+  start_m: 95.0
+  apex_m: 280.0
+  end_m: 396.0
   complex: null
-  approx: true
+  approx: false
 - id: eaurouge
   name: Eau Rouge
-  start_m: 707.0
-  apex_m: 907.0
-  end_m: 958.0
+  start_m: 698.0
+  apex_m: 898.0
+  end_m: 960.0
   complex: Raidillon
-  approx: true
+  approx: false
 - id: raidillon
   name: Raidillon
-  start_m: 958.0
-  apex_m: 1008.0
-  end_m: 1158.0
+  start_m: 960.0
+  apex_m: 1022.0
+  end_m: 1122.0
   complex: Raidillon
-  approx: true
+  approx: false
 - id: lescombes1
   name: Les Combes 1
-  start_m: 2109.0
-  apex_m: 2309.0
-  end_m: 2354.0
+  start_m: 2107.0
+  apex_m: 2296.0
+  end_m: 2346.0
   complex: Les Combes
-  approx: true
+  approx: false
 - id: lescombes2
   name: Les Combes 2
-  start_m: 2354.0
-  apex_m: 2400.0
-  end_m: 2550.0
+  start_m: 2346.0
+  apex_m: 2397.0
+  end_m: 2465.0
   complex: Les Combes
-  approx: true
+  approx: false
 - id: bruxelles
   name: Bruxelles
-  start_m: 2742.0
-  apex_m: 2942.0
-  end_m: 3061.0
+  start_m: 2746.0
+  apex_m: 2932.0
+  end_m: 3056.0
   complex: null
-  approx: true
+  approx: false
 - id: t9
   name: T9
-  start_m: 3061.0
-  apex_m: 3180.0
-  end_m: 3330.0
+  start_m: 3057.0
+  apex_m: 3183.0
+  end_m: 3289.0
   complex: null
-  approx: true
+  approx: false
 - id: pouhon1
   name: Pouhon 1
-  start_m: 3526.0
-  apex_m: 3726.0
-  end_m: 3868.0
+  start_m: 3544.0
+  apex_m: 3740.0
+  end_m: 3842.0
   complex: Pouhon
-  approx: true
+  approx: false
 - id: pouhon2
   name: Pouhon 2
-  start_m: 3868.0
-  apex_m: 4010.0
-  end_m: 4160.0
+  start_m: 3842.0
+  apex_m: 3945.0
+  end_m: 4045.0
   complex: Pouhon
-  approx: true
+  approx: false
 - id: fagnes1
   name: Fagnes 1
-  start_m: 4205.0
-  apex_m: 4400.0
-  end_m: 4470.0
+  start_m: 4201.0
+  apex_m: 4401.0
+  end_m: 4476.0
   complex: Fagnes
-  approx: true
+  approx: false
 - id: fagnes2
   name: Fagnes 2
-  start_m: 4470.0
-  apex_m: 4539.0
-  end_m: 4680.0
+  start_m: 4476.0
+  apex_m: 4552.0
+  end_m: 4670.0
   complex: Fagnes
-  approx: true
+  approx: false
 - id: stavelot
   name: Stavelot
-  start_m: 4680.0
-  apex_m: 4821.0
-  end_m: 4922.0
+  start_m: 4687.0
+  apex_m: 4822.0
+  end_m: 4899.0
   complex: null
-  approx: true
+  approx: false
 - id: paulfrere
   name: Paul Frère
-  start_m: 4922.0
-  apex_m: 5022.0
-  end_m: 5172.0
+  start_m: 4899.0
+  apex_m: 4976.0
+  end_m: 5076.0
   complex: null
-  approx: true
+  approx: false
 - id: blanchimont
   name: Blanchimont
-  start_m: 5825.0
-  apex_m: 6025.0
-  end_m: 6175.0
+  start_m: 5947.0
+  apex_m: 6069.0
+  end_m: 6169.0
   complex: null
-  approx: true
+  approx: false
 - id: busstop
   name: Bus Stop
-  start_m: 6469.0
-  apex_m: 6669.0
-  end_m: 6819.0
+  start_m: 6407.0
+  apex_m: 6622.0
+  end_m: 6788.0
   complex: Bus Stop
-  approx: true
+  approx: false
 landmarks:
 - id: lasource-board150
   label: 150 board
   kind: brake_board
-  distance_m: -21.0
+  distance_m: -20.0
   corner_id: lasource
   confidence: low
 - id: lasource-board100
   label: 100 board
   kind: brake_board
-  distance_m: 29.0
+  distance_m: 30.0
   corner_id: lasource
   confidence: low
 - id: lasource-board50
   label: 50 board
   kind: brake_board
-  distance_m: 79.0
+  distance_m: 80.0
   corner_id: lasource
   confidence: low
 - id: lescombes1-board150
   label: 150 board
   kind: brake_board
-  distance_m: 2009.0
+  distance_m: 1996.0
   corner_id: lescombes1
   confidence: low
 - id: lescombes1-board100
   label: 100 board
   kind: brake_board
-  distance_m: 2059.0
+  distance_m: 2046.0
   corner_id: lescombes1
   confidence: low
 - id: lescombes1-board50
   label: 50 board
   kind: brake_board
-  distance_m: 2109.0
+  distance_m: 2096.0
   corner_id: lescombes1
   confidence: low
 - id: bruxelles-board150
   label: 150 board
   kind: brake_board
-  distance_m: 2642.0
+  distance_m: 2632.0
   corner_id: bruxelles
   confidence: low
 - id: bruxelles-board100
   label: 100 board
   kind: brake_board
-  distance_m: 2692.0
+  distance_m: 2682.0
   corner_id: bruxelles
   confidence: low
 - id: bruxelles-board50
   label: 50 board
   kind: brake_board
-  distance_m: 2742.0
+  distance_m: 2732.0
   corner_id: bruxelles
   confidence: low
 - id: t9-board150
   label: 150 board
   kind: brake_board
-  distance_m: 2961.0
+  distance_m: 2964.0
   corner_id: t9
   confidence: low
 - id: t9-board100
   label: 100 board
   kind: brake_board
-  distance_m: 3011.0
+  distance_m: 3014.0
   corner_id: t9
   confidence: low
 - id: t9-board50
   label: 50 board
   kind: brake_board
-  distance_m: 3061.0
+  distance_m: 3064.0
   corner_id: t9
   confidence: low
 - id: pouhon1-board150
   label: 150 board
   kind: brake_board
-  distance_m: 3426.0
+  distance_m: 3440.0
   corner_id: pouhon1
   confidence: low
 - id: pouhon1-board100
   label: 100 board
   kind: brake_board
-  distance_m: 3476.0
+  distance_m: 3490.0
   corner_id: pouhon1
   confidence: low
 - id: pouhon1-board50
   label: 50 board
   kind: brake_board
-  distance_m: 3526.0
+  distance_m: 3540.0
   corner_id: pouhon1
   confidence: low
 - id: fagnes1-board150
   label: 150 board
   kind: brake_board
-  distance_m: 4105.0
+  distance_m: 4106.0
   corner_id: fagnes1
   confidence: low
 - id: fagnes1-board100
   label: 100 board
   kind: brake_board
-  distance_m: 4155.0
+  distance_m: 4156.0
   corner_id: fagnes1
   confidence: low
 - id: fagnes1-board50
   label: 50 board
   kind: brake_board
-  distance_m: 4205.0
+  distance_m: 4206.0
   corner_id: fagnes1
   confidence: low
 - id: busstop-board150
   label: 150 board
   kind: brake_board
-  distance_m: 6369.0
+  distance_m: 6322.0
   corner_id: busstop
   confidence: low
 - id: busstop-board100
   label: 100 board
   kind: brake_board
-  distance_m: 6419.0
+  distance_m: 6372.0
   corner_id: busstop
   confidence: low
 - id: busstop-board50
   label: 50 board
   kind: brake_board
-  distance_m: 6469.0
+  distance_m: 6422.0
   corner_id: busstop
   confidence: low
