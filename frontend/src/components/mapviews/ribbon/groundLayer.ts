@@ -1,5 +1,5 @@
 import { BufferAttribute, BufferGeometry, Group, LinearMipmapLinearFilter, Mesh, MeshBasicMaterial, SRGBColorSpace, Texture, type WebGLRenderer } from "three";
-import { buildGroundTile, buildTerrain, textureBytes, type GroundManifest, type GroundTile, type TrackLines } from "./ground";
+import { buildGroundTile, buildTerrain, textureBytes, loadTerrain, type GroundManifest, type GroundTile, type TerrainGrid, type TrackLines } from "./ground";
 
 const PARALLEL = 4;
 const ANISOTROPY = 8;
@@ -16,6 +16,9 @@ export class GroundLayer {
   private readonly abort = new AbortController();
   private scene: GroundScene | null = null;
   private terrain: ReturnType<typeof buildTerrain> | null = null;
+  /** The terrain model's heights, once read; the ground follows the track heights until then or without them. */
+  private grid: TerrainGrid | null = null;
+  private gridFailed = false;
   private geometryBytes = 0;
   private readonly gl: WebGLRenderer;
   private readonly manifest: GroundManifest;
@@ -27,13 +30,23 @@ export class GroundLayer {
     this.onNeedsDraw = onNeedsDraw;
     const queue = [...manifest.tiles];
     for (let i = 0; i < PARALLEL; i++) void this.run(queue, baseUrl);
+    if (manifest.terrain) {
+      void loadTerrain(baseUrl, manifest.terrain, this.abort.signal).then((g) => {
+        if (this.abort.signal.aborted) return;
+        if (!g) this.gridFailed = true; // the file is not usable: the ground follows the track heights, as without it
+        this.grid = g;
+        if (this.scene) this.setScene(this.scene);
+        this.onNeedsDraw();
+      });
+    }
   }
 
   /** Rebuilds the meshes for a comparison's centreline and edges. */
   setScene(s: GroundScene) {
     this.scene = s;
+    if (this.manifest.terrain && !this.grid && !this.gridFailed) return; // wait for the terrain file: no height computing in the meantime
     const { tiles, tile_m, reach_m } = this.manifest;
-    this.terrain = buildTerrain(s, s.heights, tiles, tile_m, reach_m);
+    this.terrain = buildTerrain(s, s.heights, tiles, tile_m, reach_m, this.grid);
     this.geometryBytes = 0;
     for (const t of this.loaded) this.shape(t);
   }

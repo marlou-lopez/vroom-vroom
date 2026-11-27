@@ -29,6 +29,15 @@ Ground (experimental). `--reach 150` is how far it goes either side (the first r
 `--out` writes elsewhere, `--terrain 250` only compares Wallonia's LiDAR terrain model with LMU's heights every 250 m (Spa only; needs `elevation` in the
 track file). A track needs `track_id` (the app's) in `tracks/<name>.json`.
 
+### Terrain heights (vroom-ueg.13, Spa only)
+
+`run.py ground spa --heights` (or `--heights-only` on an existing folder) also asks Wallonia's LiDAR terrain model (SPW MNT 2021-2022, CC BY 4.0) on a thin lattice:
+every 30 m along the line, 0, 10, 30, 75 and 150 m beside it on both sides, about 2,000 single-point requests with 2 workers (some 30 to 60 min the first time,
+answers are cached in `cache/terrain_wallonia.json`). It interpolates the lattice and LMU's own heights on the line to the 3D view's 4 m grid and writes
+`terrain.bin` (float32, LMU's height frame) beside the tiles. `--verify` asks fresh points between the lattice's and prints the mesh's error 10, 30 and 75 m
+beside the line. The 3D view reads the file as is (no height computing in the browser) and shows the terrain credit next to the photo's. Without `terrain.bin`
+the ground follows the track heights as before.
+
 ## Add a track
 
 The Le Mans blind check failed (write-up, vroom-ueg.11): a lap that OSM's `highway=raceway` does not cover (public roads) fails at the alignment. Check `coarse.osm_median_m` first.

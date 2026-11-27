@@ -5,7 +5,11 @@ import { toLocalMetres } from "../../../lib/geo";
 import { worldToLatLon } from "../../../lib/elevation";
 
 export interface GroundTile { file: string; /** South-west corner, world metres. */ x: number; z: number; /** Pixels per side. */ px: number }
-export interface GroundManifest { attribution: string; licence_url: string | null; tile_m: number; reach_m: number; tiles: GroundTile[] }
+/** Node heights from the open terrain model (vroom-ueg.13): `terrain.bin` holds `w` x `rows` float32 (row k0 first, column i0 first), the world grid node (i, k) = (i, k) * grid_m, in LMU's height frame. */
+export interface GroundTerrain { file: string; i0: number; k0: number; w: number; rows: number; grid_m: number; attribution: string; licence_url: string | null }
+export interface GroundManifest { attribution: string; licence_url: string | null; tile_m: number; reach_m: number; tiles: GroundTile[]; terrain: GroundTerrain | null }
+/** The terrain model's heights, ready for `buildTerrain`. */
+export interface TerrainGrid { i0: number; k0: number; w: number; rows: number; heights: Float32Array }
 
 export const groundUrl = (trackId: string) => `/local-ground/${encodeURIComponent(trackId)}/`;
 
@@ -16,7 +20,29 @@ export function parseGround(v: unknown): GroundManifest | null {
   const num = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
   if (typeof m.attribution !== "string" || !m.attribution || !num(m.tile_m) || m.tile_m <= 0 || m.tile_m % GRID_M !== 0 || !num(m.reach_m)) return null;
   if (!Array.isArray(m.tiles) || !m.tiles.every((t) => t && /^[-\w]+\.jpg$/.test(t.file) && num(t.x) && num(t.z) && num(t.px))) return null;
-  return { attribution: m.attribution, licence_url: m.licence_url || null, tile_m: m.tile_m, reach_m: m.reach_m, tiles: m.tiles };
+  return { attribution: m.attribution, licence_url: m.licence_url || null, tile_m: m.tile_m, reach_m: m.reach_m, tiles: m.tiles, terrain: parseTerrain((m as { terrain?: unknown }).terrain) };
+}
+
+/** The terrain entry, or null when absent or not usable (the ground then follows the track heights, as before). */
+function parseTerrain(v: unknown): GroundTerrain | null {
+  const t = v as Partial<GroundTerrain> | null | undefined;
+  const int = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x);
+  if (typeof t !== "object" || t === null || typeof t.file !== "string" || !/^[-\w]+\.bin$/.test(t.file)) return null;
+  if (!int(t.i0) || !int(t.k0) || !int(t.w) || !int(t.rows) || t.w < 2 || t.rows < 2 || t.grid_m !== GRID_M || typeof t.attribution !== "string" || !t.attribution) return null;
+  return { file: t.file, i0: t.i0, k0: t.k0, w: t.w, rows: t.rows, grid_m: t.grid_m, attribution: t.attribution, licence_url: t.licence_url || null };
+}
+
+/** Fetches the terrain heights: no computing, the tool wrote the grid. Null when missing or the wrong size. */
+export async function loadTerrain(baseUrl: string, t: GroundTerrain, signal?: AbortSignal): Promise<TerrainGrid | null> {
+  try {
+    const res = await fetch(baseUrl + t.file, { signal });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    if (buf.byteLength !== t.w * t.rows * 4) return null;
+    return { i0: t.i0, k0: t.k0, w: t.w, rows: t.rows, heights: new Float32Array(buf) };
+  } catch {
+    return null;
+  }
 }
 
 export async function loadGround(trackId: string, signal?: AbortSignal): Promise<GroundManifest | null> {
@@ -81,7 +107,7 @@ export interface TrackLines { centre: XY; edges: [XY, XY]; origin: { lat0: numbe
  * level with the nearest metre of track close by and an inverse-distance mix of the track heights further out, then pushed down wherever it would
  * poke through the road or the kerbs. Nothing outside the tiles is computed.
  */
-export function buildTerrain(track: TrackLines, heights: ArrayLike<number>, tiles: readonly GroundTile[], tileM: number, reachM: number): Terrain {
+export function buildTerrain(track: TrackLines, heights: ArrayLike<number>, tiles: readonly GroundTile[], tileM: number, reachM: number, grid: TerrainGrid | null = null): Terrain {
   const frame = sceneFrame(track.origin);
   const n = Math.min(track.centre.x.length, heights.length);
   const cx = new Float64Array(n), cz = new Float64Array(n);
@@ -118,11 +144,29 @@ export function buildTerrain(track: TrackLines, heights: ArrayLike<number>, tile
   }
   const w = tiles.length ? i1 - i0 + 1 : 0, rows = tiles.length ? k1 - k0 + 1 : 0;
   const h = new Float32Array(w * rows).fill(NaN), alpha = new Float32Array(w * rows);
+  // Squared distance from each node to the line (within reachM), by stamping every 4th centreline point onto the nodes around it: far cheaper than a scan per node.
+  let near2: Float32Array | null = null;
+  if (grid) {
+    near2 = new Float32Array(w * rows).fill(Infinity);
+    const r = Math.ceil(reachM / GRID_M) + 1;
+    for (let m = 0; m < n; m += 4) {
+      const ci = Math.round(cx[m] / GRID_M), ck = Math.round(cz[m] / GRID_M);
+      for (let k = Math.max(ck - r, k0); k <= Math.min(ck + r, k1); k++) for (let i = Math.max(ci - r, i0); i <= Math.min(ci + r, i1); i++) {
+        const d2 = (cx[m] - i * GRID_M) ** 2 + (cz[m] - k * GRID_M) ** 2, s = (k - k0) * w + (i - i0);
+        if (d2 < near2[s]) near2[s] = d2;
+      }
+    }
+  }
   for (const t of tiles) {
     for (let a = 0; a <= per; a++) for (let b = 0; b <= per; b++) {
       const i = t.x / GRID_M + a, k = t.z / GRID_M + b, s = (k - k0) * w + (i - i0);
       if (!Number.isNaN(h[s])) continue;
       const x = i * GRID_M, z = k * GRID_M;
+      if (grid) {
+        // The terrain model's height, read from the file; only the fade needs the distance to the line (splatted once below).
+        const g = i >= grid.i0 && i < grid.i0 + grid.w && k >= grid.k0 && k < grid.k0 + grid.rows ? grid.heights[(k - grid.k0) * grid.w + (i - grid.i0)] : NaN;
+        if (Number.isFinite(g)) { h[s] = g - GROUND_DROP_M; alpha[s] = 1 - smoothstep(reachM * FADE_FROM, reachM, Math.sqrt(near2![s])); continue; }
+      }
       let sw = 0, sh = 0, min = Infinity;
       for (let m = 0; m < n; m += MIX_STEP) {
         const d2 = (cx[m] - x) ** 2 + (cz[m] - z) ** 2;

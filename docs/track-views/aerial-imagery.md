@@ -154,6 +154,23 @@ and searches, to check before writing an adapter. The track list is as of Novemb
   `stripDevOnlyPublicFiles` already removes from builds.
 - This is not legal advice: the user should be happy with the SPW and AGEA readings before relying on them.
 
+### Node heights from the terrain model (vroom-ueg.13)
+
+The user chose a low-poly version: the model is asked on a thin lattice, not on every mesh node (2,097 single-point requests, 2 workers, cached; about 40 min once,
+within the service's "no disproportionate calls"). `run.py ground spa --heights` interpolates the lattice (linearly, plus LMU's own heights on the line) to the
+3D view's 4 m grid and writes `terrain.bin` (1.0 MB, float32, LMU's height frame: model minus 394.38 m) into the git-ignored ground folder, with its credit in
+`ground.json`. The browser reads the file; the carve under the road and kerbs stays.
+
+`run.py ground spa --verify` asks 156 fresh points per distance, between the lattice's stations, and compares the uninterpolated-away mesh (before the carve):
+
+| Beside the line | Median | p90 | Max |
+|---|---|---|---|
+| 10 m | 0.07 m | 0.44 m | 1.0 m |
+| 30 m | 0.15 m | 0.58 m | 3.0 m |
+| 75 m | 0.20 m | 1.21 m | 4.1 m |
+
+Against the earlier "level with the track" (30 m: median 1.4 m, p90 7.4 m; 75 m: median 9 m, p90 17 m). Beyond 75 m the lattice has one more ring (150 m) and is not checked.
+
 ## Risks
 
 - **Kerbs and paint change**: the photo's date is not the date of LMU's scan (the Spa photo is from 2023).
@@ -357,7 +374,16 @@ it for 252 points:
 - At these 28 points LMU's Spa has the real heights. They are only a weak test of the sideways alignment.
 - "Level with the track" is fine for the first 10 m and wrong beyond. **Worth a follow-up**: the tool would write a height per mesh node (4 m grid) into
   the manifest, which also removes the one-second stop. The bare-earth model has no buildings or trees; SPW's surface model (MNS) has, as rough shapes.
-- Its licence was not read here: do that first. Point queries are too slow for a 4 m grid (over 100,000 nodes); a download or raster export is needed.
+- Licence and access (read first-hand 2026-11-25, vroom-ueg.13): the **data** is CC BY 4.0 (metawal records `a004e570-99d6-4fe5-b83d-49b774409278`, 50 cm,
+  and `fe13bc84-e371-46ca-9632-8ad4139f1ee5`, 1 m): "L'utilisateur peut utiliser et modifier les données pour en dériver une œuvre. Il peut publier les
+  données et l'œuvre dérivée à condition de citer les sources." Credit: "Source : Service public de Wallonie (SPW) - Relief de la Wallonie - Modèle
+  Numérique de Terrain (MNT) 2021-2022 (2024-01-23) https://geodata.wallonie.be/id/a004e570-99d6-4fe5-b83d-49b774409278". Local use is allowed. The
+  viewing service's own terms (LicServicesSPW.pdf v1.1) add: no disproportionate calls, keep the service's credit, do not alter the data.
+- **Access is the blocker.** (a) The MapServer's `export` returns an 8-bit colour render, not heights: 20 distinct colours over a 400 m square at Spa
+  (a ramp over -200..700 m), far too coarse for 0.5 m; dynamic raster renderers are refused (400) and the service has no WCS/ImageServer
+  (`exportTilesAllowed: false`). The INSPIRE GeoServer's WCS lists no coverage. (b) The only downloads are province zips holding one mosaic GeoTIFF
+  (zip64, deflate; Liège 1 m is several GB), the server ignores `Range` and streams at about 0.4 MB/s, so a clip is not possible without the whole
+  file. (c) Point queries answer in about 1.5 s each: a 4 m grid is over 100,000 calls, and even a 16 m lattice is thousands against a public server.
 
 ## Risks
 
