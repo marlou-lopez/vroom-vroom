@@ -152,6 +152,23 @@ and searches, to check before writing an adapter. The track list is as of Novemb
   `stripDevOnlyPublicFiles` already removes from builds.
 - This is not legal advice: the user should be happy with the SPW and AGEA readings before relying on them.
 
+### Node heights from the terrain model (vroom-ueg.13)
+
+The user chose a low-poly version: the model is asked on a thin lattice, not on every mesh node (2,097 single-point requests, 2 workers, cached; about 40 min once,
+within the service's "no disproportionate calls"). `run.py ground spa --heights` interpolates the lattice (linearly, plus LMU's own heights on the line) to the
+3D view's 4 m grid and writes `terrain.bin` (1.0 MB, float32, LMU's height frame: model minus 394.38 m) into the git-ignored ground folder, with its credit in
+`ground.json`. The browser reads the file; the carve under the road and kerbs stays.
+
+`run.py ground spa --verify` asks 156 fresh points per distance, between the lattice's stations, and compares the uninterpolated-away mesh (before the carve):
+
+| Beside the line | Median | p90 | Max |
+|---|---|---|---|
+| 10 m | 0.07 m | 0.44 m | 1.0 m |
+| 30 m | 0.15 m | 0.58 m | 3.0 m |
+| 75 m | 0.20 m | 1.21 m | 4.1 m |
+
+Against the earlier "level with the track" (30 m: median 1.4 m, p90 7.4 m; 75 m: median 9 m, p90 17 m). Beyond 75 m the lattice has one more ring (150 m) and is not checked.
+
 ## Risks
 
 - **Kerbs and paint change**: the photo's date is not the date of LMU's scan (the Spa photo is from 2023).

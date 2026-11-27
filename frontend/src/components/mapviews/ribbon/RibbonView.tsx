@@ -536,6 +536,7 @@ export function RibbonView({ model, geometry, annotations, handlers, lapTimes, l
         )}
         {scene.edgeSource === "aerial" && geometry?.aerial && <AerialCredit aerial={geometry.aerial} className={styles.credit} />}
         {manifest && <AerialCredit aerial={manifest} className={styles.creditOnPhoto} what="Ground photo" />}
+        {manifest?.terrain && <AerialCredit aerial={manifest.terrain} className={styles.creditOnPhoto} what="Ground heights" />}
         {debug && showHud && hudText && <div className={styles.hud}>{hudText}</div>}
         {debug && rows.length > 0 && (
           <div className={styles.results}>

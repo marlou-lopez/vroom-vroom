@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { worldToLatLon } from "../../../lib/elevation";
 import { toLocalMetres } from "../../../lib/geo";
-import { GROUND_DROP_M, buildGroundTile, buildTerrain, loadGround, parseGround, sceneFrame, textureBytes, type GroundManifest } from "./ground";
+import { GROUND_DROP_M, buildGroundTile, buildTerrain, loadGround, loadTerrain, parseGround, sceneFrame, textureBytes, type GroundManifest } from "./ground";
 
 const origin = { lat0: 60.01, lon0: -0.01 };
 const manifest = { version: 1, attribution: "credit", licence_url: "https://x", tile_m: 128, reach_m: 60, tiles: [{ file: "0_0.jpg", x: 0, z: 0, px: 512 }] };
+const terrainEntry = { file: "terrain.bin", i0: 0, k0: 0, w: 33, rows: 33, grid_m: 4, attribution: "terrain credit", licence_url: "https://l" };
 const tiles = (parseGround(manifest) as GroundManifest).tiles;
 
 describe("parseGround", () => {
@@ -12,6 +13,29 @@ describe("parseGround", () => {
     expect(parseGround(manifest)).toMatchObject({ attribution: "credit", tile_m: 128 });
     for (const bad of [null, "x", {}, { ...manifest, version: 2 }, { ...manifest, attribution: "" }, { ...manifest, tile_m: 130 },
       { ...manifest, tiles: [{ file: "../a.jpg", x: 0, z: 0, px: 1 }] }]) expect(parseGround(bad)).toBeNull();
+  });
+});
+
+describe("parseGround terrain entry", () => {
+  it("is kept when valid and dropped (not fatal) when not", () => {
+    expect(parseGround({ ...manifest, terrain: terrainEntry })?.terrain).toMatchObject({ file: "terrain.bin", w: 33 });
+    expect(parseGround(manifest)?.terrain).toBeNull();
+    for (const bad of [{ ...terrainEntry, file: "../t.bin" }, { ...terrainEntry, grid_m: 5 }, { ...terrainEntry, attribution: "" }, { ...terrainEntry, w: 1 }]) {
+      expect(parseGround({ ...manifest, terrain: bad })?.terrain).toBeNull();
+    }
+  });
+});
+
+describe("loadTerrain", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  it("reads the grid, and refuses a file of the wrong size or a missing one", async () => {
+    const t = parseGround({ ...manifest, terrain: terrainEntry })!.terrain!;
+    vi.stubGlobal("fetch", async () => new Response(new Float32Array(33 * 33).fill(5)));
+    expect((await loadTerrain("/g/", t))?.heights[7]).toBe(5);
+    vi.stubGlobal("fetch", async () => new Response(new Float32Array(10)));
+    expect(await loadTerrain("/g/", t)).toBeNull();
+    vi.stubGlobal("fetch", async () => new Response("", { status: 404 }));
+    expect(await loadTerrain("/g/", t)).toBeNull();
   });
 });
 
@@ -61,6 +85,14 @@ describe("buildTerrain", () => {
     expect(t.alpha(10, 16)).toBe(1);
     expect(t.alpha(10, 31)).toBe(0);
     expect(t.alpha(99, 0)).toBe(0);
+  });
+
+  it("takes node heights from the terrain grid, and still never pokes through the road", () => {
+    const { track, heights } = road(() => 7);
+    const grid = { i0: 0, k0: 0, w: 33, rows: 33, heights: new Float32Array(33 * 33).map((_, s) => 3 + (s % 33) * 0.5 + (s >= 16 * 33 && s < 17 * 33 ? 20 : 0)) };
+    const t = buildTerrain(track, heights, tiles, 128, 60, grid);
+    expect(t.height(2, 4)).toBeCloseTo(3 + 1 - GROUND_DROP_M, 4); // beside the road: the grid's, not the road's
+    for (let i = 2; i < 126; i++) for (const z of [60, 62, 64, 66, 68]) expect(t.at(i, z)).toBeLessThan(7.01); // row 16 (z = 64) was 20 m up: carved
   });
 
   it("never pokes through the road, on a sharp dip either", () => {

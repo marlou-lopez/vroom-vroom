@@ -24,7 +24,7 @@ import sources
 
 TILE_M = 128
 FINE_M, COARSE_M = 0.25, 1.0
-OURS = re.compile(r"ground\.json|-?\d+_-?\d+\.jpg")
+OURS = re.compile(r"ground\.json|terrain\.bin|-?\d+_-?\d+\.jpg")
 NEAR_M = 20  # a tile this close to the centreline is fine
 
 
@@ -63,6 +63,9 @@ def main(argv: list[str]) -> None:
     ap.add_argument("--cache", type=Path, default=build.HERE / "cache")
     ap.add_argument("--out", type=Path, help="default: frontend/public/local-ground/<track_id of the app> (git-ignored)")
     ap.add_argument("--terrain", type=int, metavar="STEP", help="only compare a terrain model with LMU's heights, every STEP metres of the lap")
+    ap.add_argument("--heights", action="store_true", help="also ask Wallonia's terrain model on a thin lattice and write terrain.bin (about 2,000 slow, cached requests, Spa only)")
+    ap.add_argument("--heights-only", action="store_true", help="keep the existing tiles, only (re)write terrain.bin and its entry in ground.json")
+    ap.add_argument("--verify", action="store_true", help="compare the written terrain.bin with fresh model heights between the lattice's points")
     a = ap.parse_args(argv)
     cfg = json.loads((build.HERE / "tracks" / f"{a.track}.json").read_text())
     src, local, t, centre, fit = align(cfg, a.cache)
@@ -70,6 +73,13 @@ def main(argv: list[str]) -> None:
         import terrain
         return terrain.check(cfg, local, t, centre, a.terrain, a.cache)
     out = a.out or build.REPO / "frontend/public/local-ground" / cfg["track_id"]
+    if a.heights_only or a.verify:
+        import terrain
+        man = json.loads((out / "ground.json").read_text())
+        if a.heights_only:
+            man["terrain"] = terrain.build_heights(cfg, local, t, centre, man["tiles"], man["tile_m"], out, a.cache)
+            (out / "ground.json").write_text(json.dumps(man))
+        return terrain.verify(cfg, local, t, centre, out, a.cache) if a.verify else None
     work = out.with_name(out.name + ".part")  # swapped in at the end, so an interrupted run leaves the old output alone
     for d in (out, work):
         if d.exists() and any(not OURS.fullmatch(f.name) for f in d.iterdir()):
@@ -99,6 +109,11 @@ def main(argv: list[str]) -> None:
         "version": 1, "track": cfg["track"], "attribution": src.imagery_attribution + " (modified: resampled)",
         "licence": src.licence, "licence_url": src.licence_url, "source_url": src.source_url,
         "tile_m": TILE_M, "reach_m": a.reach, "fit": {"scale": t[0], "rotation_rad": t[1], **fit}, "tiles": tiles}))
+    if a.heights:
+        import terrain
+        man = json.loads((work / "ground.json").read_text())
+        man["terrain"] = terrain.build_heights(cfg, local, t, centre, tiles, TILE_M, work, a.cache)
+        (work / "ground.json").write_text(json.dumps(man))
     if out.exists():
         shutil.rmtree(out)
     work.rename(out)
