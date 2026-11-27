@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 Command = Literal["analyze", "average", "corner"]
 FindingKind = Literal["issue", "minor", "strength", "inconsistent"]
@@ -37,6 +37,8 @@ class CoachOutput(BaseModel):
 
 
 class Finding(FindingOut):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     id: str
     reviewed: bool = False
 

@@ -341,8 +341,9 @@ export interface paths {
         };
         /**
          * Session Report
-         * @description A first report: the per-lap series from the stint stats. The rules that find events are
-         *     not ported to the backend yet, so `events` is empty and every category is unavailable.
+         * @description The session report: per-lap series, the events the fixed rules find (`racecoach.report`,
+         *     a port of `frontend/src/lib/sessionReport.ts`) and the working windows. Categories whose input
+         *     is not stored (the in-car setting events, stint stats, traces) are listed as unavailable.
          */
         get: operations["session_report_api_sessions__session_id__report_get"];
         put?: never;
@@ -391,6 +392,131 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AerialEdges */
+        AerialEdges: {
+            /** Edge Points */
+            edge_points: [
+                number,
+                number
+            ][];
+            /** Kerbs */
+            kerbs: components["schemas"]["SurveyKerb"][];
+            /** Attribution */
+            attribution: string;
+            /** Licence Url */
+            licence_url: string | null;
+        };
+        /** Axles */
+        Axles: {
+            /** Front */
+            front: number;
+            /** Rear */
+            rear: number;
+        };
+        /** BalanceRun */
+        BalanceRun: {
+            /** Start M */
+            start_m: number;
+            /** End M */
+            end_m: number;
+        };
+        /** CalibrationResultOut */
+        CalibrationResultOut: {
+            map: components["schemas"]["TrackMap"];
+            /** Unmapped */
+            unmapped: components["schemas"]["DetectedCorner"][];
+            /** Missing */
+            missing: string[];
+        };
+        /** CarDims */
+        CarDims: {
+            /** Length M */
+            length_m: number;
+            /** Width M */
+            width_m: number;
+            /** Wheelbase M */
+            wheelbase_m?: number | null;
+            visual_offset?: components["schemas"]["VisualOffset"] | null;
+        };
+        /** CarSetup */
+        CarSetup: {
+            /** Entries */
+            entries: components["schemas"]["CarSetupEntry"][];
+        };
+        /** CarSetupEntry */
+        CarSetupEntry: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: string;
+        };
+        /** Centreline */
+        Centreline: {
+            /** Lat */
+            lat: number[];
+            /** Lon */
+            lon: number[];
+        };
+        /**
+         * ChannelArrays
+         * @description One list of numbers per grid channel (`GRID_CHANNELS`; a test keeps them equal).
+         */
+        ChannelArrays: {
+            /** T */
+            t: number[];
+            /** Speed Kmh */
+            speed_kmh: number[];
+            /** Throttle */
+            throttle: number[];
+            /** Brake */
+            brake: number[];
+            /** Steering */
+            steering: number[];
+            /** Gear */
+            gear: number[];
+            /** Rpm */
+            rpm: number[];
+            /** G Lat */
+            g_lat: number[];
+            /** G Long */
+            g_long: number[];
+            /** Yaw Rate */
+            yaw_rate: number[];
+            /** Lat */
+            lat: number[];
+            /** Lon */
+            lon: number[];
+            /** Path Lateral */
+            path_lateral: number[];
+            /** Track Edge */
+            track_edge: number[];
+            /** Kerb */
+            kerb: number[];
+            /** Susp Fl */
+            susp_fl: number[];
+            /** Susp Fr */
+            susp_fr: number[];
+            /** Susp Rl */
+            susp_rl: number[];
+            /** Susp Rr */
+            susp_rr: number[];
+            /** Abs */
+            abs: number[];
+            /** Tc */
+            tc: number[];
+            /** Slip Fl */
+            slip_fl: number[];
+            /** Slip Fr */
+            slip_fr: number[];
+            /** Slip Rl */
+            slip_rl: number[];
+            /** Slip Rr */
+            slip_rr: number[];
+            /** Wheels Off */
+            wheels_off: number[];
+        };
         /** CoachRequest */
         CoachRequest: {
             /**
@@ -405,20 +531,307 @@ export interface components {
             /** Corner Id */
             corner_id?: string | null;
         };
+        /** CoachResult */
+        CoachResult: {
+            /** Id */
+            id: string;
+            /**
+             * Command
+             * @enum {string}
+             */
+            command: "analyze" | "average" | "corner";
+            /** Lap Id */
+            lap_id: string;
+            /** Ref Lap Id */
+            ref_lap_id: string | null;
+            /** Summary */
+            summary: string;
+            /** Findings */
+            findings: components["schemas"]["Finding"][];
+            focus: components["schemas"]["Focus"] | null;
+            /** Encouragement */
+            encouragement: string | null;
+            /** Stats */
+            stats: {
+                [key: string]: string;
+            };
+            /** Warnings */
+            warnings: string[];
+            /** Cost Usd */
+            cost_usd: number | null;
+            /** Created At */
+            created_at: string;
+        };
+        /** CompareCandidate */
+        CompareCandidate: {
+            /** Lap Id */
+            lap_id: string;
+            /** Label */
+            label: string;
+            /** Lap Time S */
+            lap_time_s: number | null;
+            /** Car Name */
+            car_name: string;
+            /** Is Reference */
+            is_reference: boolean;
+            /** Is Previous */
+            is_previous: boolean;
+            /** Other Car */
+            other_car: boolean;
+            /** Is Ideal */
+            is_ideal: boolean;
+        };
+        /** CompareResponse */
+        CompareResponse: {
+            /** Lap Id */
+            lap_id: string;
+            /** Ref Lap Id */
+            ref_lap_id: string;
+            lap_kind: components["schemas"]["LapKind"];
+            ref_kind: components["schemas"]["LapKind"];
+            /** Distance */
+            distance: number[];
+            lap: components["schemas"]["ChannelArrays"];
+            ref: components["schemas"]["ChannelArrays"];
+            /** Delta */
+            delta: number[];
+            /** Warning */
+            warning: string | null;
+            /** Lap Steering Range Deg */
+            lap_steering_range_deg: number | null;
+            /** Ref Steering Range Deg */
+            ref_steering_range_deg: number | null;
+            lap_car_dims: components["schemas"]["CarDims"] | null;
+            ref_car_dims: components["schemas"]["CarDims"] | null;
+            /** Lap Car Id */
+            lap_car_id: string;
+            /** Ref Car Id */
+            ref_car_id: string;
+            /** Lap Car Name */
+            lap_car_name: string;
+            /** Ref Car Name */
+            ref_car_name: string;
+            /** Corners */
+            corners: components["schemas"]["CornerMetrics"][];
+            /** Lap Balance */
+            lap_balance: (number | null)[] | null;
+            /** Ref Balance */
+            ref_balance: (number | null)[] | null;
+            /** Lap Understeer Runs */
+            lap_understeer_runs: components["schemas"]["BalanceRun"][];
+            /** Ref Understeer Runs */
+            ref_understeer_runs: components["schemas"]["BalanceRun"][];
+            /** Lap Oversteer Runs */
+            lap_oversteer_runs: components["schemas"]["BalanceRun"][];
+            /** Ref Oversteer Runs */
+            ref_oversteer_runs: components["schemas"]["BalanceRun"][];
+            /** Ref Joins M */
+            ref_joins_m: number[];
+        };
+        /** Corner */
+        Corner: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Start M */
+            start_m: number;
+            /** Apex M */
+            apex_m: number;
+            /** End M */
+            end_m: number;
+            /** Complex */
+            complex: string | null;
+            /**
+             * Approx
+             * @default false
+             */
+            approx: boolean;
+        };
+        /** CornerMetrics */
+        CornerMetrics: {
+            /** Corner Id */
+            corner_id: string;
+            /** Delta S */
+            delta_s: number;
+            lap: components["schemas"]["CornerSideMetrics"];
+            ref: components["schemas"]["CornerSideMetrics"];
+        };
+        /** CornerSideMetrics */
+        CornerSideMetrics: {
+            /** Brake Onset M */
+            brake_onset_m: number | null;
+            /** Peak Brake */
+            peak_brake: number;
+            /** Min Speed Kmh */
+            min_speed_kmh: number;
+            /** Min Speed M */
+            min_speed_m: number;
+            /** Throttle Pickup M */
+            throttle_pickup_m: number | null;
+            /** Exit Speed Kmh */
+            exit_speed_kmh: number;
+            /** Coast S */
+            coast_s: number;
+            /** Overlap S */
+            overlap_s: number;
+            /** Steer Corrections */
+            steer_corrections: number;
+            /** Understeer Peak Deg S */
+            understeer_peak_deg_s: number | null;
+            /** Understeer Mean Deg S */
+            understeer_mean_deg_s: number | null;
+        };
+        /** DetectedCorner */
+        DetectedCorner: {
+            /** Apex M */
+            apex_m: number;
+            /** Start M */
+            start_m: number;
+            /** End M */
+            end_m: number;
+            /** Min Speed Kmh */
+            min_speed_kmh: number;
+            /** Flat */
+            flat: boolean;
+        };
+        /** EdgeCoverage */
+        EdgeCoverage: {
+            /** Left */
+            left: number;
+            /** Right */
+            right: number;
+        };
+        /** Finding */
+        Finding: {
+            /** Corner Id */
+            corner_id: string;
+            /** Corner */
+            corner: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "issue" | "minor" | "strength" | "inconsistent";
+            /** Time S */
+            time_s: number;
+            /** What */
+            what: string;
+            /** Fix */
+            fix: string;
+            /**
+             * Cue Type
+             * @enum {string}
+             */
+            cue_type: "landmark" | "feel" | "own_lap" | "none";
+            /** Evidence */
+            evidence: string[];
+            /** Id */
+            id: string;
+            /**
+             * Reviewed
+             * @default false
+             */
+            reviewed: boolean;
+        };
         /** FindingPatch */
         FindingPatch: {
             /** Reviewed */
             reviewed: boolean;
+        };
+        /** Focus */
+        Focus: {
+            /** Corner Id */
+            corner_id: string;
+            /** Instruction */
+            instruction: string;
+            /** Metric */
+            metric: string;
+        };
+        /** FuelAssumption */
+        FuelAssumption: {
+            /** Kg Per L */
+            kg_per_l: number;
+            /** Lap Fraction Per Kg */
+            lap_fraction_per_kg: number;
+            /** Source */
+            source: string;
+        };
+        /** GeometryTransform */
+        GeometryTransform: {
+            local: components["schemas"]["LocalTransform"];
+            real_world: components["schemas"]["RealWorldFit"] | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** IdealLap */
+        IdealLap: {
+            /** Time S */
+            time_s: number;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "session" | "all";
+            /** Segments */
+            segments: components["schemas"]["IdealSegment"][];
+        };
+        /** IdealSegment */
+        IdealSegment: {
+            /** Label */
+            label: string;
+            /** Corner Id */
+            corner_id: string | null;
+            /** Start M */
+            start_m: number;
+            /** End M */
+            end_m: number;
+            /** Best S */
+            best_s: number;
+            /** Lap Id */
+            lap_id: string;
+            /** Lap No */
+            lap_no: number;
+            /** Session Id */
+            session_id: string;
+        };
         /** ImportRequest */
         ImportRequest: {
             /** Path */
             path: string;
+        };
+        /** ImportResult */
+        ImportResult: {
+            /** Session Id */
+            session_id: string;
+            /** N Laps */
+            n_laps: number;
+            /** Skipped */
+            skipped: boolean;
+        };
+        /** Landmark */
+        Landmark: {
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "brake_board" | "kerb_entry" | "kerb_apex" | "kerb_exit" | "custom";
+            /** Distance M */
+            distance_m: number;
+            /** Corner Id */
+            corner_id: string | null;
+            /**
+             * Confidence
+             * @enum {string}
+             */
+            confidence: "low" | "detected" | "confirmed";
         };
         /** LandmarkPatch */
         LandmarkPatch: {
@@ -427,12 +840,131 @@ export interface components {
             /** Distance M */
             distance_m?: number | null;
         };
+        /**
+         * LapKind
+         * @enum {string}
+         */
+        LapKind: "flying" | "out" | "in" | "incomplete";
+        /** LapMetaOut */
+        LapMetaOut: {
+            /** Lap Id */
+            lap_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Lap No */
+            lap_no: number;
+            kind: components["schemas"]["LapKind"];
+            /** Lap Time S */
+            lap_time_s: number | null;
+            /** Sectors S */
+            sectors_s: number[];
+            /** Valid */
+            valid: boolean;
+            /** Valid Override */
+            valid_override: boolean | null;
+            /** Pinned Reference */
+            pinned_reference: boolean;
+            source: components["schemas"]["LapSource"];
+            /** Driver */
+            driver: string;
+            /** Track Id */
+            track_id: string;
+            /** Car Id */
+            car_id: string;
+            /** Has Trace */
+            has_trace: boolean;
+        };
         /** LapPatch */
         LapPatch: {
             /** Valid Override */
             valid_override?: boolean | null;
             /** Pinned Reference */
             pinned_reference?: boolean | null;
+        };
+        /** LapSegmentTimes */
+        LapSegmentTimes: {
+            /** Lap Id */
+            lap_id: string;
+            /** Lap No */
+            lap_no: number;
+            /** Segment S */
+            segment_s: number[];
+        };
+        /**
+         * LapSource
+         * @enum {string}
+         */
+        LapSource: "own_recording" | "imported_file" | "online";
+        /** LapWithRefOut */
+        LapWithRefOut: {
+            /** Lap Id */
+            lap_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Lap No */
+            lap_no: number;
+            kind: components["schemas"]["LapKind"];
+            /** Lap Time S */
+            lap_time_s: number | null;
+            /** Sectors S */
+            sectors_s: number[];
+            /** Valid */
+            valid: boolean;
+            /** Valid Override */
+            valid_override: boolean | null;
+            /** Pinned Reference */
+            pinned_reference: boolean;
+            source: components["schemas"]["LapSource"];
+            /** Driver */
+            driver: string;
+            /** Track Id */
+            track_id: string;
+            /** Car Id */
+            car_id: string;
+            /** Has Trace */
+            has_trace: boolean;
+            /** Is Reference */
+            is_reference: boolean;
+        };
+        /** LlmCall */
+        LlmCall: {
+            /** Command */
+            command: string;
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /** Input Tokens */
+            input_tokens: number;
+            /** Output Tokens */
+            output_tokens: number;
+            /** Cost Usd */
+            cost_usd: number | null;
+            /** Ok */
+            ok: boolean;
+            /** Created At */
+            created_at: string;
+        };
+        /** LlmUsage */
+        LlmUsage: {
+            /** Calls */
+            calls: components["schemas"]["LlmCall"][];
+            /** Total Usd */
+            total_usd: number;
+        };
+        /** LocalTransform */
+        LocalTransform: {
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "equirectangular";
+            /** Earth Radius M */
+            earth_radius_m: number;
+            /** Origin Lat Deg */
+            origin_lat_deg: number;
+            /** Origin Lon Deg */
+            origin_lon_deg: number;
         };
         /** NewLandmark */
         NewLandmark: {
@@ -448,6 +980,357 @@ export interface components {
             /** Corner Id */
             corner_id?: string | null;
         };
+        /** RealWorldFit */
+        RealWorldFit: {
+            /** Origin Lat Deg */
+            origin_lat_deg: number;
+            /** Origin Lon Deg */
+            origin_lon_deg: number;
+            /** Rotation Deg */
+            rotation_deg: number;
+            /** Scale */
+            scale: number;
+            /** Rms M */
+            rms_m: number;
+        };
+        /** ReportCoincidence */
+        ReportCoincidence: {
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "lap" | "corner";
+            /** Lost S */
+            lost_s: number;
+            /** Laps */
+            laps: number[];
+        };
+        /** ReportCorner */
+        ReportCorner: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** ReportEvent */
+        ReportEvent: {
+            /** Id */
+            id: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "tyres" | "brakes" | "driving" | "settings" | "pace" | "conditions";
+            /** Kind */
+            kind: string;
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "watch" | "problem";
+            /** Lap From */
+            lap_from: number;
+            /** Lap To */
+            lap_to: number;
+            corner: components["schemas"]["ReportCorner"] | null;
+            /** Distance M */
+            distance_m: number | null;
+            /** Numbers */
+            numbers: {
+                [key: string]: number;
+            };
+            coincides: components["schemas"]["ReportCoincidence"] | null;
+            /** Sentence */
+            sentence: string;
+        };
+        /** ReportLap */
+        ReportLap: {
+            /** Lap Id */
+            lap_id: string;
+            /** Lap No */
+            lap_no: number;
+            kind: components["schemas"]["LapKind"];
+            /** Lap Time S */
+            lap_time_s: number | null;
+            /** Valid */
+            valid: boolean;
+            /** Has Trace */
+            has_trace: boolean;
+            tyre_surface_c: components["schemas"]["Axles"] | null;
+            tyre_carcass_c: components["schemas"]["Axles"] | null;
+            tyre_pressure_kpa: components["schemas"]["Axles"] | null;
+            brake_c: components["schemas"]["Axles"] | null;
+            /** Track Temp C */
+            track_temp_c: number | null;
+            /** Fuel End L */
+            fuel_end_l: number | null;
+            /** Energy End Pct */
+            energy_end_pct: number | null;
+            /** Settings */
+            settings: {
+                [key: string]: number;
+            } | null;
+        };
+        /** ReportUnavailable */
+        ReportUnavailable: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "tyres" | "brakes" | "driving" | "settings" | "pace" | "conditions";
+            /** Reason */
+            reason: string;
+        };
+        /** ReportWindow */
+        ReportWindow: {
+            /** Key */
+            key: string;
+            /** Unit */
+            unit: string;
+            /**
+             * Axle
+             * @enum {string}
+             */
+            axle: "both" | "front" | "rear";
+            /** Tolerance */
+            tolerance: number;
+            /** Min */
+            min: number;
+            /** Max */
+            max: number;
+            /** Source */
+            source: string;
+        };
+        /** SegmentTimes */
+        SegmentTimes: {
+            /** Laps */
+            laps: components["schemas"]["LapSegmentTimes"][];
+        };
+        /** SessionFocus */
+        SessionFocus: {
+            /** Instruction */
+            instruction: string;
+            /** Improved */
+            improved: boolean | null;
+        };
+        /** SessionMetaOut */
+        SessionMetaOut: {
+            /** Session Id */
+            session_id: string;
+            /** Track Name */
+            track_name: string;
+            /** Track Layout */
+            track_layout: string;
+            /** Track Id */
+            track_id: string;
+            /** Track Length M */
+            track_length_m: number;
+            /** Car Name */
+            car_name: string;
+            /** Car Id */
+            car_id: string;
+            /** Car Class */
+            car_class: string;
+            /** Session Type */
+            session_type: string;
+            /** Game Build */
+            game_build: string;
+            /** Started At */
+            started_at: string;
+            /** Driver */
+            driver: string;
+            /** Steering Range Deg */
+            steering_range_deg: number | null;
+            car_dims: components["schemas"]["CarDims"] | null;
+        };
+        /** SessionReport */
+        SessionReport: {
+            /** Session Id */
+            session_id: string;
+            /** Car Class */
+            car_class: string;
+            /** Compound */
+            compound: string;
+            /** Laps */
+            laps: components["schemas"]["ReportLap"][];
+            /** Events */
+            events: components["schemas"]["ReportEvent"][];
+            /** Windows */
+            windows: components["schemas"]["ReportWindow"][];
+            /** Unavailable */
+            unavailable: components["schemas"]["ReportUnavailable"][];
+        };
+        /** SessionSummary */
+        SessionSummary: {
+            /** N Laps */
+            n_laps: number;
+            /** N Valid */
+            n_valid: number;
+            /** Best Lap S */
+            best_lap_s: number | null;
+            /** Theoretical Best S */
+            theoretical_best_s: number | null;
+            /** Track Temp C */
+            track_temp_c: number | null;
+            focus: components["schemas"]["SessionFocus"] | null;
+        };
+        /** Stint */
+        Stint: {
+            /** Stint No */
+            stint_no: number;
+            /** Laps */
+            laps: components["schemas"]["StintLap"][];
+            falloff: components["schemas"]["StintFalloff"] | null;
+            falloff_fuel_corrected: components["schemas"]["StintFalloffFuelCorrected"] | null;
+        };
+        /** StintFalloff */
+        StintFalloff: {
+            /** Slope S Per Lap */
+            slope_s_per_lap: number;
+            /** N Laps */
+            n_laps: number;
+        };
+        /** StintFalloffFuelCorrected */
+        StintFalloffFuelCorrected: {
+            /** Slope S Per Lap */
+            slope_s_per_lap: number;
+            /** Fuel Gain S Per Lap */
+            fuel_gain_s_per_lap: number;
+            /** Kg Per Lap */
+            kg_per_lap: number;
+            /** S Per Kg */
+            s_per_kg: number;
+            assumption: components["schemas"]["FuelAssumption"];
+        };
+        /** StintLap */
+        StintLap: {
+            /** Lap Id */
+            lap_id: string;
+            /** Lap No */
+            lap_no: number;
+            kind: components["schemas"]["LapKind"];
+            /** Lap Time S */
+            lap_time_s: number | null;
+            /** Valid */
+            valid: boolean;
+            /** Fuel Start L */
+            fuel_start_l: number;
+            /** Fuel End L */
+            fuel_end_l: number;
+            /** Energy Start Pct */
+            energy_start_pct: number | null;
+            /** Energy End Pct */
+            energy_end_pct: number | null;
+            tyre_surface_c: components["schemas"]["Wheels"];
+            tyre_zones_c: components["schemas"]["TyreZones"];
+            tyre_carcass_c: components["schemas"]["Wheels"];
+            tyre_pressure_kpa: components["schemas"]["Wheels"];
+            tyre_wear_end_pct: components["schemas"]["Wheels"];
+            brake_c: components["schemas"]["Wheels"];
+            /** Track Temp C */
+            track_temp_c: number;
+            /** Air Temp C */
+            air_temp_c: number;
+        };
+        /** SurveyKerb */
+        SurveyKerb: {
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "left" | "right";
+            /** Start M */
+            start_m: number;
+            /** End M */
+            end_m: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "flat" | "razor" | "other";
+            /** Width M */
+            width_m: number | null;
+        };
+        /** TelemetryEdges */
+        TelemetryEdges: {
+            /** Left M */
+            left_m: (number | null)[];
+            /** Right M */
+            right_m: (number | null)[];
+            /** Kerbs */
+            kerbs: components["schemas"]["SurveyKerb"][];
+            coverage: components["schemas"]["EdgeCoverage"];
+            /** Laps */
+            laps: number;
+        };
+        /** TraceResponse */
+        TraceResponse: {
+            /** Distance */
+            distance: number[];
+            /** Ch */
+            ch: {
+                [key: string]: number[];
+            };
+        };
+        /** TrackGeometry */
+        TrackGeometry: {
+            /** Track Id */
+            track_id: string;
+            /** Length M */
+            length_m: number;
+            centre: components["schemas"]["Centreline"];
+            /** Elevation M */
+            elevation_m: (number | null)[] | null;
+            survey: components["schemas"]["TrackSurvey"] | null;
+            aerial: components["schemas"]["AerialEdges"] | null;
+            coverage: components["schemas"]["EdgeCoverage"] | null;
+            telemetry: components["schemas"]["TelemetryEdges"] | null;
+            transform: components["schemas"]["GeometryTransform"];
+        };
+        /** TrackMap */
+        TrackMap: {
+            /** Track Id */
+            track_id: string;
+            /** Length M */
+            length_m: number;
+            /**
+             * Corners
+             * @default []
+             */
+            corners: components["schemas"]["Corner"][];
+            /**
+             * Landmarks
+             * @default []
+             */
+            landmarks: components["schemas"]["Landmark"][];
+        };
+        /** TrackSurvey */
+        TrackSurvey: {
+            /** Left M */
+            left_m: (number | null)[];
+            /** Right M */
+            right_m: (number | null)[];
+            /** Bank Deg */
+            bank_deg: (number | null)[];
+            /** Kerbs */
+            kerbs: components["schemas"]["SurveyKerb"][];
+            /** Edge Points */
+            edge_points: [
+                number,
+                number
+            ][];
+            /** Kerb Outer Points */
+            kerb_outer_points: [
+                number,
+                number
+            ][];
+        };
+        /** TyreZones */
+        TyreZones: {
+            left: components["schemas"]["Wheels"];
+            centre: components["schemas"]["Wheels"];
+            right: components["schemas"]["Wheels"];
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -460,6 +1343,24 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** VisualOffset */
+        VisualOffset: {
+            /** Forward M */
+            forward_m: number;
+            /** Up M */
+            up_m: number;
+        };
+        /** Wheels */
+        Wheels: {
+            /** Fl */
+            fl: number;
+            /** Fr */
+            fr: number;
+            /** Rl */
+            rl: number;
+            /** Rr */
+            rr: number;
         };
     };
     responses: never;
@@ -485,9 +1386,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["SessionMetaOut"][];
                 };
             };
         };
@@ -509,9 +1408,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["LapWithRefOut"][];
                 };
             };
             /** @description Validation Error */
@@ -542,9 +1439,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["LapWithRefOut"];
                 };
             };
             /** @description Validation Error */
@@ -579,9 +1474,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["LapMetaOut"];
                 };
             };
             /** @description Validation Error */
@@ -614,9 +1507,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TraceResponse"];
                 };
             };
             /** @description Validation Error */
@@ -648,9 +1539,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CompareResponse"];
                 };
             };
             /** @description Validation Error */
@@ -681,9 +1570,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["CompareCandidate"][];
                 };
             };
             /** @description Validation Error */
@@ -714,9 +1601,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TrackMap"];
                 };
             };
             /** @description Validation Error */
@@ -747,9 +1632,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TrackGeometry"];
                 };
             };
             /** @description Validation Error */
@@ -784,9 +1667,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TrackMap"];
                 };
             };
             /** @description Validation Error */
@@ -818,9 +1699,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TrackMap"];
                 };
             };
             /** @description Validation Error */
@@ -856,9 +1735,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["TrackMap"];
                 };
             };
             /** @description Validation Error */
@@ -889,9 +1766,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CalibrationResultOut"];
                 };
             };
             /** @description Validation Error */
@@ -924,9 +1799,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CoachResult"];
                 };
             };
             /** @description Validation Error */
@@ -959,7 +1832,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        [key: string]: unknown;
+                        [key: string]: components["schemas"]["CoachResult"];
                     };
                 };
             };
@@ -995,9 +1868,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["Finding"];
                 };
             };
             /** @description Validation Error */
@@ -1028,9 +1899,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SessionSummary"];
                 };
             };
             /** @description Validation Error */
@@ -1061,9 +1930,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["CarSetup"];
                 };
             };
             /** @description Validation Error */
@@ -1096,9 +1963,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["IdealLap"];
                 };
             };
             /** @description Validation Error */
@@ -1129,9 +1994,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SegmentTimes"];
                 };
             };
             /** @description Validation Error */
@@ -1162,9 +2025,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
+                    "application/json": components["schemas"]["Stint"][];
                 };
             };
             /** @description Validation Error */
@@ -1195,9 +2056,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["SessionReport"];
                 };
             };
             /** @description Validation Error */
@@ -1230,9 +2089,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["ImportResult"];
                 };
             };
             /** @description Validation Error */
@@ -1261,9 +2118,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["LlmUsage"];
                 };
             };
         };

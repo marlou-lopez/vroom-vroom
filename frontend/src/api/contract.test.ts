@@ -5,7 +5,11 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import type { PathsWithMethod } from "openapi-typescript-helpers";
 import { createRealApi } from "./client";
 import type { components, paths } from "./schema.gen";
-import type { CoachRequest, LandmarkPatch, LapPatch, NewLandmark } from "./types";
+import type {
+  CalibrationResult, CarSetup, CoachRequest, CoachResult, CoachResults, CompareCandidate, CompareResponse, Finding, IdealLap,
+  ImportResult, LandmarkPatch, LapMeta, LapPatch, LapWithRef, LlmUsage, NewLandmark, SegmentTimes, SessionMeta, SessionReport,
+  SessionSummary, Stint, TraceResponse, TrackGeometry, TrackMap,
+} from "./types";
 
 type Schemas = components["schemas"];
 type Stripped<P extends string> = P extends `/api${infer R}` ? R : P;
@@ -16,6 +20,45 @@ describe("request bodies match the backend schema", () => {
     expectTypeOf<LapPatch>().toExtend<Schemas["LapPatch"]>();
     expectTypeOf<NewLandmark>().toExtend<Schemas["NewLandmark"]>();
     expectTypeOf<LandmarkPatch>().toExtend<Schemas["LandmarkPatch"]>();
+  });
+});
+
+// The JSON body of a route's 200 response in the backend's schema.
+type Ok<P extends keyof paths, M extends keyof paths[P]> = paths[P][M] extends {
+  responses: { 200: { content: { "application/json": infer B } } };
+} ? B : never;
+
+// `true` when a response `A` can be used wherever the client expects `B` (readable errors: see the field in `tsc`'s output).
+type Serves<A, B> = [A] extends [never] ? { mismatch: "no 200 JSON response" } : [A] extends [B] ? true : { mismatch: { [K in keyof B]: K extends keyof A ? ([A[K]] extends [B[K]] ? never : K) : K }[keyof B] };
+
+describe("responses match the backend schema (vroom-9ki.21)", () => {
+  // What the server's response models promise must be assignable to what `types.ts` says the client gets: a field removed
+  // from a model, or a type that no longer fits, fails `tsc` here. (The schema may carry more than the client reads.)
+  it("each route's response model satisfies the client's type", () => {
+    expectTypeOf<Serves<Ok<"/api/sessions", "get">, SessionMeta[]>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/sessions/{session_id}/laps", "get">, LapWithRef[]>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/laps/{lap_id}", "get">, LapWithRef>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/laps/{lap_id}", "patch">, LapMeta>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/laps/{lap_id}/trace", "get">, TraceResponse>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/compare", "get">, CompareResponse>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/laps/{lap_id}/compare-candidates", "get">, CompareCandidate[]>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/tracks/{track_id}/map", "get">, TrackMap>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/tracks/{track_id}/geometry", "get">, TrackGeometry>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/tracks/{track_id}/landmarks", "post">, TrackMap>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/tracks/{track_id}/landmarks/{landmark_id}", "patch">, TrackMap>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/tracks/{track_id}/landmarks/{landmark_id}", "delete">, TrackMap>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/tracks/{track_id}/calibrate", "post">, CalibrationResult>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/coach", "post">, CoachResult>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/coach/results", "get">, CoachResults>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/coach/findings/{finding_id}", "patch">, Finding>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/sessions/{session_id}/summary", "get">, SessionSummary>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/sessions/{session_id}/setup", "get">, CarSetup>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/sessions/{session_id}/ideal", "get">, IdealLap>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/sessions/{session_id}/segment-times", "get">, SegmentTimes>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/sessions/{session_id}/stints", "get">, Stint[]>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/sessions/{session_id}/report", "get">, SessionReport>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/import", "post">, ImportResult>>().toEqualTypeOf<true>();
+    expectTypeOf<Serves<Ok<"/api/llm/usage", "get">, LlmUsage>>().toEqualTypeOf<true>();
   });
 });
 
