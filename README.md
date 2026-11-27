@@ -15,8 +15,8 @@ just LMU.
 
 ## Status
 
-The frontend runs on a mock API that serves real Spa and Monza recordings. The backend has not
-been started.
+The frontend talks to the real backend (`backend/`) by default. `VITE_API=mock` still runs it on a
+mock API that serves real Spa and Monza recordings.
 
 GitHub Issues is disabled: work is tracked privately. Outside contributions are welcome as pull requests.
 
@@ -30,8 +30,22 @@ npm ci
 npm run dev
 ```
 
-This opens the app at http://localhost:5173 with the mock API enabled. See
+This opens the app at http://localhost:5173, which proxies `/api` to the backend, so start the
+backend first (below). For the mock API instead, run `VITE_API=mock npm run dev`. See
 [`frontend/README.md`](frontend/README.md) for all commands.
+
+### Backend
+
+You need [uv](https://docs.astral.sh/uv/).
+
+```bash
+cd backend
+cp .env.example .env     # then set RACECOACH_LMU_TELEMETRY_DIR and your LLM provider's API key
+uv run racecoach serve   # http://127.0.0.1:8765
+```
+
+The server watches `RACECOACH_LMU_TELEMETRY_DIR` and imports each finished LMU recording. Run both
+servers (backend, then `npm run dev` in `frontend/`) to use the app on your own sessions.
 
 ## Repository layout
 
