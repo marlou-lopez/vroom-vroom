@@ -16,6 +16,26 @@ rates_app = typer.Typer(help="LMU recording rates.", no_args_is_help=True)
 app.add_typer(rates_app, name="rates")
 track_data_app = typer.Typer(help="Derived track geometry data.", no_args_is_help=True)
 app.add_typer(track_data_app, name="track-data")
+setup_app = typer.Typer(help="Stored car setups.", no_args_is_help=True)
+app.add_typer(setup_app, name="setup")
+
+
+@setup_app.command("backfill")
+def setup_backfill() -> None:
+    """Fill the setup of sessions imported before it was stored, from their raw copies."""
+    from .settings import Settings
+    from .setup_backfill import backfill_setups
+    from .store import AppStore
+
+    settings = Settings()
+    with AppStore(settings.db_path, settings.traces_dir) as store:
+        result = backfill_setups(store)
+    for session_id, reason in result.unreadable:
+        typer.echo(f"could not read {session_id[:12]}: {reason}", err=True)
+    typer.echo(
+        f"filled {len(result.filled)}, skipped {len(result.skipped)} (already had a setup), "
+        f"could not read {len(result.unreadable)}"
+    )
 
 
 @track_data_app.command("install")

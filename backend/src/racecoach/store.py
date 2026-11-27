@@ -234,6 +234,29 @@ class AppStore:
         ).fetchone()
         return json.loads(row[0]) if row else {}
 
+    def has_session_setup(self, session_id: str) -> bool:
+        return (
+            self.con.execute(
+                "SELECT 1 FROM session_setup WHERE session_id = ?", [session_id]
+            ).fetchone()
+            is not None
+        )
+
+    def add_session_setup(self, session_id: str, setup: dict[str, str]) -> None:
+        """Store a setup for a session that has none; an existing one is never overwritten."""
+        self.con.execute(
+            "INSERT INTO session_setup SELECT ?, ? WHERE NOT EXISTS"
+            " (SELECT 1 FROM session_setup WHERE session_id = ?)",
+            [session_id, json.dumps(setup), session_id],
+        )
+
+    def session_raw_paths(self) -> list[tuple[str, str]]:
+        """(session id, raw copy path) of every stored session, oldest first."""
+        rows = self.con.execute(
+            "SELECT session_id, raw_path FROM sessions ORDER BY started_at, session_id"
+        ).fetchall()
+        return [(r[0], r[1]) for r in rows]
+
     def stint_stats(self, session_id: str) -> dict[str, dict[str, Any]]:
         """lap_id -> the stored per-lap stint stats (vroom-9ki.18); empty when there are none."""
         rows = self.con.execute(
