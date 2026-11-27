@@ -7,13 +7,15 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from racecoach.analysis.corners import DetectedCorner, detect_corners
 from racecoach.model import LapTrace
 
 
 class Corner(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     id: str
     name: str
     start_m: float
@@ -24,6 +26,8 @@ class Corner(BaseModel):
 
 
 class Landmark(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     id: str
     label: str
     kind: Literal["brake_board", "kerb_entry", "kerb_apex", "kerb_exit", "custom"]
@@ -33,6 +37,8 @@ class Landmark(BaseModel):
 
 
 class TrackMap(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     track_id: str
     length_m: float
     corners: list[Corner] = []
@@ -67,7 +73,11 @@ def save_map(tracks_dir: Path | str, m: TrackMap) -> Path:
 def draft_map(track_id: str, ref: LapTrace) -> TrackMap:
     corners = [
         Corner(
-            id=f"t{i}", name=f"T{i}", start_m=d.start_m, apex_m=d.apex_m, end_m=d.end_m,
+            id=f"t{i}",
+            name=f"T{i}",
+            start_m=d.start_m,
+            apex_m=d.apex_m,
+            end_m=d.end_m,
             approx=False,
         )
         for i, d in enumerate(detect_corners(ref), start=1)
@@ -101,7 +111,10 @@ def calibrate(m: TrackMap, detected: list[DetectedCorner], tol_m: float = 150) -
             corners.append(
                 c.model_copy(
                     update={
-                        "start_m": d.start_m, "apex_m": d.apex_m, "end_m": d.end_m, "approx": False,
+                        "start_m": d.start_m,
+                        "apex_m": d.apex_m,
+                        "end_m": d.end_m,
+                        "approx": False,
                     }
                 )
             )

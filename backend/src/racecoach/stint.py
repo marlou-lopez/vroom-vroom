@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from racecoach.lmu.reader import load_cars_config
 from racecoach.model import Channel, LapKind, LapMeta, RawSession
@@ -82,6 +82,8 @@ class StintFalloffFuelCorrected(BaseModel):
 
 
 class Stint(BaseModel):
+    model_config = ConfigDict(json_schema_serialization_defaults_required=True)
+
     stint_no: int
     laps: list[StintLap]
     falloff: StintFalloff | None = None

@@ -22,6 +22,7 @@ from racecoach.analysis.consistency import (
     timed_laps,
 )
 from racecoach.analysis.corners import detect_corners
+from racecoach.api import schemas as S
 from racecoach.api import views
 from racecoach.api.errors import ApiError
 from racecoach.coach.packet import build_packet  # noqa: F401  (kept importable for tests)
@@ -110,19 +111,19 @@ def need_map(store: AppStore, settings: Settings, track_id: str) -> TrackMap:
 # --- sessions and laps -------------------------------------------------------------------------
 
 
-@router.get("/sessions")
+@router.get("/sessions", response_model=list[S.SessionMetaOut])
 def sessions(store: Store) -> list[dict[str, Any]]:
     return [views.session_json(s) for s in store.sessions()]
 
 
-@router.get("/sessions/{session_id}/laps")
+@router.get("/sessions/{session_id}/laps", response_model=list[S.LapWithRefOut])
 def session_laps(session_id: str, store: Store) -> list[dict[str, Any]]:
     s = need_session(store, session_id)
     ref = store.reference_for(s.track_id, s.car_id)
     return [views.lap_json(m, store, ref, True) for m in store.laps(session_id)]
 
 
-@router.get("/laps/{lap_id}")
+@router.get("/laps/{lap_id}", response_model=S.LapWithRefOut)
 def one_lap(lap_id: str, store: Store) -> dict[str, Any]:
     lap = need_lap(store, lap_id)
     ref = store.reference_for(lap.track_id, lap.car_id)
@@ -135,7 +136,7 @@ class LapPatch(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-@router.patch("/laps/{lap_id}")
+@router.patch("/laps/{lap_id}", response_model=S.LapMetaOut)
 def patch_lap(lap_id: str, patch: LapPatch, store: Store) -> dict[str, Any]:
     need_lap(store, lap_id)
     sent = patch.model_fields_set
@@ -149,7 +150,7 @@ def patch_lap(lap_id: str, patch: LapPatch, store: Store) -> dict[str, Any]:
     return views.lap_json(need_lap(store, lap_id), store)
 
 
-@router.get("/laps/{lap_id}/trace")
+@router.get("/laps/{lap_id}/trace", response_model=S.TraceResponse)
 def lap_trace(lap_id: str, store: Store, channels: str | None = None) -> dict[str, Any]:
     need_lap(store, lap_id)
     trace = need_trace(store, lap_id)
@@ -168,7 +169,7 @@ def lap_trace(lap_id: str, store: Store, channels: str | None = None) -> dict[st
 
 
 def _ideal_for(store: AppStore, settings: Settings, lap: LapMeta, ref_id: str) -> tuple[Any, ...]:
-    sid = ref_id[len(views.IDEAL_PREFIX):]
+    sid = ref_id[len(views.IDEAL_PREFIX) :]
     if sid != lap.session_id:
         raise ApiError("unknown_lap", f"The ideal lap {ref_id} is not this lap's session's.")
     s = need_session(store, sid)
@@ -176,7 +177,7 @@ def _ideal_for(store: AppStore, settings: Settings, lap: LapMeta, ref_id: str) -
     return session_pairs(store, sid), tmap
 
 
-@router.get("/compare")
+@router.get("/compare", response_model=S.CompareResponse)
 def compare(lap: str, store: Store, settings: Cfg, ref: str | None = None) -> dict[str, Any]:
     lap_meta = need_lap(store, lap)
     lap_s = need_session(store, lap_meta.session_id)
@@ -218,16 +219,14 @@ def _time_text(s: float | None) -> str:
     return f"{int(m)}:{sec:06.3f}"
 
 
-@router.get("/laps/{lap_id}/compare-candidates")
+@router.get("/laps/{lap_id}/compare-candidates", response_model=list[S.CompareCandidate])
 def compare_candidates(lap_id: str, store: Store, settings: Cfg) -> list[dict[str, Any]]:
     lap = need_lap(store, lap_id)
     sess = {s.session_id: s for s in store.sessions()}
     ref = store.reference_for(lap.track_id, lap.car_id)
     out: list[dict[str, Any]] = []
     try:
-        pool = [
-            p for p in session_pairs(store, lap.session_id) if p[0].lap_time_s
-        ]  # noqa: E501
+        pool = [p for p in session_pairs(store, lap.session_id) if p[0].lap_time_s]  # noqa: E501
         ideal = ideal_lap(pool, need_map(store, settings, lap.track_id), "session")
         label = f"Ideal lap (session) {_time_text(ideal.time_s)}"
         out.append({
@@ -259,7 +258,7 @@ def compare_candidates(lap_id: str, store: Store, settings: Cfg) -> list[dict[st
 # --- tracks ------------------------------------------------------------------------------------
 
 
-@router.get("/tracks/{track_id}/map")
+@router.get("/tracks/{track_id}/map", response_model=S.TrackMapOut)
 def track_map(track_id: str, store: Store, settings: Cfg) -> dict[str, Any]:
     return need_map(store, settings, track_id).model_dump(mode="json")
 
@@ -302,10 +301,8 @@ def _track_lap_ids(store: AppStore, track_id: str) -> tuple[str, ...]:
     return tuple(x.lap_id for x in laps if store.trace_path(x.lap_id).is_file())
 
 
-@router.get("/tracks/{track_id}/geometry")
-def track_geometry(
-    track_id: str, request: Request, store: Store, settings: Cfg
-) -> dict[str, Any]:
+@router.get("/tracks/{track_id}/geometry", response_model=S.TrackGeometry)
+def track_geometry(track_id: str, request: Request, store: Store, settings: Cfg) -> dict[str, Any]:
     """A track's centreline, elevation, edges and kerbs; cached until the line or data change."""
     found = _centreline_lap(store, track_id)
     if found is None:
@@ -350,7 +347,7 @@ def _landmark_index(m: TrackMap, landmark_id: str) -> int:
     raise ApiError("unknown_landmark", f"Landmark {landmark_id} is not on this track's map.")
 
 
-@router.post("/tracks/{track_id}/landmarks")
+@router.post("/tracks/{track_id}/landmarks", response_model=S.TrackMapOut)
 def add_landmark(track_id: str, new: NewLandmark, store: Store, settings: Cfg) -> dict[str, Any]:
     m = need_map(store, settings, track_id)
     lm = Landmark(id=f"lm-{uuid.uuid4().hex[:8]}", confidence="confirmed", **new.model_dump())
@@ -359,7 +356,7 @@ def add_landmark(track_id: str, new: NewLandmark, store: Store, settings: Cfg) -
     return m.model_dump(mode="json")
 
 
-@router.patch("/tracks/{track_id}/landmarks/{landmark_id}")
+@router.patch("/tracks/{track_id}/landmarks/{landmark_id}", response_model=S.TrackMapOut)
 def patch_landmark(
     track_id: str, landmark_id: str, patch: LandmarkPatch, store: Store, settings: Cfg
 ) -> dict[str, Any]:
@@ -377,10 +374,8 @@ def patch_landmark(
     return m.model_dump(mode="json")
 
 
-@router.delete("/tracks/{track_id}/landmarks/{landmark_id}")
-def delete_landmark(
-    track_id: str, landmark_id: str, store: Store, settings: Cfg
-) -> dict[str, Any]:
+@router.delete("/tracks/{track_id}/landmarks/{landmark_id}", response_model=S.TrackMapOut)
+def delete_landmark(track_id: str, landmark_id: str, store: Store, settings: Cfg) -> dict[str, Any]:
     m = need_map(store, settings, track_id)
     i = _landmark_index(m, landmark_id)
     m = m.model_copy(update={"landmarks": [lm for k, lm in enumerate(m.landmarks) if k != i]})
@@ -388,7 +383,7 @@ def delete_landmark(
     return m.model_dump(mode="json")
 
 
-@router.post("/tracks/{track_id}/calibrate")
+@router.post("/tracks/{track_id}/calibrate", response_model=S.CalibrationResultOut)
 def calibrate_track(track_id: str, store: Store, settings: Cfg) -> dict[str, Any]:
     ref = track_reference(store, track_id)
     if ref is None or not store.trace_path(ref.lap_id).is_file():
@@ -427,7 +422,7 @@ def _no_findings(store: AppStore, lap: LapMeta, req: CoachRequest) -> CoachResul
     return store.save_coach_result(result)
 
 
-@router.post("/coach")
+@router.post("/coach", response_model=S.CoachResultOut)
 def coach(req: CoachRequest, store: Store, settings: Cfg) -> dict[str, Any]:
     lap = need_lap(store, req.lap_id)
     if req.command != "average":
@@ -437,13 +432,11 @@ def coach(req: CoachRequest, store: Store, settings: Cfg) -> dict[str, Any]:
             own = ref is not None and ref.lap_id == lap.lap_id
         if own:
             return _no_findings(store, lap, req).model_dump(mode="json")
-    result = run_coach(
-        store, settings, req.command, req.lap_id, req.ref_lap_id, req.corner_id
-    )
+    result = run_coach(store, settings, req.command, req.lap_id, req.ref_lap_id, req.corner_id)
     return result.model_dump(mode="json")
 
 
-@router.get("/coach/results")
+@router.get("/coach/results", response_model=dict[str, S.CoachResultOut])
 def coach_results(lap: str, store: Store, ref: str | None = None) -> dict[str, Any]:
     found = store.latest_coach_results(lap, ref)
     return {c: r.model_dump(mode="json") for c, r in found.items()}
@@ -453,7 +446,7 @@ class FindingPatch(BaseModel):
     reviewed: bool
 
 
-@router.patch("/coach/findings/{finding_id}")
+@router.patch("/coach/findings/{finding_id}", response_model=S.FindingOut)
 def patch_finding(finding_id: str, patch: FindingPatch, store: Store) -> dict[str, Any]:
     try:
         result = store.set_finding_reviewed(finding_id, patch.reviewed)
@@ -465,7 +458,7 @@ def patch_finding(finding_id: str, patch: FindingPatch, store: Store) -> dict[st
 # --- session views -----------------------------------------------------------------------------
 
 
-@router.get("/sessions/{session_id}/summary")
+@router.get("/sessions/{session_id}/summary", response_model=S.SessionSummary)
 def session_summary(session_id: str, store: Store, settings: Cfg) -> dict[str, Any]:
     s = need_session(store, session_id)
     metas = store.laps(session_id)
@@ -499,7 +492,7 @@ def session_summary(session_id: str, store: Store, settings: Cfg) -> dict[str, A
     }  # fmt: skip
 
 
-@router.get("/sessions/{session_id}/setup")
+@router.get("/sessions/{session_id}/setup", response_model=S.CarSetup)
 def session_setup(session_id: str, store: Store) -> dict[str, Any]:
     need_session(store, session_id)
     # empty when the recording has no setup: unknown, not "none"
@@ -507,7 +500,7 @@ def session_setup(session_id: str, store: Store) -> dict[str, Any]:
     return {"entries": [{"key": k, "label": setup_label(k), "value": v} for k, v in setup.items()]}
 
 
-@router.get("/sessions/{session_id}/ideal")
+@router.get("/sessions/{session_id}/ideal", response_model=S.IdealLap)
 def session_ideal(
     session_id: str, store: Store, settings: Cfg, scope: Literal["session", "all"] = "session"
 ) -> dict[str, Any]:
@@ -523,7 +516,7 @@ def session_ideal(
     return views.ideal_json(ideal_lap(pairs, tmap, scope))
 
 
-@router.get("/sessions/{session_id}/segment-times")
+@router.get("/sessions/{session_id}/segment-times", response_model=S.SegmentTimes)
 def segment_times(session_id: str, store: Store, settings: Cfg) -> dict[str, Any]:
     s = need_session(store, session_id)
     tmap = need_map(store, settings, s.track_id)
@@ -533,7 +526,7 @@ def segment_times(session_id: str, store: Store, settings: Cfg) -> dict[str, Any
     return views.segment_times_json(pairs, tmap)
 
 
-@router.get("/sessions/{session_id}/stints")
+@router.get("/sessions/{session_id}/stints", response_model=list[S.StintOut])
 def stints(session_id: str, store: Store) -> list[dict[str, Any]]:
     try:
         found = session_stints(store, session_id)
@@ -542,7 +535,7 @@ def stints(session_id: str, store: Store) -> list[dict[str, Any]]:
     return [s.model_dump(mode="json") for s in found]
 
 
-@router.get("/sessions/{session_id}/report")
+@router.get("/sessions/{session_id}/report", response_model=S.SessionReport)
 def session_report(session_id: str, store: Store, settings: Cfg) -> dict[str, Any]:
     """The session report: per-lap series, the events the fixed rules find (`racecoach.report`,
     a port of `frontend/src/lib/sessionReport.ts`) and the working windows. Categories whose input
@@ -581,7 +574,7 @@ class ImportRequest(BaseModel):
     path: str
 
 
-@router.post("/import")
+@router.post("/import", response_model=S.ImportResult)
 def import_recording(req: ImportRequest, store: Store, settings: Cfg) -> dict[str, Any]:
     path = Path(req.path).expanduser()
     if not path.is_file():
@@ -593,7 +586,7 @@ def import_recording(req: ImportRequest, store: Store, settings: Cfg) -> dict[st
     return {"session_id": res.session_id, "n_laps": res.lap_count, "skipped": not res.imported}
 
 
-@router.get("/llm/usage")
+@router.get("/llm/usage", response_model=S.LlmUsage)
 def llm_usage(store: Store) -> dict[str, Any]:
     return {
         "calls": [
