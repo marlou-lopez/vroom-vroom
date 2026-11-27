@@ -144,18 +144,28 @@ export function buildTerrain(track: TrackLines, heights: ArrayLike<number>, tile
   }
   const w = tiles.length ? i1 - i0 + 1 : 0, rows = tiles.length ? k1 - k0 + 1 : 0;
   const h = new Float32Array(w * rows).fill(NaN), alpha = new Float32Array(w * rows);
+  // Squared distance from each node to the line (within reachM), by stamping every 4th centreline point onto the nodes around it: far cheaper than a scan per node.
+  let near2: Float32Array | null = null;
+  if (grid) {
+    near2 = new Float32Array(w * rows).fill(Infinity);
+    const r = Math.ceil(reachM / GRID_M) + 1;
+    for (let m = 0; m < n; m += 4) {
+      const ci = Math.round(cx[m] / GRID_M), ck = Math.round(cz[m] / GRID_M);
+      for (let k = Math.max(ck - r, k0); k <= Math.min(ck + r, k1); k++) for (let i = Math.max(ci - r, i0); i <= Math.min(ci + r, i1); i++) {
+        const d2 = (cx[m] - i * GRID_M) ** 2 + (cz[m] - k * GRID_M) ** 2, s = (k - k0) * w + (i - i0);
+        if (d2 < near2[s]) near2[s] = d2;
+      }
+    }
+  }
   for (const t of tiles) {
     for (let a = 0; a <= per; a++) for (let b = 0; b <= per; b++) {
       const i = t.x / GRID_M + a, k = t.z / GRID_M + b, s = (k - k0) * w + (i - i0);
       if (!Number.isNaN(h[s])) continue;
       const x = i * GRID_M, z = k * GRID_M;
       if (grid) {
-        // The terrain model's height, read from the file: only the fade needs the distance to the line.
+        // The terrain model's height, read from the file; only the fade needs the distance to the line (splatted once below).
         const g = i >= grid.i0 && i < grid.i0 + grid.w && k >= grid.k0 && k < grid.k0 + grid.rows ? grid.heights[(k - grid.k0) * grid.w + (i - grid.i0)] : NaN;
-        let d2 = Infinity;
-        for (let m = 0; m < n; m += MIX_STEP) d2 = Math.min(d2, (cx[m] - x) ** 2 + (cz[m] - z) ** 2);
-        const alpha0 = 1 - smoothstep(reachM * FADE_FROM, reachM, Math.sqrt(d2));
-        if (Number.isFinite(g)) { h[s] = g - GROUND_DROP_M; alpha[s] = alpha0; continue; }
+        if (Number.isFinite(g)) { h[s] = g - GROUND_DROP_M; alpha[s] = 1 - smoothstep(reachM * FADE_FROM, reachM, Math.sqrt(near2![s])); continue; }
       }
       let sw = 0, sh = 0, min = Infinity;
       for (let m = 0; m < n; m += MIX_STEP) {
