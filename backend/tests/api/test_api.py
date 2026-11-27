@@ -331,6 +331,14 @@ def test_import_route(env, tmp_path: Path):
     assert c.post("/api/import", json={"path": str(fixture)}).json()["skipped"] is True
     stints = c.get(f"/api/sessions/{first['session_id']}/stints")
     assert stints.status_code == 200 and stints.json()
+    setup = c.get(f"/api/sessions/{first['session_id']}/setup")
+    assert setup.status_code == 200
+    entries = {e["key"]: e for e in setup.json()["entries"]}
+    assert len(entries) > 100
+    assert all(set(e) == {"key", "label", "value"} for e in entries.values())
+    assert entries["VM_BRAKE_BALANCE"]["label"] == "Brake balance"
+    assert entries["VM_BRAKE_BALANCE"]["value"] == "52.2:47.8"
+    assert "gearGraph" not in entries and "symmetric" not in entries
 
 
 def test_serves_frontend_dist(tmp_path: Path):
@@ -391,7 +399,7 @@ def test_geometry_without_derived_data(env):
     g = c.get("/api/tracks/synth-ring-gp/geometry").json()
     assert set(g) == {
         "track_id", "length_m", "centre", "elevation_m", "survey", "aerial", "coverage",
-        "transform",
+        "telemetry", "transform",
     }  # fmt: skip
     assert g["track_id"] == "synth-ring-gp" and g["length_m"] == 2000.0
     assert len(g["centre"]["lat"]) == len(g["centre"]["lon"]) == 2000
@@ -444,6 +452,7 @@ def test_geometry_with_elevation_survey_and_aerial(env):
     assert 295 <= s["kerbs"][0]["start_m"] <= 305 and 315 <= s["kerbs"][0]["end_m"] <= 325
     assert len(s["edge_points"]) == 1 and s["kerb_outer_points"] == []
     assert 0.45 < g["coverage"]["left"] < 0.55 and g["coverage"]["right"] == 0.0
+    assert g["telemetry"] is None  # a survey always wins over the fallback
     a = g["aerial"]
     assert a["attribution"] == "credit" and a["licence_url"] is None
     assert len(a["edge_points"]) == 1
@@ -476,3 +485,110 @@ def test_geometry_spa_files_match_mock_shapes(env):
     assert len(g["elevation_m"]) == n and sum(v is not None for v in g["elevation_m"]) > 0.9 * n
     assert len(g["survey"]["left_m"]) == n and g["coverage"]["left"] > 0.5
     assert g["survey"]["kerbs"] and g["aerial"]["edge_points"]
+
+
+def test_report_lists_unavailable_categories_and_never_an_empty_pass(env):
+    c, store, _ = env
+    rep = c.get(f"/api/sessions/{SID}/report").json()
+    reasons = {u["category"]: u["reason"] for u in rep["unavailable"]}
+    assert "no stint stats" in reasons["tyres"] and "in-car setting events" in reasons["settings"]
+    assert {"tyres", "brakes", "conditions", "settings"} <= set(reasons)
+    for lap in rep["laps"]:
+        assert lap["settings"] is None and lap["tyre_surface_c"] is None
+    for e in rep["events"]:
+        assert e["category"] in ("driving", "pace")  # only what the stored data can judge
+        assert set(e) == {
+            "id", "category", "kind", "severity", "lap_from", "lap_to", "corner", "distance_m",
+            "numbers", "coincides", "sentence",
+        }  # fmt: skip
+    assert rep["windows"] == [] or rep["car_class"] in ("GT3", "Hypercar", "LMP2")
+    err(c.get("/api/sessions/nope/report"), 404, "unknown_session")
+
+
+def test_coach_against_the_ideal_lap(env):
+    c, _, _ = env
+    ideal = f"ideal:{SID}"
+    r = c.post("/api/coach", json={"command": "analyze", "lap_id": lap_id(3), "ref_lap_id": ideal})
+    assert r.status_code == 200, r.text
+    assert r.json()["ref_lap_id"] == ideal
+    got = c.get("/api/coach/results", params={"lap": lap_id(3), "ref": ideal}).json()
+    assert got["analyze"]["id"] == r.json()["id"]
+    err(
+        c.post("/api/coach", json={
+            "command": "analyze", "lap_id": lap_id(3), "ref_lap_id": f"ideal:{'x' * 40}"}),
+        404, "unknown_lap",
+    )
+
+
+def test_coach_ideal_without_a_valid_lap_is_422(env):
+    c, store, _ = env
+    for no in (1, 2, 3, 4):
+        store.set_valid_override(lap_id(no), False)
+    err(
+        c.post("/api/coach", json={
+            "command": "analyze", "lap_id": lap_id(3), "ref_lap_id": f"ideal:{SID}"}),
+        422, "no_valid_laps",
+    )
+
+
+def test_car_dims_from_cars_yaml(env):
+    """A car with car_dims in cars.yaml gets them in SessionMeta and compare; else null."""
+    c, store, _ = env
+    add_session(
+        store, OTHER, track_id="synth-ring-gp", car_id="mclaren-720s-gt3-evo", laps=[1],
+        car_name="McLaren",
+    )  # fmt: skip
+    by_id = {s["session_id"]: s for s in c.get("/api/sessions").json()}
+    dims = by_id[OTHER]["car_dims"]
+    assert dims is not None and dims["length_m"] > 4 and dims["width_m"] > 1.8
+    assert by_id[SID]["car_dims"] is None
+    body = c.get("/api/compare", params={"lap": lap_id(2), "ref": f"{OTHER[:12]}-001"}).json()
+    assert body["lap_car_dims"] is None and body["ref_car_dims"] == dims
+    body = c.get("/api/compare", params={"lap": f"{OTHER[:12]}-001", "ref": lap_id(2)}).json()
+    assert body["lap_car_dims"] == dims and body["ref_car_dims"] is None
+
+
+def test_car_dims_for_config(tmp_path: Path):
+    from racecoach.lmu.reader import car_dims_for
+
+    p = tmp_path / "cars.yaml"
+    p.write_text(
+        "car_dims:\n  a: {length_m: 4.5, width_m: 2.0, wheelbase_m: 2.7}\n  b: {length_m: 4.5}\n"
+        "  c: {length_m: 4.4, width_m: 1.9}\n",
+        encoding="utf-8",
+    )
+    assert car_dims_for("a", p) == {"length_m": 4.5, "width_m": 2.0, "wheelbase_m": 2.7}
+    assert car_dims_for("b", p) is None  # incomplete
+    assert car_dims_for("c", p) == {"length_m": 4.4, "width_m": 1.9}
+    assert car_dims_for("zzz", p) is None
+
+
+def test_car_dims_for_rejects_bad_values(tmp_path: Path):
+    from racecoach.lmu.reader import car_dims_for
+
+    p = tmp_path / "cars.yaml"
+    p.write_text(
+        "car_dims:\n  a: {length_m: 4.5, width_m: 2.0, wheelbase_m: x}\n"
+        "  b: {length_m: 0, width_m: 2.0}\n",
+        encoding="utf-8",
+    )
+    assert car_dims_for("a", p) is None
+    assert car_dims_for("b", p) is None
+
+@pytest.mark.skipif(not (MOCK / "spa-elevation-2026-11-05.json").is_file(), reason="mock data")
+def test_geometry_route_for_the_spa_fixture_after_install(env):
+    from racecoach.track_data import SPA_TRACK_ID, install_track_data
+
+    c, _, settings = env
+    fixture = Path(__file__).parent.parent / "fixtures" / "spa_720s.duckdb"
+    sid = c.post("/api/import", json={"path": str(fixture)}).json()["session_id"]
+    track_id = next(s["track_id"] for s in c.get("/api/sessions").json() if s["session_id"] == sid)
+    assert track_id == SPA_TRACK_ID
+    before = c.get(f"/api/tracks/{track_id}/geometry").json()
+    assert before["elevation_m"] is None and before["aerial"] is None
+    install_track_data("spa", settings.track_data_path, source_dir=MOCK)
+    g = c.get(f"/api/tracks/{track_id}/geometry").json()
+    n = len(g["centre"]["lat"])
+    assert sum(v is not None for v in g["elevation_m"]) > 0.9 * n
+    assert g["survey"]["left_m"] and g["coverage"]["left"] > 0.5
+    assert g["aerial"]["attribution"] and g["aerial"]["edge_points"]

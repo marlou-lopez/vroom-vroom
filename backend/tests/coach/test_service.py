@@ -197,3 +197,86 @@ def test_reanalyze_supersedes_the_open_focus_item(tmp_path):
     run_coach(store, settings, "analyze", lap_id(2), model=ok_model())
     run_coach(store, settings, "analyze", lap_id(2), model=ok_model())
     assert [i["status"] for i in store.focus_items()] == ["superseded", "open"]
+
+
+def _seen_packets():
+    seen: list[dict] = []
+
+    def answer(p, n):
+        seen.append(p)
+        return json.dumps(good_answer(p))
+
+    return seen, model_of(answer)
+
+
+def test_analyze_against_the_ideal_lap_calls_no_network(tmp_path):
+    store, settings = make_store(tmp_path)
+    ideal = f"ideal:{'s' * 40}"
+    seen, model = _seen_packets()
+    r = run_coach(store, settings, "analyze", lap_id(2), ref_lap_id=ideal, model=model)
+    assert r.ref_lap_id == ideal and r.findings
+    assert r.warnings == [] and len(seen) == 1
+    assert store.latest_coach_results(lap_id(2), ideal)["analyze"].id == r.id
+    text = json.dumps(seen[0])
+    assert "ideal lap of this session" in seen[0]["reference"]
+    assert "lap 0" not in seen[0]["reference"] and "where you braked on lap" not in text
+    assert "ideal" in seen[0]["notes"]
+
+
+def test_ideal_of_another_session_is_unknown_lap(tmp_path):
+    store, settings = make_store(tmp_path)
+    with pytest.raises(CoachError) as e:
+        run_coach(store, settings, "analyze", lap_id(2), ref_lap_id=f"ideal:{'x' * 40}",
+                  model=model_of(boom))
+    assert e.value.code == "unknown_lap"
+
+
+def test_ideal_without_a_valid_lap_raises_no_valid_laps(tmp_path):
+    from racecoach.analysis.consistency import NoValidLaps
+
+    store, settings = make_store(tmp_path)
+    for no in (1, 2, 3, 4):
+        store.set_valid_override(lap_id(no), False)
+    with pytest.raises(NoValidLaps):
+        run_coach(store, settings, "analyze", lap_id(2), ref_lap_id=f"ideal:{'s' * 40}",
+                  model=model_of(boom))
+
+
+def test_reference_points_across_a_join_are_left_out(tmp_path):
+    from racecoach.analysis.facts import lap_facts
+    from racecoach.coach.packet import _across_join
+    from tests.coach.helpers import TMAP
+
+    store, _ = make_store(tmp_path)
+    facts = lap_facts(TMAP, store.read_trace(lap_id(2)), store.read_trace(lap_id(1)))
+    cf = next(f for f in facts.corners if f.corner_id == "t1")
+    corner = TMAP.corners[0]
+    assert cf.ref.brake_onset_m is not None and cf.ref.throttle_pickup_m is not None
+    # no join between the points and the apex: nothing changes
+    same, dropped = _across_join(cf, corner, [300, 650])
+    assert same is cf and not dropped
+    # a join between the braking point and the apex: braking is dropped, the throttle stays
+    cut, dropped = _across_join(cf, corner, [round(corner.apex_m) - 1])
+    assert dropped and cut.ref.brake_onset_m is None and cut.cues.brake_ref is None
+    assert cut.ref.throttle_pickup_m == cf.ref.throttle_pickup_m
+    # the lap's own side is never touched
+    assert cut.lap == cf.lap
+
+
+def test_corner_dict_notes_a_reference_across_a_join(tmp_path):
+    from racecoach.analysis.facts import lap_facts
+    from racecoach.coach.packet import Ctx, _corner_dict
+    from racecoach.model import LapTrace  # noqa: F401
+    from tests.coach.helpers import TMAP
+
+    store, _ = make_store(tmp_path)
+    lap, ref = store.read_trace(lap_id(2)), store.read_trace(lap_id(1))
+    cf = next(f for f in lap_facts(TMAP, lap, ref).corners if f.corner_id == "t1")
+    corner = TMAP.corners[0]
+    plain = _corner_dict(cf, corner, "issue", Ctx(TMAP, lap, ref, None), cf.delta_s)
+    assert "note on the reference" not in plain
+    joined = _corner_dict(
+        cf, corner, "issue", Ctx(TMAP, lap, ref, None, [round(corner.apex_m) - 1]), cf.delta_s
+    )
+    assert "note on the reference" in joined
+    assert joined["this lap against the reference"]["braking starts"].endswith("against n/a")

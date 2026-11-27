@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
+import numpy as np
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
@@ -26,10 +27,13 @@ from racecoach.api.errors import ApiError
 from racecoach.coach.packet import build_packet  # noqa: F401  (kept importable for tests)
 from racecoach.coach.schema import CoachResult, Command
 from racecoach.coach.service import run_coach
+from racecoach.edges import telemetry_edges
 from racecoach.geometry import build_geometry, track_data_files
 from racecoach.importer import import_file
 from racecoach.model import GRID_CHANNELS, LapKind, LapMeta, LapSource, LapTrace, SessionMeta
+from racecoach.report import ReportInput, ReportLapInput, build_report, trace_facts
 from racecoach.settings import Settings
+from racecoach.setup_labels import setup_label
 from racecoach.stint import session_stints
 from racecoach.store import AppStore
 from racecoach.tracks import Landmark, TrackMap, calibrate, load_map, map_for, save_map
@@ -270,6 +274,32 @@ def _centreline_lap(store: AppStore, track_id: str) -> tuple[LapMeta, float] | N
 
 
 _geometry_lock = threading.Lock()
+_EDGE_CHANNELS = ("path_lateral", "track_edge", "kerb", "speed_kmh")
+
+
+def _telemetry_fallback(store: AppStore, track_id: str, n: int) -> dict[str, Any]:
+    """Edges and kerbs from every lap of the track that has a trace (vroom-ohw)."""
+    laps = []
+    for lap_id in _track_lap_ids(store, track_id):
+        trace = store.read_trace(lap_id)
+        if not all(c in trace.ch for c in _EDGE_CHANNELS):
+            continue
+        # An out-lap's grid starts where it left the pits: index by distance, not position.
+        idx = trace.distance.astype(int)
+        keep = (idx >= 0) & (idx < n)
+        lap = {}
+        for c in _EDGE_CHANNELS:
+            full = np.full(n, np.nan)
+            full[idx[keep]] = trace.ch[c][keep]
+            lap[c] = full
+        laps.append(lap)
+    return telemetry_edges(laps, n)
+
+
+def _track_lap_ids(store: AppStore, track_id: str) -> tuple[str, ...]:
+    sids = {s.session_id for s in store.sessions() if s.track_id == track_id}
+    laps = (x for x in store.laps() if x.session_id in sids)
+    return tuple(x.lap_id for x in laps if store.trace_path(x.lap_id).is_file())
 
 
 @router.get("/tracks/{track_id}/geometry")
@@ -283,7 +313,9 @@ def track_geometry(
     lap, length = found
     files = track_data_files(settings.track_data_path, track_id)
     stamp = tuple(f.stat().st_mtime_ns if f.is_file() else None for f in files.values())
-    key = (track_id, lap.lap_id, stamp)
+    # No survey: edges and kerbs come from all the track's laps, so a new lap refreshes them.
+    fallback = not files["survey"].is_file()
+    key = (track_id, lap.lap_id, stamp, _track_lap_ids(store, track_id) if fallback else None)
     with _geometry_lock:
         if not hasattr(request.app.state, "geometry_cache"):
             request.app.state.geometry_cache = {}
@@ -292,8 +324,9 @@ def track_geometry(
             ch = need_trace(store, lap.lap_id).ch
             for k in [k for k in cache if k[0] == track_id]:
                 cache.pop(k, None)
+            tel = _telemetry_fallback(store, track_id, len(ch["lat"])) if fallback else None
             cache[key] = build_geometry(
-                track_id, length, ch["lat"], ch["lon"], settings.track_data_path
+                track_id, length, ch["lat"], ch["lon"], settings.track_data_path, tel
             )
         return cache[key]
 
@@ -469,7 +502,9 @@ def session_summary(session_id: str, store: Store, settings: Cfg) -> dict[str, A
 @router.get("/sessions/{session_id}/setup")
 def session_setup(session_id: str, store: Store) -> dict[str, Any]:
     need_session(store, session_id)
-    return {"entries": []}  # the setup is not read from the recording yet: unknown, not "none"
+    # empty when the recording has no setup: unknown, not "none"
+    setup = store.session_setup(session_id)
+    return {"entries": [{"key": k, "label": setup_label(k), "value": v} for k, v in setup.items()]}
 
 
 @router.get("/sessions/{session_id}/ideal")
@@ -507,43 +542,36 @@ def stints(session_id: str, store: Store) -> list[dict[str, Any]]:
     return [s.model_dump(mode="json") for s in found]
 
 
-def _axles(w: dict[str, float] | None) -> dict[str, float] | None:
-    if not w:
-        return None
-    return {"front": (w["fl"] + w["fr"]) / 2, "rear": (w["rl"] + w["rr"]) / 2}
-
-
 @router.get("/sessions/{session_id}/report")
-def session_report(session_id: str, store: Store) -> dict[str, Any]:
-    """A first report: the per-lap series from the stint stats. The rules that find events are
-    not ported to the backend yet, so `events` is empty and every category is unavailable."""
+def session_report(session_id: str, store: Store, settings: Cfg) -> dict[str, Any]:
+    """The session report: per-lap series, the events the fixed rules find (`racecoach.report`,
+    a port of `frontend/src/lib/sessionReport.ts`) and the working windows. Categories whose input
+    is not stored (the in-car setting events, stint stats, traces) are listed as unavailable."""
     s = need_session(store, session_id)
-    stats = store.stint_stats(session_id)
-    laps = []
-    for m in store.laps(session_id):
-        st = stats.get(m.lap_id)
-        laps.append({
-            "lap_id": m.lap_id, "lap_no": m.lap_no, "kind": m.kind.value,
-            "lap_time_s": m.lap_time_s, "valid": m.effective_valid,
-            "has_trace": store.trace_path(m.lap_id).is_file(),
-            "tyre_surface_c": _axles(st and st.get("tyre_surface_c")),
-            "tyre_carcass_c": _axles(st and st.get("tyre_carcass_c")),
-            "tyre_pressure_kpa": _axles(st and st.get("tyre_pressure_kpa")),
-            "brake_c": _axles(st and st.get("brake_c")),
-            "track_temp_c": st.get("track_temp_c") if st else None,
-            "fuel_end_l": st.get("fuel_end_l") if st else None,
-            "energy_end_pct": st.get("energy_end_pct") if st else None,
-            "settings": None,
-        })  # fmt: skip
-    reason = "The report's rules are not built in the backend yet."
-    return {
-        "session_id": session_id, "car_class": s.car_class, "compound": "dry",
-        "laps": laps, "events": [], "windows": [],
-        "unavailable": [
-            {"category": c, "reason": reason}
-            for c in ("tyres", "brakes", "driving", "settings", "pace", "conditions")
-        ],
-    }  # fmt: skip
+    stints = session_stints(store, session_id)
+    stats = [lap for st in stints for lap in st.laps] or None
+    try:
+        corners = need_map(store, settings, s.track_id).corners
+    except ApiError:
+        corners = []
+    metas = store.laps(session_id)
+    inputs, traces, activation = [], {}, {}
+    for m in metas:
+        has_trace = store.trace_path(m.lap_id).is_file()
+        inputs.append(ReportLapInput(
+            m.lap_id, m.lap_no, m.kind.value, m.lap_time_s, m.effective_valid, has_trace
+        ))  # fmt: skip
+        if has_trace:
+            facts = trace_facts(store.read_trace(m.lap_id), corners)
+            traces[m.lap_no] = facts
+            if facts.aids:
+                activation[m.lap_no] = {
+                    k: float(sum(e - b + 1 for b, e in facts.aids[a]))
+                    for k, a in (("abs_m", "abs"), ("tc_m", "tc"))
+                }  # fmt: skip
+    return build_report(ReportInput(
+        session_id, s.car_class, inputs, stats, stints, corners, traces, activation
+    ))  # fmt: skip
 
 
 # --- import and usage --------------------------------------------------------------------------
